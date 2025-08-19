@@ -2,10 +2,10 @@
 # Install with: pip install -r REQ.TXT
 
 fastapi==0.115.12
-uvicorn[standard]==0.34.2
+uvicorn[standard]==0.33.0
 Jinja2==3.1.6
 openpyxl==3.0.10
-pydantic==2.11.7
+pydantic
 
 # Optional:
 # python-multipart==0.0.9   # רק אם מחזירים העלאת קבצים מה-UI (multipart)

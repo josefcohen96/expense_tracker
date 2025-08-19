@@ -133,8 +133,8 @@ def seed_defaults(conn: sqlite3.Connection) -> None:
         conn.executemany(
             "INSERT INTO users (id, name, is_active) VALUES (?, ?, 1)",
             [
-                (1, "User 1"),
-                (2, "User 2"),
+                (1, "Yosef"),
+                (2, "Karina"),
             ],
         )
 

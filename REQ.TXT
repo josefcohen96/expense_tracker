@@ -1,0 +1,12 @@
+# CoupleBudget (Local) — minimal runtime dependencies
+# Install with: pip install -r REQ.TXT
+
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+Jinja2==3.1.6
+openpyxl==3.0.10
+pydantic==2.11.7
+
+# Optional:
+# python-multipart==0.0.9   # רק אם מחזירים העלאת קבצים מה-UI (multipart)
+# XlsxWriter==3.2.1         # כתיבת Excel מהירה יותר (לא חובה)

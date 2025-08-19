@@ -44,6 +44,24 @@ def on_startup() -> None:
             print(f"Applied {inserted} recurring transactions on startup.")
     except Exception as exc:
         print(f"Failed to apply recurring transactions: {exc}")
+    # Optional: create auto-backup on startup if enabled
+    try:
+        if str(os.getenv("AUTO_BACKUP_ON_STARTUP", "1")) in {"1", "true", "True"}:
+            bpath = backup.create_backup(only_if_no_backup_today=True)
+            print(f"Startup backup ensured at: {bpath}")
+    except Exception as exc:
+        print(f"Startup backup failed: {exc}")
+
+
+@app.on_event("shutdown")
+def on_shutdown() -> None:
+    # Optional: create auto-backup on shutdown if enabled
+    try:
+        if str(os.getenv("AUTO_BACKUP_ON_SHUTDOWN", "1")) in {"1", "true", "True"}:
+            bpath = backup.create_backup(only_if_no_backup_today=True)
+            print(f"Shutdown backup ensured at: {bpath}")
+    except Exception as exc:
+        print(f"Shutdown backup failed: {exc}")
 
 
 def get_db_conn() -> sqlite3.Connection:

@@ -29,6 +29,31 @@ BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 DEFAULT_RETENTION = 30
 
 
+def _get_retention_days_from_env() -> int:
+    """Return retention days from env var `BACKUP_RETENTION_DAYS` if set.
+
+    Falls back to DEFAULT_RETENTION on invalid or missing values.
+    """
+    try:
+        value = int(os.getenv("BACKUP_RETENTION_DAYS", str(DEFAULT_RETENTION)))
+        return value if value > 0 else DEFAULT_RETENTION
+    except Exception:
+        return DEFAULT_RETENTION
+
+
+def has_backup_for_date(target_dt: datetime) -> bool:
+    """Check if there is already a backup file for the given date (YYYYMMDD).
+
+    This helps avoid creating multiple backups on the same day when
+    auto-backups are enabled on startup and shutdown.
+    """
+    ymd = target_dt.strftime("%Y%m%d")
+    for path in BACKUP_DIR.glob(f"budget_{ymd}_*.xlsx"):
+        if path.exists():
+            return True
+    return False
+
+
 def list_backups() -> List[Dict[str, Any]]:
     """Return a list of existing backup files sorted by creation time (descending)."""
     backups: List[Dict[str, Any]] = []
@@ -57,7 +82,7 @@ def enforce_retention(retention: int = DEFAULT_RETENTION) -> None:
             pass
 
 
-def create_backup() -> Path:
+def create_backup(only_if_no_backup_today: bool = False) -> Path:
     """Create a new Excel backup and return the file path.
 
     The backup contains one sheet per table in the database. A
@@ -66,6 +91,12 @@ def create_backup() -> Path:
     avoid partial writes.
     """
     now = datetime.now()
+    if only_if_no_backup_today and has_backup_for_date(now):
+        # Find the most recent backup for today and return its path
+        existing = list_backups()
+        for info in existing:
+            if info["file_name"].startswith(now.strftime("budget_%Y%m%d_")):
+                return BACKUP_DIR / info["file_name"]
     filename = f"budget_{now:%Y%m%d_%H%M%S}.xlsx"
     temp_path = BACKUP_DIR / f".{filename}.tmp"
     final_path = BACKUP_DIR / filename
@@ -95,8 +126,8 @@ def create_backup() -> Path:
         wb.save(temp_path)
     # Atomically move temp file to final location
     temp_path.rename(final_path)
-    # Enforce retention
-    enforce_retention()
+    # Enforce retention (configurable via env)
+    enforce_retention(retention=_get_retention_days_from_env())
     return final_path
 
 

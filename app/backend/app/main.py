@@ -18,8 +18,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import db, recurrence, backup, schemas
+from urllib.parse import parse_qs
 
 from datetime import datetime
+import os
 
 
 app = FastAPI(title="CoupleBudget Local", version="0.1.0")
@@ -44,6 +46,24 @@ def on_startup() -> None:
             print(f"Applied {inserted} recurring transactions on startup.")
     except Exception as exc:
         print(f"Failed to apply recurring transactions: {exc}")
+    # Optional: auto-backup on startup
+    if os.getenv("COUPLEBUDGET_BACKUP_ON_START", "0") in {"1", "true", "True", "yes"}:
+        try:
+            path = backup.create_backup()
+            print(f"Startup backup created: {path.name}")
+        except Exception as exc:
+            print(f"Failed to create startup backup: {exc}")
+
+
+@app.on_event("shutdown")
+def on_shutdown() -> None:
+    # Optional: auto-backup on shutdown
+    if os.getenv("COUPLEBUDGET_BACKUP_ON_SHUTDOWN", "1") in {"1", "true", "True", "yes"}:
+        try:
+            path = backup.create_backup()
+            print(f"Shutdown backup created: {path.name}")
+        except Exception as exc:
+            print(f"Failed to create shutdown backup: {exc}")
 
 
 def get_db_conn() -> sqlite3.Connection:
@@ -118,7 +138,9 @@ async def create_transaction(request: Request, db_conn: sqlite3.Connection = Dep
     `python-multipart`, which may not be installed in all
     environments.
     """
-    form = await request.form()
+    # Parse URL-encoded form without python-multipart
+    body = await request.body()
+    form = {k: v[0] if isinstance(v, list) else v for k, v in parse_qs(body.decode("utf-8")).items()}
     date = form.get("date")
     amount = form.get("amount")
     category_id = form.get("category_id")
@@ -181,7 +203,9 @@ async def create_recurrence(request: Request, db_conn: sqlite3.Connection = Depe
     Extracts form fields manually to avoid dependency on
     `python-multipart`.
     """
-    form = await request.form()
+    # Parse URL-encoded form without python-multipart
+    body = await request.body()
+    form = {k: v[0] if isinstance(v, list) else v for k, v in parse_qs(body.decode("utf-8")).items()}
     name = form.get("name")
     amount = form.get("amount")
     category_id = form.get("category_id")

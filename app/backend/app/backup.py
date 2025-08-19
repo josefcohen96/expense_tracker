@@ -93,8 +93,14 @@ def create_backup() -> Path:
         ])
         # Save to temporary file
         wb.save(temp_path)
-    # Atomically move temp file to final location
-    temp_path.rename(final_path)
+    # Atomically move temp file to final location (replace if exists)
+    try:
+        temp_path.replace(final_path)
+    except Exception:
+        # Fallback for older Python implementations
+        if final_path.exists():
+            final_path.unlink()
+        temp_path.rename(final_path)
     # Enforce retention
     enforce_retention()
     return final_path

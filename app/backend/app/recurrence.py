@@ -167,8 +167,10 @@ def apply_recurring(today: Optional[date] = None) -> int:
         if last_opened_str:
             last_opened = parse_date(last_opened_str)
         else:
-            # Default to the earliest possible date: use one day before today
-            last_opened = today
+            # Default to a very early date so we backfill from each recurrence's start
+            # on first run. This ensures all missing periods since the defined
+            # start_date are generated idempotently.
+            last_opened = date(1900, 1, 1)
 
         # Ensure we process at least the current period
         if last_opened > today:

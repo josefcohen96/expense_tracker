@@ -10,6 +10,14 @@
   <form method="post" action="/backup/create">
     <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded">צור גיבוי Excel</button>
   </form>
+  <div class="mt-4 text-sm text-gray-600">
+    <p>גיבוי אוטומטי מופעל כברירת מחדל בעת הפעלה וכיבוי. ניתן לשנות באמצעות משתני סביבה:</p>
+    <ul class="list-disc mr-5">
+      <li><code>AUTO_BACKUP_ON_STARTUP=1</code></li>
+      <li><code>AUTO_BACKUP_ON_SHUTDOWN=1</code></li>
+      <li><code>BACKUP_RETENTION_DAYS=30</code></li>
+    </ul>
+  </div>
 </div>
 
 <!-- Restore from backup removed: use restore links next to each file -->

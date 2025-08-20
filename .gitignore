@@ -44,3 +44,7 @@ coverage/
 htmlcov/
 *.egg-info/
 .eggs/
+
+# Ignore runtime logs and generated backups
+logs/
+backups/

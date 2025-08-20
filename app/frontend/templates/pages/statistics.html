@@ -40,6 +40,16 @@
   <section class="bg-white rounded-2xl shadow p-5 xl:col-span-3">
     <header class="flex items-center justify-between mb-4">
       <h2 class="text-lg font-semibold">חלוקה לפי קטגוריה</h2>
+      <!-- Month selector for category chart -->
+      <div>
+        <label for="donut-months" class="mr-2">חודש:</label>
+        <select id="donut-months" class="border rounded px-2 py-1" multiple>
+          {% for m in monthly_expenses %}
+            <option value="{{ m.month }}">{{ m.month }}</option>
+          {% endfor %}
+        </select>
+        <small>בחר חודש אחד או יותר</small>
+      </div>
     </header>
     <div class="relative h-72 md:h-80 xl:h-96">
       <canvas id="donut-chart" class="absolute inset-0"></canvas>

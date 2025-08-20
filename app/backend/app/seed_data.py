@@ -5,7 +5,7 @@ import random, datetime
 
 DB_PATH = Path(__file__).resolve().parent / "data" / "couplebudget.sqlite3"
 
-def seed_transactions(n_months=6, per_month=8):
+def seed_transactions(n_months=2, per_month=8):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()

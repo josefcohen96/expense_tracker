@@ -126,14 +126,69 @@ async def recurrences_page(request: Request, db_conn: sqlite3.Connection = Depen
 @router.get("/backup", response_class=HTMLResponse)
 async def backup_page(request: Request) -> HTMLResponse:
     from ..api import backup as backup_mod
-    backups = backup_mod.api_backup_list()
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        backups_model = await backup_mod.api_backup_list()
+        raw_backups = backups_model.backups if backups_model is not None else []
+    except Exception:
+        logger.exception("Failed to fetch backup list for page")
+        raw_backups = []
+
+    backups = []
+    for b in raw_backups:
+        try:
+            # support pydantic model attributes or plain dicts with various key names
+            file_name = (
+                getattr(b, "file_name", None)
+                or getattr(b, "file", None)
+                or getattr(b, "name", None)
+                or (b.get("file_name") if isinstance(b, dict) else None)
+                or (b.get("file") if isinstance(b, dict) else None)
+                or (b.get("name") if isinstance(b, dict) else None)
+            )
+            created_at = (
+                getattr(b, "created_at", None)
+                or getattr(b, "created", None)
+                or (b.get("created_at") if isinstance(b, dict) else None)
+                or (b.get("created") if isinstance(b, dict) else None)
+            )
+            size = (
+                getattr(b, "size", None)
+                or (b.get("size") if isinstance(b, dict) else None)
+            )
+
+            # if metadata missing, try to stat the file in BACKUP_DIR
+            if (created_at in (None, "")) and file_name:
+                try:
+                    p = backup_mod.BACKUP_DIR / file_name
+                    if p.exists():
+                        created_at = datetime.fromtimestamp(p.stat().st_mtime).isoformat()
+                        size = p.stat().st_size if size in (None, 0) else size
+                except Exception:
+                    logger.debug("Cannot stat backup file %s", file_name, exc_info=True)
+
+            backups.append({
+                "file_name": file_name or "",
+                "created_at": created_at or "",
+                "size": int(size or 0),
+            })
+        except Exception:
+            logger.exception("Failed to normalize backup item")
+            continue
+
     return templates.TemplateResponse("pages/backup.html", {"request": request, "backups": backups})
 
 
 @router.post("/backup/create")
-async def backup_create() -> RedirectResponse:
+async def backup_create(db_conn: sqlite3.Connection = Depends(get_db_conn)) -> RedirectResponse:
     from ..api import backup as backup_mod
-    backup_mod.create_backup()
+    # pass DB connection to the create function so the service can query transactions
+    try:
+        path = backup_mod.create_backup(db_conn)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
     return RedirectResponse(url="/backup", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -152,7 +207,7 @@ async def backup_restore_file(file_name: str) -> RedirectResponse:
 
 @router.get("/backup/download/{file_name}")
 async def backup_download(file_name: str) -> FileResponse:
-    from .. import backup as backup_mod
+    from ..api import backup as backup_mod
     file_path = backup_mod.BACKUP_DIR / file_name
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Backup not found")
@@ -170,25 +225,26 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
         GROUP BY ym
         ORDER BY ym
     """).fetchall()
-    monthly_expenses = [{"month": r["ym"], "expenses": float(
-        r["expenses"] or 0.0)} for r in monthly]
+    # monthly_expenses = [{"month": r["ym"], "expenses": float(
+    #     r["expenses"] or 0.0)} for r in monthly]
 
-    cats = db_conn.execute(
-        "SELECT id, name FROM categories ORDER BY name").fetchall()
+    # cats = db_conn.execute(
+    #     "SELECT id, name FROM categories ORDER BY name").fetchall()
     users = db_conn.execute(
         "SELECT id, name FROM users ORDER BY id").fetchall()
 
-    cat_rows = db_conn.execute("""
-        SELECT c.name AS category,
-               SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS expenses
-        FROM transactions t
-        JOIN categories c ON t.category_id = c.id
-        WHERE t.date >= date('now','-6 months')
-        GROUP BY c.name
-        ORDER BY expenses DESC
-    """).fetchall()
-    cat_breakdown = [{"label": r["category"], "value": float(
-        r["expenses"] or 0.0)} for r in cat_rows]
+    # cat_rows = db_conn.execute("""
+    #     SELECT c.name AS category,
+    #            SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS expenses
+    #     FROM transactions t
+    #     JOIN categories c ON t.category_id = c.id
+    #     WHERE t.date >= date('now','-6 months')
+    #     GROUP BY c.name
+    #     ORDER BY expenses DESC
+    # """).fetchall()
+
+    # cat_breakdown = [{"label": r["category"], "value": float(
+    #     r["expenses"] or 0.0)} for r in cat_rows]
 
     category_rows = db_conn.execute("""
         SELECT c.name AS category,
@@ -199,17 +255,18 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
         GROUP BY c.name
         ORDER BY c.name
     """).fetchall()
-    user_rows = db_conn.execute("""
-        SELECT u.name AS user,
-               SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS expenses
-        FROM transactions t
-        JOIN users u ON t.user_id = u.id
-        WHERE t.date >= date('now','-6 months')
-        GROUP BY u.name
-        ORDER BY expenses DESC
-    """).fetchall()
-    user_breakdown = [{"label": r["user"], "value": float(
-        r["expenses"] or 0.0)} for r in user_rows]
+    # user_rows = db_conn.execute("""
+    #      SELECT u.name AS user,
+    #             SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS expenses
+    #      FROM transactions t
+    #      JOIN users u ON t.user_id = u.id
+    #      WHERE t.date >= date('now','-6 months')
+    #      GROUP BY u.name
+    #      ORDER BY expenses DESC
+    #  """).fetchall()
+
+    # user_breakdown = [{"label": r["user"], "value": float(
+    #     r["expenses"] or 0.0)} for r in user_rows]
 
     return templates.TemplateResponse(
         "pages/statistics.html",

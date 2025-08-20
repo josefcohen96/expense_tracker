@@ -2,16 +2,52 @@
 {% block title %}סטטיסטיקות{% endblock %}
 
 {% block content %}
-<h1 class="text-2xl font-bold mb-4">סטטיסטיקות</h1>
+<h1 class="text-2xl font-bold mb-6">סטטיסטיקות</h1>
 
-<!-- טבלאות/גרפים -->
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-  <canvas id="monthly-chart"></canvas>
-  <canvas id="user-chart"></canvas>
-  <canvas id="donut-chart"></canvas>
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+  <!-- חודשי -->
+  <section class="bg-white rounded-2xl shadow p-5 xl:col-span-2">
+    <header class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold">הוצאות 6 חודשים אחרונים</h2>
+      <!-- קטגוריה סינון -->
+      <div>
+        <label for="monthly-category" class="mr-2">קטגוריה:</label>
+        <select id="monthly-category" class="border rounded px-2 py-1">
+          <option value="total">סה"כ</option>
+          {% for cat in category_expenses %}
+            <option value="{{ cat.category }}">{{ cat.category }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </header>
+    <!-- שמים קונטיינר עם גובה קבוע וה-canvas מתרחב בתוכו -->
+    <div class="relative h-72 md:h-80 xl:h-96">
+      <canvas id="monthly-chart" class="absolute inset-0"></canvas>
+    </div>
+  </section>
+
+  <!-- לפי משתמש -->
+  <section class="bg-white rounded-2xl shadow p-5">
+    <header class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold">הוצאות לפי משתמש</h2>
+    </header>
+    <div class="relative h-72 md:h-80">
+      <canvas id="user-chart" class="absolute inset-0"></canvas>
+    </div>
+  </section>
+
+  <!-- לפי קטגוריה -->
+  <section class="bg-white rounded-2xl shadow p-5 xl:col-span-3">
+    <header class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold">חלוקה לפי קטגוריה</h2>
+    </header>
+    <div class="relative h-72 md:h-80 xl:h-96">
+      <canvas id="donut-chart" class="absolute inset-0"></canvas>
+    </div>
+  </section>
 </div>
 
-<!-- JSON Data -->
+<!-- נתוני JSON (כמו שיש לך כבר) -->
 <script id="monthly-data" type="application/json">
   {{ (monthly_expenses | default([])) | tojson }}
 </script>
@@ -22,12 +58,17 @@
   {{ (category_expenses | default([])) | tojson }}
 </script>
 
-<!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- ספריות -->
+<script src="{{ url_for('static', path='js/vendor/chart.umd.min.js') }}"></script>
+<script src="{{ url_for('static', path='js/vendor/htmx.min.js') }}"></script>
 
-<!-- Vendor Scripts -->
+<!-- מודולים של הגרפים -->
 <script type="module" src="{{ url_for('static', path='js/charts/helpers.js') }}"></script>
 <script type="module" src="{{ url_for('static', path='js/charts/monthly.js') }}"></script>
 <script type="module" src="{{ url_for('static', path='js/charts/user-bar.js') }}"></script>
 <script type="module" src="{{ url_for('static', path='js/charts/donut.js') }}"></script>
+
+<!-- Debug: show monthly_expenses as JSON -->
+<pre>{{ monthly_expenses | tojson }}</pre>
+
 {% endblock %}

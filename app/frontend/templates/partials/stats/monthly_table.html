@@ -1,0 +1,17 @@
+<h2 class="text-lg font-semibold mt-8 mb-2">טבלה: הוצאות חודשיות</h2>
+<table class="min-w-full text-center border border-gray-200 rounded overflow-hidden">
+  <thead class="bg-gray-50">
+    <tr>
+      <th class="px-4 py-2 border-b">חודש (YYYY-MM)</th>
+      <th class="px-4 py-2 border-b">סך הוצאות (₪)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in monthly_expenses %}
+    <tr class="hover:bg-gray-50">
+      <td class="px-4 py-2 border-b">{{ row.month }}</td>
+      <td class="px-4 py-2 border-b">{{ row.expenses | round(2) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>

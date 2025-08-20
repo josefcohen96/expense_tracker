@@ -1,0 +1,33 @@
+{% extends "layout/base.html" %}
+{% block title %}סטטיסטיקות{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">סטטיסטיקות</h1>
+
+<!-- טבלאות/גרפים -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <canvas id="monthly-chart"></canvas>
+  <canvas id="user-chart"></canvas>
+  <canvas id="donut-chart"></canvas>
+</div>
+
+<!-- JSON Data -->
+<script id="monthly-data" type="application/json">
+  {{ (monthly_expenses | default([])) | tojson }}
+</script>
+<script id="user-data" type="application/json">
+  {{ (user_expenses | default([])) | tojson }}
+</script>
+<script id="category-data" type="application/json">
+  {{ (category_expenses | default([])) | tojson }}
+</script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- Vendor Scripts -->
+<script type="module" src="{{ url_for('static', path='js/charts/helpers.js') }}"></script>
+<script type="module" src="{{ url_for('static', path='js/charts/monthly.js') }}"></script>
+<script type="module" src="{{ url_for('static', path='js/charts/user-bar.js') }}"></script>
+<script type="module" src="{{ url_for('static', path='js/charts/donut.js') }}"></script>
+{% endblock %}

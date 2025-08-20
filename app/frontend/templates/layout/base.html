@@ -1,0 +1,16 @@
+{# Base template shell #}
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+  <head>
+    {% include 'layout/_head.html' %}
+  </head>
+  <body class="bg-gray-100 text-gray-900 min-h-screen">
+    {% include 'layout/_navbar.html' %}
+
+    <main class="max-w-6xl mx-auto px-4">
+      {% block content %}{% endblock %}
+    </main>
+
+    {% include 'layout/_footer.html' %}
+  </body>
+</html>

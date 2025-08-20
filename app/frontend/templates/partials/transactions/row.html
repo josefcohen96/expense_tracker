@@ -1,0 +1,98 @@
+{% set _mode = mode|default('read') %}
+
+{% if _mode == 'read' %}
+<tr id="txrow-{{ tx['id'] }}">
+  <td>{{ tx['date'] }}</td>
+  <td>{{ tx['amount'] }}</td>
+  <td>{{ tx['category_name'] }}</td>
+  <td>{{ tx['user_name'] }}</td>
+  <td>{{ tx['account_name'] or '-' }}</td>
+  <td>{{ tx['notes'] or '' }}</td>
+  <td>{{ tx['tags'] or '' }}</td>
+  <td class="space-x-2">
+    <button class="px-3 py-1 rounded bg-blue-600 text-white"
+            hx-get="/transactions/{{ tx['id'] }}/edit-inline"
+            hx-target="#txrow-{{ tx['id'] }}" hx-swap="outerHTML">עריכה</button>
+    <button class="px-3 py-1 rounded bg-red-600 text-white"
+            hx-post="/transactions/{{ tx['id'] }}/delete-inline"
+            hx-target="#txrow-{{ tx['id'] }}" hx-swap="outerHTML"
+            hx-confirm="למחוק את העסקה? הפעולה בלתי הפיכה.">מחיקה</button>
+  </td>
+</tr>
+{% else %}
+<tr id="txrow-{{ tx['id'] }}">
+  <!-- קלטים משויכים לטופס לפי form="edit-{{id}}" -->
+
+  <td>
+    <input form="edit-{{ tx['id'] }}" name="date" type="date" required
+           value="{{ tx['date'] }}"
+           class="w-full border rounded px-2 py-1">
+  </td>
+
+  <td>
+    <input form="edit-{{ tx['id'] }}" name="amount" type="number" step="0.01" required
+           value="{{ tx['amount'] }}"
+           class="w-full border rounded px-2 py-1">
+  </td>
+
+  <td>
+    <select form="edit-{{ tx['id'] }}" name="category_id" class="w-full border rounded px-2 py-1" required>
+      {% for c in categories %}
+        <option value="{{ c.id }}" {% if c.id == tx['category_id'] %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </td>
+
+  <td>
+    <select form="edit-{{ tx['id'] }}" name="user_id" class="w-full border rounded px-2 py-1" required>
+      {% for u in users %}
+        <option value="{{ u.id }}" {% if u.id == tx['user_id'] %}selected{% endif %}>{{ u.name }}</option>
+      {% endfor %}
+    </select>
+  </td>
+
+  <td>
+    <select form="edit-{{ tx['id'] }}" name="account_id" class="w-full border rounded px-2 py-1">
+      <option value="">-</option>
+      {% for a in accounts %}
+        <option value="{{ a.id }}" {% if tx['account_id'] and a.id == tx['account_id'] %}selected{% endif %}>{{ a.name }}</option>
+      {% endfor %}
+    </select>
+  </td>
+
+  <td>
+    <input form="edit-{{ tx['id'] }}" name="notes" type="text"
+           value="{{ tx['notes'] or '' }}"
+           class="w-full border rounded px-2 py-1">
+  </td>
+
+  <td>
+    <input form="edit-{{ tx['id'] }}" name="tags" type="text"
+           value="{{ tx['tags'] or '' }}"
+           class="w-full border rounded px-2 py-1">
+  </td>
+
+  <td class="space-x-2">
+    <!-- הטופס עצמו: יושב בתא הפעולות -->
+    <form id="edit-{{ tx['id'] }}"
+          hx-post="/transactions/{{ tx['id'] }}/edit-inline"
+          hx-target="#txrow-{{ tx['id'] }}"
+          hx-swap="outerHTML"
+          hx-disabled-elt="this">
+    </form>
+
+    <button type="submit" form="edit-{{ tx['id'] }}"
+            class="px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700">
+      שמירה
+    </button>
+
+    <button type="button"
+            class="px-3 py-1 rounded border hover:bg-gray-50"
+            hx-get="/transactions/{{ tx['id'] }}/row"
+            hx-target="#txrow-{{ tx['id'] }}"
+            hx-swap="outerHTML">
+      ביטול
+    </button>
+  </td>
+</tr>
+{% endif %}

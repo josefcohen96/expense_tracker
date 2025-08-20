@@ -1,0 +1,39 @@
+{% extends 'layout/base.html' %}
+
+{% block title %}גיבויים - CoupleBudget{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">ניהול גיבויים</h1>
+
+<div class="bg-white p-6 rounded-lg shadow mb-8">
+  <h2 class="text-xl font-semibold mb-4">צור גיבוי חדש</h2>
+  <form method="post" action="/backup/create">
+    <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded">צור גיבוי Excel</button>
+  </form>
+</div>
+
+<!-- Restore from backup removed: use restore links next to each file -->
+
+<div class="bg-white p-6 rounded-lg shadow">
+  <h2 class="text-xl font-semibold mb-4">קבצי גיבוי קיימים</h2>
+  {% if backups %}
+  <ul class="space-y-2">
+    {% for b in backups %}
+    <li class="flex items-center justify-between bg-gray-50 p-3 rounded border border-gray-200">
+      <div>
+        <p class="font-mono">{{ b.file_name }}</p>
+        <p class="text-xs text-gray-500">{{ b.created_at }} &middot; {{ (b.size / 1024) | round(1) }} KB</p>
+      </div>
+      <div class="space-x-4 flex">
+        <a href="/backup/download/{{ b.file_name }}" class="text-indigo-600 hover:underline">הורד</a>
+        <a href="/backup/restore/{{ b.file_name }}" class="text-red-600 hover:underline">שחזר</a>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-gray-600">אין גיבויים זמינים.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

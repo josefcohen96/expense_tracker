@@ -1,0 +1,26 @@
+{% extends 'layout/base.html' %}
+
+{% block title %}לוח מחוונים - CoupleBudget{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">לוח מחוונים</h1>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+  <!-- Total Expenses Card -->
+  <div class="bg-white p-6 rounded-lg shadow">
+    <h2 class="text-xl font-semibold mb-2">סה"כ הוצאות</h2>
+    <p class="text-3xl text-red-500 font-bold">₪{{ stats.total_expenses | round(2) }}</p>
+  </div>
+  <!-- Total Income Card -->
+  <div class="bg-white p-6 rounded-lg shadow">
+    <h2 class="text-xl font-semibold mb-2">סה"כ הכנסות</h2>
+    <p class="text-3xl text-green-500 font-bold">₪{{ stats.total_income | round(2) }}</p>
+  </div>
+  <!-- Transactions Count Card -->
+  <div class="bg-white p-6 rounded-lg shadow">
+    <h2 class="text-xl font-semibold mb-2">מספר עסקאות</h2>
+    <p class="text-3xl text-indigo-600 font-bold">{{ stats.transactions_count }}</p>
+  </div>
+</div>
+
+<p class="mt-8 text-gray-600">אני אוהב אותך קואלה שלי</p>
+{% endblock %}

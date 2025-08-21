@@ -1,18 +1,17 @@
-// Debug flag
-const DBG = true;
-
 export function by(id) {
-	const el = document.getElementById(id);
-	if (DBG) console.debug(`[helpers.by] #${id} =>`, !!el);
 	return document.getElementById(id);
 }
 
 export function readJSONScript(scriptId) {
 	const node = document.getElementById(scriptId);
-	if (!node) return [];
+	if (!node) {
+		return [];
+	}
 	try {
-		return JSON.parse(node.textContent || "[]");
-	} catch {
+		const result = JSON.parse(node.textContent || "[]");
+		return result;
+	} catch (error) {
+		console.error(`Error parsing JSON for ${scriptId}:`, error);
 		return [];
 	}
 }

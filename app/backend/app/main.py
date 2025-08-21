@@ -32,17 +32,17 @@ formatter = logging.Formatter(fmt)
 
 # file handler
 file_handler = logging.FileHandler(str(LOG_PATH))
-file_handler.setLevel(logging.INFO)
+file_handler.setLevel(logging.INFO)  # Back to INFO since cache service uses INFO
 file_handler.setFormatter(formatter)
 
 # stream handler (console)
 stream_handler = logging.StreamHandler()
-stream_handler.setLevel(logging.INFO)
+stream_handler.setLevel(logging.INFO)  # Back to INFO since cache service uses INFO
 stream_handler.setFormatter(formatter)
 
 # root logger: ensure level and handlers (avoid duplicates)
 root_logger = logging.getLogger()
-root_logger.setLevel(logging.INFO)
+root_logger.setLevel(logging.INFO)  # Back to INFO since cache service uses INFO
 # add file handler if not present
 if not any(getattr(h, "baseFilename", None) == str(LOG_PATH) for h in root_logger.handlers if isinstance(h, logging.FileHandler)):
     root_logger.addHandler(file_handler)
@@ -53,7 +53,7 @@ if not any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers):
 # also attach file handler to uvicorn loggers so their output goes to the log file
 for uv_logger_name in ("uvicorn.error", "uvicorn.access", "uvicorn"):
     lg = logging.getLogger(uv_logger_name)
-    lg.setLevel(logging.INFO)
+    lg.setLevel(logging.INFO)  # Back to INFO since cache service uses INFO
     if not any(getattr(h, "baseFilename", None) == str(LOG_PATH) for h in lg.handlers if isinstance(h, logging.FileHandler)):
         lg.addHandler(file_handler)
 

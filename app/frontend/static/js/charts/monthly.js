@@ -33,7 +33,7 @@ function getLast6Months(data, category = "total") {
 async function fetchMonthlyData(category = "total") {
   console.debug("[monthly] fetchMonthlyData", { category });
   try {
-    const res = await fetch(`/statistics/monthly?category=${encodeURIComponent(category)}`, { credentials: "same-origin" });
+    const res = await fetch(`/api/statistics/monthly?category=${encodeURIComponent(category)}`, { credentials: "same-origin" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     console.debug("[monthly] fetched", { len: Array.isArray(json) ? json.length : 0 });

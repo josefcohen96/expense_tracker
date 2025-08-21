@@ -25,7 +25,7 @@ def _fetch_tx_row(db_conn: sqlite3.Connection, tx_id: int):
         "JOIN categories c ON t.category_id = c.id "
         "JOIN users u ON t.user_id = u.id "
         "LEFT JOIN accounts a ON t.account_id = a.id "
-        "WHERE t.id = ?", (tx_id,)
+        "WHERE t.id = ? AND t.recurrence_id IS NULL", (tx_id,)
     ).fetchone()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -84,7 +84,7 @@ async def update_transaction_row(
 
         db_conn.execute(
             "UPDATE transactions SET date=?, amount=?, category_id=?, user_id=?, account_id=?, notes=?, tags=? "
-            "WHERE id=?",
+            "WHERE id=? AND recurrence_id IS NULL",
             (date, amount_val, category_int, user_int, account_int, notes, tags, tx_id),
         )
         db_conn.commit()
@@ -104,7 +104,7 @@ async def delete_transaction_row(
     tx_id: int,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> HTMLResponse:
-    db_conn.execute("DELETE FROM transactions WHERE id = ?", (tx_id,))
+    db_conn.execute("DELETE FROM transactions WHERE id = ? AND recurrence_id IS NULL", (tx_id,))
     db_conn.commit()
     # מחזירים מחרוזת ריקה; HTMX יעשה swap=outerHTML => ימחק את השורה
     return HTMLResponse(content="")

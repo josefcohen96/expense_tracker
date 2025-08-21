@@ -18,6 +18,7 @@ def get_monthly_expenses(db_conn: sqlite3.Connection, category_id: int = None, u
                SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END) AS expenses
         FROM transactions
         WHERE date >= ?
+        AND recurrence_id IS NULL
     """
     params: List[Any] = [start_date_str]
     if category_id is not None:

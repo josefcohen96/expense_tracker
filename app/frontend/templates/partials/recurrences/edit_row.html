@@ -1,0 +1,75 @@
+<tr id="recurrence-row-{{ recurrence['id'] }}">
+  <td>
+    <input form="edit-recurrence-{{ recurrence['id'] }}" name="name" type="text" required
+           value="{{ recurrence['name'] }}"
+           class="w-full border rounded px-2 py-1">
+  </td>
+  <td>
+    <input form="edit-recurrence-{{ recurrence['id'] }}" name="amount" type="number" step="0.01" required
+           value="{{ recurrence['amount']|abs }}"
+           class="w-full border rounded px-2 py-1">
+  </td>
+  <td>
+    <select form="edit-recurrence-{{ recurrence['id'] }}" name="category_id" class="w-full border rounded px-2 py-1" required>
+      {% for c in categories %}
+        <option value="{{ c.id }}" {% if c.id == recurrence['category_id'] %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </td>
+  <td>
+    <select form="edit-recurrence-{{ recurrence['id'] }}" name="user_id" class="w-full border rounded px-2 py-1" required>
+      {% for u in users %}
+        <option value="{{ u.id }}" {% if u.id == recurrence['user_id'] %}selected{% endif %}>{{ u.name }}</option>
+      {% endfor %}
+    </select>
+  </td>
+  <td>
+    <select form="edit-recurrence-{{ recurrence['id'] }}" name="frequency" class="w-full border rounded px-2 py-1" required>
+      <option value="monthly" {% if recurrence['frequency'] == 'monthly' %}selected{% endif %}>חודשי</option>
+      <option value="weekly" {% if recurrence['frequency'] == 'weekly' %}selected{% endif %}>שבועי</option>
+      <option value="yearly" {% if recurrence['frequency'] == 'yearly' %}selected{% endif %}>שנתי</option>
+    </select>
+  </td>
+  <td>
+    <input form="edit-recurrence-{{ recurrence['id'] }}" name="start_date" type="date" required
+           value="{{ recurrence['start_date'] }}"
+           class="w-full border rounded px-2 py-1">
+  </td>
+  <td>
+    <input form="edit-recurrence-{{ recurrence['id'] }}" name="end_date" type="date"
+           value="{{ recurrence['end_date'] or '' }}"
+           class="w-full border rounded px-2 py-1">
+  </td>
+  <td>
+    <select form="edit-recurrence-{{ recurrence['id'] }}" name="active" class="w-full border rounded px-2 py-1">
+      <option value="1" {% if recurrence['active'] %}selected{% endif %}>כן</option>
+      <option value="0" {% if not recurrence['active'] %}selected{% endif %}>לא</option>
+    </select>
+  </td>
+  <td class="space-x-2">
+    <!-- הטופס עצמו -->
+    <form id="edit-recurrence-{{ recurrence['id'] }}"
+          hx-post="/recurrences/{{ recurrence['id'] }}/edit-inline"
+          hx-target="#recurrence-row-{{ recurrence['id'] }}"
+          hx-swap="outerHTML"
+          hx-disabled-elt="this">
+      
+      <!-- Hidden fields for frequency-specific data -->
+      <input type="hidden" name="day_of_month" value="{{ recurrence['day_of_month'] or '' }}">
+      <input type="hidden" name="weekday" value="{{ recurrence['weekday'] or '' }}">
+    </form>
+
+    <button type="submit" form="edit-recurrence-{{ recurrence['id'] }}"
+            class="px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700">
+      שמירה
+    </button>
+
+    <button type="button"
+            class="px-3 py-1 rounded border hover:bg-gray-50"
+            hx-get="/recurrences/{{ recurrence['id'] }}/row"
+            hx-target="#recurrence-row-{{ recurrence['id'] }}"
+            hx-swap="outerHTML">
+      ביטול
+    </button>
+  </td>
+</tr>

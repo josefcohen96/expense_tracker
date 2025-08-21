@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Generator
 
 # מיקום ברירת מחדל של מסד הנתונים (תעדכן אם שינית את השם/נתיב)
-DB_PATH = Path(__file__).resolve().parent / "data" / "couplebudget.sqlite3"
+DB_PATH = Path(__file__).resolve().parent.parent / "data" / "budget.db"
 
 
 def get_connection() -> sqlite3.Connection:

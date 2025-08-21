@@ -14,7 +14,7 @@
         <label for="monthly-category" class="mr-2">קטגוריה:</label>
         <select id="monthly-category" class="border rounded px-2 py-1">
           <option value="total">סה"כ</option>
-          {% for cat in category_totals %}
+          {% for cat in category_expenses %}
             <option value="{{ cat.category }}">{{ cat.category }}</option>
           {% endfor %}
         </select>
@@ -61,7 +61,7 @@
   </section>
 
   <!-- לפי קטגוריה -->
-  <section class="bg-white rounded-2xl shadow p-5 xl:col-span-3">
+  <section class="bg-white rounded-2xl shadow p-5 xl:col-span-2">
     <header class="flex items-center justify-between mb-4">
       <h2 class="text-lg font-semibold">חלוקה לפי קטגוריה</h2>
       <!-- Month selector -->
@@ -72,6 +72,16 @@
     </header>
     <div class="relative h-72 md:h-80 xl:h-96">
       <canvas id="donut-chart" class="absolute inset-0"></canvas>
+    </div>
+  </section>
+
+  <!-- לפי משתמש -->
+  <section class="bg-white rounded-2xl shadow p-5">
+    <header class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold">הוצאות קבועות לפי חודש</h2>
+    </header>
+    <div class="relative h-72 md:h-80 xl:h-96">
+      <canvas id="user-bar-chart" class="absolute inset-0"></canvas>
     </div>
   </section>
 </div>
@@ -87,7 +97,45 @@
   {{ (category_expenses | default([])) | tojson }}
 </script>
 <script id="category-totals" type="application/json">
-  {{ (category_totals | default([])) | tojson }}
+  {{ (category_expenses | default([])) | tojson }}
+</script>
+<script id="user-data" type="application/json">
+  {{ (user_expenses | default([])) | tojson }}
+</script>
+<script id="recurring-user-data" type="application/json">
+  {{ (recurring_user_expenses | default([])) | tojson }}
+</script>
+
+
+
+<!-- Debug data for top expenses -->
+<div id="debug-top-expenses" 
+     data-top-expenses='{{ (top_expenses | default([])) | tojson }}'
+     data-top-expenses-length="{{ (top_expenses | default([])) | length }}"
+     style="display: none;">
+</div>
+
+<!-- Debug script for top expenses -->
+<script>
+console.log("=== FRONTEND DEBUG START ===");
+const debugElement = document.getElementById('debug-top-expenses');
+const topExpensesData = JSON.parse(debugElement.dataset.topExpenses);
+const topExpensesLength = parseInt(debugElement.dataset.topExpensesLength);
+
+console.log("Top expenses data from server:", topExpensesData);
+console.log("Top expenses length:", topExpensesLength);
+console.log("Top expenses is empty:", topExpensesLength === 0);
+
+// Check if we're in the else block
+if (topExpensesLength === 0) {
+    console.log("WARNING: No top expenses found - will show 'אין הוצאות' message");
+} else {
+    console.log("Found", topExpensesLength, "top expenses");
+    topExpensesData.forEach((expense, index) => {
+        console.log(`Expense ${index + 1}:`, expense);
+    });
+}
+console.log("=== FRONTEND DEBUG END ===");
 </script>
 
 <!-- ספריות -->
@@ -98,5 +146,6 @@
 <script type="module" src="{{ url_for('static', path='js/charts/helpers.js') }}"></script>
 <script type="module" src="{{ url_for('static', path='js/charts/monthly.js') }}"></script>
 <script type="module" src="{{ url_for('static', path='js/charts/donut.js') }}"></script>
+<script type="module" src="{{ url_for('static', path='js/charts/user-bar.js') }}"></script>
 
 {% endblock %}

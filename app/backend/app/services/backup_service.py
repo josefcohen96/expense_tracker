@@ -95,6 +95,7 @@ def create_backup_file(db_conn: Optional[sqlite3.Connection] = None) -> Path:
                 FROM transactions t
                 LEFT JOIN categories c ON t.category_id = c.id
                 WHERE strftime('%Y-%m', t.date) = ?
+                AND t.recurrence_id IS NULL
                 ORDER BY t.date ASC, t.id ASC
                 """,
                 (ym,),

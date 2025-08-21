@@ -178,6 +178,7 @@ async def evaluate_challenges(
                     AND t.date <= ?
                     AND c.name LIKE '%מזון%'
                     AND t.amount < 0
+                    AND t.recurrence_id IS NULL
                 """, (user_id, row["start_date"], row["end_date"])).fetchone()
                 
                 total_food = food_expenses["total"] or 0
@@ -209,6 +210,7 @@ async def evaluate_challenges(
                     AND date >= ? 
                     AND date <= ?
                     AND amount < 0
+                    AND recurrence_id IS NULL
                 """, (user_id, row["start_date"], row["end_date"])).fetchone()
                 
                 total_expenses = monthly_expenses["total"] or 0

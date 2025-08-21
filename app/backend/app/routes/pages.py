@@ -27,14 +27,13 @@ router = APIRouter(tags=["pages"])
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
     """Dashboard: counters for total txs / total expenses / total income."""
-    print(db_conn)
     stats: Dict[str, Any] = {"transactions_count": 0,
                              "total_expenses": 0.0, "total_income": 0.0}
     cur = db_conn.execute(
         "SELECT COUNT(*), "
         "SUM(CASE WHEN amount < 0 THEN amount ELSE 0 END), "
         "SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) "
-        "FROM transactions"
+        "FROM transactions WHERE recurrence_id IS NULL"
     )
     row = cur.fetchone()
     if row:
@@ -54,6 +53,7 @@ async def transactions_page(request: Request, db_conn: sqlite3.Connection = Depe
         "JOIN categories c ON t.category_id = c.id "
         "JOIN users u ON t.user_id = u.id "
         "LEFT JOIN accounts a ON t.account_id = a.id "
+        "WHERE t.recurrence_id IS NULL "
         "ORDER BY t.date DESC, t.id DESC"
     ).fetchall()
     cats = db_conn.execute(
@@ -120,6 +120,205 @@ async def recurrences_page(request: Request, db_conn: sqlite3.Connection = Depen
         "pages/recurrences.html",
         {"request": request, "recurrences": recs,
             "categories": cats, "users": users},
+    )
+
+
+@router.post("/recurrences")
+async def create_recurrence(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> RedirectResponse:
+    """Handle form submission for creating a new recurrence."""
+    from urllib.parse import parse_qs
+    body = await request.body()
+    form = {k: v[0] if isinstance(v, list) else v for k, v in parse_qs(
+        body.decode("utf-8")).items()}
+    
+    try:
+        # Extract form data
+        name = form.get("name")
+        amount = float(form.get("amount", 0))
+        # Make amount negative since this is an expense
+        amount = -abs(amount)
+        category_id = int(form.get("category_id"))
+        user_id = int(form.get("user_id"))
+        start_date = form.get("start_date")
+        frequency = form.get("frequency")
+        day_of_month = int(form.get("day_of_month")) if form.get("day_of_month") else None
+        weekday = int(form.get("weekday")) if form.get("weekday") else None
+        end_date = form.get("end_date") or None
+        
+        # Insert the recurrence
+        cur = db_conn.execute(
+            "INSERT INTO recurrences (name, amount, category_id, user_id, start_date, end_date, frequency, day_of_month, weekday, active) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                name,
+                amount,
+                category_id,
+                user_id,
+                start_date,
+                end_date,
+                frequency,
+                day_of_month,
+                weekday,
+                1,  # active
+            ),
+        )
+        db_conn.commit()
+        
+        # Apply recurring transactions to add the expense to the database
+        from ..services.recurrence_service import apply_recurring_transactions
+        apply_recurring_transactions()
+        
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return RedirectResponse(url="/recurrences", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/recurrences/{recurrence_id}/edit-inline", response_class=HTMLResponse)
+async def edit_recurrence_inline(
+    recurrence_id: int, 
+    request: Request, 
+    db_conn: sqlite3.Connection = Depends(get_db_conn)
+) -> HTMLResponse:
+    """Get edit form for a recurrence."""
+    recurrence = db_conn.execute(
+        "SELECT r.*, c.name AS category_name, u.name AS user_name "
+        "FROM recurrences r "
+        "JOIN categories c ON r.category_id = c.id "
+        "JOIN users u ON r.user_id = u.id "
+        "WHERE r.id = ?", (recurrence_id,)
+    ).fetchone()
+    
+    if not recurrence:
+        raise HTTPException(status_code=404, detail="Recurrence not found")
+    
+    categories = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    
+    return templates.TemplateResponse(
+        "partials/recurrences/edit_row.html",
+        {
+            "request": request,
+            "recurrence": dict(recurrence),
+            "categories": categories,
+            "users": users
+        }
+    )
+
+
+@router.post("/recurrences/{recurrence_id}/edit-inline", response_class=HTMLResponse)
+async def update_recurrence_inline(
+    recurrence_id: int,
+    request: Request,
+    db_conn: sqlite3.Connection = Depends(get_db_conn)
+) -> HTMLResponse:
+    """Update a recurrence."""
+    from urllib.parse import parse_qs
+    body = await request.body()
+    form = {k: v[0] if isinstance(v, list) else v for k, v in parse_qs(
+        body.decode("utf-8")).items()}
+    
+    try:
+        # Extract form data
+        name = form.get("name")
+        amount = float(form.get("amount", 0))
+        # Make amount negative since this is an expense
+        amount = -abs(amount)
+        category_id = int(form.get("category_id"))
+        user_id = int(form.get("user_id"))
+        start_date = form.get("start_date")
+        frequency = form.get("frequency")
+        day_of_month = int(form.get("day_of_month")) if form.get("day_of_month") else None
+        weekday = int(form.get("weekday")) if form.get("weekday") else None
+        end_date = form.get("end_date") or None
+        active = 1 if form.get("active") else 0
+        
+        # Update the recurrence
+        db_conn.execute(
+            "UPDATE recurrences SET name=?, amount=?, category_id=?, user_id=?, start_date=?, end_date=?, frequency=?, day_of_month=?, weekday=?, active=? WHERE id=?",
+            (
+                name,
+                amount,
+                category_id,
+                user_id,
+                start_date,
+                end_date,
+                frequency,
+                day_of_month,
+                weekday,
+                active,
+                recurrence_id,
+            ),
+        )
+        db_conn.commit()
+        
+        # Apply recurring transactions to update the database
+        from ..services.recurrence_service import apply_recurring_transactions
+        apply_recurring_transactions()
+        
+        # Return the updated row
+        recurrence = db_conn.execute(
+            "SELECT r.*, c.name AS category_name, u.name AS user_name "
+            "FROM recurrences r "
+            "JOIN categories c ON r.category_id = c.id "
+            "JOIN users u ON r.user_id = u.id "
+            "WHERE r.id = ?", (recurrence_id,)
+        ).fetchone()
+        
+        return templates.TemplateResponse(
+            "partials/recurrences/row.html",
+            {
+                "request": request,
+                "recurrence": dict(recurrence)
+            }
+        )
+        
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/recurrences/{recurrence_id}/delete-inline", response_class=HTMLResponse)
+async def delete_recurrence_inline(
+    recurrence_id: int,
+    db_conn: sqlite3.Connection = Depends(get_db_conn)
+) -> HTMLResponse:
+    """Delete a recurrence."""
+    try:
+        # Delete the recurrence
+        db_conn.execute("DELETE FROM recurrences WHERE id = ?", (recurrence_id,))
+        db_conn.commit()
+        
+        # Return empty response (row will be removed from table)
+        return HTMLResponse("")
+        
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/recurrences/{recurrence_id}/row", response_class=HTMLResponse)
+async def get_recurrence_row(
+    recurrence_id: int,
+    request: Request,
+    db_conn: sqlite3.Connection = Depends(get_db_conn)
+) -> HTMLResponse:
+    """Get a single recurrence row for display."""
+    recurrence = db_conn.execute(
+        "SELECT r.*, c.name AS category_name, u.name AS user_name "
+        "FROM recurrences r "
+        "JOIN categories c ON r.category_id = c.id "
+        "JOIN users u ON r.user_id = u.id "
+        "WHERE r.id = ?", (recurrence_id,)
+    ).fetchone()
+    
+    if not recurrence:
+        raise HTTPException(status_code=404, detail="Recurrence not found")
+    
+    return templates.TemplateResponse(
+        "partials/recurrences/row.html",
+        {
+            "request": request,
+            "recurrence": dict(recurrence)
+        }
     )
 
 
@@ -216,35 +415,28 @@ async def backup_download(file_name: str) -> FileResponse:
 
 @router.get("/statistics", response_class=HTMLResponse)
 async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
+    
     # מאתחל נתונים לעמוד סטטיסטיקות
     monthly = db_conn.execute("""
         SELECT strftime('%Y-%m', date) AS ym,
                SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END) AS expenses
         FROM transactions
         WHERE date >= date('now','-5 months','start of month')
+        AND recurrence_id IS NULL
         GROUP BY ym
         ORDER BY ym
     """).fetchall()
-    # monthly_expenses = [{"month": r["ym"], "expenses": float(
-    #     r["expenses"] or 0.0)} for r in monthly]
-
-    # cats = db_conn.execute(
-    #     "SELECT id, name FROM categories ORDER BY name").fetchall()
-    users = db_conn.execute(
-        "SELECT id, name FROM users ORDER BY id").fetchall()
-
-    # cat_rows = db_conn.execute("""
-    #     SELECT c.name AS category,
-    #            SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS expenses
-    #     FROM transactions t
-    #     JOIN categories c ON t.category_id = c.id
-    #     WHERE t.date >= date('now','-6 months')
-    #     GROUP BY c.name
-    #     ORDER BY expenses DESC
-    # """).fetchall()
-
-    # cat_breakdown = [{"label": r["category"], "value": float(
-    #     r["expenses"] or 0.0)} for r in cat_rows]
+    
+    # Get user expenses for user chart
+    users = db_conn.execute("""
+        SELECT u.name AS user_name, ABS(SUM(t.amount)) AS total
+        FROM transactions t
+        JOIN users u ON t.user_id = u.id
+        WHERE t.date >= date('now', '-6 months')
+        AND t.recurrence_id IS NULL
+        GROUP BY u.name
+        ORDER BY total DESC
+    """).fetchall()
 
     # Get monthly category breakdown for donut chart
     category_monthly_rows = db_conn.execute("""
@@ -254,6 +446,7 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
         FROM transactions t
         JOIN categories c ON t.category_id = c.id
         WHERE t.date >= date('now','start of month','-5 months')
+        AND t.recurrence_id IS NULL
         GROUP BY month, c.name
         ORDER BY month ASC, c.name ASC
     """).fetchall()
@@ -265,45 +458,84 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
         FROM transactions t
         JOIN categories c ON t.category_id = c.id
         WHERE t.date >= date('now','start of month','-5 months')
+        AND t.recurrence_id IS NULL
         GROUP BY c.name
         ORDER BY c.name
     """).fetchall()
-    # user_rows = db_conn.execute("""
-    #      SELECT u.name AS user,
-    #             SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS expenses
-    #      FROM transactions t
-    #      JOIN users u ON t.user_id = u.id
-    #      WHERE t.date >= date('now','-6 months')
-    #      GROUP BY u.name
-    #      ORDER BY expenses DESC
-    #  """).fetchall()
+    
+    # *** THIS WAS MISSING! *** Get top 5 expenses in last 3 months
+    
+    # First, let's debug what we have in the database
+    debug_query = db_conn.execute("""
+        SELECT COUNT(*) as total_count,
+               COUNT(CASE WHEN amount < 0 THEN 1 END) as negative_count,
+               COUNT(CASE WHEN amount > 0 THEN 1 END) as positive_count,
+               MIN(date) as min_date,
+               MAX(date) as max_date
+        FROM transactions 
+        WHERE date >= date('now', '-3 months')
+        AND recurrence_id IS NULL
+    """).fetchone()
+    
+    top_expenses = db_conn.execute("""
+        SELECT 
+            t.id,
+            t.date,
+            t.amount,
+            t.notes,
+            c.name AS category,
+            u.name AS user_name,
+            a.name AS account_name
+        FROM transactions t
+        JOIN categories c ON t.category_id = c.id
+        JOIN users u ON t.user_id = u.id
+        LEFT JOIN accounts a ON t.account_id = a.id
+        WHERE t.date >= date('now', '-3 months')
+        AND t.amount < 0  -- רק הוצאות (סכומים שליליים)
+        AND t.recurrence_id IS NULL
+        ORDER BY ABS(t.amount) DESC
+        LIMIT 5
+    """).fetchall()
+    
+    # הוצאות קבועות לפי חודש
+    
 
-    # user_breakdown = [{"label": r["user"], "value": float(
-    #     r["expenses"] or 0.0)} for r in user_rows]
+    
+    # הוצאות קבועות לפי חודש (כמו MONTHLY)
+    recurring_monthly = db_conn.execute("""
+        SELECT strftime('%Y-%m', t.date) AS month,
+               ABS(SUM(t.amount)) AS total
+        FROM transactions t
+        WHERE t.date >= date('now', '-6 months')
+        AND t.recurrence_id IS NOT NULL
+        GROUP BY strftime('%Y-%m', t.date)
+        ORDER BY month ASC
+    """).fetchall()
+    
+    template_data = {
+        "request": request,
+        "monthly_expenses": [dict(r) for r in (monthly or [])],
+        "user_expenses": [dict(r) for r in (users or [])],
+        "recurring_user_expenses": [dict(r) for r in (recurring_monthly or [])],
+        "category_expenses": [dict(r) for r in (category_monthly_rows or [])],
+        "category_totals": [dict(r) for r in (category_total_rows or [])],
+        "top_expenses": [dict(r) for r in (top_expenses or [])],  # *** ADDED THIS! ***
+    }
+    
+    return templates.TemplateResponse("pages/statistics.html", template_data)
 
-    return templates.TemplateResponse(
-        "pages/statistics.html",
-        {
-            "request": request,
-            "monthly_expenses": [dict(r) for r in (monthly or [])],
-            "user_expenses": [dict(r) for r in (users or [])],
-            "category_expenses": [dict(r) for r in (category_monthly_rows or [])],
-            "category_totals": [dict(r) for r in (category_total_rows or [])],
-        }
-    )
 
-
-def _find_db_file() -> Optional[Path]:
+def _find_db_file() -> Optional[FSPath]:
 	# mirror logic used by backup_service
 	candidates = [
 		os.getenv("COUPLEBUDGET_DB"),
 		"data.db", "couplebudget.db", "db.sqlite3", "app.db", "database.db"
 	]
-	root_dir = Path(__file__).resolve().parents[3]  # .../expense_tracker/app
+	root_dir = FSPath(__file__).resolve().parents[3]  # .../expense_tracker/app
 	for c in candidates:
 		if not c:
 			continue
-		p = Path(c) if Path(c).is_absolute() else root_dir / c
+		p = FSPath(c) if FSPath(c).is_absolute() else root_dir / c
 		if p.exists():
 			return p
 	return None
@@ -339,7 +571,7 @@ async def statistics_category(months: Optional[str] = Query(default=None)) -> Li
 			       SUM(t.amount) AS amount
 			FROM transactions t
 			LEFT JOIN categories c ON t.category_id = c.id
-			WHERE 1=1 {where}
+			WHERE t.recurrence_id IS NULL {where}
 			GROUP BY month, category
 			ORDER BY month ASC, category ASC
 		"""

@@ -16,7 +16,7 @@ async def api_get_transactions(
     user_id: Optional[int] = None,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> List[schemas.Transaction]:
-    query = "SELECT * FROM transactions WHERE 1=1"
+    query = "SELECT * FROM transactions WHERE recurrence_id IS NULL"
     params: List[Any] = []
     if from_date:
         query += " AND date >= ?"
@@ -75,7 +75,7 @@ async def api_update_transaction(
         raise HTTPException(status_code=400, detail="No fields to update")
     set_clause = ", ".join([f"{k} = ?" for k in fields.keys()])
     params = list(fields.values()) + [tx_id]
-    db_conn.execute(f"UPDATE transactions SET {set_clause} WHERE id = ?", params)
+    db_conn.execute(f"UPDATE transactions SET {set_clause} WHERE id = ? AND recurrence_id IS NULL", params)
     db_conn.commit()
     
     # Clear cache when transaction is updated
@@ -83,7 +83,7 @@ async def api_update_transaction(
     
     # Note: Challenge evaluation is now handled by CRON job
     
-    row = db_conn.execute("SELECT * FROM transactions WHERE id = ?", (tx_id,)).fetchone()
+    row = db_conn.execute("SELECT * FROM transactions WHERE id = ? AND recurrence_id IS NULL", (tx_id,)).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Transaction not found")
     return schemas.Transaction(**dict(row))
@@ -93,7 +93,7 @@ async def api_delete_transaction(
     tx_id: int,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> JSONResponse:
-    db_conn.execute("DELETE FROM transactions WHERE id = ?", (tx_id,))
+    db_conn.execute("DELETE FROM transactions WHERE id = ? AND recurrence_id IS NULL", (tx_id,))
     db_conn.commit()
     
     # Clear cache when transaction is deleted

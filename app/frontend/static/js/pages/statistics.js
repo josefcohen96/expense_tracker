@@ -15,21 +15,24 @@ async function fetchMonthly({ categoryId, userId } = {}) {
 window.addEventListener('DOMContentLoaded', async () => {
   // נתוני התחלה מהשרת
   const monthlyInitial = readJSONScript('monthly-data') || [];
-  const catBreakdown   = readJSONScript('cat-breakdown') || [];
-  const userBreakdown  = readJSONScript('user-breakdown') || [];
+  const catBreakdown   = readJSONScript('category-data') || [];
+  const userBreakdown  = readJSONScript('user-data') || [];
+  const recurringUserBreakdown = readJSONScript('recurring-user-data') || [];
 
   // גרף חודשי
-  const monthlyChart = initMonthly(by('monthlyChart').getContext('2d'), monthlyInitial);
+  const monthlyChart = initMonthly(by('monthly-chart').getContext('2d'), monthlyInitial);
 
   // דונאט קטגוריות
-  const catLabels = catBreakdown.map(x => x.label);
-  const catValues = catBreakdown.map(x => x.value);
-  initDonut(by('categoryDonut').getContext('2d'), catLabels, catValues);
+  const catLabels = catBreakdown.map(x => x.category);
+  const catValues = catBreakdown.map(x => x.total);
+  initDonut(by('donut-chart').getContext('2d'), catLabels, catValues);
 
-  // עמודות לפי משתמש
-  const userLabels = userBreakdown.map(x => x.label);
-  const userValues = userBreakdown.map(x => x.value);
-  initUserBar(by('userBar').getContext('2d'), userLabels, userValues);
+  // עמודות הוצאות קבועות לפי חודש
+  const recurringMonthLabels = recurringUserBreakdown.map(x => x.month);
+  const recurringMonthValues = recurringUserBreakdown.map(x => x.total);
+  console.log('recurringMonthLabels:', recurringMonthLabels);
+  console.log('recurringMonthValues:', recurringMonthValues);
+  initUserBar(by('user-bar-chart').getContext('2d'), recurringMonthLabels, recurringMonthValues);
 
   // פילטרים
   by('applyFilters').addEventListener('click', async () => {

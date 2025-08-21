@@ -1,0 +1,25 @@
+<tr id="recurrence-row-{{ r['id'] }}">
+  <td class="px-4 py-2 whitespace-nowrap">{{ r['name'] }}</td>
+  <td class="px-4 py-2 whitespace-nowrap">{{ r['amount']|abs }}</td>
+  <td class="px-4 py-2 whitespace-nowrap">{{ r['category_name'] }}</td>
+  <td class="px-4 py-2 whitespace-nowrap">{{ r['user_name'] }}</td>
+  <td class="px-4 py-2 whitespace-nowrap">{{ r['frequency'] }}</td>
+  <td class="px-4 py-2 whitespace-nowrap">{{ r['start_date'] }}</td>
+  <td class="px-4 py-2 whitespace-nowrap">{{ r['end_date'] or '' }}</td>
+  <td class="px-4 py-2 whitespace-nowrap">{{ 'כן' if r['active'] else 'לא' }}</td>
+  <td class="px-4 py-2 whitespace-nowrap space-x-2">
+    <button class="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+            hx-get="/recurrences/{{ r['id'] }}/edit-inline"
+            hx-target="#recurrence-row-{{ r['id'] }}" 
+            hx-swap="outerHTML">
+      עריכה
+    </button>
+    <button class="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700"
+            hx-post="/recurrences/{{ r['id'] }}/delete-inline"
+            hx-target="#recurrence-row-{{ r['id'] }}" 
+            hx-swap="outerHTML"
+            hx-confirm="האם אתה בטוח שברצונך למחוק את ההוצאה הקבועה הזו?">
+      מחיקה
+    </button>
+  </td>
+</tr>

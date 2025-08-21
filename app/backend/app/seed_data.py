@@ -3,7 +3,33 @@ import sqlite3
 from pathlib import Path
 import random, datetime
 
-DB_PATH = Path(__file__).resolve().parent / "data" / "couplebudget.sqlite3"
+DB_PATH = Path(__file__).resolve().parent.parent / "data" / "budget.db"
+
+def seed_recurrences():
+    """יצירת חוקי חזרה ועסקאות קבועות"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    # יצירת חוקי חזרה
+    recurrences_data = [
+        ("שכירות", -3000, 1, 1, "2024-01-01", "monthly", 1, None),
+        ("חשמל", -400, 2, 1, "2024-01-15", "monthly", 15, None),
+        ("מים", -200, 2, 2, "2024-01-10", "monthly", 10, None),
+        ("אינטרנט", -150, 3, 1, "2024-01-05", "monthly", 5, None),
+        ("ביטוח רכב", -800, 4, 2, "2024-01-20", "monthly", 20, None),
+    ]
+
+    for name, amount, category_id, user_id, start_date, frequency, day_of_month, weekday in recurrences_data:
+        cur.execute("""
+            INSERT INTO recurrences 
+            (name, amount, category_id, user_id, start_date, frequency, day_of_month, weekday, active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+        """, (name, amount, category_id, user_id, start_date, frequency, day_of_month, weekday))
+
+    conn.commit()
+    conn.close()
+    print("✅ Seeded recurrences")
 
 def seed_transactions(n_months=2, per_month=8):
     conn = sqlite3.connect(DB_PATH)
@@ -33,4 +59,5 @@ def seed_transactions(n_months=2, per_month=8):
     print("✅ Seeded test transactions")
 
 if __name__ == "__main__":
+    seed_recurrences()
     seed_transactions()

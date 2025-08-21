@@ -158,10 +158,10 @@ def apply_recurring(today: Optional[date] = None) -> int:
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         due_date_str,
-                        rec_dict["amount"],
+                        -abs(rec_dict["amount"]),  # Ensure amount is negative for expenses
                         rec_dict["category_id"],
                         rec_dict["user_id"],
-                        rec_dict["account_id"],
+                        None,  # account_id - not available in recurrences table
                         f"Recurring: {rec_dict['name']}",
                         "recurring",
                         rec_dict["id"],

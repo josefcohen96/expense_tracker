@@ -66,34 +66,42 @@ async def transactions_page(
     request: Request, 
     db_conn: sqlite3.Connection = Depends(get_db_conn),
     page: int = Query(1, ge=1, description="Page number"),
-    per_page: int = Query(20, ge=1, le=100, description="Items per page")
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    category_id: Optional[int] = Query(None, description="Filter by category ID")
 ) -> HTMLResponse:
-    """Transactions page with pagination only."""
+    """Transactions page with pagination and filtering."""
     
     # Calculate offset for pagination
     offset = (page - 1) * per_page
     
+    # Build WHERE clause for filtering
+    where_clause = "WHERE t.recurrence_id IS NULL AND t.amount < 0"
+    params = []
+    
+    if category_id:
+        where_clause += " AND t.category_id = ?"
+        params.append(category_id)
+    
     # Get total count for pagination
-    count_result = db_conn.execute(
-        "SELECT COUNT(*) as total FROM transactions t "
-        "WHERE t.recurrence_id IS NULL AND t.amount < 0"
-    ).fetchone()
+    count_query = f"SELECT COUNT(*) as total FROM transactions t {where_clause}"
+    count_result = db_conn.execute(count_query, params).fetchone()
     total_transactions = count_result["total"]
     total_pages = (total_transactions + per_page - 1) // per_page
     
-    # Get transactions with pagination
-    txs = db_conn.execute(
-        "SELECT t.id, t.date, t.amount, c.name AS category_name, u.name AS user_name, "
-        "a.name AS account_name, t.notes, t.tags, t.category_id, t.user_id, t.account_id "
-        "FROM transactions t "
-        "JOIN categories c ON t.category_id = c.id "
-        "JOIN users u ON t.user_id = u.id "
-        "LEFT JOIN accounts a ON t.account_id = a.id "
-        "WHERE t.recurrence_id IS NULL AND t.amount < 0 "
-        "ORDER BY t.date DESC, t.id DESC "
-        "LIMIT ? OFFSET ?",
-        (per_page, offset)
-    ).fetchall()
+    # Get transactions with pagination and filtering
+    query = f"""
+        SELECT t.id, t.date, t.amount, c.name AS category_name, u.name AS user_name, 
+        a.name AS account_name, t.notes, t.tags, t.category_id, t.user_id, t.account_id 
+        FROM transactions t 
+        JOIN categories c ON t.category_id = c.id 
+        JOIN users u ON t.user_id = u.id 
+        LEFT JOIN accounts a ON t.account_id = a.id 
+        {where_clause}
+        ORDER BY t.date DESC, t.id DESC 
+        LIMIT ? OFFSET ?
+    """
+    params.extend([per_page, offset])
+    txs = db_conn.execute(query, params).fetchall()
     
     # Get only expense categories (excluding income categories)
     cats = db_conn.execute(
@@ -259,37 +267,50 @@ async def recurrences_page(
     request: Request, 
     db_conn: sqlite3.Connection = Depends(get_db_conn),
     page: int = Query(1, ge=1, description="Page number"),
-    per_page: int = Query(20, ge=1, le=100, description="Items per page")
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    category_id: Optional[int] = Query(None, description="Filter by category ID")
 ) -> HTMLResponse:
-    """Recurrences page with pagination only."""
+    """Recurrences page with pagination and filtering."""
     
     # Calculate offset for pagination
     offset = (page - 1) * per_page
     
+    # Build WHERE clause for filtering
+    where_clause = ""
+    params = []
+    
+    if category_id:
+        where_clause = "WHERE r.category_id = ?"
+        params.append(category_id)
+    
     # Get total count for pagination
-    count_result = db_conn.execute(
-        "SELECT COUNT(*) as total FROM recurrences r"
-    ).fetchone()
+    count_query = f"SELECT COUNT(*) as total FROM recurrences r {where_clause}"
+    count_result = db_conn.execute(count_query, params).fetchone()
     total_recurrences = count_result["total"]
     total_pages = (total_recurrences + per_page - 1) // per_page
     
-    # Get recurrences with pagination
-    recs = db_conn.execute(
-        "SELECT r.id, r.name, r.amount, c.name AS category_name, u.name AS user_name, "
-        "r.frequency, r.start_date, r.end_date, r.day_of_month, r.weekday, r.active "
-        "FROM recurrences r "
-        "JOIN categories c ON r.category_id = c.id "
-        "JOIN users u ON r.user_id = u.id "
-        "ORDER BY r.name "
-        "LIMIT ? OFFSET ?",
-        (per_page, offset)
-    ).fetchall()
+    # Get recurrences with pagination and filtering
+    query = f"""
+        SELECT r.id, r.name, r.amount, c.name AS category_name, u.name AS user_name, 
+        a.name AS account_name, r.frequency, r.start_date, r.end_date, r.day_of_month, r.weekday, r.active 
+        FROM recurrences r 
+        JOIN categories c ON r.category_id = c.id 
+        JOIN users u ON r.user_id = u.id 
+        LEFT JOIN accounts a ON r.account_id = a.id 
+        {where_clause}
+        ORDER BY r.name 
+        LIMIT ? OFFSET ?
+    """
+    params.extend([per_page, offset])
+    recs = db_conn.execute(query, params).fetchall()
     
     # Get only expense categories (excluding income categories)
     cats = db_conn.execute(
         "SELECT id, name FROM categories WHERE name NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute(
         "SELECT id, name FROM users ORDER BY id").fetchall()
+    accs = db_conn.execute(
+        "SELECT id, name FROM accounts ORDER BY name").fetchall()
     
     return templates.TemplateResponse(
         "pages/recurrences.html",
@@ -298,6 +319,7 @@ async def recurrences_page(
             "recurrences": recs,
             "categories": cats, 
             "users": users,
+            "accounts": accs,
             "pagination": {
                 "page": page,
                 "per_page": per_page,
@@ -328,6 +350,7 @@ async def create_recurrence(request: Request, db_conn: sqlite3.Connection = Depe
         amount = -abs(amount)
         category_id = int(form.get("category_id"))
         user_id = int(form.get("user_id"))
+        account_id = int(form.get("account_id")) if form.get("account_id") else None
         start_date = form.get("start_date")
         frequency = form.get("frequency")
         day_of_month = int(form.get("day_of_month")) if form.get("day_of_month") else None
@@ -336,13 +359,14 @@ async def create_recurrence(request: Request, db_conn: sqlite3.Connection = Depe
         
         # Insert the recurrence
         cur = db_conn.execute(
-            "INSERT INTO recurrences (name, amount, category_id, user_id, start_date, end_date, frequency, day_of_month, weekday, active) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO recurrences (name, amount, category_id, user_id, account_id, start_date, end_date, frequency, day_of_month, weekday, active) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 name,
                 amount,
                 category_id,
                 user_id,
+                account_id,
                 start_date,
                 end_date,
                 frequency,
@@ -371,10 +395,11 @@ async def edit_recurrence_inline(
 ) -> HTMLResponse:
     """Get edit form for a recurrence."""
     recurrence = db_conn.execute(
-        "SELECT r.*, c.name AS category_name, u.name AS user_name "
+        "SELECT r.*, c.name AS category_name, u.name AS user_name, a.name AS account_name "
         "FROM recurrences r "
         "JOIN categories c ON r.category_id = c.id "
         "JOIN users u ON r.user_id = u.id "
+        "LEFT JOIN accounts a ON r.account_id = a.id "
         "WHERE r.id = ?", (recurrence_id,)
     ).fetchone()
     
@@ -384,6 +409,7 @@ async def edit_recurrence_inline(
     # Get only expense categories (excluding income categories)
     categories = db_conn.execute("SELECT id, name FROM categories WHERE name NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     
     return templates.TemplateResponse(
         "partials/recurrences/edit_row.html",
@@ -391,7 +417,8 @@ async def edit_recurrence_inline(
             "request": request,
             "recurrence": dict(recurrence),
             "categories": categories,
-            "users": users
+            "users": users,
+            "accounts": accounts
         }
     )
 
@@ -416,6 +443,7 @@ async def update_recurrence_inline(
         amount = -abs(amount)
         category_id = int(form.get("category_id"))
         user_id = int(form.get("user_id"))
+        account_id = int(form.get("account_id")) if form.get("account_id") else None
         start_date = form.get("start_date")
         frequency = form.get("frequency")
         day_of_month = int(form.get("day_of_month")) if form.get("day_of_month") else None
@@ -425,12 +453,13 @@ async def update_recurrence_inline(
         
         # Update the recurrence
         db_conn.execute(
-            "UPDATE recurrences SET name=?, amount=?, category_id=?, user_id=?, start_date=?, end_date=?, frequency=?, day_of_month=?, weekday=?, active=? WHERE id=?",
+            "UPDATE recurrences SET name=?, amount=?, category_id=?, user_id=?, account_id=?, start_date=?, end_date=?, frequency=?, day_of_month=?, weekday=?, active=? WHERE id=?",
             (
                 name,
                 amount,
                 category_id,
                 user_id,
+                account_id,
                 start_date,
                 end_date,
                 frequency,
@@ -448,10 +477,11 @@ async def update_recurrence_inline(
         
         # Return the updated row
         recurrence = db_conn.execute(
-            "SELECT r.*, c.name AS category_name, u.name AS user_name "
+            "SELECT r.*, c.name AS category_name, u.name AS user_name, a.name AS account_name "
             "FROM recurrences r "
             "JOIN categories c ON r.category_id = c.id "
             "JOIN users u ON r.user_id = u.id "
+            "LEFT JOIN accounts a ON r.account_id = a.id "
             "WHERE r.id = ?", (recurrence_id,)
         ).fetchone()
         
@@ -632,6 +662,12 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
         GROUP BY u.name
         ORDER BY total DESC
     """).fetchall()
+    
+    # Debug: Check if users query returned results
+    print(f"DEBUG: users query returned {len(users) if users else 0} results")
+    if users:
+        print(f"DEBUG: First user result: {users[0]}")
+        print(f"DEBUG: First user result type: {type(users[0])}")
 
     # Get monthly category breakdown for donut chart (including all expense categories and both regular and recurring expenses, even with 0 amounts)
     category_monthly_rows = db_conn.execute("""
@@ -666,7 +702,24 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
     """).fetchall()
     
     # Get cash vs credit breakdown for last 6 months (including both regular and recurring expenses, excluding income categories)
-    cash_vs_credit = db_conn.execute("""
+    # First get by user and account
+    cash_vs_credit_by_user = db_conn.execute("""
+        SELECT strftime('%Y-%m', t.date) AS month,
+               u.name AS user_name,
+               COALESCE(a.name, 'לא מוגדר') AS account_type,
+               SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS total
+        FROM transactions t
+        LEFT JOIN accounts a ON t.account_id = a.id
+        JOIN categories c ON t.category_id = c.id
+        JOIN users u ON t.user_id = u.id
+        WHERE t.date >= date('now','start of month','-6 months')
+        AND c.name NOT IN ('משכורת', 'קליניקה')
+        GROUP BY month, u.name, a.name
+        ORDER BY month ASC, u.name ASC, a.name ASC
+    """).fetchall()
+    
+    # Then get totals by account (all users combined)
+    cash_vs_credit_totals = db_conn.execute("""
         SELECT strftime('%Y-%m', t.date) AS month,
                COALESCE(a.name, 'לא מוגדר') AS account_type,
                SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS total
@@ -678,6 +731,73 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
         GROUP BY month, a.name
         ORDER BY month ASC, a.name ASC
     """).fetchall()
+    
+    # Combine both results
+    cash_vs_credit = []
+    
+    # Create user data with cash and credit amounts per month
+    user_monthly_data = {}
+    for row in cash_vs_credit_by_user:
+        month = row['month']
+        user_name = row['user_name']
+        account_type = row['account_type']
+        total = row['total']
+        
+        if month not in user_monthly_data:
+            user_monthly_data[month] = {}
+        
+        if user_name not in user_monthly_data[month]:
+            user_monthly_data[month][user_name] = {'cash': 0, 'credit': 0}
+        
+        if account_type == 'Cash':
+            user_monthly_data[month][user_name]['cash'] += total
+        elif account_type == 'Credit Card':
+            user_monthly_data[month][user_name]['credit'] += total
+        # Handle other account types - add to credit by default
+        else:
+            user_monthly_data[month][user_name]['credit'] += total
+    
+    # Add user-specific data (one row per user per month)
+    for month, users in user_monthly_data.items():
+        for user_name, amounts in users.items():
+            total_amount = amounts['cash'] + amounts['credit']
+            cash_vs_credit.append({
+                'month': month,
+                'user_name': user_name,
+                'account_type': 'User',
+                'total': total_amount,
+                'cash_amount': amounts['cash'],
+                'credit_amount': amounts['credit'],
+                'is_total': False
+            })
+    
+    # Create combined totals by month (all users and accounts combined)
+    monthly_totals = {}
+    for row in cash_vs_credit_totals:
+        month = row['month']
+        if month not in monthly_totals:
+            monthly_totals[month] = {'cash': 0, 'credit': 0}
+        
+        if row['account_type'] == 'Cash':
+            monthly_totals[month]['cash'] += row['total']
+        elif row['account_type'] == 'Credit Card':
+            monthly_totals[month]['credit'] += row['total']
+        # Handle other account types - add to credit by default
+        else:
+            monthly_totals[month]['credit'] += row['total']
+    
+    # Add combined totals data
+    for month, totals in monthly_totals.items():
+        total_amount = totals['cash'] + totals['credit']
+        cash_vs_credit.append({
+            'month': month,
+            'user_name': 'סה"כ',
+            'account_type': 'Combined',
+            'total': total_amount,
+            'cash_amount': totals['cash'],
+            'credit_amount': totals['credit'],
+            'is_total': True
+        })
     
     # Get top 5 expenses in last 3 months (including both regular and recurring expenses, excluding income categories)
     top_expenses = db_conn.execute("""
@@ -713,15 +833,29 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
         ORDER BY month ASC
     """).fetchall()
     
+    # Ensure database connection has row_factory set
+    if not hasattr(db_conn, 'row_factory') or db_conn.row_factory is None:
+        db_conn.row_factory = sqlite3.Row
+    
+    # Helper function to safely convert query results to dictionaries
+    def safe_dict_convert(row):
+        if hasattr(row, 'keys'):
+            return dict(row)
+        elif isinstance(row, (list, tuple)):
+            # Handle tuple/list results by creating a dict with column names
+            return {"value": row[0] if len(row) == 1 else row}
+        else:
+            return {"value": row}
+    
     template_data = {
         "request": request,
-        "monthly_expenses": [dict(r) for r in (monthly or [])],
-        "user_expenses": [dict(r) for r in (users or [])],
-        "recurring_user_expenses": [dict(r) for r in (recurring_monthly or [])],
-        "category_expenses": [dict(r) for r in (category_monthly_rows or [])],
-        "category_totals": [dict(r) for r in (category_total_rows or [])],
-        "cash_vs_credit": [dict(r) for r in (cash_vs_credit or [])],
-        "top_expenses": [dict(r) for r in (top_expenses or [])],  # *** ADDED THIS! ***
+        "monthly_expenses": [safe_dict_convert(r) for r in (monthly or [])],
+        "user_expenses": [safe_dict_convert(r) for r in (users or [])],
+        "recurring_user_expenses": [safe_dict_convert(r) for r in (recurring_monthly or [])],
+        "category_expenses": [safe_dict_convert(r) for r in (category_monthly_rows or [])],
+        "category_totals": [safe_dict_convert(r) for r in (category_total_rows or [])],
+        "cash_vs_credit": [safe_dict_convert(r) for r in (cash_vs_credit or [])],
+        "top_expenses": [safe_dict_convert(r) for r in (top_expenses or [])],  # *** ADDED THIS! ***
     }
     
     return templates.TemplateResponse("pages/statistics.html", template_data)

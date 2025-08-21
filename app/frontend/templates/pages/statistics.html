@@ -95,6 +95,7 @@
         <thead class="text-xs text-gray-700 uppercase bg-gray-50">
           <tr>
             <th scope="col" class="px-6 py-3">חודש</th>
+            <th scope="col" class="px-6 py-3">משתמש</th>
             <th scope="col" class="px-6 py-3">מזומן</th>
             <th scope="col" class="px-6 py-3">כרטיס אשראי</th>
             <th scope="col" class="px-6 py-3">סה"כ</th>
@@ -102,31 +103,40 @@
           </tr>
         </thead>
         <tbody>
-          {% set cash_vs_credit_dict = {} %}
           {% for item in cash_vs_credit %}
-            {% if item.month not in cash_vs_credit_dict %}
-              {% set _ = cash_vs_credit_dict.update({item.month: {'Cash': 0, 'Credit Card': 0}}) %}
-            {% endif %}
-            {% if item.account_type == 'Cash' %}
-              {% set _ = cash_vs_credit_dict[item.month].update({'Cash': item.total}) %}
+            {% set total = 0 %}
+            {% set cash_amount = 0 %}
+            {% set credit_amount = 0 %}
+            
+            {% if item.account_type == 'Combined' %}
+              {% set total = item.total %}
+              {% set cash_amount = item.cash_amount %}
+              {% set credit_amount = item.credit_amount %}
+            {% elif item.account_type == 'User' %}
+              {% set total = item.total %}
+              {% set cash_amount = item.cash_amount %}
+              {% set credit_amount = item.credit_amount %}
+            {% elif item.account_type == 'Cash' %}
+              {% set total = item.total %}
+              {% set cash_amount = item.total %}
             {% elif item.account_type == 'Credit Card' %}
-              {% set _ = cash_vs_credit_dict[item.month].update({'Credit Card': item.total}) %}
+              {% set total = item.total %}
+              {% set credit_amount = item.total %}
             {% endif %}
-          {% endfor %}
-          
-          {% for month, data in cash_vs_credit_dict.items() %}
-            {% set total = data['Cash'] + data['Credit Card'] %}
-            {% set cash_percentage = (data['Cash'] / total * 100) if total > 0 else 0 %}
-            <tr class="bg-white border-b hover:bg-gray-50">
-              <td class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">{{ month }}</td>
-              <td class="px-6 py-4">{{ "%.2f"|format(data['Cash']) }} ₪</td>
-              <td class="px-6 py-4">{{ "%.2f"|format(data['Credit Card']) }} ₪</td>
+            
+            {% set cash_percentage = (cash_amount / total * 100) if total > 0 else 0 %}
+            
+            <tr class="bg-white border-b hover:bg-gray-50 {% if item.is_total %}bg-gray-100 font-semibold{% endif %}">
+              <td class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">{{ item.month }}</td>
+              <td class="px-6 py-4 {% if item.is_total %}font-bold{% endif %}">{{ item.user_name }}</td>
+              <td class="px-6 py-4">{{ "%.2f"|format(cash_amount) }} ₪</td>
+              <td class="px-6 py-4">{{ "%.2f"|format(credit_amount) }} ₪</td>
               <td class="px-6 py-4 font-semibold">{{ "%.2f"|format(total) }} ₪</td>
               <td class="px-6 py-4">{{ "%.1f"|format(cash_percentage) }}%</td>
             </tr>
           {% else %}
             <tr class="bg-white border-b">
-              <td colspan="5" class="px-6 py-4 text-center text-gray-500">אין נתונים זמינים</td>
+              <td colspan="6" class="px-6 py-4 text-center text-gray-500">אין נתונים זמינים</td>
             </tr>
           {% endfor %}
         </tbody>

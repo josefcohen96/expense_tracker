@@ -24,6 +24,13 @@
     </select>
   </td>
   <td>
+    <select form="edit-recurrence-{{ recurrence['id'] }}" name="account_id" class="w-full border rounded px-2 py-1">
+      {% for a in accounts %}
+        <option value="{{ a.id }}" {% if a.id == recurrence['account_id'] %}selected{% endif %}>{{ a.name }}</option>
+      {% endfor %}
+    </select>
+  </td>
+  <td>
     <select form="edit-recurrence-{{ recurrence['id'] }}" name="frequency" class="w-full border rounded px-2 py-1" required>
       <option value="monthly" {% if recurrence['frequency'] == 'monthly' %}selected{% endif %}>חודשי</option>
       <option value="weekly" {% if recurrence['frequency'] == 'weekly' %}selected{% endif %}>שבועי</option>
@@ -57,6 +64,9 @@
       <!-- Hidden fields for frequency-specific data -->
       <input type="hidden" name="day_of_month" value="{{ recurrence['day_of_month'] or '' }}">
       <input type="hidden" name="weekday" value="{{ recurrence['weekday'] or '' }}">
+      
+      <!-- Hidden field for account_id -->
+      <input type="hidden" name="account_id" value="{{ recurrence['account_id'] or '' }}">
     </form>
 
     <button type="submit" form="edit-recurrence-{{ recurrence['id'] }}"

@@ -38,7 +38,8 @@ async def get_transaction_row(
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> HTMLResponse:
     tx = _fetch_tx_row(db_conn, tx_id)
-    cats = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    # Get only expense categories (excluding income categories)
+    cats = db_conn.execute("SELECT id, name FROM categories WHERE name NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/transactions/row.html", {
@@ -52,7 +53,8 @@ async def edit_transaction_row(
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> HTMLResponse:
     tx = _fetch_tx_row(db_conn, tx_id)
-    cats = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    # Get only expense categories (excluding income categories)
+    cats = db_conn.execute("SELECT id, name FROM categories WHERE name NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/transactions/row.html", {
@@ -94,7 +96,8 @@ async def update_transaction_row(
         raise HTTPException(status_code=400, detail=str(exc))
 
     tx = _fetch_tx_row(db_conn, tx_id)
-    cats = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    # Get only expense categories (excluding income categories)
+    cats = db_conn.execute("SELECT id, name FROM categories WHERE name NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/transactions/row.html", {
@@ -120,11 +123,10 @@ async def get_income_row(
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> HTMLResponse:
     tx = _fetch_income_row(db_conn, tx_id)
-    cats = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    cats = db_conn.execute("SELECT id, name FROM categories WHERE name IN ('קליניקה', 'משכורת') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
-    accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/income/row.html", {
-        "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "read",
+        "request": request, "tx": tx, "categories": cats, "users": users, "mode": "read",
     })
 
 
@@ -135,11 +137,10 @@ async def edit_income_row(
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> HTMLResponse:
     tx = _fetch_income_row(db_conn, tx_id)
-    cats = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    cats = db_conn.execute("SELECT id, name FROM categories WHERE name IN ('קליניקה', 'משכורת') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
-    accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/income/row.html", {
-        "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "edit",
+        "request": request, "tx": tx, "categories": cats, "users": users, "mode": "edit",
     })
 
 
@@ -156,7 +157,6 @@ async def update_income_row(
     amount = form.get("amount")
     category_id = form.get("category_id")
     user_id = form.get("user_id")
-    account_id = form.get("account_id") or None
     notes = form.get("notes") or None
     tags = form.get("tags") or None
 
@@ -166,23 +166,21 @@ async def update_income_row(
         amount_val = abs(amount_val)
         category_int = int(category_id) if category_id is not None else None
         user_int = int(user_id) if user_id is not None else None
-        account_int = int(account_id) if account_id not in (None, "") else None
 
         db_conn.execute(
-            "UPDATE transactions SET date=?, amount=?, category_id=?, user_id=?, account_id=?, notes=?, tags=? "
+            "UPDATE transactions SET date=?, amount=?, category_id=?, user_id=?, notes=?, tags=? "
             "WHERE id=? AND recurrence_id IS NULL",
-            (date, amount_val, category_int, user_int, account_int, notes, tags, tx_id),
+            (date, amount_val, category_int, user_int, notes, tags, tx_id),
         )
         db_conn.commit()
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
     tx = _fetch_income_row(db_conn, tx_id)
-    cats = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    cats = db_conn.execute("SELECT id, name FROM categories WHERE name IN ('קליניקה', 'משכורת') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
-    accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/income/row.html", {
-        "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "read",
+        "request": request, "tx": tx, "categories": cats, "users": users, "mode": "read",
     })
 
 

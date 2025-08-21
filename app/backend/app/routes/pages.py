@@ -95,8 +95,9 @@ async def transactions_page(
         (per_page, offset)
     ).fetchall()
     
+    # Get only expense categories (excluding income categories)
     cats = db_conn.execute(
-        "SELECT id, name FROM categories ORDER BY name").fetchall()
+        "SELECT id, name FROM categories WHERE name NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute(
         "SELECT id, name FROM users ORDER BY id").fetchall()
     accs = db_conn.execute(
@@ -159,12 +160,11 @@ async def income_page(
         (per_page, offset)
     ).fetchall()
     
+    # Get only income categories (clinic and salary)
     cats = db_conn.execute(
-        "SELECT id, name FROM categories ORDER BY name").fetchall()
+        "SELECT id, name FROM categories WHERE name IN ('קליניקה', 'משכורת') ORDER BY name").fetchall()
     users = db_conn.execute(
         "SELECT id, name FROM users ORDER BY id").fetchall()
-    accs = db_conn.execute(
-        "SELECT id, name FROM accounts ORDER BY name").fetchall()
 
     return templates.TemplateResponse(
         "pages/income.html",
@@ -173,7 +173,6 @@ async def income_page(
             "transactions": txs, 
             "categories": cats, 
             "users": users, 
-            "accounts": accs, 
             "today": date.today().isoformat(),
             "pagination": {
                 "page": page,
@@ -234,7 +233,6 @@ async def create_income(request: Request, db_conn: sqlite3.Connection = Depends(
     amount = form.get("amount")
     category_id = form.get("category_id")
     user_id = form.get("user_id")
-    account_id = form.get("account_id") or None
     notes = form.get("notes") or None
     tags = form.get("tags") or None
 
@@ -244,11 +242,10 @@ async def create_income(request: Request, db_conn: sqlite3.Connection = Depends(
         amount_val = abs(amount_val)
         category_int = int(category_id) if category_id is not None else None
         user_int = int(user_id) if user_id is not None else None
-        account_int = int(account_id) if account_id not in (None, "") else None
         db_conn.execute(
-            "INSERT INTO transactions (date, amount, category_id, user_id, account_id, notes, tags) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (date, amount_val, category_int, user_int, account_int, notes, tags),
+            "INSERT INTO transactions (date, amount, category_id, user_id, notes, tags) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (date, amount_val, category_int, user_int, notes, tags),
         )
         db_conn.commit()
     except Exception as exc:
@@ -288,8 +285,9 @@ async def recurrences_page(
         (per_page, offset)
     ).fetchall()
     
+    # Get only expense categories (excluding income categories)
     cats = db_conn.execute(
-        "SELECT id, name FROM categories ORDER BY name").fetchall()
+        "SELECT id, name FROM categories WHERE name NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute(
         "SELECT id, name FROM users ORDER BY id").fetchall()
     
@@ -383,7 +381,8 @@ async def edit_recurrence_inline(
     if not recurrence:
         raise HTTPException(status_code=404, detail="Recurrence not found")
     
-    categories = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    # Get only expense categories (excluding income categories)
+    categories = db_conn.execute("SELECT id, name FROM categories WHERE name NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
     
     return templates.TemplateResponse(
@@ -610,54 +609,77 @@ async def backup_download(file_name: str) -> FileResponse:
 @router.get("/statistics", response_class=HTMLResponse)
 async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
     
-    # מאתחל נתונים לעמוד סטטיסטיקות
+    # מאתחל נתונים לעמוד סטטיסטיקות (including both regular and recurring expenses, excluding income categories)
     monthly = db_conn.execute("""
         SELECT strftime('%Y-%m', date) AS ym,
                SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END) AS expenses
-        FROM transactions
-        WHERE date >= date('now','-5 months','start of month')
-        AND recurrence_id IS NULL
+        FROM transactions t
+        JOIN categories c ON t.category_id = c.id
+        WHERE t.date >= date('now','-5 months','start of month')
+        AND c.name NOT IN ('משכורת', 'קליניקה')
         GROUP BY ym
         ORDER BY ym
     """).fetchall()
     
-    # Get user expenses for user chart
+    # Get user expenses for user chart (including both regular and recurring expenses, excluding income categories)
     users = db_conn.execute("""
         SELECT u.name AS user_name, ABS(SUM(t.amount)) AS total
         FROM transactions t
         JOIN users u ON t.user_id = u.id
+        JOIN categories c ON t.category_id = c.id
         WHERE t.date >= date('now', '-6 months')
-        AND t.recurrence_id IS NULL
+        AND c.name NOT IN ('משכורת', 'קליניקה')
         GROUP BY u.name
         ORDER BY total DESC
     """).fetchall()
 
-    # Get monthly category breakdown for donut chart
+    # Get monthly category breakdown for donut chart (including all expense categories and both regular and recurring expenses, even with 0 amounts)
     category_monthly_rows = db_conn.execute("""
-        SELECT strftime('%Y-%m', t.date) AS month,
+        SELECT ym.month,
                c.name AS category,
-               SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS amount
-        FROM transactions t
-        JOIN categories c ON t.category_id = c.id
-        WHERE t.date >= date('now','start of month','-5 months')
-        AND t.recurrence_id IS NULL
-        GROUP BY month, c.name
-        ORDER BY month ASC, c.name ASC
+               COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS amount
+        FROM (
+            SELECT DISTINCT strftime('%Y-%m', date) AS month
+            FROM transactions
+            WHERE date >= date('now','start of month','-5 months')
+            UNION
+            SELECT strftime('%Y-%m', 'now') AS month
+        ) ym
+        CROSS JOIN categories c
+        LEFT JOIN transactions t ON c.id = t.category_id 
+            AND strftime('%Y-%m', t.date) = ym.month
+        WHERE c.name NOT IN ('משכורת', 'קליניקה')
+        GROUP BY ym.month, c.id, c.name
+        ORDER BY ym.month ASC, c.name ASC
     """).fetchall()
     
-    # Also get total category breakdown for other charts
+    # Also get total category breakdown for other charts (including all expense categories and both regular and recurring expenses, even with 0 amounts)
     category_total_rows = db_conn.execute("""
         SELECT c.name AS category,
-               SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS total
-        FROM transactions t
-        JOIN categories c ON t.category_id = c.id
-        WHERE t.date >= date('now','start of month','-5 months')
-        AND t.recurrence_id IS NULL
-        GROUP BY c.name
+               COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS total
+        FROM categories c
+        LEFT JOIN transactions t ON c.id = t.category_id 
+            AND t.date >= date('now','start of month','-5 months')
+        WHERE c.name NOT IN ('משכורת', 'קליניקה')
+        GROUP BY c.id, c.name
         ORDER BY c.name
     """).fetchall()
     
-    # Get top 5 expenses in last 3 months
+    # Get cash vs credit breakdown for last 6 months (including both regular and recurring expenses, excluding income categories)
+    cash_vs_credit = db_conn.execute("""
+        SELECT strftime('%Y-%m', t.date) AS month,
+               COALESCE(a.name, 'לא מוגדר') AS account_type,
+               SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS total
+        FROM transactions t
+        LEFT JOIN accounts a ON t.account_id = a.id
+        JOIN categories c ON t.category_id = c.id
+        WHERE t.date >= date('now','start of month','-6 months')
+        AND c.name NOT IN ('משכורת', 'קליניקה')
+        GROUP BY month, a.name
+        ORDER BY month ASC, a.name ASC
+    """).fetchall()
+    
+    # Get top 5 expenses in last 3 months (including both regular and recurring expenses, excluding income categories)
     top_expenses = db_conn.execute("""
         SELECT 
             t.id,
@@ -673,18 +695,20 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
         LEFT JOIN accounts a ON t.account_id = a.id
         WHERE t.date >= date('now', '-3 months')
         AND t.amount < 0  -- רק הוצאות (סכומים שליליים)
-        AND t.recurrence_id IS NULL
+        AND c.name NOT IN ('משכורת', 'קליניקה')
         ORDER BY ABS(t.amount) DESC
         LIMIT 5
     """).fetchall()
     
-    # הוצאות קבועות לפי חודש (כמו MONTHLY)
+    # הוצאות קבועות לפי חודש (excluding income categories)
     recurring_monthly = db_conn.execute("""
         SELECT strftime('%Y-%m', t.date) AS month,
                ABS(SUM(t.amount)) AS total
         FROM transactions t
+        JOIN categories c ON t.category_id = c.id
         WHERE t.date >= date('now', '-6 months')
         AND t.recurrence_id IS NOT NULL
+        AND c.name NOT IN ('משכורת', 'קליניקה')
         GROUP BY strftime('%Y-%m', t.date)
         ORDER BY month ASC
     """).fetchall()
@@ -696,6 +720,7 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
         "recurring_user_expenses": [dict(r) for r in (recurring_monthly or [])],
         "category_expenses": [dict(r) for r in (category_monthly_rows or [])],
         "category_totals": [dict(r) for r in (category_total_rows or [])],
+        "cash_vs_credit": [dict(r) for r in (cash_vs_credit or [])],
         "top_expenses": [dict(r) for r in (top_expenses or [])],  # *** ADDED THIS! ***
     }
     
@@ -748,7 +773,8 @@ async def statistics_category(months: Optional[str] = Query(default=None)) -> Li
 			       SUM(t.amount) AS amount
 			FROM transactions t
 			LEFT JOIN categories c ON t.category_id = c.id
-			WHERE t.recurrence_id IS NULL {where}
+			WHERE (c.name IS NULL OR c.name NOT IN ('משכורת', 'קליניקה'))
+			{where}
 			GROUP BY month, category
 			ORDER BY month ASC, category ASC
 		"""

@@ -84,6 +84,55 @@
       <canvas id="recurrences-chart" class="absolute inset-0"></canvas>
     </div>
   </section>
+  
+  <!-- מזומן מול אשראי -->
+  <section class="bg-white rounded-2xl shadow p-5 xl:col-span-3">
+    <header class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold">מזומן מול אשראי - 6 חודשים אחרונים</h2>
+    </header>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm text-left text-gray-500">
+        <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+          <tr>
+            <th scope="col" class="px-6 py-3">חודש</th>
+            <th scope="col" class="px-6 py-3">מזומן</th>
+            <th scope="col" class="px-6 py-3">כרטיס אשראי</th>
+            <th scope="col" class="px-6 py-3">סה"כ</th>
+            <th scope="col" class="px-6 py-3">אחוז מזומן</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set cash_vs_credit_dict = {} %}
+          {% for item in cash_vs_credit %}
+            {% if item.month not in cash_vs_credit_dict %}
+              {% set _ = cash_vs_credit_dict.update({item.month: {'Cash': 0, 'Credit Card': 0}}) %}
+            {% endif %}
+            {% if item.account_type == 'Cash' %}
+              {% set _ = cash_vs_credit_dict[item.month].update({'Cash': item.total}) %}
+            {% elif item.account_type == 'Credit Card' %}
+              {% set _ = cash_vs_credit_dict[item.month].update({'Credit Card': item.total}) %}
+            {% endif %}
+          {% endfor %}
+          
+          {% for month, data in cash_vs_credit_dict.items() %}
+            {% set total = data['Cash'] + data['Credit Card'] %}
+            {% set cash_percentage = (data['Cash'] / total * 100) if total > 0 else 0 %}
+            <tr class="bg-white border-b hover:bg-gray-50">
+              <td class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">{{ month }}</td>
+              <td class="px-6 py-4">{{ "%.2f"|format(data['Cash']) }} ₪</td>
+              <td class="px-6 py-4">{{ "%.2f"|format(data['Credit Card']) }} ₪</td>
+              <td class="px-6 py-4 font-semibold">{{ "%.2f"|format(total) }} ₪</td>
+              <td class="px-6 py-4">{{ "%.1f"|format(cash_percentage) }}%</td>
+            </tr>
+          {% else %}
+            <tr class="bg-white border-b">
+              <td colspan="5" class="px-6 py-4 text-center text-gray-500">אין נתונים זמינים</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 </div>
 
 <!-- נתוני JSON (כמו שיש לך כבר) -->
@@ -107,6 +156,9 @@
 </script>
 <script id="recurrences-data" type="application/json">
   {{ (recurring_monthly | default([])) | tojson }}
+</script>
+<script id="cash-vs-credit-data" type="application/json">
+  {{ (cash_vs_credit | default([])) | tojson }}
 </script>
 
 

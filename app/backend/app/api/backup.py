@@ -15,7 +15,7 @@ import traceback
 import json
 
 from .. import schemas
-from ..services.backup_service import list_backup_files, restore_from_file
+from ..services.backup_service import list_backup_files, restore_from_file, create_monthly_backup
 
 router = APIRouter(prefix="/api/backup", tags=["backup"])
 
@@ -127,4 +127,47 @@ async def download_backup(filename: str):
         raise
     except Exception as exc:
         logger.exception("Exception downloading backup")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/monthly/{year}/{month}")
+async def create_monthly_backup_api(year: int, month: int) -> JSONResponse:
+    """Create a monthly backup Excel file for a specific year and month."""
+    try:
+        if month < 1 or month > 12:
+            raise HTTPException(status_code=400, detail="Month must be between 1 and 12")
+        
+        if year < 2020 or year > 2030:
+            raise HTTPException(status_code=400, detail="Year must be between 2020 and 2030")
+        
+        path = create_monthly_backup(year, month)
+        return JSONResponse({
+            "message": "Monthly backup created successfully",
+            "file": path.name,
+            "size": path.stat().st_size if path.exists() else 0,
+            "year": year,
+            "month": month
+        })
+    except Exception as exc:
+        logger.exception("Exception creating monthly backup")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/download-excel/{filename}")
+async def download_excel_backup(filename: str):
+    """Download an Excel backup file."""
+    try:
+        excel_path = EXCEL_DIR / filename
+        if not excel_path.exists():
+            raise HTTPException(status_code=404, detail="Excel backup file not found")
+        
+        return FileResponse(
+            path=excel_path,
+            filename=filename,
+            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Exception downloading Excel backup")
         raise HTTPException(status_code=500, detail=str(exc))

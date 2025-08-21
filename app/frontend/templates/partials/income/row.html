@@ -6,7 +6,6 @@
   <td class="text-green-600 font-semibold">{{ tx['amount']|abs }}</td>
   <td>{{ tx['category_name'] }}</td>
   <td>{{ tx['user_name'] }}</td>
-  <td>{{ tx['account_name'] or '-' }}</td>
   <td>{{ tx['notes'] or '' }}</td>
   <td>{{ tx['tags'] or '' }}</td>
   <td class="space-x-2">
@@ -47,15 +46,6 @@
     <select form="edit-{{ tx['id'] }}" name="user_id" class="w-full border rounded px-2 py-1" required>
       {% for u in users %}
         <option value="{{ u.id }}" {% if u.id == tx['user_id'] %}selected{% endif %}>{{ u.name }}</option>
-      {% endfor %}
-    </select>
-  </td>
-
-  <td>
-    <select form="edit-{{ tx['id'] }}" name="account_id" class="w-full border rounded px-2 py-1">
-      <option value="">-</option>
-      {% for a in accounts %}
-        <option value="{{ a.id }}" {% if tx['account_id'] and a.id == tx['account_id'] %}selected{% endif %}>{{ a.name }}</option>
       {% endfor %}
     </select>
   </td>

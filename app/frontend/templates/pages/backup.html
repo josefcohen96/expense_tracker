@@ -7,9 +7,48 @@
 
 <div class="bg-white p-6 rounded-lg shadow mb-8">
   <h2 class="text-xl font-semibold mb-4">צור גיבוי חדש</h2>
-  <form method="post" action="/backup/create">
-    <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded">צור גיבוי Excel</button>
-  </form>
+  
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Full backup -->
+    <div class="border border-gray-200 rounded-lg p-4">
+      <h3 class="text-lg font-medium mb-3">גיבוי מלא</h3>
+      <p class="text-sm text-gray-600 mb-4">צור גיבוי Excel של 6 החודשים האחרונים</p>
+      <form method="post" action="/backup/create">
+        <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">
+          צור גיבוי מלא
+        </button>
+      </form>
+    </div>
+    
+    <!-- Monthly backup -->
+    <div class="border border-gray-200 rounded-lg p-4">
+      <h3 class="text-lg font-medium mb-3">גיבוי חודשי</h3>
+      <p class="text-sm text-gray-600 mb-4">צור גיבוי Excel של חודש ספציפי</p>
+      <form id="monthlyBackupForm" class="space-y-3">
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-sm font-medium mb-1">שנה</label>
+            <select id="yearSelect" class="w-full border border-gray-300 rounded px-3 py-2">
+              {% for year in range(2024, 2026) %}
+              <option value="{{ year }}" {% if year == 2024 %}selected{% endif %}>{{ year }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">חודש</label>
+            <select id="monthSelect" class="w-full border border-gray-300 rounded px-3 py-2">
+              {% for month in range(1, 13) %}
+              <option value="{{ month }}" {% if month == 8 %}selected{% endif %}>{{ month }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+          צור גיבוי חודשי
+        </button>
+      </form>
+    </div>
+  </div>
 </div>
 
 <!-- Restore from backup removed: use restore links next to each file -->
@@ -25,8 +64,12 @@
         <p class="text-xs text-gray-500">{{ b.created_at }} &middot; {{ (b.size / 1024) | round(1) }} KB</p>
       </div>
       <div class="space-x-4 flex">
-        <a href="/backup/download/{{ b.file_name }}" class="text-indigo-600 hover:underline">הורד</a>
-        <a href="/backup/restore/{{ b.file_name }}" class="text-red-600 hover:underline">שחזר</a>
+        {% if b.file_name.endswith('.xlsx') %}
+          <a href="/api/backup/download-excel/{{ b.file_name }}" class="text-indigo-600 hover:underline">הורד Excel</a>
+        {% else %}
+          <a href="/backup/download/{{ b.file_name }}" class="text-indigo-600 hover:underline">הורד</a>
+          <a href="/backup/restore/{{ b.file_name }}" class="text-red-600 hover:underline">שחזר</a>
+        {% endif %}
       </div>
     </li>
     {% endfor %}
@@ -35,5 +78,44 @@
   <p class="text-gray-600">אין גיבויים זמינים.</p>
   {% endif %}
 </div>
+
+<script>
+document.getElementById('monthlyBackupForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  
+  const year = document.getElementById('yearSelect').value;
+  const month = document.getElementById('monthSelect').value;
+  const button = this.querySelector('button[type="submit"]');
+  const originalText = button.textContent;
+  
+  try {
+    button.textContent = 'יוצר גיבוי...';
+    button.disabled = true;
+    
+    const response = await fetch(`/api/backup/monthly/${year}/${month}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      alert(`הגיבוי נוצר בהצלחה!\nקובץ: ${result.file}\nגודל: ${(result.size / 1024).toFixed(1)} KB`);
+      
+      // Refresh the page to show the new backup
+      location.reload();
+    } else {
+      const error = await response.json();
+      alert(`שגיאה ביצירת הגיבוי: ${error.detail}`);
+    }
+  } catch (error) {
+    alert(`שגיאה ביצירת הגיבוי: ${error.message}`);
+  } finally {
+    button.textContent = originalText;
+    button.disabled = false;
+  }
+});
+</script>
 
 {% endblock %}

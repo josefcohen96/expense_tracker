@@ -24,9 +24,15 @@ BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 EXCEL_ROOT = BACKUP_DIR / "excel"
 EXCEL_ROOT.mkdir(parents=True, exist_ok=True)
 
-# Update HEADERS to match your actual table columns
-HEADERS = [
-    "id", "date", "amount", "category", "user_id", "account_id", "notes", "tags"
+# Headers for expenses table
+EXPENSES_HEADERS = [
+    "id", "date", "amount", "category", "user", "account", "notes", "tags", "recurrence_id"
+]
+
+# Headers for recurrences table
+RECURRENCES_HEADERS = [
+    "id", "name", "amount", "category", "user", "frequency", "start_date", "end_date", 
+    "day_of_month", "weekday", "active"
 ]
 
 
@@ -70,7 +76,7 @@ def _open_conn_from_path_or_conn(db_conn: Optional[sqlite3.Connection]) -> sqlit
 def create_backup_file(db_conn: Optional[sqlite3.Connection] = None) -> Path:
     """
     Create a dated folder (DD MM YYYY) under backups/ and write an Excel file for each of the
-    last 6 months (including current) containing that month's transactions.
+    last 6 months (including current) containing that month's transactions and recurrences.
     
     Args:
         db_conn: Optional database connection
@@ -100,40 +106,208 @@ def create_backup_file(db_conn: Optional[sqlite3.Connection] = None) -> Path:
         months = _last_n_months(6)
         for (year, month) in months:
             ym = f"{year}-{month:02d}"
-            cur = conn.execute(
+            
+            # Create workbook with two sheets
+            wb = Workbook()
+            
+            # Remove default sheet and create our own
+            wb.remove(wb.active)
+            
+            # Create expenses sheet
+            expenses_ws = wb.create_sheet("הוצאות")
+            expenses_ws.append(EXPENSES_HEADERS)
+            
+            # Get expenses for this month
+            expenses_cur = conn.execute(
                 """
-                SELECT t.id, t.date, t.amount, c.name as category, t.user_id, t.account_id, t.notes, t.tags
+                SELECT t.id, t.date, t.amount, c.name as category, u.name as user, 
+                       a.name as account, t.notes, t.tags, t.recurrence_id
                 FROM transactions t
                 LEFT JOIN categories c ON t.category_id = c.id
+                LEFT JOIN users u ON t.user_id = u.id
+                LEFT JOIN accounts a ON t.account_id = a.id
                 WHERE strftime('%Y-%m', t.date) = ?
-                AND t.recurrence_id IS NULL
                 ORDER BY t.date ASC, t.id ASC
                 """,
                 (ym,),
             )
-            rows = cur.fetchall()
-            # create workbook
-            wb = Workbook()
-            ws = wb.active
-            ws.append(HEADERS)
+            expenses_rows = expenses_cur.fetchall()
             
-            for r in rows:
+            for r in expenses_rows:
                 vals = [
                     r["id"],
                     r["date"],
                     r["amount"],
-                    r["category"],  # now the category name
-                    r["user_id"],
-                    r["account_id"],
-                    r["notes"],
-                    r["tags"],
+                    r["category"],
+                    r["user"],
+                    r["account"] or "",
+                    r["notes"] or "",
+                    r["tags"] or "",
+                    r["recurrence_id"] or "",
                 ]
-                ws.append(vals)
-            file_name = f"expenses_{year}_{month:02d}.xlsx"
+                expenses_ws.append(vals)
+            
+            # Create recurrences sheet
+            recurrences_ws = wb.create_sheet("הוצאות קבועות")
+            recurrences_ws.append(RECURRENCES_HEADERS)
+            
+            # Get all active recurrences
+            recurrences_cur = conn.execute(
+                """
+                SELECT r.id, r.name, r.amount, c.name as category, u.name as user,
+                       r.frequency, r.start_date, r.end_date, r.day_of_month, 
+                       r.weekday, r.active
+                FROM recurrences r
+                LEFT JOIN categories c ON r.category_id = c.id
+                LEFT JOIN users u ON r.user_id = u.id
+                WHERE r.active = 1
+                ORDER BY r.name ASC
+                """,
+            )
+            recurrences_rows = recurrences_cur.fetchall()
+            
+            for r in recurrences_rows:
+                vals = [
+                    r["id"],
+                    r["name"],
+                    r["amount"],
+                    r["category"],
+                    r["user"],
+                    r["frequency"],
+                    r["start_date"],
+                    r["end_date"] or "",
+                    r["day_of_month"] or "",
+                    r["weekday"] or "",
+                    "כן" if r["active"] else "לא",
+                ]
+                recurrences_ws.append(vals)
+            
+            # Save the workbook
+            file_name = f"monthly_backup_{year}_{month:02d}.xlsx"
             wb.save(filename=str(out_dir / file_name))
 
-        LOG.info("Created excel backup folder %s", out_dir.name)
-        return out_dir
+            LOG.info("Created excel backup folder %s", out_dir.name)
+    finally:
+        _IN_PROGRESS = False
+        if conn is not None and not conn_provided:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    return out_dir
+
+
+def create_monthly_backup(year: int, month: int, db_conn: Optional[sqlite3.Connection] = None) -> Path:
+    """
+    Create a single Excel file for a specific month with expenses and recurrences.
+    
+    Args:
+        year: Year (e.g., 2024)
+        month: Month (1-12)
+        db_conn: Optional database connection
+    
+    Returns:
+        Path to the created Excel file
+    """
+    global _IN_PROGRESS
+    if _IN_PROGRESS:
+        raise RuntimeError("Backup already in progress (re-entrant call detected)")
+    _IN_PROGRESS = True
+
+    conn_provided = db_conn is not None
+    conn = None
+    try:
+        conn = _open_conn_from_path_or_conn(db_conn)
+        # ensure row factory for dict-like access
+        try:
+            conn.row_factory = sqlite3.Row
+        except Exception:
+            pass
+
+        ym = f"{year}-{month:02d}"
+        
+        # Create workbook with two sheets
+        wb = Workbook()
+        
+        # Remove default sheet and create our own
+        wb.remove(wb.active)
+        
+        # Create expenses sheet
+        expenses_ws = wb.create_sheet("הוצאות")
+        expenses_ws.append(EXPENSES_HEADERS)
+        
+        # Get expenses for this month
+        expenses_cur = conn.execute(
+            """
+            SELECT t.id, t.date, t.amount, c.name as category, u.name as user, 
+                   a.name as account, t.notes, t.tags, t.recurrence_id
+            FROM transactions t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.user_id = u.id
+            LEFT JOIN accounts a ON t.account_id = a.id
+            WHERE strftime('%Y-%m', t.date) = ?
+            ORDER BY t.date ASC, t.id ASC
+            """,
+            (ym,),
+        )
+        expenses_rows = expenses_cur.fetchall()
+        
+        for r in expenses_rows:
+            vals = [
+                r["id"],
+                r["date"],
+                r["amount"],
+                r["category"],
+                r["user"],
+                r["account"] or "",
+                r["notes"] or "",
+                r["tags"] or "",
+                r["recurrence_id"] or "",
+            ]
+            expenses_ws.append(vals)
+        
+        # Create recurrences sheet
+        recurrences_ws = wb.create_sheet("הוצאות קבועות")
+        recurrences_ws.append(RECURRENCES_HEADERS)
+        
+        # Get all active recurrences
+        recurrences_cur = conn.execute(
+            """
+            SELECT r.id, r.name, r.amount, c.name as category, u.name as user,
+                   r.frequency, r.start_date, r.end_date, r.day_of_month, 
+                   r.weekday, r.active
+            FROM recurrences r
+            LEFT JOIN categories c ON r.category_id = c.id
+            LEFT JOIN users u ON r.user_id = u.id
+            WHERE r.active = 1
+            ORDER BY r.name ASC
+            """,
+        )
+        recurrences_rows = recurrences_cur.fetchall()
+        
+        for r in recurrences_rows:
+            vals = [
+                r["id"],
+                r["name"],
+                r["amount"],
+                r["category"],
+                r["user"],
+                r["frequency"],
+                r["start_date"],
+                r["end_date"] or "",
+                r["day_of_month"] or "",
+                r["weekday"] or "",
+                "כן" if r["active"] else "לא",
+            ]
+            recurrences_ws.append(vals)
+        
+        # Save the workbook
+        file_name = f"monthly_backup_{year}_{month:02d}.xlsx"
+        file_path = EXCEL_ROOT / file_name
+        wb.save(filename=str(file_path))
+
+        LOG.info("Created monthly backup file %s", file_name)
+        return file_path
     finally:
         _IN_PROGRESS = False
         if conn is not None and not conn_provided:

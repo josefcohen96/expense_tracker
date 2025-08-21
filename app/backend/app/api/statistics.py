@@ -45,13 +45,12 @@ def statistics(request: Request, db_conn=Depends(get_db_conn)):
     categories_rows = cur.execute("SELECT name FROM categories").fetchall()
     all_categories = [row["name"] for row in categories_rows]
 
-    # Get monthly sums per category
+    # Get monthly sums per category (including both regular and recurring expenses)
     monthly_raw = cur.execute("""
         SELECT strftime('%Y-%m', t.date) AS ym, ABS(SUM(t.amount)) AS expenses, c.name AS category
         FROM transactions t
         JOIN categories c ON t.category_id = c.id
         WHERE t.date >= date('now', '-6 months')
-        AND t.recurrence_id IS NULL
         GROUP BY ym, c.name
         ORDER BY ym, c.name
     """).fetchall()
@@ -75,23 +74,21 @@ def statistics(request: Request, db_conn=Depends(get_db_conn)):
     # Top 5 expenses in last 3 months (with cache)
     top_expenses = _get_top_expenses(cur)
 
-    # Expenses by category
+    # Expenses by category (including both regular and recurring expenses)
     categories = cur.execute("""
         SELECT c.name AS category, ABS(SUM(t.amount)) AS total
         FROM transactions t
         JOIN categories c ON t.category_id = c.id
         WHERE t.date >= date('now', '-6 months')
-        AND t.recurrence_id IS NULL
         GROUP BY c.name
     """).fetchall()
 
-    # Expenses by user
+    # Expenses by user (including both regular and recurring expenses)
     users = cur.execute("""
         SELECT u.name AS user_name, ABS(SUM(t.amount)) AS total
         FROM transactions t
         JOIN users u ON t.user_id = u.id
         WHERE t.date >= date('now', '-6 months')
-        AND t.recurrence_id IS NULL
         GROUP BY u.name
         ORDER BY total DESC
     """).fetchall()
@@ -146,7 +143,6 @@ def _get_top_expenses(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
             LEFT JOIN accounts a ON t.account_id = a.id
             WHERE t.date >= date('now', '-3 months')
             AND t.amount < 0  -- Only expenses (negative amounts)
-            AND t.recurrence_id IS NULL
             ORDER BY ABS(t.amount) DESC
             LIMIT 5
         """).fetchall()
@@ -202,12 +198,11 @@ def monthly_expenses_api(category: str = Query("total"), db_conn=Depends(get_db_
     last_6_months = get_last_6_months()
 
     if category == "total":
-        # Total sum for each month
+        # Total sum for each month (including both regular and recurring expenses)
         rows = cur.execute("""
             SELECT strftime('%Y-%m', t.date) AS ym, ABS(SUM(t.amount)) AS expenses
             FROM transactions t
             WHERE t.date >= date('now', '-6 months')
-            AND t.recurrence_id IS NULL
             GROUP BY ym
             ORDER BY ym
         """).fetchall()
@@ -217,14 +212,13 @@ def monthly_expenses_api(category: str = Query("total"), db_conn=Depends(get_db_
             for ym in last_6_months
         ]
     else:
-        # Specific category
+        # Specific category (including both regular and recurring expenses)
         rows = cur.execute("""
             SELECT strftime('%Y-%m', t.date) AS ym, ABS(SUM(t.amount)) AS expenses
             FROM transactions t
             JOIN categories c ON t.category_id = c.id
             WHERE t.date >= date('now', '-6 months')
             AND c.name = ?
-            AND t.recurrence_id IS NULL
             GROUP BY ym
             ORDER BY ym
         """, (category,)).fetchall()
@@ -249,10 +243,10 @@ def debug_statistics(db_conn=Depends(get_db_conn)):
     three_months_ago = now - relativedelta(months=3)
     three_months_ago_sql = three_months_ago.strftime('%Y-%m-%d')
     
-    # Check total transactions
-    total_tx = cur.execute("SELECT COUNT(*) FROM transactions WHERE recurrence_id IS NULL").fetchone()[0]
+    # Check total transactions (including both regular and recurring expenses)
+    total_tx = cur.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
     
-    # Check transactions in last 3 months
+    # Check transactions in last 3 months (including both regular and recurring expenses)
     last_3_months = cur.execute("""
         SELECT COUNT(*) as count,
                COUNT(CASE WHEN amount < 0 THEN 1 END) as negative_count,
@@ -263,19 +257,17 @@ def debug_statistics(db_conn=Depends(get_db_conn)):
                SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as total_positive
         FROM transactions 
         WHERE date >= date('now', '-3 months')
-        AND recurrence_id IS NULL
     """).fetchone()
     
-    # Check some sample transactions to see their dates
+    # Check some sample transactions to see their dates (including both regular and recurring expenses)
     sample_tx = cur.execute("""
         SELECT id, date, amount, notes 
         FROM transactions 
-        WHERE recurrence_id IS NULL
         ORDER BY date DESC 
         LIMIT 10
     """).fetchall()
     
-    # Check the exact query that's used for top expenses
+    # Check the exact query that's used for top expenses (including both regular and recurring expenses)
     top_expenses_debug = cur.execute("""
         SELECT 
             t.id,
@@ -291,7 +283,6 @@ def debug_statistics(db_conn=Depends(get_db_conn)):
         LEFT JOIN accounts a ON t.account_id = a.id
         WHERE t.date >= date('now', '-3 months')
         AND t.amount < 0  -- רק הוצאות (סכומים שליליים)
-        AND t.recurrence_id IS NULL
         ORDER BY ABS(t.amount) DESC
         LIMIT 5
     """).fetchall()

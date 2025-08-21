@@ -1,25 +1,117 @@
-import { by, readJSONScript, labels, values, baseOptions } from "./helpers.js";
+import { readJSONScript } from "./helpers.js";
 
-const data = readJSONScript("category-data");
-const el = by("donut-chart");
-if (el && window.Chart) {
-  const ctx = el.getContext("2d");
-  new Chart(ctx, {
-    type: "doughnut",
-    data: {
-      labels: labels(data, "category"),
-      datasets: [{
-        label: "₪",
-        data: values(data, "total")
-      }]
-    },
-    options: {
-      ...baseOptions,
-      plugins: {
-        ...baseOptions.plugins,
-        legend: { position: "bottom", labels: { usePointStyle: true, boxWidth: 10 } }
-      },
-      cutout: "62%" // דונאט אלגנטי יותר
-    }
-  });
+// Read category data from the page JSON script
+const rawCat = readJSONScript("category-data");
+
+// Normalize to { month: 'YYYY-MM', category: string, amount: number }
+const catItems = (rawCat || [])
+	.map((it) => {
+		const amount = it.amount ?? it.total ?? it.sum ?? 0;
+		return {
+			month: (it.month ?? it.ym ?? it.period ?? "").toString(),
+			category: it.category ?? it.name ?? it.title ?? "אחר",
+			amount: Number(amount) || 0,
+		};
+	})
+	.filter((x) => x.amount !== 0 && x.month);
+
+// Available months (sorted lexicographically: YYYY-MM)
+const availableMonths = Array.from(new Set(catItems.map((m) => m.month)))
+	.filter(Boolean)
+	.sort();
+
+// UI elements
+const inputMonth = document.getElementById("donut-month-single");
+const ctx = document.getElementById("donut-chart");
+
+// Helpers
+function prevMonthStr() {
+	const d = new Date();
+	d.setMonth(d.getMonth() - 1);
+	const y = d.getFullYear();
+	const m = String(d.getMonth() + 1).padStart(2, "0");
+	return `${y}-${m}`;
 }
+
+function setDefaultMonth() {
+	const prev = prevMonthStr();
+	if (!availableMonths.length) {
+		if (!inputMonth.value) inputMonth.value = prev;
+		return;
+	}
+	const last = availableMonths[availableMonths.length - 1];
+	inputMonth.value = availableMonths.includes(prev) ? prev : last;
+}
+
+// Aggregate a single month to category totals
+function aggregateForMonth(month) {
+	const acc = new Map();
+	for (const item of catItems) {
+		if (item.month !== month) continue;
+		acc.set(item.category, (acc.get(item.category) || 0) + item.amount);
+	}
+	const labels = Array.from(acc.keys());
+	const data = labels.map((l) => acc.get(l) || 0);
+	return { labels, data };
+}
+
+// Colors
+function colors(n) {
+	const arr = [];
+	for (let i = 0; i < n; i++) {
+		const hue = Math.floor((360 / Math.max(1, n)) * i);
+		arr.push(`hsl(${hue} 70% 55%)`);
+	}
+	return arr;
+}
+
+// Chart instance
+let chart;
+
+function render() {
+	const selected = inputMonth.value || prevMonthStr();
+	let { labels, data } = aggregateForMonth(selected);
+
+	if (!labels.length || !data.length || data.every((v) => v === 0)) {
+		labels = ["אין נתונים"];
+		data = [1];
+	}
+
+	const bg = colors(labels.length);
+	const dataset = { label: "סכום", data, backgroundColor: bg, borderWidth: 0 };
+
+	if (!chart) {
+		chart = new Chart(ctx, {
+			type: "doughnut",
+			data: { labels, datasets: [dataset] },
+			options: {
+				responsive: true,
+				maintainAspectRatio: false,
+				plugins: {
+					legend: { position: "right" },
+					tooltip: {
+						callbacks: {
+							label: (item) => {
+								const v = item.parsed;
+								const l = item.label || "";
+								return `${l}: ${Number(v).toLocaleString()}`;
+							},
+						},
+					},
+				},
+			},
+		});
+	} else {
+		chart.data.labels = labels;
+		chart.data.datasets[0].data = data;
+		chart.data.datasets[0].backgroundColor = bg;
+		chart.update();
+	}
+}
+
+// Init
+setDefaultMonth();
+render();
+
+// Events
+inputMonth.addEventListener("change", render);

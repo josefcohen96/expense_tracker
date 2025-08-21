@@ -1,12 +1,12 @@
 from __future__ import annotations
 import os
 import sqlite3
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 from pathlib import Path as FSPath
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -277,3 +277,64 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
             "category_expenses": [dict(r) for r in (category_rows or [])],
         }
     )
+
+
+def _find_db_file() -> Optional[Path]:
+	# mirror logic used by backup_service
+	candidates = [
+		os.getenv("COUPLEBUDGET_DB"),
+		"data.db", "couplebudget.db", "db.sqlite3", "app.db", "database.db"
+	]
+	root_dir = Path(__file__).resolve().parents[3]  # .../expense_tracker/app
+	for c in candidates:
+		if not c:
+			continue
+		p = Path(c) if Path(c).is_absolute() else root_dir / c
+		if p.exists():
+			return p
+	return None
+
+def _open_conn() -> sqlite3.Connection:
+	db_path = _find_db_file()
+	if not db_path:
+		raise RuntimeError("DB file not found")
+	conn = sqlite3.connect(str(db_path))
+	conn.row_factory = sqlite3.Row
+	return conn
+
+@router.get("/statistics/category")
+async def statistics_category(months: Optional[str] = Query(default=None)) -> List[Dict]:
+	"""
+	Return aggregated expenses by category with per-month breakdown.
+	Params:
+	- months: optional CSV of YYYY-MM values to filter on.
+	Response items: { month: 'YYYY-MM', category: 'Name', amount: number }
+	"""
+	try:
+		conn = _open_conn()
+		params: list = []
+		where = ""
+		if months:
+			parts = [m.strip() for m in months.split(",") if m.strip()]
+			if parts:
+				where = f" AND strftime('%Y-%m', t.date) IN ({','.join(['?']*len(parts))})"
+				params.extend(parts)
+		sql = f"""
+			SELECT strftime('%Y-%m', t.date) AS month,
+			       COALESCE(c.name, 'אחר') AS category,
+			       SUM(t.amount) AS amount
+			FROM transactions t
+			LEFT JOIN categories c ON t.category_id = c.id
+			WHERE 1=1 {where}
+			GROUP BY month, category
+			ORDER BY month ASC, category ASC
+		"""
+		rows = conn.execute(sql, params).fetchall()
+		return [{"month": r["month"], "category": r["category"], "amount": float(r["amount"] or 0)} for r in rows]
+	except Exception as exc:
+		raise HTTPException(status_code=500, detail=str(exc))
+	finally:
+		try:
+			conn.close()
+		except Exception:
+			pass

@@ -1,43 +1,51 @@
-export const by = (id) => document.getElementById(id);
+// Debug flag
+const DBG = true;
 
-export const readJSONScript = (id) => {
-  const el = by(id);
-  if (!el) return [];
-  try { return JSON.parse(el.textContent || "[]"); } catch { return []; }
-};
+export function by(id) {
+	const el = document.getElementById(id);
+	if (DBG) console.debug(`[helpers.by] #${id} =>`, !!el);
+	return document.getElementById(id);
+}
 
-export const labels = (arr, key) => arr.map((o) => o?.[key]);
-export const values = (arr, key) => arr.map((o) => Number(o?.[key] || 0));
+export function readJSONScript(scriptId) {
+	const node = document.getElementById(scriptId);
+	if (!node) return [];
+	try {
+		return JSON.parse(node.textContent || "[]");
+	} catch {
+		return [];
+	}
+}
 
-export const fmtCurrency = (n) =>
-  new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS", maximumFractionDigits: 0 }).format(n);
+export function labels(arr, key) {
+	return (Array.isArray(arr) ? arr : []).map(it => it?.[key] ?? "");
+}
 
-// סט אופציות בסיס לכל הגרפים (RTL, מרווחים, פונט)
+export function values(arr, key) {
+	return (Array.isArray(arr) ? arr : []).map(it => Number(it?.[key] ?? 0));
+}
+
 export const baseOptions = {
-  responsive: true,
-  maintainAspectRatio: false, // חשוב כדי שהגרף ימלא את הקונטיינר
-  locale: "he-IL",
-  layout: { padding: { top: 8, right: 8, bottom: 8, left: 8 } },
-  plugins: {
-    legend: { position: "bottom", labels: { usePointStyle: true, boxWidth: 8 } },
-    tooltip: {
-      rtl: true,
-      callbacks: {
-        label: (ctx) => fmtCurrency(ctx.parsed.y ?? ctx.parsed)
-      }
-    }
-  },
-  scales: {
-    x: {
-      ticks: { maxRotation: 0, autoSkip: true },
-      grid: { display: false }
-    },
-    y: {
-      beginAtZero: true,
-      grid: { color: "rgba(0,0,0,0.06)" },
-      ticks: {
-        callback: (v) => new Intl.NumberFormat("he-IL", { notation: "compact" }).format(v)
-      }
-    }
-  }
+	responsive: true,
+	maintainAspectRatio: false,
+	plugins: {
+		legend: { position: "right" },
+		tooltip: {
+			callbacks: {
+				label: (ctx) => {
+					const v = ctx.parsed?.y ?? ctx.parsed ?? ctx.raw;
+					return `${ctx.label || ""}: ${Number(v).toLocaleString()}`;
+				}
+			}
+		}
+	},
+	scales: {
+		x: { grid: { display: false }, ticks: { color: "#334155" } },
+		y: {
+			beginAtZero: true,
+			grid: { color: "rgba(148,163,184,0.2)" },
+			ticks: { color: "#334155", callback: (v) => Number(v).toLocaleString() }
+		}
+	}
 };
+

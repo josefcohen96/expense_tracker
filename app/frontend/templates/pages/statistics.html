@@ -75,13 +75,13 @@
     </div>
   </section>
 
-  <!-- לפי משתמש -->
+  <!-- הוצאות קבועות -->
   <section class="bg-white rounded-2xl shadow p-5">
     <header class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-semibold">הוצאות קבועות לפי חודש</h2>
+      <h2 class="text-lg font-semibold">הוצאות קבועות 6 חודשים אחרונים</h2>
     </header>
     <div class="relative h-72 md:h-80 xl:h-96">
-      <canvas id="user-bar-chart" class="absolute inset-0"></canvas>
+      <canvas id="recurrences-chart" class="absolute inset-0"></canvas>
     </div>
   </section>
 </div>
@@ -104,6 +104,9 @@
 </script>
 <script id="recurring-user-data" type="application/json">
   {{ (recurring_user_expenses | default([])) | tojson }}
+</script>
+<script id="recurrences-data" type="application/json">
+  {{ (recurring_monthly | default([])) | tojson }}
 </script>
 
 
@@ -146,6 +149,6 @@ console.log("=== FRONTEND DEBUG END ===");
 <script type="module" src="{{ url_for('static', path='js/charts/helpers.js') }}"></script>
 <script type="module" src="{{ url_for('static', path='js/charts/monthly.js') }}"></script>
 <script type="module" src="{{ url_for('static', path='js/charts/donut.js') }}"></script>
-<script type="module" src="{{ url_for('static', path='js/charts/user-bar.js') }}"></script>
+<script type="module" src="{{ url_for('static', path='js/charts/recurrences.js') }}"></script>
 
 {% endblock %}

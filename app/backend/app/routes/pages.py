@@ -29,6 +29,7 @@ async def index(request: Request, db_conn: sqlite3.Connection = Depends(get_db_c
     """Dashboard: counters for total txs / total expenses / total income."""
     stats: Dict[str, Any] = {"transactions_count": 0,
                              "total_expenses": 0.0, "total_income": 0.0}
+    # Calculate expenses from regular transactions
     cur = db_conn.execute(
         "SELECT COUNT(*), "
         "SUM(CASE WHEN amount < 0 THEN amount ELSE 0 END), "
@@ -36,10 +37,26 @@ async def index(request: Request, db_conn: sqlite3.Connection = Depends(get_db_c
         "FROM transactions WHERE recurrence_id IS NULL"
     )
     row = cur.fetchone()
-    if row:
-        stats["transactions_count"] = row[0] or 0
-        stats["total_expenses"] = abs(row[1] or 0.0)
-        stats["total_income"] = row[2] or 0.0
+    regular_expenses = abs(row[1] or 0.0) if row else 0.0
+    regular_income = row[2] or 0.0 if row else 0.0
+    regular_count = row[0] or 0 if row else 0
+    
+    # Calculate expenses from recurring transactions
+    cur = db_conn.execute(
+        "SELECT COUNT(*), "
+        "SUM(CASE WHEN amount < 0 THEN amount ELSE 0 END), "
+        "SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) "
+        "FROM transactions WHERE recurrence_id IS NOT NULL"
+    )
+    row = cur.fetchone()
+    recurring_expenses = abs(row[1] or 0.0) if row else 0.0
+    recurring_income = row[2] or 0.0 if row else 0.0
+    recurring_count = row[0] or 0 if row else 0
+    
+    # Total everything
+    stats["transactions_count"] = regular_count + recurring_count
+    stats["total_expenses"] = regular_expenses + recurring_expenses
+    stats["total_income"] = regular_income + recurring_income
     cur.close()
     return templates.TemplateResponse("pages/index.html", {"request": request, "stats": stats})
 
@@ -53,7 +70,7 @@ async def transactions_page(request: Request, db_conn: sqlite3.Connection = Depe
         "JOIN categories c ON t.category_id = c.id "
         "JOIN users u ON t.user_id = u.id "
         "LEFT JOIN accounts a ON t.account_id = a.id "
-        "WHERE t.recurrence_id IS NULL "
+        "WHERE t.recurrence_id IS NULL AND t.amount < 0 "
         "ORDER BY t.date DESC, t.id DESC"
     ).fetchall()
     cats = db_conn.execute(
@@ -67,6 +84,32 @@ async def transactions_page(request: Request, db_conn: sqlite3.Connection = Depe
         "pages/transactions.html",
         {"request": request, "transactions": txs, "categories": cats, "users": users, "accounts": accs, "today": date.today().isoformat(),  # <— כאן שולחים תאריך דיפולטיבי
          },
+    )
+
+
+@router.get("/income", response_class=HTMLResponse)
+async def income_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
+    """דף הכנסות - מציג רק עסקאות חיוביות"""
+    txs = db_conn.execute(
+        "SELECT t.id, t.date, t.amount, c.name AS category_name, u.name AS user_name, "
+        "a.name AS account_name, t.notes, t.tags, t.category_id, t.user_id, t.account_id "
+        "FROM transactions t "
+        "JOIN categories c ON t.category_id = c.id "
+        "JOIN users u ON t.user_id = u.id "
+        "LEFT JOIN accounts a ON t.account_id = a.id "
+        "WHERE t.recurrence_id IS NULL AND t.amount > 0 "
+        "ORDER BY t.date DESC, t.id DESC"
+    ).fetchall()
+    cats = db_conn.execute(
+        "SELECT id, name FROM categories ORDER BY name").fetchall()
+    users = db_conn.execute(
+        "SELECT id, name FROM users ORDER BY id").fetchall()
+    accs = db_conn.execute(
+        "SELECT id, name FROM accounts ORDER BY name").fetchall()
+
+    return templates.TemplateResponse(
+        "pages/income.html",
+        {"request": request, "transactions": txs, "categories": cats, "users": users, "accounts": accs, "today": date.today().isoformat()},
     )
 
 
@@ -87,6 +130,8 @@ async def create_transaction(request: Request, db_conn: sqlite3.Connection = Dep
 
     try:
         amount_val = float(amount) if amount is not None else 0.0
+        # Make amount negative since this is an expense
+        amount_val = -abs(amount_val)
         category_int = int(category_id) if category_id is not None else None
         user_int = int(user_id) if user_id is not None else None
         account_int = int(account_id) if account_id not in (None, "") else None
@@ -100,6 +145,40 @@ async def create_transaction(request: Request, db_conn: sqlite3.Connection = Dep
         raise HTTPException(status_code=400, detail=str(exc))
 
     return RedirectResponse(url="/transactions", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/income")
+async def create_income(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> RedirectResponse:
+    """HTML form submission for income (positive amounts)."""
+    from urllib.parse import parse_qs
+    body = await request.body()
+    form = {k: v[0] if isinstance(v, list) else v for k, v in parse_qs(
+        body.decode("utf-8")).items()}
+    date = form.get("date")
+    amount = form.get("amount")
+    category_id = form.get("category_id")
+    user_id = form.get("user_id")
+    account_id = form.get("account_id") or None
+    notes = form.get("notes") or None
+    tags = form.get("tags") or None
+
+    try:
+        amount_val = float(amount) if amount is not None else 0.0
+        # Make amount positive since this is income
+        amount_val = abs(amount_val)
+        category_int = int(category_id) if category_id is not None else None
+        user_int = int(user_id) if user_id is not None else None
+        account_int = int(account_id) if account_id not in (None, "") else None
+        db_conn.execute(
+            "INSERT INTO transactions (date, amount, category_id, user_id, account_id, notes, tags) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (date, amount_val, category_int, user_int, account_int, notes, tags),
+        )
+        db_conn.commit()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return RedirectResponse(url="/income", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/recurrences", response_class=HTMLResponse)
@@ -284,6 +363,9 @@ async def delete_recurrence_inline(
 ) -> HTMLResponse:
     """Delete a recurrence."""
     try:
+        # Delete all transactions associated with this recurrence
+        db_conn.execute("DELETE FROM transactions WHERE recurrence_id = ?", (recurrence_id,))
+        
         # Delete the recurrence
         db_conn.execute("DELETE FROM recurrences WHERE id = ?", (recurrence_id,))
         db_conn.commit()

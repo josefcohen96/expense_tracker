@@ -1,8 +1,13 @@
+"""
+Statistics service for generating expense reports and analytics.
+"""
+
 import sqlite3
 from datetime import datetime
 from typing import Dict, List, Any
 
 def _last_six_months_start() -> str:
+    """Get the start date for the last 6 months."""
     today = datetime.today()
     start_year = today.year
     start_month = today.month - 5
@@ -12,6 +17,17 @@ def _last_six_months_start() -> str:
     return f"{start_year:04d}-{start_month:02d}-01"
 
 def get_monthly_expenses(db_conn: sqlite3.Connection, category_id: int = None, user_id: int = None) -> List[Dict[str, Any]]:
+    """
+    Get monthly expenses for the last 6 months.
+    
+    Args:
+        db_conn: Database connection
+        category_id: Optional category filter
+        user_id: Optional user filter
+    
+    Returns:
+        List of monthly expense data
+    """
     start_date_str = _last_six_months_start()
     query = """
         SELECT strftime('%Y-%m', date) AS ym,
@@ -21,17 +37,19 @@ def get_monthly_expenses(db_conn: sqlite3.Connection, category_id: int = None, u
         AND recurrence_id IS NULL
     """
     params: List[Any] = [start_date_str]
+    
     if category_id is not None:
         query += " AND category_id = ?"
         params.append(category_id)
     if user_id is not None:
         query += " AND user_id = ?"
         params.append(user_id)
+    
     query += " GROUP BY ym"
     rows = db_conn.execute(query, params).fetchall()
     results = {r["ym"]: float(r["expenses"] or 0.0) for r in rows}
 
-    # יצירת רצף 6 חודשים גם אם אין נתונים
+    # Create 6-month sequence even if no data exists
     output: List[Dict[str, Any]] = []
     y, m = map(int, start_date_str.split("-")[:2])
     for _ in range(6):

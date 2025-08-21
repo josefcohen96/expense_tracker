@@ -3,7 +3,7 @@
 {% if _mode == 'read' %}
 <tr id="txrow-{{ tx['id'] }}">
   <td>{{ tx['date'] }}</td>
-  <td>{{ tx['amount']|abs }}</td>
+  <td class="text-green-600 font-semibold">{{ tx['amount']|abs }}</td>
   <td>{{ tx['category_name'] }}</td>
   <td>{{ tx['user_name'] }}</td>
   <td>{{ tx['account_name'] or '-' }}</td>
@@ -11,12 +11,12 @@
   <td>{{ tx['tags'] or '' }}</td>
   <td class="space-x-2">
     <button class="px-3 py-1 rounded bg-blue-600 text-white"
-            hx-get="/transactions/{{ tx['id'] }}/edit-inline"
+            hx-get="/income/{{ tx['id'] }}/edit-inline"
             hx-target="#txrow-{{ tx['id'] }}" hx-swap="outerHTML">עריכה</button>
     <button class="px-3 py-1 rounded bg-red-600 text-white"
-            hx-post="/transactions/{{ tx['id'] }}/delete-inline"
+            hx-post="/income/{{ tx['id'] }}/delete-inline"
             hx-target="#txrow-{{ tx['id'] }}" hx-swap="outerHTML"
-            hx-confirm="למחוק את העסקה? הפעולה בלתי הפיכה.">מחיקה</button>
+            hx-confirm="למחוק את ההכנסה? הפעולה בלתי הפיכה.">מחיקה</button>
   </td>
 </tr>
 {% else %}
@@ -75,7 +75,7 @@
   <td class="space-x-2">
     <!-- הטופס עצמו: יושב בתא הפעולות -->
     <form id="edit-{{ tx['id'] }}"
-          hx-post="/transactions/{{ tx['id'] }}/edit-inline"
+          hx-post="/income/{{ tx['id'] }}/edit-inline"
           hx-target="#txrow-{{ tx['id'] }}"
           hx-swap="outerHTML"
           hx-disabled-elt="this">
@@ -88,7 +88,7 @@
 
     <button type="button"
             class="px-3 py-1 rounded border hover:bg-gray-50"
-            hx-get="/transactions/{{ tx['id'] }}/row"
+            hx-get="/income/{{ tx['id'] }}/row"
             hx-target="#txrow-{{ tx['id'] }}"
             hx-swap="outerHTML">
       ביטול

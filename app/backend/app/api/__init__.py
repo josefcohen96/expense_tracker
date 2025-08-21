@@ -1,4 +1,8 @@
+"""
+API package containing all API endpoints and routers.
+"""
+
 from fastapi import APIRouter
 
-# רואטר מאוחד אם תרצה בעתיד, כרגע לא חובה להשתמש בו.
+# Unified router for future use, not required currently
 api_router = APIRouter()

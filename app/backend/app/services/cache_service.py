@@ -6,12 +6,14 @@ Uses in-memory cache with TTL (Time To Live) for efficiency.
 import time
 import logging
 from typing import Any, Dict, Optional
-from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
 class CacheService:
+    """In-memory cache service with TTL support."""
+    
     def __init__(self):
+        """Initialize the cache service."""
         self._cache: Dict[str, Dict[str, Any]] = {}
     
     def get(self, key: str) -> Optional[Any]:

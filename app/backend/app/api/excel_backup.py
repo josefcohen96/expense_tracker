@@ -1,3 +1,7 @@
+"""
+Excel backup functionality for saving expenses to monthly Excel files.
+"""
+
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any
@@ -16,6 +20,7 @@ HEADERS = ["id", "date", "amount", "category", "notes", "created_at", "updated_a
 
 
 def _parse_date(value: Optional[str]) -> datetime:
+    """Parse date string to datetime object."""
     if not value:
         return datetime.utcnow()
     if isinstance(value, datetime):
@@ -32,14 +37,20 @@ def _parse_date(value: Optional[str]) -> datetime:
 
 
 def _file_for_dt(dt: datetime) -> Path:
+    """Get Excel file path for a given datetime."""
     return EXCEL_DIR / f"expenses_{dt.year}_{dt.month:02d}.xlsx"
 
 
 def save_expense(expense: Dict[str, Any]) -> Path:
     """
     Save or update a single expense into the month-year Excel file.
-    - expense: dict containing at least 'id' and a date-like field ('date' preferred).
-    - returns: Path to the Excel file written.
+    
+    Args:
+        expense: dict containing at least 'id' and a date-like field ('date' preferred).
+    
+    Returns:
+        Path to the Excel file written.
+    
     Usage: call from your transactions create/update handlers:
         from .api.excel_backup import save_expense
         save_expense(expense_dict)
@@ -73,15 +84,14 @@ def save_expense(expense: Dict[str, Any]) -> Path:
                 break
 
     if row_idx:
+        # Update existing row
         for col_index, key in enumerate(HEADERS, start=1):
             ws.cell(row=row_idx, column=col_index, value=expense.get(key))
     else:
+        # Add new row
         row_values = [expense.get(k) for k in HEADERS]
         ws.append(row_values)
 
-    wb.save(filename=str(path))
-    LOG.info("Saved expense id=%s to %s", exp_id, path.name)
-    return path
     wb.save(filename=str(path))
     LOG.info("Saved expense id=%s to %s", exp_id, path.name)
     return path

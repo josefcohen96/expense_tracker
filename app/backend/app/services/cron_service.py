@@ -1,3 +1,7 @@
+"""
+CRON service for scheduled tasks like challenge evaluation and progress updates.
+"""
+
 import asyncio
 import sqlite3
 from datetime import datetime, date
@@ -10,11 +14,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class CronService:
+    """Service for managing scheduled tasks and CRON jobs."""
+    
     def __init__(self, db_path: str):
+        """Initialize the CRON service."""
         self.db_path = db_path
         self.scheduler = AsyncIOScheduler()
         
-    def start(self):
+    def start(self) -> None:
         """Start the CRON scheduler."""
         # Schedule challenge evaluation to run on the 1st of every month at 2:00 AM
         self.scheduler.add_job(
@@ -37,12 +44,12 @@ class CronService:
         self.scheduler.start()
         logger.info("CRON scheduler started successfully")
         
-    def stop(self):
+    def stop(self) -> None:
         """Stop the CRON scheduler."""
         self.scheduler.shutdown()
         logger.info("CRON scheduler stopped")
         
-    async def evaluate_all_challenges(self):
+    async def evaluate_all_challenges(self) -> None:
         """Evaluate all active challenges that have ended."""
         logger.info("Starting monthly challenge evaluation...")
         

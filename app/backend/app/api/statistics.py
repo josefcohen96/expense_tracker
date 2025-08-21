@@ -1,4 +1,7 @@
-# app/backend/app/api/statistics.py
+"""
+Statistics API endpoints for expense tracking and reporting.
+"""
+
 from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from ..db import get_db_conn
@@ -6,7 +9,7 @@ from ..services.cache_service import cache_service
 from starlette.templating import Jinja2Templates
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
-from typing import Dict, Any
+from typing import Dict, Any, List
 import sqlite3
 import logging
 
@@ -16,7 +19,8 @@ templates = Jinja2Templates(directory="../frontend/templates")
 
 router = APIRouter(prefix="/api/statistics", tags=["statistics"])
 
-def get_last_6_months():
+def get_last_6_months() -> List[str]:
+    """Get the last 6 months as YYYY-MM format strings."""
     today = datetime.today().replace(day=1)
     months = []
     for i in range(5, -1, -1):
@@ -26,10 +30,12 @@ def get_last_6_months():
 
 @router.get("/page", response_class=HTMLResponse)
 def statistics_page(request: Request, db_conn=Depends(get_db_conn)):
+    """Statistics page endpoint."""
     return statistics(request, db_conn)
 
 @router.get("", response_class=HTMLResponse)
 def statistics(request: Request, db_conn=Depends(get_db_conn)):
+    """Main statistics endpoint - returns HTML with all statistics data."""
     cur = db_conn.cursor()
     
     # Get last 6 months as strings
@@ -66,14 +72,65 @@ def statistics(request: Request, db_conn=Depends(get_db_conn)):
         total = sum(lookup.get((ym, cat), 0) for cat in all_categories)
         monthly.append({"ym": ym, "expenses": total, "category": "total"})
 
-    # 5 ההוצאות הכי גדולות ב-3 חודשים האחרונים (עם cache)
+    # Top 5 expenses in last 3 months (with cache)
+    top_expenses = _get_top_expenses(cur)
+
+    # Expenses by category
+    categories = cur.execute("""
+        SELECT c.name AS category, ABS(SUM(t.amount)) AS total
+        FROM transactions t
+        JOIN categories c ON t.category_id = c.id
+        WHERE t.date >= date('now', '-6 months')
+        AND t.recurrence_id IS NULL
+        GROUP BY c.name
+    """).fetchall()
+
+    # Expenses by user
+    users = cur.execute("""
+        SELECT u.name AS user_name, ABS(SUM(t.amount)) AS total
+        FROM transactions t
+        JOIN users u ON t.user_id = u.id
+        WHERE t.date >= date('now', '-6 months')
+        AND t.recurrence_id IS NULL
+        GROUP BY u.name
+        ORDER BY total DESC
+    """).fetchall()
+
+    # Recurring expenses by user (last 6 months)
+    recurring_users = cur.execute("""
+        SELECT u.name AS user_name, ABS(SUM(t.amount)) AS total
+        FROM transactions t
+        JOIN users u ON t.user_id = u.id
+        WHERE t.date >= date('now', '-6 months')
+        AND t.recurrence_id IS NOT NULL
+        GROUP BY u.name
+        ORDER BY total DESC
+    """).fetchall()
+    
+    # Recurring expenses by month (last 6 months)
+    recurring_monthly = _get_recurring_monthly_expenses(cur, last_6_months)
+
+    template_data = {
+        "request": request,
+        "monthly_expenses": monthly,
+        "top_expenses": [dict(row) for row in top_expenses],
+        "category_expenses": [dict(row) for row in categories],
+        "user_expenses": [dict(row) for row in users],
+        "recurring_user_expenses": [dict(row) for row in recurring_users],
+        "recurring_monthly": recurring_monthly,
+    }
+    
+    logger.info("=== STATISTICS PAGE REQUEST END ===")
+    
+    return templates.TemplateResponse("pages/statistics.html", template_data)
+
+def _get_top_expenses(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
+    """Get top 5 expenses from last 3 months with caching."""
     cache_key = "top_expenses_3months"
     top_expenses = cache_service.get(cache_key)
     
     if top_expenses is None:
         # Cache miss - fetch from database
-        
-        # Now let's check the actual top expenses query
         top_expenses = cur.execute("""
             SELECT 
                 t.id,
@@ -88,7 +145,7 @@ def statistics(request: Request, db_conn=Depends(get_db_conn)):
             JOIN users u ON t.user_id = u.id
             LEFT JOIN accounts a ON t.account_id = a.id
             WHERE t.date >= date('now', '-3 months')
-            AND t.amount < 0  -- רק הוצאות (סכומים שליליים)
+            AND t.amount < 0  -- Only expenses (negative amounts)
             AND t.recurrence_id IS NULL
             ORDER BY ABS(t.amount) DESC
             LIMIT 5
@@ -97,58 +154,35 @@ def statistics(request: Request, db_conn=Depends(get_db_conn)):
         # Cache for 5 minutes (300 seconds)
         top_expenses_dict = [dict(row) for row in top_expenses]
         cache_service.set(cache_key, top_expenses_dict, ttl_seconds=300)
+        return top_expenses_dict
     else:
         # Cache hit - convert back to list of dicts if needed
         if isinstance(top_expenses, list) and top_expenses and isinstance(top_expenses[0], dict):
-            pass  # Already in correct format
+            return top_expenses
         else:
-            top_expenses = [dict(row) for row in top_expenses]
+            return [dict(row) for row in top_expenses]
 
-    # הוצאות לפי קטגוריה
-    categories = cur.execute("""
-        SELECT c.name AS category, ABS(SUM(t.amount)) AS total
+def _get_recurring_monthly_expenses(cur: sqlite3.Cursor, last_6_months: List[str]) -> List[Dict[str, Any]]:
+    """Get recurring expenses by month for the last 6 months."""
+    recurring_monthly = cur.execute("""
+        SELECT strftime('%Y-%m', t.date) AS month, ABS(SUM(t.amount)) AS total
         FROM transactions t
-        JOIN categories c ON t.category_id = c.id
-        WHERE t.date >= date('now', '-6 months')
-        AND t.recurrence_id IS NULL
-        GROUP BY c.name
-    """).fetchall()
-
-    # הוצאות לפי משתמש
-    users = cur.execute("""
-        SELECT u.name AS user_name, ABS(SUM(t.amount)) AS total
-        FROM transactions t
-        JOIN users u ON t.user_id = u.id
-        WHERE t.date >= date('now', '-6 months')
-        AND t.recurrence_id IS NULL
-        GROUP BY u.name
-        ORDER BY total DESC
-    """).fetchall()
-
-    # הוצאות קבועות לפי משתמש (6 חודשים אחרונים)
-    recurring_users = cur.execute("""
-        SELECT u.name AS user_name, ABS(SUM(t.amount)) AS total
-        FROM transactions t
-        JOIN users u ON t.user_id = u.id
         WHERE t.date >= date('now', '-6 months')
         AND t.recurrence_id IS NOT NULL
-        GROUP BY u.name
-        ORDER BY total DESC
+        GROUP BY strftime('%Y-%m', t.date)
+        ORDER BY month
     """).fetchall()
     
-
-    template_data = {
-        "request": request,
-        "monthly_expenses": monthly,
-        "top_expenses": [dict(row) for row in top_expenses],
-        "category_expenses": [dict(row) for row in categories],
-        "user_expenses": [dict(row) for row in users],
-        "recurring_user_expenses": [dict(row) for row in recurring_users],
-    }
+    # Build full monthly list for recurrences (including zeros)
+    recurring_lookup = {row["month"]: row["total"] for row in recurring_monthly}
+    recurring_monthly_full = []
+    for ym in last_6_months:
+        recurring_monthly_full.append({
+            "month": ym,
+            "total": recurring_lookup.get(ym, 0)
+        })
     
-    logger.info("=== STATISTICS PAGE REQUEST END ===")
-    
-    return templates.TemplateResponse("pages/statistics.html", template_data)
+    return recurring_monthly_full
 
 @router.post("/clear-cache")
 def clear_statistics_cache():
@@ -163,11 +197,12 @@ def get_cache_stats():
 
 @router.get("/monthly")
 def monthly_expenses_api(category: str = Query("total"), db_conn=Depends(get_db_conn)):
+    """API endpoint for monthly expenses data."""
     cur = db_conn.cursor()
     last_6_months = get_last_6_months()
 
     if category == "total":
-        # סכום כולל לכל חודש
+        # Total sum for each month
         rows = cur.execute("""
             SELECT strftime('%Y-%m', t.date) AS ym, ABS(SUM(t.amount)) AS expenses
             FROM transactions t
@@ -182,12 +217,13 @@ def monthly_expenses_api(category: str = Query("total"), db_conn=Depends(get_db_
             for ym in last_6_months
         ]
     else:
-        # סכום לפי קטגוריה לכל חודש
+        # Specific category
         rows = cur.execute("""
             SELECT strftime('%Y-%m', t.date) AS ym, ABS(SUM(t.amount)) AS expenses
             FROM transactions t
             JOIN categories c ON t.category_id = c.id
-            WHERE t.date >= date('now', '-6 months') AND c.name = ?
+            WHERE t.date >= date('now', '-6 months')
+            AND c.name = ?
             AND t.recurrence_id IS NULL
             GROUP BY ym
             ORDER BY ym
@@ -197,6 +233,7 @@ def monthly_expenses_api(category: str = Query("total"), db_conn=Depends(get_db_
             {"ym": ym, "expenses": lookup.get(ym, 0)}
             for ym in last_6_months
         ]
+    
     return JSONResponse(result)
 
 @router.get("/debug")
@@ -276,26 +313,25 @@ def debug_statistics(db_conn=Depends(get_db_conn)):
     })
 
 
-@router.get("/api/stats/recurring-user-expenses")
-async def api_recurring_user_expenses(
-    db_conn: sqlite3.Connection = Depends(get_db_conn),
-) -> Dict[str, Any]:
-    """API endpoint להוצאות קבועות לפי חודש ב-6 חודשים האחרונים"""
+@router.get("/recurrences")
+def recurrences_monthly_api(db_conn=Depends(get_db_conn)):
+    """API endpoint for recurring expenses by month for last 6 months"""
     cur = db_conn.cursor()
-    
-    # הוצאות קבועות לפי חודש
-    recurring_monthly = cur.execute("""
-        SELECT strftime('%Y-%m', t.date) AS month,
-               ABS(SUM(t.amount)) AS total
+    last_6_months = get_last_6_months()
+
+    # Get recurring expenses by month
+    rows = cur.execute("""
+        SELECT strftime('%Y-%m', t.date) AS month, ABS(SUM(t.amount)) AS total
         FROM transactions t
         WHERE t.date >= date('now', '-6 months')
         AND t.recurrence_id IS NOT NULL
         GROUP BY strftime('%Y-%m', t.date)
-        ORDER BY month ASC
+        ORDER BY month
     """).fetchall()
     
-    result = {
-        "recurring_user_expenses": [dict(row) for row in recurring_monthly],
-    }
-    
-    return result
+    lookup = {row["month"]: row["total"] for row in rows}
+    result = [
+        {"month": ym, "total": lookup.get(ym, 0)}
+        for ym in last_6_months
+    ]
+    return JSONResponse(result)

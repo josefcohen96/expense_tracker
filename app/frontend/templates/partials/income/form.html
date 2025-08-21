@@ -1,6 +1,6 @@
 <div class="bg-white p-6 rounded-lg shadow mb-8">
-  <h2 class="text-xl font-semibold mb-4">הוסף עסקה חדשה</h2>
-  <form method="post" action="/transactions" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <h2 class="text-xl font-semibold mb-4">הוסף הכנסה חדשה</h2>
+  <form method="post" action="/income" class="grid grid-cols-1 md:grid-cols-2 gap-4">
     <div>
       <label class="block text-sm font-medium mb-1">תאריך</label>
       <input type="date" name="date" required value="{{ today }}"
@@ -39,7 +39,7 @@
       <input type="text" name="notes" class="w-full border border-gray-300 rounded px-3 py-2" />
     </div>
     <div class="md:col-span-2 text-right">
-      <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded">שמור</button>
+      <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">שמור הכנסה</button>
     </div>
   </form>
 </div>

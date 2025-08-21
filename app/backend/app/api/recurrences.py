@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from .. import schemas
 from ..db import get_db_conn
-from ..services.recurrence_service import apply_recurring_transactions  # <- שירות  :contentReference[oaicite:4]{index=4}
+from .. import recurrence  # Use direct import instead of service
 
 router = APIRouter(prefix="/api/recurrences", tags=["recurrences"])
 system_router = APIRouter(prefix="/api/system", tags=["system"])
@@ -13,6 +13,7 @@ system_router = APIRouter(prefix="/api/system", tags=["system"])
 async def api_get_recurrences(
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> List[schemas.Recurrence]:
+    """Get all recurring transactions."""
     rows = db_conn.execute("SELECT * FROM recurrences").fetchall()
     return [schemas.Recurrence(**dict(row)) for row in rows]
 
@@ -21,6 +22,7 @@ async def api_create_recurrence(
     rec: schemas.RecurrenceCreate,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> schemas.Recurrence:
+    """Create a new recurring transaction."""
     cur = db_conn.execute(
         "INSERT INTO recurrences (name, amount, category_id, user_id, start_date, end_date, frequency, day_of_month, weekday, custom_cron, account_id, active) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -49,6 +51,7 @@ async def api_update_recurrence(
     update: schemas.RecurrenceCreate,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> schemas.Recurrence:
+    """Update an existing recurring transaction."""
     fields = update.dict(exclude_unset=True)
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -63,5 +66,6 @@ async def api_update_recurrence(
 
 @system_router.post("/apply-recurring")
 async def api_apply_recurring() -> JSONResponse:
-    inserted = apply_recurring_transactions()  # שימוש בשירות
+    """Apply recurring transactions manually."""
+    inserted = recurrence.apply_recurring()
     return JSONResponse(content={"inserted": inserted})

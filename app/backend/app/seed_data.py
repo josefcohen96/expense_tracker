@@ -1,17 +1,21 @@
-# app/backend/app/seed_data.py
+"""
+Seed data generation for testing and development.
+"""
+
 import sqlite3
 from pathlib import Path
-import random, datetime
+import random
+import datetime
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "budget.db"
 
-def seed_recurrences():
-    """יצירת חוקי חזרה ועסקאות קבועות"""
+def seed_recurrences() -> None:
+    """Create recurring transactions for testing."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
-    # יצירת חוקי חזרה
+    # Recurring transactions data
     recurrences_data = [
         ("שכירות", -3000, 1, 1, "2024-01-01", "monthly", 1, None),
         ("חשמל", -400, 2, 1, "2024-01-15", "monthly", 15, None),
@@ -31,7 +35,8 @@ def seed_recurrences():
     conn.close()
     print("✅ Seeded recurrences")
 
-def seed_transactions(n_months=2, per_month=8):
+def seed_transactions(n_months: int = 2, per_month: int = 8) -> None:
+    """Create sample transactions for testing."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()

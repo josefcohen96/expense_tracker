@@ -16,8 +16,10 @@ async def api_get_transactions(
     user_id: Optional[int] = None,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> List[schemas.Transaction]:
+    """Get transactions with optional filtering."""
     query = "SELECT * FROM transactions WHERE recurrence_id IS NULL"
     params: List[Any] = []
+    
     if from_date:
         query += " AND date >= ?"
         params.append(from_date)
@@ -30,6 +32,7 @@ async def api_get_transactions(
     if user_id:
         query += " AND user_id = ?"
         params.append(user_id)
+    
     query += " ORDER BY date DESC, id DESC"
     rows = db_conn.execute(query, params).fetchall()
     return [schemas.Transaction(**dict(row)) for row in rows]
@@ -39,12 +42,16 @@ async def api_create_transaction(
     tr: schemas.TransactionCreate,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> schemas.Transaction:
+    """Create a new transaction (expense)."""
+    # Make amount negative since this is an expense
+    amount = -abs(tr.amount)
+    
     cur = db_conn.execute(
         "INSERT INTO transactions (date, amount, category_id, user_id, account_id, notes, tags, recurrence_id, period_key) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             tr.date,
-            tr.amount,
+            amount,
             tr.category_id,
             tr.user_id,
             tr.account_id,
@@ -60,9 +67,10 @@ async def api_create_transaction(
     # Clear cache when new transaction is added
     cache_service.invalidate("top_expenses_3months")
     
-    # Note: Challenge evaluation is now handled by CRON job
-    
-    return schemas.Transaction(id=new_id, **tr.dict())
+    # Return with the negative amount
+    tr_dict = tr.dict()
+    tr_dict['amount'] = amount
+    return schemas.Transaction(id=new_id, **tr_dict)
 
 @router.put("/{tx_id}", response_model=schemas.Transaction)
 async def api_update_transaction(
@@ -70,9 +78,16 @@ async def api_update_transaction(
     update: schemas.TransactionUpdate,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> schemas.Transaction:
+    """Update an existing transaction."""
     fields = update.dict(exclude_unset=True)
+    
+    # Make amount negative if it's being updated
+    if 'amount' in fields:
+        fields['amount'] = -abs(fields['amount'])
+    
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update")
+    
     set_clause = ", ".join([f"{k} = ?" for k in fields.keys()])
     params = list(fields.values()) + [tx_id]
     db_conn.execute(f"UPDATE transactions SET {set_clause} WHERE id = ? AND recurrence_id IS NULL", params)
@@ -80,8 +95,6 @@ async def api_update_transaction(
     
     # Clear cache when transaction is updated
     cache_service.invalidate("top_expenses_3months")
-    
-    # Note: Challenge evaluation is now handled by CRON job
     
     row = db_conn.execute("SELECT * FROM transactions WHERE id = ? AND recurrence_id IS NULL", (tx_id,)).fetchone()
     if not row:
@@ -93,12 +106,11 @@ async def api_delete_transaction(
     tx_id: int,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> JSONResponse:
+    """Delete a transaction."""
     db_conn.execute("DELETE FROM transactions WHERE id = ? AND recurrence_id IS NULL", (tx_id,))
     db_conn.commit()
     
     # Clear cache when transaction is deleted
     cache_service.invalidate("top_expenses_3months")
-    
-    # Note: Challenge evaluation is now handled by CRON job
     
     return JSONResponse(content={"deleted": True})

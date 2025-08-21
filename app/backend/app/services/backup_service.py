@@ -1,3 +1,7 @@
+"""
+Backup service for creating and managing database backups.
+"""
+
 from pathlib import Path
 from datetime import datetime, date
 from typing import Optional, List, Dict, Tuple
@@ -39,6 +43,7 @@ def _last_n_months(n: int) -> List[Tuple[int, int]]:
 
 
 def _find_db_file() -> Optional[Path]:
+    """Find database file in known locations."""
     candidates = [
         os.getenv("COUPLEBUDGET_DB"),
         "data.db", "couplebudget.db", "db.sqlite3", "app.db", "database.db"
@@ -52,7 +57,8 @@ def _find_db_file() -> Optional[Path]:
     return None
 
 
-def _open_conn_from_path_or_conn(db_conn: Optional[sqlite3.Connection]):
+def _open_conn_from_path_or_conn(db_conn: Optional[sqlite3.Connection]) -> sqlite3.Connection:
+    """Open database connection from path or use provided connection."""
     if db_conn is not None:
         return db_conn
     db_path = _find_db_file()
@@ -65,7 +71,12 @@ def create_backup_file(db_conn: Optional[sqlite3.Connection] = None) -> Path:
     """
     Create a dated folder (DD MM YYYY) under backups/ and write an Excel file for each of the
     last 6 months (including current) containing that month's transactions.
-    Returns path to the created folder (Path).
+    
+    Args:
+        db_conn: Optional database connection
+    
+    Returns:
+        Path to the created folder
     """
     global _IN_PROGRESS
     if _IN_PROGRESS:

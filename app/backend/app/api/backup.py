@@ -1,3 +1,7 @@
+"""
+Backup API endpoints for database backup and restore functionality.
+"""
+
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
@@ -8,11 +12,10 @@ import shutil
 import os
 import sys
 import traceback
-import inspect
 import json
 
 from .. import schemas
-from ..services.backup_service import list_backup_files, restore_from_file  # <- שירותים  :contentReference[oaicite:5]{index=5}
+from ..services.backup_service import list_backup_files, restore_from_file
 
 router = APIRouter(prefix="/api/backup", tags=["backup"])
 
@@ -24,207 +27,104 @@ EXCEL_DIR.mkdir(parents=True, exist_ok=True)
 
 logger = logging.getLogger(__name__)
 
-# Debug: indicate module import (helps detect circular import chain)
-print("DEBUG: imported api.backup module", __name__, "pid:", os.getpid())
-logger.debug("DEBUG: imported api.backup module %s pid:%s", __name__, os.getpid())
-print("DEBUG: sys.modules keys containing 'backup':", [k for k in sys.modules.keys() if 'backup' in k])
-logger.debug("sys.modules keys containing 'backup': %s", [k for k in sys.modules.keys() if 'backup' in k])
-
-def _collect_import_debug_info():
-    """
-    Collect detailed sys.modules info and current stack for debugging circular imports.
-    Returns a dict that can be logged or included in responses.
-    """
-    try:
-        mods = []
-        for name, mod in list(sys.modules.items()):
-            if not mod:
-                continue
-            if any(k in name for k in ("backup", "backup_service", "services")):
-                try:
-                    mods.append({
-                        "module": name,
-                        "file": getattr(mod, "__file__", None),
-                        "package": getattr(mod, "__package__", None),
-                        "has_attrs": len(getattr(mod, "__dict__", {})),
-                        "sample_attrs": list(getattr(mod, "__dict__", {}).keys())[:20],
-                    })
-                except Exception as e:
-                    mods.append({"module": name, "error": str(e)})
-        stack = "".join(traceback.format_stack(limit=100))
-        return {"modules": mods, "stack": stack}
-    except Exception:
-        return {"error": "failed to collect import debug info", "trace": traceback.format_exc()}
-
-# change signature to accept optional db_conn
 def create_backup(db_conn=None) -> Path:
     """
-    Wrapper used by pages route: create dated folder + monthly excel files.
+    Create a new backup file.
     Accepts optional db_conn (sqlite3.Connection) for the query.
     """
-    print("DEBUG: create_backup called, db_conn:", type(db_conn))
     logger.debug("create_backup called, db_conn=%s", type(db_conn))
-    # lazy import to avoid circular import recursion, with diagnostics
+    
     try:
         from ..services.backup_service import create_backup_file
-    except RecursionError as rec:
-        tb = traceback.format_exc()
-        debug = _collect_import_debug_info()
-        print("DEBUG: RecursionError importing create_backup_file:\n", tb)
-        print("DEBUG: import debug info:", json.dumps(debug, default=str)[:4000])
-        logger.exception("RecursionError importing create_backup_file")
-        # include debug info in the raised exception so it appears in logs/responses
-        raise RuntimeError("RecursionError importing create_backup_file; debug: " + json.dumps(debug, default=str)) from rec
-    except Exception as exc:
-        tb = traceback.format_exc()
-        debug = _collect_import_debug_info()
-        print("DEBUG: Exception importing create_backup_file:\n", tb)
-        print("DEBUG: import debug info:", json.dumps(debug, default=str)[:4000])
-        logger.exception("Exception importing create_backup_file")
-        raise RuntimeError("Exception importing create_backup_file; debug: " + json.dumps(debug, default=str)) from exc
-    try:
-        print("DEBUG: calling create_backup_file()")
         path = create_backup_file(db_conn)
-        print("DEBUG: create_backup_file returned:", path)
         logger.debug("create_backup_file returned: %s", path)
         return path
-    except Exception:
-        tb = traceback.format_exc()
-        print("DEBUG: exception in create_backup:\n", tb)
+    except Exception as exc:
         logger.exception("Exception in create_backup")
         raise
 
 def restore_from_backup(path: Path):
     """
-    Wrapper used by pages route to restore a given backup path (dir or zip).
+    Restore database from a given backup path (dir or zip).
     """
-    return restore_from_file(path)
-
-@router.post("/excel")
-async def api_backup_create() -> JSONResponse:
-    # lazy import to avoid circular import
     try:
-        from ..services.backup_service import create_backup_file
-    except RecursionError:
-        tb = traceback.format_exc()
-        debug = _collect_import_debug_info()
-        print("DEBUG: RecursionError importing create_backup_file in api_backup_create:\n", tb)
-        logger.exception("RecursionError importing create_backup_file in api_backup_create")
-        return JSONResponse(status_code=500, content={"error": "RecursionError importing create_backup_file", "debug": debug})
+        restore_from_file(path)
+        return {"message": "Backup restored successfully"}
     except Exception as exc:
-        tb = traceback.format_exc()
-        debug = _collect_import_debug_info()
-        print("DEBUG: Exception importing create_backup_file in api_backup_create:\n", tb)
-        logger.exception("Exception importing create_backup_file in api_backup_create")
-        return JSONResponse(status_code=500, content={"error": str(exc), "trace": tb, "debug": debug})
+        logger.exception("Exception in restore_from_backup")
+        raise HTTPException(status_code=500, detail=str(exc))
 
-    print("DEBUG: api_backup_create called")
-    logger.debug("api_backup_create called")
+@router.get("", response_model=schemas.BackupList)
+async def list_backups() -> schemas.BackupList:
+    """List all available backup files."""
     try:
-        path = create_backup_file()
-        print("DEBUG: api_backup_create success, path:", path)
-        logger.debug("api_backup_create success: %s", path)
-        return JSONResponse(content={"file": path.name})
+        backup_files = list_backup_files()
+        return schemas.BackupList(backups=backup_files)
     except Exception as exc:
-        tb = traceback.format_exc()
-        print("DEBUG: api_backup_create exception:\n", tb)
-        logger.exception("api_backup_create failed")
-        # include traceback for debugging (remove in production)
-        raise HTTPException(status_code=500, detail={"error": str(exc), "trace": tb})
+        logger.exception("Exception listing backups")
+        raise HTTPException(status_code=500, detail=str(exc))
 
-@router.get("/list", response_model=schemas.BackupList)
-async def api_backup_list() -> schemas.BackupList:
-    backups = list_backup_files()
-    items = [schemas.BackupItem(**b) for b in backups]
-    return schemas.BackupList(backups=items)
-
-@router.post("/restore")
-async def api_backup_restore(request: Request) -> JSONResponse:
-    data = await request.body()
-    if not data:
-        raise HTTPException(status_code=400, detail="No data provided")
-    tmp_path = BACKUP_DIR / f"api_restore_{datetime.now().timestamp()}.xlsx"
-    with open(tmp_path, "wb") as f:
-        f.write(data)
+@router.post("/create")
+async def create_new_backup() -> JSONResponse:
+    """Create a new backup file."""
     try:
-        counts = restore_from_file(tmp_path)
+        path = create_backup()
+        return JSONResponse({
+            "message": "Backup created successfully",
+            "file": path.name,
+            "size": path.stat().st_size if path.exists() else 0
+        })
     except Exception as exc:
-        tmp_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=400, detail=str(exc))
-    tmp_path.unlink(missing_ok=True)
-    return JSONResponse(content={"restored": True, "counts": counts})
+        logger.exception("Exception creating backup")
+        raise HTTPException(status_code=500, detail=str(exc))
 
-@router.post("/backup/create")
-async def backup_create():
+@router.post("/restore/{filename}")
+async def restore_backup(filename: str) -> JSONResponse:
+    """Restore database from a backup file."""
     try:
-        # lazy import to avoid circular import
-        try:
-            from ..services.backup_service import create_backup_file
-        except RecursionError:
-            tb = traceback.format_exc()
-            debug = _collect_import_debug_info()
-            print("DEBUG: RecursionError importing create_backup_file in backup_create:\n", tb)
-            print("DEBUG: import debug info:", json.dumps(debug, default=str)[:4000])
-            logger.exception("RecursionError importing create_backup_file in backup_create")
-            return JSONResponse(status_code=500, content={"detail": "RecursionError importing create_backup_file", "debug": debug})
-        except Exception as exc:
-            tb = traceback.format_exc()
-            debug = _collect_import_debug_info()
-            print("DEBUG: Exception importing create_backup_file in backup_create:\n", tb)
-            print("DEBUG: import debug info:", json.dumps(debug, default=str)[:4000])
-            logger.exception("Exception importing create_backup_file in backup_create")
-            return JSONResponse(status_code=500, content={"detail": "Failed importing create_backup_file", "error": str(exc), "trace": tb, "debug": debug})
-
-        print("DEBUG: backup_create entry")
-        logger.debug("backup_create entry")
-        path = create_backup_file()
-        print("DEBUG: backup_create created:", path)
-        logger.info("Created backup: %s", path)
-        # redirect back to the UI that lists backups
-        return RedirectResponse(url="/backup", status_code=303)
+        backup_path = BACKUP_DIR / filename
+        if not backup_path.exists():
+            raise HTTPException(status_code=404, detail="Backup file not found")
+        
+        result = restore_from_backup(backup_path)
+        return JSONResponse(result)
+    except HTTPException:
+        raise
     except Exception as exc:
-        tb = traceback.format_exc()
-        debug = _collect_import_debug_info()
-        print("DEBUG: backup_create exception:\n", tb)
-        print("DEBUG: import debug info:", json.dumps(debug, default=str)[:4000])
-        logger.exception("Unhandled error in /backup/create")
-        return JSONResponse(status_code=500, content={"detail": "Failed to create backup", "error": str(exc), "trace": tb, "debug": debug})
+        logger.exception("Exception restoring backup")
+        raise HTTPException(status_code=500, detail=str(exc))
 
-@router.get("/backup/download/{file_name}")
-async def backup_download(file_name: str):
-    safe_name = Path(file_name).name
-    path = BACKUP_DIR / safe_name
-    if not path.exists() or not path.is_file():
-        raise HTTPException(status_code=404, detail="Backup not found")
-    return FileResponse(str(path), filename=safe_name)
-
-
-@router.get("/backup/restore/{file_name}")
-async def backup_restore(file_name: str):
-    safe_name = Path(file_name).name
-    path = BACKUP_DIR / safe_name
-    if not path.exists() or not path.is_file():
-        raise HTTPException(status_code=404, detail="Backup not found")
+@router.delete("/{filename}")
+async def delete_backup(filename: str) -> JSONResponse:
+    """Delete a backup file."""
     try:
-        # extract into EXCEL_DIR (overwrite existing files)
-        with zipfile.ZipFile(path, "r") as zf:
-            # extract to a temporary dir then move files to avoid partial overwrite
-            tmp_dir = BACKUP_DIR / f".restore_tmp_{datetime.utcnow().timestamp()}"
-            if tmp_dir.exists():
-                shutil.rmtree(tmp_dir)
-            tmp_dir.mkdir(parents=True, exist_ok=True)
-            zf.extractall(tmp_dir)
-            for src in tmp_dir.iterdir():
-                dst = EXCEL_DIR / src.name
-                # move/replace
-                if dst.exists():
-                    dst.unlink()
-                shutil.move(str(src), str(dst))
-            shutil.rmtree(tmp_dir)
-        logger.info("Restored backup %s into %s", safe_name, EXCEL_DIR)
-        return RedirectResponse(url="/backup", status_code=303)
-    except Exception:
-        tb = traceback.format_exc()
-        print("DEBUG: backup_restore exception:\n", tb)
-        logger.exception("Failed to restore backup %s", safe_name)
-        raise HTTPException(status_code=500, detail="Failed to restore backup")
+        backup_path = BACKUP_DIR / filename
+        if not backup_path.exists():
+            raise HTTPException(status_code=404, detail="Backup file not found")
+        
+        backup_path.unlink()
+        return JSONResponse({"message": "Backup deleted successfully"})
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Exception deleting backup")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+@router.get("/download/{filename}")
+async def download_backup(filename: str):
+    """Download a backup file."""
+    try:
+        backup_path = BACKUP_DIR / filename
+        if not backup_path.exists():
+            raise HTTPException(status_code=404, detail="Backup file not found")
+        
+        return FileResponse(
+            path=backup_path,
+            filename=filename,
+            media_type='application/zip'
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Exception downloading backup")
+        raise HTTPException(status_code=500, detail=str(exc))

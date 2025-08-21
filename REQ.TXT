@@ -22,3 +22,6 @@ httpx>=0.25.0
 # Code quality (optional)
 black>=23.0.0
 flake8>=6.0.0
+
+# Task scheduling
+apscheduler>=3.10.0

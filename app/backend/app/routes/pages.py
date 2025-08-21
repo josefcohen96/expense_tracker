@@ -352,3 +352,148 @@ async def statistics_category(months: Optional[str] = Query(default=None)) -> Li
 			conn.close()
 		except Exception:
 			pass
+
+
+@router.get("/challenges", response_class=HTMLResponse)
+async def challenges_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
+    """Challenges page with user progress and level system."""
+    # Get user ID (for now, using user 1)
+    user_id = 1
+    
+    # Get user points and level
+    points_row = db_conn.execute("""
+        SELECT * FROM user_points WHERE user_id = ?
+    """, (user_id,)).fetchone()
+    
+    if not points_row:
+        # Create user points record if doesn't exist
+        db_conn.execute("""
+            INSERT INTO user_points (user_id, total_points, current_level, level_progress)
+            VALUES (?, 0, 'bronze', 0)
+        """, (user_id,))
+        db_conn.commit()
+        
+        points_info = {
+            "total_points": 0,
+            "current_level": "bronze",
+            "level_progress": 0,
+            "next_level": "silver",
+            "points_to_next": 100
+        }
+    else:
+        total_points = points_row["total_points"]
+        current_level = points_row["current_level"]
+        
+        # Calculate level progress
+        level_thresholds = {
+            "bronze": 0,
+            "silver": 100,
+            "gold": 300,
+            "platinum": 600,
+            "master": 1000
+        }
+        
+        current_threshold = level_thresholds.get(current_level, 0)
+        next_level = "master"
+        points_to_next = 0
+        
+        for level, threshold in level_thresholds.items():
+            if threshold > total_points:
+                next_level = level
+                points_to_next = threshold - total_points
+                break
+        
+        level_progress = 0
+        if current_level != "master":
+            level_progress = ((total_points - current_threshold) / (level_thresholds[next_level] - current_threshold)) * 100
+        
+        points_info = {
+            "total_points": total_points,
+            "current_level": current_level,
+            "level_progress": round(level_progress, 1),
+            "next_level": next_level,
+            "points_to_next": points_to_next
+        }
+    
+    # Get all challenges with user progress
+    challenges = db_conn.execute("""
+        SELECT * FROM challenges WHERE is_active = 1
+    """).fetchall()
+    
+    challenges_with_progress = []
+    for challenge_row in challenges:
+        challenge = dict(challenge_row)
+        
+        # Get user's active challenge for this challenge type
+        user_challenge_row = db_conn.execute("""
+            SELECT * FROM user_challenges 
+            WHERE user_id = ? AND challenge_id = ? AND status = 'active'
+            ORDER BY start_date DESC LIMIT 1
+        """, (user_id, challenge["id"])).fetchone()
+        
+        user_challenge = None
+        progress_percentage = 0
+        days_remaining = 0
+        is_completed = False
+        is_failed = False
+        
+        if user_challenge_row:
+            user_challenge = dict(user_challenge_row)
+            
+            # Calculate progress
+            if challenge["target_value"] > 0:
+                progress_percentage = min(100, (user_challenge["current_progress"] / challenge["target_value"]) * 100)
+            else:
+                # For "no spending" challenges, progress is based on days completed
+                from datetime import datetime, date
+                start_date = datetime.strptime(user_challenge["start_date"], "%Y-%m-%d").date()
+                end_date = datetime.strptime(user_challenge["end_date"], "%Y-%m-%d").date()
+                today = date.today()
+                
+                total_days = (end_date - start_date).days
+                days_completed = (today - start_date).days
+                
+                if total_days > 0:
+                    progress_percentage = min(100, (days_completed / total_days) * 100)
+                
+                days_remaining = max(0, (end_date - today).days)
+                
+                # Check if completed or failed
+                if today >= end_date:
+                    if user_challenge["current_progress"] == 0:  # No violations
+                        is_completed = True
+                    else:
+                        is_failed = True
+        
+        challenges_with_progress.append({
+            **challenge,
+            "user_challenge": user_challenge,
+            "progress_percentage": progress_percentage,
+            "days_remaining": days_remaining,
+            "is_completed": is_completed,
+            "is_failed": is_failed
+        })
+    
+    # Get challenge history
+    history = db_conn.execute("""
+        SELECT 
+            c.name as challenge_name,
+            uc.start_date,
+            uc.status,
+            uc.points_earned
+        FROM user_challenges uc
+        JOIN challenges c ON uc.challenge_id = c.id
+        WHERE uc.user_id = ?
+        ORDER BY uc.start_date DESC
+        LIMIT 10
+    """, (user_id,)).fetchall()
+    
+    return templates.TemplateResponse("pages/challenges.html", {
+        "request": request,
+        "challenges": challenges_with_progress,
+        "challenge_history": [dict(r) for r in history],
+        "user_level": points_info["current_level"],
+        "total_points": points_info["total_points"],
+        "level_progress": points_info["level_progress"],
+        "points_to_next": points_info["points_to_next"],
+    })

@@ -60,6 +60,10 @@ for uv_logger_name in ("uvicorn.error", "uvicorn.access", "uvicorn"):
 logger = logging.getLogger(__name__)
 
 from fastapi.responses import JSONResponse
+
+# Global variable to track daily progress update
+_daily_progress_updated = False
+
 @app.middleware("http")
 async def catch_exceptions_middleware(request, call_next):
     try:
@@ -68,6 +72,65 @@ async def catch_exceptions_middleware(request, call_next):
         logger.exception("Unhandled exception while processing request %s %s", request.method, request.url)
         return JSONResponse({"error": "Internal server error"}, status_code=500)
 
+@app.middleware("http")
+async def challenge_progress_middleware(request, call_next):
+    """Check and update daily challenge progress if needed."""
+    global _daily_progress_updated
+    
+    # Only run once per server session
+    if not _daily_progress_updated:
+        try:
+            _check_and_run_daily_progress_update()
+            _daily_progress_updated = True
+        except Exception as exc:
+            logger.exception("Daily challenge progress update failed")
+    
+    return await call_next(request)
+
+def _check_and_run_daily_progress_update():
+    """Check if daily progress update is needed and run it if so."""
+    today = date.today()
+    
+    # Get database path
+    db_path = db.get_db_path()
+    
+    with sqlite3.connect(db_path) as db_conn:
+        db_conn.row_factory = sqlite3.Row
+        
+        # Check if we've already done daily update today
+        last_daily_update = db_conn.execute("""
+            SELECT value FROM system_settings WHERE key = 'last_daily_progress_update'
+        """).fetchone()
+        
+        if last_daily_update:
+            last_date = datetime.strptime(last_daily_update["value"], "%Y-%m-%d").date()
+            # If we already updated today, skip
+            if last_date == today:
+                return
+        
+        # Run daily progress update
+        print("Running daily challenge progress update...")
+        cron_service = CronService(db_path)
+        
+        # Run the update synchronously
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        loop.run_until_complete(cron_service.update_active_challenge_progress())
+        
+        # Update last daily update date
+        db_conn.execute("""
+            INSERT OR REPLACE INTO system_settings (key, value) 
+            VALUES ('last_daily_progress_update', ?)
+        """, (today.isoformat(),))
+        db_conn.commit()
+        
+        print("Daily challenge progress update completed")
+
 # --- include routers (אחרי app = FastAPI) ---
 from .routes.pages import router as pages_router
 from .routes.partials import router as partials_router
@@ -75,6 +138,7 @@ from .api.transactions import router as transactions_api
 from .api.recurrences import router as recurrences_api, system_router as system_api
 from .api.backup import router as backup_api
 from .api.statistics import router as statistics_api
+from .api.challenges import router as challenges_api
 
 app.include_router(pages_router)
 app.include_router(partials_router)
@@ -83,9 +147,16 @@ app.include_router(recurrences_api)
 app.include_router(system_api)
 app.include_router(backup_api)
 app.include_router(statistics_api)
+app.include_router(challenges_api)
 
 # --- startup/shutdown (אופציונלי) ---
 from . import db, recurrence
+from .services.cron_service import CronService
+from datetime import datetime, date
+import sqlite3
+
+# Global variable to track if monthly evaluation has been done
+_monthly_evaluation_done = False
 
 @app.on_event("startup")
 def on_startup() -> None:
@@ -97,6 +168,16 @@ def on_startup() -> None:
     except Exception as exc:
         print(f"Failed to apply recurring transactions: {exc}")
 
+    # Check if monthly challenge evaluation is needed
+    global _monthly_evaluation_done
+    if not _monthly_evaluation_done:
+        try:
+            _check_and_run_monthly_evaluation()
+            _monthly_evaluation_done = True
+        except Exception as exc:
+            print(f"Failed to run monthly challenge evaluation: {exc}")
+            logger.exception("Monthly challenge evaluation failed")
+
     # dynamically import backup to avoid circular import issues and catch errors
     if os.getenv("COUPLEBUDGET_BACKUP_ON_START", "0") in {"1","true","True","yes"}:
         try:
@@ -107,6 +188,51 @@ def on_startup() -> None:
             # keep printing to console for immediate visibility and also log full traceback
             print(f"Failed to create startup backup: {exc}")
             logger.exception("Startup backup failed")
+
+def _check_and_run_monthly_evaluation():
+    """Check if monthly evaluation is needed and run it if so."""
+    today = date.today()
+    
+    # Get database path
+    db_path = db.get_db_path()
+    
+    with sqlite3.connect(db_path) as db_conn:
+        db_conn.row_factory = sqlite3.Row
+        
+        # Check if we've already done evaluation for this month
+        last_evaluation = db_conn.execute("""
+            SELECT value FROM system_settings WHERE key = 'last_monthly_evaluation'
+        """).fetchone()
+        
+        if last_evaluation:
+            last_date = datetime.strptime(last_evaluation["value"], "%Y-%m-%d").date()
+            # If we already evaluated this month, skip
+            if last_date.year == today.year and last_date.month == today.month:
+                print("Monthly challenge evaluation already done this month")
+                return
+        
+        # Run monthly evaluation
+        print("Running monthly challenge evaluation...")
+        cron_service = CronService(db_path)
+        
+        # Run the evaluation synchronously
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        loop.run_until_complete(cron_service.evaluate_all_challenges())
+        
+        # Update last evaluation date
+        db_conn.execute("""
+            INSERT OR REPLACE INTO system_settings (key, value) 
+            VALUES ('last_monthly_evaluation', ?)
+        """, (today.isoformat(),))
+        db_conn.commit()
+        
+        print("Monthly challenge evaluation completed")
 
 @app.on_event("shutdown")
 def on_shutdown() -> None:

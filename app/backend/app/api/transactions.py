@@ -60,6 +60,8 @@ async def api_create_transaction(
     # Clear cache when new transaction is added
     cache_service.invalidate("top_expenses_3months")
     
+    # Note: Challenge evaluation is now handled by CRON job
+    
     return schemas.Transaction(id=new_id, **tr.dict())
 
 @router.put("/{tx_id}", response_model=schemas.Transaction)
@@ -79,6 +81,8 @@ async def api_update_transaction(
     # Clear cache when transaction is updated
     cache_service.invalidate("top_expenses_3months")
     
+    # Note: Challenge evaluation is now handled by CRON job
+    
     row = db_conn.execute("SELECT * FROM transactions WHERE id = ?", (tx_id,)).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -94,5 +98,7 @@ async def api_delete_transaction(
     
     # Clear cache when transaction is deleted
     cache_service.invalidate("top_expenses_3months")
+    
+    # Note: Challenge evaluation is now handled by CRON job
     
     return JSONResponse(content={"deleted": True})

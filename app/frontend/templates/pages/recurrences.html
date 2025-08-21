@@ -59,6 +59,12 @@
 
 <div class="bg-white p-6 rounded-lg shadow">
   <h2 class="text-xl font-semibold mb-4">הוצאות קבועות קיימות</h2>
+  
+  <!-- Pagination Info -->
+  <div class="mb-4 text-sm text-gray-600">
+    מציג {{ (pagination.page - 1) * pagination.per_page + 1 }} עד {{ (pagination.page - 1) * pagination.per_page + recurrences|length }} מתוך {{ pagination.total }} הוצאות קבועות
+  </div>
+  
   <div id="recurrencesTable" class="overflow-x-auto">
     <table class="min-w-full divide-y divide-gray-200">
       <thead class="bg-gray-50">
@@ -81,9 +87,49 @@
       </tbody>
     </table>
   </div>
+  
+  <!-- Pagination Controls -->
+  {% if pagination.total_pages > 1 %}
+  <div class="mt-6 flex items-center justify-between">
+    <div class="flex items-center space-x-2">
+      <span class="text-sm text-gray-700">עמוד:</span>
+      <select id="perPageSelect" onchange="changePerPage(this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm">
+        <option value="10" {% if pagination.per_page == 10 %}selected{% endif %}>10</option>
+        <option value="20" {% if pagination.per_page == 20 %}selected{% endif %}>20</option>
+        <option value="50" {% if pagination.per_page == 50 %}selected{% endif %}>50</option>
+        <option value="100" {% if pagination.per_page == 100 %}selected{% endif %}>100</option>
+      </select>
+      <span class="text-sm text-gray-700">הוצאות קבועות לעמוד</span>
+    </div>
+    
+    <div class="flex items-center space-x-2">
+      {% if pagination.has_prev %}
+        <a href="/recurrences?page={{ pagination.prev_page }}&per_page={{ pagination.per_page }}" 
+           class="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300">הקודם</a>
+      {% endif %}
+      
+      <span class="text-sm text-gray-700">
+        עמוד {{ pagination.page }} מתוך {{ pagination.total_pages }}
+      </span>
+      
+      {% if pagination.has_next %}
+        <a href="/recurrences?page={{ pagination.next_page }}&per_page={{ pagination.per_page }}" 
+           class="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300">הבא</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 <script>
+function changePerPage(perPage) {
+  const url = new URL(window.location);
+  url.searchParams.set('per_page', perPage);
+  url.searchParams.set('page', '1'); // Reset to first page when changing per_page
+  
+  window.location.href = url.toString();
+}
+
 document.getElementById('recurrenceForm').addEventListener('submit', async function(e) {
   e.preventDefault();
   

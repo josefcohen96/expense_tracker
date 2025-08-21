@@ -116,11 +116,16 @@ def _check_and_run_daily_progress_update():
         import asyncio
         try:
             loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If event loop is already running, skip the update
+                print("Event loop is already running, skipping daily progress update")
+                return
+            loop.run_until_complete(cron_service.update_active_challenge_progress())
         except RuntimeError:
+            # If no event loop exists, create a new one
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-        
-        loop.run_until_complete(cron_service.update_active_challenge_progress())
+            loop.run_until_complete(cron_service.update_active_challenge_progress())
         
         # Update last daily update date
         db_conn.execute("""
@@ -219,11 +224,16 @@ def _check_and_run_monthly_evaluation():
         import asyncio
         try:
             loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If event loop is already running, skip the evaluation
+                print("Event loop is already running, skipping monthly evaluation")
+                return
+            loop.run_until_complete(cron_service.evaluate_all_challenges())
         except RuntimeError:
+            # If no event loop exists, create a new one
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-        
-        loop.run_until_complete(cron_service.evaluate_all_challenges())
+            loop.run_until_complete(cron_service.evaluate_all_challenges())
         
         # Update last evaluation date
         db_conn.execute("""

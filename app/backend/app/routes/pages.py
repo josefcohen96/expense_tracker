@@ -62,7 +62,26 @@ async def index(request: Request, db_conn: sqlite3.Connection = Depends(get_db_c
 
 
 @router.get("/transactions", response_class=HTMLResponse)
-async def transactions_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
+async def transactions_page(
+    request: Request, 
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page")
+) -> HTMLResponse:
+    """Transactions page with pagination only."""
+    
+    # Calculate offset for pagination
+    offset = (page - 1) * per_page
+    
+    # Get total count for pagination
+    count_result = db_conn.execute(
+        "SELECT COUNT(*) as total FROM transactions t "
+        "WHERE t.recurrence_id IS NULL AND t.amount < 0"
+    ).fetchone()
+    total_transactions = count_result["total"]
+    total_pages = (total_transactions + per_page - 1) // per_page
+    
+    # Get transactions with pagination
     txs = db_conn.execute(
         "SELECT t.id, t.date, t.amount, c.name AS category_name, u.name AS user_name, "
         "a.name AS account_name, t.notes, t.tags, t.category_id, t.user_id, t.account_id "
@@ -71,8 +90,11 @@ async def transactions_page(request: Request, db_conn: sqlite3.Connection = Depe
         "JOIN users u ON t.user_id = u.id "
         "LEFT JOIN accounts a ON t.account_id = a.id "
         "WHERE t.recurrence_id IS NULL AND t.amount < 0 "
-        "ORDER BY t.date DESC, t.id DESC"
+        "ORDER BY t.date DESC, t.id DESC "
+        "LIMIT ? OFFSET ?",
+        (per_page, offset)
     ).fetchall()
+    
     cats = db_conn.execute(
         "SELECT id, name FROM categories ORDER BY name").fetchall()
     users = db_conn.execute(
@@ -82,14 +104,48 @@ async def transactions_page(request: Request, db_conn: sqlite3.Connection = Depe
 
     return templates.TemplateResponse(
         "pages/transactions.html",
-        {"request": request, "transactions": txs, "categories": cats, "users": users, "accounts": accs, "today": date.today().isoformat(),  # <— כאן שולחים תאריך דיפולטיבי
-         },
+        {
+            "request": request, 
+            "transactions": txs, 
+            "categories": cats, 
+            "users": users, 
+            "accounts": accs, 
+            "today": date.today().isoformat(),
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": total_transactions,
+                "total_pages": total_pages,
+                "has_prev": page > 1,
+                "has_next": page < total_pages,
+                "prev_page": page - 1,
+                "next_page": page + 1
+            }
+        },
     )
 
 
 @router.get("/income", response_class=HTMLResponse)
-async def income_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
-    """דף הכנסות - מציג רק עסקאות חיוביות"""
+async def income_page(
+    request: Request, 
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page")
+) -> HTMLResponse:
+    """Income page with pagination only."""
+    
+    # Calculate offset for pagination
+    offset = (page - 1) * per_page
+    
+    # Get total count for pagination
+    count_result = db_conn.execute(
+        "SELECT COUNT(*) as total FROM transactions t "
+        "WHERE t.recurrence_id IS NULL AND t.amount > 0"
+    ).fetchone()
+    total_transactions = count_result["total"]
+    total_pages = (total_transactions + per_page - 1) // per_page
+    
+    # Get transactions with pagination
     txs = db_conn.execute(
         "SELECT t.id, t.date, t.amount, c.name AS category_name, u.name AS user_name, "
         "a.name AS account_name, t.notes, t.tags, t.category_id, t.user_id, t.account_id "
@@ -98,8 +154,11 @@ async def income_page(request: Request, db_conn: sqlite3.Connection = Depends(ge
         "JOIN users u ON t.user_id = u.id "
         "LEFT JOIN accounts a ON t.account_id = a.id "
         "WHERE t.recurrence_id IS NULL AND t.amount > 0 "
-        "ORDER BY t.date DESC, t.id DESC"
+        "ORDER BY t.date DESC, t.id DESC "
+        "LIMIT ? OFFSET ?",
+        (per_page, offset)
     ).fetchall()
+    
     cats = db_conn.execute(
         "SELECT id, name FROM categories ORDER BY name").fetchall()
     users = db_conn.execute(
@@ -109,7 +168,24 @@ async def income_page(request: Request, db_conn: sqlite3.Connection = Depends(ge
 
     return templates.TemplateResponse(
         "pages/income.html",
-        {"request": request, "transactions": txs, "categories": cats, "users": users, "accounts": accs, "today": date.today().isoformat()},
+        {
+            "request": request, 
+            "transactions": txs, 
+            "categories": cats, 
+            "users": users, 
+            "accounts": accs, 
+            "today": date.today().isoformat(),
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": total_transactions,
+                "total_pages": total_pages,
+                "has_prev": page > 1,
+                "has_next": page < total_pages,
+                "prev_page": page - 1,
+                "next_page": page + 1
+            }
+        },
     )
 
 
@@ -182,23 +258,59 @@ async def create_income(request: Request, db_conn: sqlite3.Connection = Depends(
 
 
 @router.get("/recurrences", response_class=HTMLResponse)
-async def recurrences_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
+async def recurrences_page(
+    request: Request, 
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page")
+) -> HTMLResponse:
+    """Recurrences page with pagination only."""
+    
+    # Calculate offset for pagination
+    offset = (page - 1) * per_page
+    
+    # Get total count for pagination
+    count_result = db_conn.execute(
+        "SELECT COUNT(*) as total FROM recurrences r"
+    ).fetchone()
+    total_recurrences = count_result["total"]
+    total_pages = (total_recurrences + per_page - 1) // per_page
+    
+    # Get recurrences with pagination
     recs = db_conn.execute(
         "SELECT r.id, r.name, r.amount, c.name AS category_name, u.name AS user_name, "
         "r.frequency, r.start_date, r.end_date, r.day_of_month, r.weekday, r.active "
         "FROM recurrences r "
         "JOIN categories c ON r.category_id = c.id "
         "JOIN users u ON r.user_id = u.id "
-        "ORDER BY r.name"
+        "ORDER BY r.name "
+        "LIMIT ? OFFSET ?",
+        (per_page, offset)
     ).fetchall()
+    
     cats = db_conn.execute(
         "SELECT id, name FROM categories ORDER BY name").fetchall()
     users = db_conn.execute(
         "SELECT id, name FROM users ORDER BY id").fetchall()
+    
     return templates.TemplateResponse(
         "pages/recurrences.html",
-        {"request": request, "recurrences": recs,
-            "categories": cats, "users": users},
+        {
+            "request": request, 
+            "recurrences": recs,
+            "categories": cats, 
+            "users": users,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": total_recurrences,
+                "total_pages": total_pages,
+                "has_prev": page > 1,
+                "has_next": page < total_pages,
+                "prev_page": page - 1,
+                "next_page": page + 1
+            }
+        },
     )
 
 
@@ -545,20 +657,7 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
         ORDER BY c.name
     """).fetchall()
     
-    # *** THIS WAS MISSING! *** Get top 5 expenses in last 3 months
-    
-    # First, let's debug what we have in the database
-    debug_query = db_conn.execute("""
-        SELECT COUNT(*) as total_count,
-               COUNT(CASE WHEN amount < 0 THEN 1 END) as negative_count,
-               COUNT(CASE WHEN amount > 0 THEN 1 END) as positive_count,
-               MIN(date) as min_date,
-               MAX(date) as max_date
-        FROM transactions 
-        WHERE date >= date('now', '-3 months')
-        AND recurrence_id IS NULL
-    """).fetchone()
-    
+    # Get top 5 expenses in last 3 months
     top_expenses = db_conn.execute("""
         SELECT 
             t.id,
@@ -578,10 +677,6 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
         ORDER BY ABS(t.amount) DESC
         LIMIT 5
     """).fetchall()
-    
-    # הוצאות קבועות לפי חודש
-    
-
     
     # הוצאות קבועות לפי חודש (כמו MONTHLY)
     recurring_monthly = db_conn.execute("""
@@ -669,10 +764,29 @@ async def statistics_category(months: Optional[str] = Query(default=None)) -> Li
 
 
 @router.get("/challenges", response_class=HTMLResponse)
-async def challenges_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
+async def challenges_page(
+    request: Request, 
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(10, ge=1, le=50, description="Items per page"),
+    sort_by: str = Query("start_date", description="Sort by column"),
+    sort_order: str = Query("desc", description="Sort order (asc/desc)")
+) -> HTMLResponse:
     """Challenges page with user progress and level system."""
     # Get user ID (for now, using user 1)
     user_id = 1
+    
+    # Validate sort_by parameter for challenge history
+    valid_sort_columns = ["start_date", "challenge_name", "status", "points_earned"]
+    if sort_by not in valid_sort_columns:
+        sort_by = "start_date"
+    
+    # Validate sort_order parameter
+    if sort_order not in ["asc", "desc"]:
+        sort_order = "desc"
+    
+    # Calculate offset for pagination
+    offset = (page - 1) * per_page
     
     # Get user points and level
     points_row = db_conn.execute("""
@@ -788,8 +902,22 @@ async def challenges_page(request: Request, db_conn: sqlite3.Connection = Depend
             "is_failed": is_failed
         })
     
-    # Get challenge history
-    history = db_conn.execute("""
+    # Get total count for challenge history pagination
+    count_result = db_conn.execute("""
+        SELECT COUNT(*) as total FROM user_challenges uc
+        JOIN challenges c ON uc.challenge_id = c.id
+        WHERE uc.user_id = ?
+    """, (user_id,)).fetchone()
+    total_history = count_result["total"]
+    total_pages = (total_history + per_page - 1) // per_page
+    
+    # Build the ORDER BY clause for challenge history
+    order_clause = f"ORDER BY {sort_by} {sort_order.upper()}"
+    if sort_by == "start_date":
+        order_clause += ", uc.id DESC"  # Secondary sort for consistent ordering
+    
+    # Get challenge history with pagination and sorting
+    history = db_conn.execute(f"""
         SELECT 
             c.name as challenge_name,
             uc.start_date,
@@ -798,9 +926,9 @@ async def challenges_page(request: Request, db_conn: sqlite3.Connection = Depend
         FROM user_challenges uc
         JOIN challenges c ON uc.challenge_id = c.id
         WHERE uc.user_id = ?
-        ORDER BY uc.start_date DESC
-        LIMIT 10
-    """, (user_id,)).fetchall()
+        {order_clause}
+        LIMIT ? OFFSET ?
+    """, (user_id, per_page, offset)).fetchall()
     
     return templates.TemplateResponse("pages/challenges.html", {
         "request": request,
@@ -810,4 +938,18 @@ async def challenges_page(request: Request, db_conn: sqlite3.Connection = Depend
         "total_points": points_info["total_points"],
         "level_progress": points_info["level_progress"],
         "points_to_next": points_info["points_to_next"],
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total": total_history,
+            "total_pages": total_pages,
+            "has_prev": page > 1,
+            "has_next": page < total_pages,
+            "prev_page": page - 1,
+            "next_page": page + 1
+        },
+        "sorting": {
+            "sort_by": sort_by,
+            "sort_order": sort_order
+        }
     })

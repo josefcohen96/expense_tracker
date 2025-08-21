@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from .. import schemas
 from ..db import get_db_conn
+from ..services.cache_service import cache_service
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 
@@ -55,6 +56,10 @@ async def api_create_transaction(
     )
     db_conn.commit()
     new_id = cur.lastrowid
+    
+    # Clear cache when new transaction is added
+    cache_service.invalidate("top_expenses_3months")
+    
     return schemas.Transaction(id=new_id, **tr.dict())
 
 @router.put("/{tx_id}", response_model=schemas.Transaction)
@@ -70,6 +75,10 @@ async def api_update_transaction(
     params = list(fields.values()) + [tx_id]
     db_conn.execute(f"UPDATE transactions SET {set_clause} WHERE id = ?", params)
     db_conn.commit()
+    
+    # Clear cache when transaction is updated
+    cache_service.invalidate("top_expenses_3months")
+    
     row = db_conn.execute("SELECT * FROM transactions WHERE id = ?", (tx_id,)).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -82,4 +91,8 @@ async def api_delete_transaction(
 ) -> JSONResponse:
     db_conn.execute("DELETE FROM transactions WHERE id = ?", (tx_id,))
     db_conn.commit()
+    
+    # Clear cache when transaction is deleted
+    cache_service.invalidate("top_expenses_3months")
+    
     return JSONResponse(content={"deleted": True})

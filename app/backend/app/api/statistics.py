@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from ..db import get_db_conn
+from ..services.cache_service import cache_service
 from starlette.templating import Jinja2Templates
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -59,14 +60,39 @@ def statistics(request: Request, db_conn=Depends(get_db_conn)):
         monthly.append({"ym": ym, "expenses": total, "category": "total"})
     print("monthly_expenses to frontend:", monthly)
 
-    # הוצאות לפי משתמש
-    users = cur.execute("""
-        SELECT u.name AS user, ABS(SUM(t.amount)) AS total
-        FROM transactions t
-        JOIN users u ON t.user_id = u.id
-        WHERE t.date >= date('now', '-6 months')
-        GROUP BY u.name
-    """).fetchall()
+    # 5 ההוצאות הכי גדולות ב-3 חודשים האחרונים (עם cache)
+    cache_key = "top_expenses_3months"
+    top_expenses = cache_service.get(cache_key)
+    
+    if top_expenses is None:
+        # Cache miss - fetch from database
+        top_expenses = cur.execute("""
+            SELECT 
+                t.id,
+                t.date,
+                t.amount,
+                t.notes,
+                c.name AS category,
+                u.name AS user_name,
+                a.name AS account_name
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            JOIN users u ON t.user_id = u.id
+            LEFT JOIN accounts a ON t.account_id = a.id
+            WHERE t.date >= date('now', '-3 months')
+            AND t.amount < 0  -- רק הוצאות (סכומים שליליים)
+            ORDER BY ABS(t.amount) DESC
+            LIMIT 5
+        """).fetchall()
+        
+        # Cache for 5 minutes (300 seconds)
+        cache_service.set(cache_key, [dict(row) for row in top_expenses], ttl_seconds=300)
+    else:
+        # Cache hit - convert back to list of dicts if needed
+        if isinstance(top_expenses, list) and top_expenses and isinstance(top_expenses[0], dict):
+            pass  # Already in correct format
+        else:
+            top_expenses = [dict(row) for row in top_expenses]
 
     # הוצאות לפי קטגוריה
     categories = cur.execute("""
@@ -94,9 +120,20 @@ def statistics(request: Request, db_conn=Depends(get_db_conn)):
     return templates.TemplateResponse("statistics.html", {
         "request": request,
         "monthly_expenses": monthly,
-        "user_expenses": [dict(row) for row in users],
+        "top_expenses": [dict(row) for row in top_expenses],
         "category_expenses": [dict(row) for row in categories],
     })
+
+@router.post("/clear-cache")
+def clear_statistics_cache():
+    """Clear statistics cache when new data is added."""
+    cache_service.invalidate("top_expenses_3months")
+    return JSONResponse({"message": "Cache cleared successfully"})
+
+@router.get("/cache-stats")
+def get_cache_stats():
+    """Get cache statistics for debugging."""
+    return JSONResponse(cache_service.get_stats())
 
 @router.get("/monthly")
 def monthly_expenses_api(category: str = Query("total"), db_conn=Depends(get_db_conn)):

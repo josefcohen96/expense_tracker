@@ -1,10 +1,10 @@
 import { readJSONScript } from "./helpers.js";
 
 // Read category data from the page JSON script
-const rawCat = readJSONScript("category-data");
+const rawCategoryData = readJSONScript("category-data");
 
 // Normalize to { month: 'YYYY-MM', category: string, amount: number }
-const catItems = (rawCat || [])
+const categoryItems = (rawCategoryData || [])
 	.map((it) => {
 		const amount = it.amount ?? it.total ?? it.sum ?? 0;
 		return {
@@ -16,7 +16,7 @@ const catItems = (rawCat || [])
 	.filter((x) => x.amount !== 0 && x.month);
 
 // Available months (sorted lexicographically: YYYY-MM)
-const availableMonths = Array.from(new Set(catItems.map((m) => m.month)))
+const availableMonths = Array.from(new Set(categoryItems.map((m) => m.month)))
 	.filter(Boolean)
 	.sort();
 
@@ -25,7 +25,7 @@ const inputMonth = document.getElementById("donut-month-single");
 const ctx = document.getElementById("donut-chart");
 
 // Helpers
-function prevMonthStr() {
+function getPreviousMonth() {
 	const d = new Date();
 	d.setMonth(d.getMonth() - 1);
 	const y = d.getFullYear();
@@ -34,7 +34,7 @@ function prevMonthStr() {
 }
 
 function setDefaultMonth() {
-	const prev = prevMonthStr();
+	const prev = getPreviousMonth();
 	if (!availableMonths.length) {
 		if (!inputMonth.value) inputMonth.value = prev;
 		return;
@@ -46,7 +46,7 @@ function setDefaultMonth() {
 // Aggregate a single month to category totals
 function aggregateForMonth(month) {
 	const acc = new Map();
-	for (const item of catItems) {
+	for (const item of categoryItems) {
 		if (item.month !== month) continue;
 		acc.set(item.category, (acc.get(item.category) || 0) + item.amount);
 	}
@@ -55,30 +55,36 @@ function aggregateForMonth(month) {
 	return { labels, data };
 }
 
-// Colors
-function colors(n) {
-	const arr = [];
-	for (let i = 0; i < n; i++) {
-		const hue = Math.floor((360 / Math.max(1, n)) * i);
-		arr.push(`hsl(${hue} 70% 55%)`);
+// Generate colors for categories
+function generateColors(count) {
+	const colors = [];
+	for (let i = 0; i < count; i++) {
+		const hue = Math.floor((360 / Math.max(1, count)) * i);
+		colors.push(`hsl(${hue}, 70%, 55%)`);
 	}
-	return arr;
+	return colors;
 }
 
 // Chart instance
 let chart;
 
-function render() {
-	const selected = inputMonth.value || prevMonthStr();
-	let { labels, data } = aggregateForMonth(selected);
+function renderChart() {
+	const selectedMonth = inputMonth.value || getPreviousMonth();
+	let { labels, data } = aggregateForMonth(selectedMonth);
 
+	// If no data, show placeholder
 	if (!labels.length || !data.length || data.every((v) => v === 0)) {
 		labels = ["אין נתונים"];
 		data = [1];
 	}
 
-	const bg = colors(labels.length);
-	const dataset = { label: "סכום", data, backgroundColor: bg, borderWidth: 0 };
+	const backgroundColor = generateColors(labels.length);
+	const dataset = { 
+		label: "סכום", 
+		data, 
+		backgroundColor, 
+		borderWidth: 0 
+	};
 
 	if (!chart) {
 		chart = new Chart(ctx, {
@@ -88,13 +94,20 @@ function render() {
 				responsive: true,
 				maintainAspectRatio: false,
 				plugins: {
-					legend: { position: "right" },
+					legend: { 
+						position: "right",
+						labels: {
+							font: {
+								size: 12
+							}
+						}
+					},
 					tooltip: {
 						callbacks: {
 							label: (item) => {
-								const v = item.parsed;
-								const l = item.label || "";
-								return `${l}: ${Number(v).toLocaleString()}`;
+								const value = item.parsed;
+								const label = item.label || "";
+								return `${label}: ${Number(value).toLocaleString()} ₪`;
 							},
 						},
 					},
@@ -104,14 +117,14 @@ function render() {
 	} else {
 		chart.data.labels = labels;
 		chart.data.datasets[0].data = data;
-		chart.data.datasets[0].backgroundColor = bg;
+		chart.data.datasets[0].backgroundColor = backgroundColor;
 		chart.update();
 	}
 }
 
-// Init
+// Initialize
 setDefaultMonth();
-render();
+renderChart();
 
-// Events
-inputMonth.addEventListener("change", render);
+// Event listeners
+inputMonth.addEventListener("change", renderChart);

@@ -246,7 +246,20 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
     # cat_breakdown = [{"label": r["category"], "value": float(
     #     r["expenses"] or 0.0)} for r in cat_rows]
 
-    category_rows = db_conn.execute("""
+    # Get monthly category breakdown for donut chart
+    category_monthly_rows = db_conn.execute("""
+        SELECT strftime('%Y-%m', t.date) AS month,
+               c.name AS category,
+               SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS amount
+        FROM transactions t
+        JOIN categories c ON t.category_id = c.id
+        WHERE t.date >= date('now','start of month','-5 months')
+        GROUP BY month, c.name
+        ORDER BY month ASC, c.name ASC
+    """).fetchall()
+    
+    # Also get total category breakdown for other charts
+    category_total_rows = db_conn.execute("""
         SELECT c.name AS category,
                SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS total
         FROM transactions t
@@ -274,7 +287,8 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
             "request": request,
             "monthly_expenses": [dict(r) for r in (monthly or [])],
             "user_expenses": [dict(r) for r in (users or [])],
-            "category_expenses": [dict(r) for r in (category_rows or [])],
+            "category_expenses": [dict(r) for r in (category_monthly_rows or [])],
+            "category_totals": [dict(r) for r in (category_total_rows or [])],
         }
     )
 

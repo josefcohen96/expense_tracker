@@ -14,7 +14,7 @@
         <label for="monthly-category" class="mr-2">קטגוריה:</label>
         <select id="monthly-category" class="border rounded px-2 py-1">
           <option value="total">סה"כ</option>
-          {% for cat in category_expenses %}
+          {% for cat in category_totals %}
             <option value="{{ cat.category }}">{{ cat.category }}</option>
           {% endfor %}
         </select>
@@ -26,13 +26,37 @@
     </div>
   </section>
 
-  <!-- לפי משתמש -->
+  <!-- 5 ההוצאות הכי גדולות -->
   <section class="bg-white rounded-2xl shadow p-5">
     <header class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-semibold">הוצאות לפי משתמש</h2>
+      <h2 class="text-lg font-semibold">5 ההוצאות הכי גדולות (3 חודשים אחרונים)</h2>
     </header>
-    <div class="relative h-72 md:h-80">
-      <canvas id="user-chart" class="absolute inset-0"></canvas>
+    <div class="space-y-3">
+      {% for expense in top_expenses %}
+      <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+        <div class="flex-1">
+          <div class="flex items-center gap-2">
+            <span class="font-medium text-gray-900">{{ expense.notes or "ללא הערות" }}</span>
+            <span class="text-sm text-gray-500">({{ expense.category }})</span>
+          </div>
+          <div class="text-sm text-gray-600">
+            {{ expense.date }} • {{ expense.user_name }}
+            {% if expense.account_name %}
+            • {{ expense.account_name }}
+            {% endif %}
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-lg font-bold text-red-600">
+            {{ "%.2f"|format(expense.amount|abs) }} ₪
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="text-center text-gray-500 py-8">
+        אין הוצאות ב-3 חודשים האחרונים
+      </div>
+      {% endfor %}
     </div>
   </section>
 
@@ -40,29 +64,10 @@
   <section class="bg-white rounded-2xl shadow p-5 xl:col-span-3">
     <header class="flex items-center justify-between mb-4">
       <h2 class="text-lg font-semibold">חלוקה לפי קטגוריה</h2>
-      <!-- Mode + Month selectors -->
-      <div class="flex items-center gap-3">
-        <div class="flex items-center gap-2">
-          <span class="mr-1">תצוגה:</span>
-          <label class="inline-flex items-center gap-1">
-            <input type="radio" name="donut-mode" value="single" id="donut-mode-single" checked>
-            חודש
-          </label>
-          <label class="inline-flex items-center gap-1">
-            <input type="radio" name="donut-mode" value="range" id="donut-mode-range">
-            טווח
-          </label>
-        </div>
-        <div id="donut-controls" class="flex items-center gap-2">
-          <label for="donut-month-single">בחר חודש:</label>
-          <input id="donut-month-single" type="month" class="border rounded px-2 py-1" />
-          <div id="donut-range" class="hidden items-center gap-2">
-            <label for="donut-month-start">מ:</label>
-            <input id="donut-month-start" type="month" class="border rounded px-2 py-1" />
-            <label for="donut-month-end">עד:</label>
-            <input id="donut-month-end" type="month" class="border rounded px-2 py-1" />
-          </div>
-        </div>
+      <!-- Month selector -->
+      <div class="flex items-center gap-2">
+        <label for="donut-month-single">בחר חודש:</label>
+        <input id="donut-month-single" type="month" class="border rounded px-2 py-1" />
       </div>
     </header>
     <div class="relative h-72 md:h-80 xl:h-96">
@@ -75,11 +80,14 @@
 <script id="monthly-data" type="application/json">
   {{ (monthly_expenses | default([])) | tojson }}
 </script>
-<script id="user-data" type="application/json">
-  {{ (user_expenses | default([])) | tojson }}
+<script id="top-expenses-data" type="application/json">
+  {{ (top_expenses | default([])) | tojson }}
 </script>
 <script id="category-data" type="application/json">
   {{ (category_expenses | default([])) | tojson }}
+</script>
+<script id="category-totals" type="application/json">
+  {{ (category_totals | default([])) | tojson }}
 </script>
 
 <!-- ספריות -->
@@ -89,184 +97,6 @@
 <!-- מודולים של הגרפים -->
 <script type="module" src="{{ url_for('static', path='js/charts/helpers.js') }}"></script>
 <script type="module" src="{{ url_for('static', path='js/charts/monthly.js') }}"></script>
-<script type="module" src="{{ url_for('static', path='js/charts/user-bar.js') }}"></script>
-
-<!-- Inline donut controller: supports single month or month range -->
-<script type="module">
-  // Read data
-  const catEl = document.getElementById('category-data');
-  const monthlyEl = document.getElementById('monthly-data');
-  const rawCat = JSON.parse(catEl?.textContent || '[]');
-  const rawMonthly = JSON.parse(monthlyEl?.textContent || '[]');
-
-  // Normalize category items to {month, category, amount}
-  const catItems = rawCat.map((it) => {
-    const amount = it.amount ?? it.total ?? it.sum ?? 0;
-    return {
-      month: (it.month ?? it.ym ?? it.period ?? '').toString(),
-      category: it.category ?? it.name ?? it.title ?? 'אחר',
-      amount: Number(amount) || 0
-    };
-  }).filter(x => x.amount !== 0 && x.month);
-
-  // Derive available months from catItems, fallback to monthly data
-  const availableMonths = Array.from(new Set(
-    (catItems.length ? catItems : (rawMonthly || []))
-      .map(m => (m.month ?? m.ym ?? m.period ?? '').toString())
-      .filter(Boolean)
-  )).sort(); // lexicographic works for YYYY-MM
-
-  // UI elements
-  const modeSingle = document.getElementById('donut-mode-single');
-  const modeRange  = document.getElementById('donut-mode-range');
-  const inputSingle = document.getElementById('donut-month-single');
-  const rangeWrap = document.getElementById('donut-range');
-  const inputStart = document.getElementById('donut-month-start');
-  const inputEnd = document.getElementById('donut-month-end');
-
-  // Helpers
-  function prevMonthStr() {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 1);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    return `${y}-${m}`;
-  }
-
-  function setDefaults() {
-    const prev = prevMonthStr();
-    if (availableMonths.length === 0) {
-      // no data months available; still set inputs so user sees a default
-      if (!inputSingle.value) inputSingle.value = prev;
-      if (!inputStart.value) inputStart.value = prev;
-      if (!inputEnd.value) inputEnd.value = prev;
-      return;
-    }
-    const first = availableMonths[0];
-    const last = availableMonths[availableMonths.length - 1];
-
-    // Prefer previous month if it exists in data, else use last available
-    const singleDefault = availableMonths.includes(prev) ? prev : last;
-    if (!inputSingle.value) inputSingle.value = singleDefault;
-
-    // Range defaults: from first to last (or include prev if available)
-    if (!inputStart.value) inputStart.value = first;
-    if (!inputEnd.value) inputEnd.value = availableMonths.includes(prev) ? prev : last;
-  }
-
-  function toggleMode() {
-    const isRange = modeRange.checked;
-    if (isRange) {
-      rangeWrap.classList.remove('hidden');
-      inputSingle.classList.add('hidden');
-    } else {
-      rangeWrap.classList.add('hidden');
-      inputSingle.classList.remove('hidden');
-    }
-  }
-
-  function aggregateForSingle(month) {
-    const acc = new Map();
-    for (const item of catItems) {
-      if (item.month !== month) continue;
-      acc.set(item.category, (acc.get(item.category) || 0) + item.amount);
-    }
-    const labels = Array.from(acc.keys());
-    const data = labels.map(l => acc.get(l) || 0);
-    return { labels, data };
-  }
-
-  function aggregateForRange(start, end) {
-    const acc = new Map();
-    for (const item of catItems) {
-      const m = item.month;
-      if (m < start || m > end) continue; // YYYY-MM allows lexicographic compare
-      acc.set(item.category, (acc.get(item.category) || 0) + item.amount);
-    }
-    const labels = Array.from(acc.keys());
-    const data = labels.map(l => acc.get(l) || 0);
-    return { labels, data };
-  }
-
-  function colors(n) {
-    const arr = [];
-    for (let i = 0; i < n; i++) {
-      const hue = Math.floor((360 / Math.max(1, n)) * i);
-      arr.push(`hsl(${hue} 70% 55%)`);
-    }
-    return arr;
-  }
-
-  // Init chart
-  const ctx = document.getElementById('donut-chart');
-  let chart;
-
-  function render() {
-    let labels = [], data = [];
-    if (modeRange.checked) {
-      const start = inputStart.value;
-      const end = inputEnd.value || start;
-      const agg = aggregateForRange(start, end);
-      labels = agg.labels; data = agg.data;
-    } else {
-      const fallback = availableMonths.length ? availableMonths[availableMonths.length - 1] : prevMonthStr();
-      const month = inputSingle.value || fallback;
-      const agg = aggregateForSingle(month);
-      labels = agg.labels; data = agg.data;
-    }
-
-    // If no data, render a placeholder slice so the chart is visible
-    if (!labels.length || !data.length || data.every(v => v === 0)) {
-      labels = ['אין נתונים'];
-      data = [1];
-    }
-
-    const bg = colors(labels.length);
-    const dataset = { label: 'סכום', data, backgroundColor: bg, borderWidth: 0 };
-
-    if (!chart) {
-      chart = new Chart(ctx, {
-        type: 'doughnut',
-        data: { labels, datasets: [dataset] },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'right' },
-            tooltip: {
-              callbacks: {
-                label: (item) => {
-                  const v = item.parsed;
-                  const l = item.label || '';
-                  return `${l}: ${v.toLocaleString()}`;
-                }
-              }
-            }
-          }
-        }
-      });
-    } else {
-      chart.data.labels = labels;
-      chart.data.datasets[0].data = data;
-      chart.data.datasets[0].backgroundColor = bg;
-      chart.update();
-    }
-  }
-
-  // Bootstrap
-  setDefaults();
-  toggleMode();
-  render();
-
-  // Events
-  modeSingle.addEventListener('change', () => { toggleMode(); render(); });
-  modeRange.addEventListener('change', () => { toggleMode(); render(); });
-  inputSingle.addEventListener('change', render);
-  inputStart.addEventListener('change', render);
-  inputEnd.addEventListener('change', render);
-</script>
-
-<!-- Debug: show monthly_expenses as JSON -->
-<pre>{{ monthly_expenses | tojson }}</pre>
+<script type="module" src="{{ url_for('static', path='js/charts/donut.js') }}"></script>
 
 {% endblock %}

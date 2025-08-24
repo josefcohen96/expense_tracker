@@ -52,6 +52,12 @@ def _find_db_file() -> Optional[Path]:
     """Find database file in known locations."""
     candidates = [
         os.getenv("COUPLEBUDGET_DB"),
+        "app/data/budget.db",  # Put the correct one first
+        "data/budget.db",
+        "budget.db",
+        "app/data/couplebudget.sqlite3",
+        "data/couplebudget.sqlite3",
+        "couplebudget.sqlite3",
         "data.db", "couplebudget.db", "db.sqlite3", "app.db", "database.db"
     ]
     for c in candidates:

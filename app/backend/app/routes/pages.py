@@ -21,44 +21,1076 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 router = APIRouter(tags=["pages"])
 
+# --------- Helper Functions ---------
+
+async def get_finance_stats(db_conn: sqlite3.Connection) -> Dict[str, float]:
+    """Get current month finance statistics for sidebar."""
+    try:
+        # Get current month regular expenses and income from transactions
+        cur = db_conn.execute("""
+            SELECT 
+                SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as total_expenses,
+                SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as total_income
+            FROM transactions 
+            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+        """)
+        stats = cur.fetchone()
+        
+        regular_expenses = stats['total_expenses'] or 0
+        total_income = stats['total_income'] or 0
+        
+        # Get current month recurring expenses
+        cur = db_conn.execute("""
+            SELECT SUM(amount) as total_recurring_expenses
+            FROM recurrences 
+            WHERE active = 1 
+            AND (
+                (frequency = 'monthly' AND start_date <= date('now', 'start of month', '+1 month', '-1 day'))
+                OR (frequency = 'weekly' AND start_date <= date('now', 'start of month', '+1 month', '-1 day'))
+                OR (frequency = 'daily' AND start_date <= date('now', 'start of month', '+1 month', '-1 day'))
+            )
+        """)
+        recurring_stats = cur.fetchone()
+        
+        recurring_expenses = recurring_stats['total_recurring_expenses'] or 0
+        
+        # Total expenses = regular + recurring
+        total_expenses = regular_expenses + recurring_expenses
+        
+        return {
+            "total_expenses_month": total_expenses,
+            "total_income_month": total_income
+        }
+    except Exception as e:
+        print(f"Error getting finance stats: {e}")
+        return {
+            "total_expenses_month": 0,
+            "total_income_month": 0
+        }
+
 # --------- Pages ---------
 
 
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
-    """Dashboard: counters for total txs / total expenses / total income."""
-    stats: Dict[str, Any] = {"transactions_count": 0,
-                             "total_expenses": 0.0, "total_income": 0.0}
-    # Calculate expenses from regular transactions
-    cur = db_conn.execute(
-        "SELECT COUNT(*), "
-        "SUM(CASE WHEN amount < 0 THEN amount ELSE 0 END), "
-        "SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) "
-        "FROM transactions WHERE recurrence_id IS NULL"
-    )
-    row = cur.fetchone()
-    regular_expenses = abs(row[1] or 0.0) if row else 0.0
-    regular_income = row[2] or 0.0 if row else 0.0
-    regular_count = row[0] or 0 if row else 0
+    """Home page with overview of all sections."""
+    return templates.TemplateResponse("pages/index.html", {"request": request})
+
+@router.get("/finances", response_class=HTMLResponse)
+async def finances_dashboard(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
+    """Finances dashboard page."""
+    # Get basic stats
+    cur = db_conn.execute("""
+        SELECT 
+            COUNT(*) as total_transactions,
+            SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as total_expenses,
+            SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as total_income
+        FROM transactions 
+        WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+    """)
+    stats = cur.fetchone()
     
-    # Calculate expenses from recurring transactions
-    cur = db_conn.execute(
-        "SELECT COUNT(*), "
-        "SUM(CASE WHEN amount < 0 THEN amount ELSE 0 END), "
-        "SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) "
-        "FROM transactions WHERE recurrence_id IS NOT NULL"
-    )
-    row = cur.fetchone()
-    recurring_expenses = abs(row[1] or 0.0) if row else 0.0
-    recurring_income = row[2] or 0.0 if row else 0.0
-    recurring_count = row[0] or 0 if row else 0
+    # Get recent transactions
+    cur = db_conn.execute("""
+        SELECT t.id, t.date, t.amount, c.name as category, u.name as user, 
+               a.name as account, t.notes, t.tags
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.user_id = u.id
+        LEFT JOIN accounts a ON t.account_id = a.id
+        ORDER BY t.date DESC, t.id DESC
+        LIMIT 5
+    """)
+    recent_transactions = cur.fetchall()
     
-    # Total everything
-    stats["transactions_count"] = regular_count + recurring_count
-    stats["total_expenses"] = regular_expenses + recurring_expenses
-    stats["total_income"] = regular_income + recurring_income
-    cur.close()
-    return templates.TemplateResponse("pages/index.html", {"request": request, "stats": stats})
+    # Get recurrences count
+    cur = db_conn.execute("SELECT COUNT(*) FROM recurrences WHERE active = 1")
+    recurrences_count = cur.fetchone()[0]
+    
+    stats_data = {
+        "total_expenses": stats['total_expenses'] or 0,
+        "total_income": stats['total_income'] or 0,
+        "transactions_count": stats['total_transactions'] or 0,
+        "recurrences_count": recurrences_count
+    }
+    
+    # Get sidebar stats
+    sidebar_stats = await get_finance_stats(db_conn)
+    
+    return templates.TemplateResponse("finances/index.html", {
+        "request": request,
+        "show_sidebar": True,
+        "stats": stats_data,
+        "recent_transactions": recent_transactions,
+        **sidebar_stats
+    })
+
+@router.get("/finances/transactions", response_class=HTMLResponse)
+async def finances_transactions_page(
+    request: Request, 
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    category_id: Optional[str] = Query(None, description="Filter by category"),
+    user_id: Optional[str] = Query(None, description="Filter by user"),
+    account_id: Optional[str] = Query(None, description="Filter by account"),
+    date_from: Optional[str] = Query(None, description="Filter from date"),
+    date_to: Optional[str] = Query(None, description="Filter to date"),
+    amount_min: Optional[str] = Query(None, description="Minimum amount"),
+    amount_max: Optional[str] = Query(None, description="Maximum amount"),
+    transaction_type: Optional[str] = Query(None, description="Transaction type: income or expense"),
+    tags: Optional[str] = Query(None, description="Filter by tags"),
+    sort: Optional[str] = Query("date_desc", description="Sort order"),
+    db_conn: sqlite3.Connection = Depends(get_db_conn)
+) -> HTMLResponse:
+    """Transactions page with pagination and filtering."""
+    offset = (page - 1) * per_page
+    
+    # Build WHERE clause for filtering
+    where_clause = "WHERE t.recurrence_id IS NULL AND t.amount < 0"
+    params = []
+    
+    # Handle transaction type filter
+    if transaction_type and transaction_type.strip():
+        if transaction_type == "income":
+            where_clause = "WHERE t.recurrence_id IS NULL AND t.amount > 0"
+        elif transaction_type == "expense":
+            where_clause = "WHERE t.recurrence_id IS NULL AND t.amount < 0"
+    
+    if category_id and category_id.strip():
+        try:
+            category_id_int = int(category_id)
+            where_clause += " AND t.category_id = ?"
+            params.append(category_id_int)
+        except ValueError:
+            pass
+    
+    if user_id and user_id.strip():
+        try:
+            user_id_int = int(user_id)
+            where_clause += " AND t.user_id = ?"
+            params.append(user_id_int)
+        except ValueError:
+            pass
+    
+    if account_id and account_id.strip():
+        try:
+            account_id_int = int(account_id)
+            where_clause += " AND t.account_id = ?"
+            params.append(account_id_int)
+        except ValueError:
+            pass
+    
+    if date_from and date_from.strip():
+        where_clause += " AND t.date >= ?"
+        params.append(date_from)
+    
+    if date_to and date_to.strip():
+        where_clause += " AND t.date <= ?"
+        params.append(date_to)
+    
+    if amount_min and amount_min.strip():
+        try:
+            amount_min_float = float(amount_min)
+            where_clause += " AND ABS(t.amount) >= ?"
+            params.append(abs(amount_min_float))
+        except ValueError:
+            pass
+    
+    if amount_max and amount_max.strip():
+        try:
+            amount_max_float = float(amount_max)
+            where_clause += " AND ABS(t.amount) <= ?"
+            params.append(abs(amount_max_float))
+        except ValueError:
+            pass
+    
+    if tags and tags.strip():
+        # Split tags by comma and search for any of them
+        tag_list = [tag.strip() for tag in tags.split(',') if tag.strip()]
+        if tag_list:
+            where_clause += " AND ("
+            tag_conditions = []
+            for tag in tag_list:
+                tag_conditions.append("t.tags LIKE ?")
+                params.append(f"%{tag}%")
+            where_clause += " OR ".join(tag_conditions) + ")"
+    
+    # Get total count
+    count_query = f"SELECT COUNT(*) FROM transactions t {where_clause}"
+    cur = db_conn.execute(count_query, params)
+    total = cur.fetchone()[0]
+    
+    # Build ORDER BY clause
+    order_clause = "ORDER BY "
+    if sort == "date_asc":
+        order_clause += "t.date ASC, t.id ASC"
+    elif sort == "amount_desc":
+        order_clause += "ABS(t.amount) DESC, t.date DESC"
+    elif sort == "amount_asc":
+        order_clause += "ABS(t.amount) ASC, t.date DESC"
+    else:  # date_desc (default)
+        order_clause += "t.date DESC, t.id DESC"
+    
+    # Get transactions
+    query = f"""
+        SELECT t.id, t.date, t.amount, c.name as category, u.name as user, 
+               a.name as account, t.notes, t.tags, t.recurrence_id
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.user_id = u.id
+        LEFT JOIN accounts a ON t.account_id = a.id
+        {where_clause}
+        {order_clause}
+        LIMIT ? OFFSET ?
+    """
+    cur = db_conn.execute(query, params + [per_page, offset])
+    transactions = cur.fetchall()
+    
+    # Get only expense categories (excluding income categories)
+    cur = db_conn.execute("SELECT id, name FROM categories WHERE name NOT IN ('משכורת', 'קליניקה') ORDER BY name")
+    categories = cur.fetchall()
+    
+    # Get users and accounts for form
+    cur = db_conn.execute("SELECT id, name FROM users ORDER BY name")
+    users = cur.fetchall()
+    
+    cur = db_conn.execute("SELECT id, name FROM accounts ORDER BY name")
+    accounts = cur.fetchall()
+    
+    # Get sidebar stats
+    sidebar_stats = await get_finance_stats(db_conn)
+    
+    return templates.TemplateResponse("finances/transactions.html", {
+        "request": request,
+        "show_sidebar": True,
+        "transactions": transactions,
+        "categories": categories,
+        "users": users,
+        "accounts": accounts,
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "total_pages": (total + per_page - 1) // per_page,
+            "has_prev": page > 1,
+            "has_next": page < (total + per_page - 1) // per_page,
+            "prev_page": page - 1,
+            "next_page": page + 1
+        },
+        **sidebar_stats
+    })
+
+@router.get("/finances/recurrences", response_class=HTMLResponse)
+async def finances_recurrences_page(
+    request: Request, 
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    category_id: Optional[int] = Query(None, description="Filter by category"),
+    user_id: Optional[int] = Query(None, description="Filter by user"),
+    frequency: Optional[str] = Query(None, description="Filter by frequency"),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    sort: Optional[str] = Query("name_asc", description="Sort order"),
+    db_conn: sqlite3.Connection = Depends(get_db_conn)
+) -> HTMLResponse:
+    """Recurrences page with pagination and filtering."""
+    offset = (page - 1) * per_page
+    
+    # Build WHERE clause for filtering
+    where_clause = "WHERE 1=1"
+    params = []
+    
+    if category_id:
+        where_clause += " AND r.category_id = ?"
+        params.append(category_id)
+    
+    if user_id:
+        where_clause += " AND r.user_id = ?"
+        params.append(user_id)
+    
+    if frequency:
+        where_clause += " AND r.frequency = ?"
+        params.append(frequency)
+    
+    if status:
+        if status == "active":
+            where_clause += " AND r.active = 1"
+        elif status == "inactive":
+            where_clause += " AND r.active = 0"
+    
+    # Get total count
+    count_query = f"SELECT COUNT(*) FROM recurrences r {where_clause}"
+    cur = db_conn.execute(count_query, params)
+    total = cur.fetchone()[0]
+    
+    # Build ORDER BY clause
+    order_clause = "ORDER BY "
+    if sort == "name_asc":
+        order_clause += "r.name ASC"
+    elif sort == "name_desc":
+        order_clause += "r.name DESC"
+    elif sort == "amount_desc":
+        order_clause += "r.amount DESC"
+    elif sort == "amount_asc":
+        order_clause += "r.amount ASC"
+    elif sort == "start_date_desc":
+        order_clause += "r.start_date DESC"
+    elif sort == "start_date_asc":
+        order_clause += "r.start_date ASC"
+    else:
+        order_clause += "r.name ASC"
+    
+    # Get recurrences
+    query = f"""
+        SELECT r.id, r.name, r.amount, c.name as category, u.name as user,
+               r.frequency, r.start_date, r.end_date, r.day_of_month, 
+               r.weekday, r.active
+        FROM recurrences r
+        LEFT JOIN categories c ON r.category_id = c.id
+        LEFT JOIN users u ON r.user_id = u.id
+        {where_clause}
+        {order_clause}
+        LIMIT ? OFFSET ?
+    """
+    cur = db_conn.execute(query, params + [per_page, offset])
+    recurrences = cur.fetchall()
+    
+    # Get only expense categories (excluding income categories)
+    cur = db_conn.execute("SELECT id, name FROM categories WHERE name NOT IN ('משכורת', 'קליניקה') ORDER BY name")
+    categories = cur.fetchall()
+    
+    # Get users for form
+    cur = db_conn.execute("SELECT id, name FROM users ORDER BY name")
+    users = cur.fetchall()
+    
+    # Get sidebar stats
+    sidebar_stats = await get_finance_stats(db_conn)
+    
+    return templates.TemplateResponse("finances/recurrences.html", {
+        "request": request,
+        "show_sidebar": True,
+        "recurrences": recurrences,
+        "categories": categories,
+        "users": users,
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "total_pages": (total + per_page - 1) // per_page,
+            "has_prev": page > 1,
+            "has_next": page < (total + per_page - 1) // per_page,
+            "prev_page": page - 1,
+            "next_page": page + 1
+        },
+        **sidebar_stats
+    })
+
+@router.get("/finances/income", response_class=HTMLResponse)
+async def finances_income_page(
+    request: Request, 
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    category_id: Optional[str] = Query(None, description="Filter by category"),
+    user_id: Optional[str] = Query(None, description="Filter by user"),
+    account_id: Optional[str] = Query(None, description="Filter by account"),
+    date_from: Optional[str] = Query(None, description="Filter from date"),
+    date_to: Optional[str] = Query(None, description="Filter to date"),
+    amount_min: Optional[str] = Query(None, description="Minimum amount"),
+    amount_max: Optional[str] = Query(None, description="Maximum amount"),
+    tags: Optional[str] = Query(None, description="Filter by tags"),
+    sort: Optional[str] = Query("date_desc", description="Sort order")
+) -> HTMLResponse:
+    """Income management page with pagination."""
+    
+    # Calculate offset for pagination
+    offset = (page - 1) * per_page
+    
+    # Build WHERE clause for filtering
+    where_clause = "WHERE t.recurrence_id IS NULL AND t.amount > 0"
+    params = []
+    
+    if category_id and category_id.strip():
+        try:
+            category_id_int = int(category_id)
+            where_clause += " AND t.category_id = ?"
+            params.append(category_id_int)
+        except ValueError:
+            pass
+    
+    if user_id and user_id.strip():
+        try:
+            user_id_int = int(user_id)
+            where_clause += " AND t.user_id = ?"
+            params.append(user_id_int)
+        except ValueError:
+            pass
+    
+    if account_id and account_id.strip():
+        try:
+            account_id_int = int(account_id)
+            where_clause += " AND t.account_id = ?"
+            params.append(account_id_int)
+        except ValueError:
+            pass
+    
+    if date_from and date_from.strip():
+        where_clause += " AND t.date >= ?"
+        params.append(date_from)
+    
+    if date_to and date_to.strip():
+        where_clause += " AND t.date <= ?"
+        params.append(date_to)
+    
+    if amount_min and amount_min.strip():
+        try:
+            amount_min_float = float(amount_min)
+            where_clause += " AND t.amount >= ?"
+            params.append(amount_min_float)
+        except ValueError:
+            pass
+    
+    if amount_max and amount_max.strip():
+        try:
+            amount_max_float = float(amount_max)
+            where_clause += " AND t.amount <= ?"
+            params.append(amount_max_float)
+        except ValueError:
+            pass
+    
+    if tags and tags.strip():
+        # Split tags by comma and search for any of them
+        tag_list = [tag.strip() for tag in tags.split(',') if tag.strip()]
+        if tag_list:
+            where_clause += " AND ("
+            tag_conditions = []
+            for tag in tag_list:
+                tag_conditions.append("t.tags LIKE ?")
+                params.append(f"%{tag}%")
+            where_clause += " OR ".join(tag_conditions) + ")"
+    
+    # Get total count for pagination
+    count_query = f"SELECT COUNT(*) as total FROM transactions t {where_clause}"
+    cur = db_conn.execute(count_query, params)
+    total_transactions = cur.fetchone()[0]
+    total_pages = (total_transactions + per_page - 1) // per_page
+    
+    # Build ORDER BY clause
+    order_clause = "ORDER BY "
+    if sort == "date_asc":
+        order_clause += "t.date ASC, t.id ASC"
+    elif sort == "date_desc":
+        order_clause += "t.date DESC, t.id DESC"
+    elif sort == "amount_desc":
+        order_clause += "t.amount DESC"
+    elif sort == "amount_asc":
+        order_clause += "t.amount ASC"
+    else:
+        order_clause += "t.date DESC, t.id DESC"
+    
+    # Get transactions with pagination
+    query = f"""
+        SELECT t.id, t.date, t.amount, c.name AS category_name, u.name AS user_name, 
+               a.name AS account_name, t.notes, t.tags, t.category_id, t.user_id, t.account_id 
+        FROM transactions t 
+        JOIN categories c ON t.category_id = c.id 
+        JOIN users u ON t.user_id = u.id 
+        LEFT JOIN accounts a ON t.account_id = a.id 
+        {where_clause}
+        {order_clause}
+        LIMIT ? OFFSET ?
+    """
+    cur = db_conn.execute(query, params + [per_page, offset])
+    txs = cur.fetchall()
+    
+    # Get only income categories (clinic and salary)
+    cats = db_conn.execute(
+        "SELECT id, name FROM categories WHERE name IN ('קליניקה', 'משכורת') ORDER BY name").fetchall()
+    users = db_conn.execute(
+        "SELECT id, name FROM users ORDER BY id").fetchall()
+    accounts = db_conn.execute(
+        "SELECT id, name FROM accounts ORDER BY name").fetchall()
+
+    # Get sidebar stats
+    sidebar_stats = await get_finance_stats(db_conn)
+    
+    return templates.TemplateResponse(
+        "finances/income.html",
+        {
+            "request": request,
+            "show_sidebar": True,
+            "transactions": txs, 
+            "categories": cats, 
+            "users": users,
+            "accounts": accounts,
+            "today": date.today().isoformat(),
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": total_transactions,
+                "total_pages": total_pages,
+                "has_prev": page > 1,
+                "has_next": page < total_pages,
+                "prev_page": page - 1,
+                "next_page": page + 1
+            },
+            **sidebar_stats
+        },
+    )
+
+@router.get("/api/health")
+async def health_check():
+    """Health check endpoint for service worker."""
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+@router.get("/finances/statistics", response_class=HTMLResponse)
+async def finances_statistics_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
+    """Statistics page with full data."""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("=== FINANCES STATISTICS PAGE REQUEST START ===")
+    
+    # מאתחל נתונים לעמוד סטטיסטיקות (including both regular and recurring expenses, excluding income categories)
+    try:
+        monthly = db_conn.execute("""
+            SELECT strftime('%Y-%m', date) AS ym,
+                   SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END) AS expenses
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE t.date >= date('now','-5 months','start of month')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+            GROUP BY ym
+            ORDER BY ym
+        """).fetchall()
+        
+        # Debug: Check the actual data
+        logger.info("=== MONTHLY EXPENSES QUERY DEBUG ===")
+        logger.info(f"Monthly expenses query result: {monthly}")
+        if monthly:
+            for row in monthly:
+                logger.info(f"Month: {row.get('ym', 'N/A')}, Expenses: {row.get('expenses', 'N/A')}")
+        
+        # Also check the total for current month
+        current_month_total = db_conn.execute("""
+            SELECT SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END) AS total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+        """).fetchone()
+        logger.info(f"Current month total expenses: {current_month_total[0] if current_month_total else 'N/A'}")
+        
+    except Exception as e:
+        monthly = []
+        logger.error(f"Error in monthly expenses query: {e}")
+    
+    # Get user expenses for user chart (only regular expenses, excluding recurring expenses and income categories)
+    try:
+        users = db_conn.execute("""
+            SELECT u.name AS user_name, COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS total
+            FROM transactions t
+            JOIN users u ON t.user_id = u.id
+            JOIN categories c ON t.category_id = c.id
+            WHERE t.date >= date('now', '-6 months')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+            AND t.recurrence_id IS NULL
+            GROUP BY u.name
+            ORDER BY total DESC
+        """).fetchall()
+    except Exception as e:
+        users = []
+    
+    # Get monthly category breakdown for donut chart (only regular expenses, excluding recurring expenses, even with 0 amounts)
+    try:
+        category_monthly_rows = db_conn.execute("""
+            SELECT ym.month,
+                   c.name AS category,
+                   COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS amount
+            FROM (
+                SELECT DISTINCT strftime('%Y-%m', date) AS month
+                FROM transactions
+                WHERE date >= date('now','start of month','-5 months')
+                UNION
+                SELECT strftime('%Y-%m', 'now') AS month
+            ) ym
+            CROSS JOIN categories c
+            LEFT JOIN transactions t ON c.id = t.category_id 
+                AND strftime('%Y-%m', t.date) = ym.month
+                AND t.recurrence_id IS NULL
+            WHERE c.name NOT IN ('משכורת', 'קליניקה')
+            GROUP BY ym.month, c.id, c.name
+            ORDER BY ym.month ASC, c.name ASC
+        """).fetchall()
+    except Exception as e:
+        category_monthly_rows = []
+    
+    # Also get total category breakdown for other charts (only regular expenses, excluding recurring expenses, even with 0 amounts)
+    try:
+        category_total_rows = db_conn.execute("""
+            SELECT c.name AS category,
+                   COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS total
+            FROM categories c
+            LEFT JOIN transactions t ON c.id = t.category_id 
+                AND t.date >= date('now','start of month','-5 months')
+                AND t.recurrence_id IS NULL
+            WHERE c.name NOT IN ('משכורת', 'קליניקה')
+            GROUP BY c.id, c.name
+            ORDER BY c.name
+        """).fetchall()
+    except Exception as e:
+        category_total_rows = []
+    
+    # Get cash vs credit breakdown for last 6 months (including both regular and recurring expenses, excluding income categories)
+    # First get by user and account
+    try:
+        cash_vs_credit_by_user = db_conn.execute("""
+            SELECT strftime('%Y-%m', t.date) AS month,
+                   u.name AS user_name,
+                   COALESCE(a.name, 'לא מוגדר') AS account_type,
+                   SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS total
+            FROM transactions t
+            LEFT JOIN accounts a ON t.account_id = a.id
+            JOIN categories c ON t.category_id = c.id
+            JOIN users u ON t.user_id = u.id
+            WHERE t.date >= date('now','start of month','-6 months')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+            GROUP BY month, u.name, a.name
+            ORDER BY month ASC, u.name ASC, a.name ASC
+        """).fetchall()
+    except Exception as e:
+        cash_vs_credit_by_user = []
+    
+    # Then get totals by account (all users combined)
+    try:
+        cash_vs_credit_totals = db_conn.execute("""
+            SELECT strftime('%Y-%m', t.date) AS month,
+                   COALESCE(a.name, 'לא מוגדר') AS account_type,
+                   SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS total
+            FROM transactions t
+            LEFT JOIN accounts a ON t.account_id = a.id
+            JOIN categories c ON t.category_id = c.id
+            WHERE t.date >= date('now','start of month','-6 months')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+            GROUP BY month, a.name
+            ORDER BY month ASC, a.name ASC
+        """).fetchall()
+    except Exception as e:
+        cash_vs_credit_totals = []
+    
+    # Combine both results
+    cash_vs_credit = []
+    
+    try:
+        # Create user data with cash and credit amounts per month
+        user_monthly_data = {}
+        for row in cash_vs_credit_by_user:
+            month = row['month']
+            user_name = row['user_name']
+            account_type = row['account_type']
+            total = row['total']
+            
+            if month not in user_monthly_data:
+                user_monthly_data[month] = {}
+            
+            if user_name not in user_monthly_data[month]:
+                user_monthly_data[month][user_name] = {'cash': 0, 'credit': 0}
+            
+            if account_type == 'Cash':
+                user_monthly_data[month][user_name]['cash'] += total
+            elif account_type == 'Credit Card':
+                user_monthly_data[month][user_name]['credit'] += total
+            # Handle other account types - add to credit by default
+            else:
+                user_monthly_data[month][user_name]['credit'] += total
+    except Exception as e:
+        user_monthly_data = {}
+    
+    try:
+        # Add user-specific data (one row per user per month)
+        for month, users in user_monthly_data.items():
+            for user_name, amounts in users.items():
+                total_amount = amounts['cash'] + amounts['credit']
+                cash_vs_credit.append({
+                    'month': month,
+                    'user_name': user_name,
+                    'account_type': 'User',
+                    'total': total_amount,
+                    'cash_amount': amounts['cash'],
+                    'credit_amount': amounts['credit'],
+                    'is_total': False
+                })
+        
+        # Create combined totals by month (all users and accounts combined)
+        monthly_totals = {}
+        for row in cash_vs_credit_totals:
+            month = row['month']
+            if month not in monthly_totals:
+                monthly_totals[month] = {'cash': 0, 'credit': 0}
+            
+            if row['account_type'] == 'Cash':
+                monthly_totals[month]['cash'] += row['total']
+            elif row['account_type'] == 'Credit Card':
+                monthly_totals[month]['credit'] += row['total']
+            # Handle other account types - add to credit by default
+            else:
+                monthly_totals[month]['credit'] += row['total']
+        
+        # Add combined totals data
+        for month, totals in monthly_totals.items():
+            total_amount = totals['cash'] + totals['credit']
+            cash_vs_credit.append({
+                'month': month,
+                'user_name': 'סה"כ',
+                'account_type': 'Combined',
+                'total': total_amount,
+                'cash_amount': totals['cash'],
+                'credit_amount': totals['credit'],
+                'is_total': True
+            })
+    except Exception as e:
+        pass
+    
+    # Get top 5 expenses in last 3 months (including both regular and recurring expenses, excluding income categories)
+    try:
+        top_expenses = db_conn.execute("""
+            SELECT 
+                t.id,
+                t.date,
+                t.amount,
+                t.notes,
+                c.name AS category,
+                u.name AS user_name,
+                a.name AS account_name
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            JOIN users u ON t.user_id = u.id
+            LEFT JOIN accounts a ON t.account_id = a.id
+            WHERE t.date >= date('now', '-3 months')
+            AND t.amount < 0  -- רק הוצאות (סכומים שליליים)
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+            ORDER BY ABS(t.amount) DESC
+            LIMIT 5
+        """).fetchall()
+    except Exception as e:
+        top_expenses = []
+    
+    # הוצאות קבועות לפי חודש (excluding income categories)
+    try:
+        recurring_monthly = db_conn.execute("""
+            SELECT strftime('%Y-%m', t.date) AS month,
+                   COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE t.date >= date('now', '-6 months')
+            AND t.recurrence_id IS NOT NULL
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+            GROUP BY strftime('%Y-%m', t.date)
+            ORDER BY month ASC
+        """).fetchall()
+    except Exception as e:
+        recurring_monthly = []
+    
+    # Ensure database connection has row_factory set
+    try:
+        if not hasattr(db_conn, 'row_factory') or db_conn.row_factory is None:
+            db_conn.row_factory = sqlite3.Row
+    except Exception as e:
+        pass
+    
+    # Helper function to safely convert query results to dictionaries
+    def safe_dict_convert(row):
+        try:
+            if hasattr(row, 'keys'):
+                return dict(row)
+            elif isinstance(row, (list, tuple)):
+                # Handle tuple/list results by creating a dict with column names
+                return {"value": row[0] if len(row) == 1 else row}
+            else:
+                return {"value": row}
+        except Exception as e:
+            return {"value": 0}
+    
+    # Calculate summary statistics for the current month (including both regular and recurring expenses)
+    try:
+        current_month_expenses = db_conn.execute("""
+            SELECT COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+        """).fetchone()
+    except Exception as e:
+        current_month_expenses = {'total': 0}
+    
+    try:
+        previous_month_expenses = db_conn.execute("""
+            SELECT COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now', '-1 month')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+        """).fetchone()
+    except Exception as e:
+        previous_month_expenses = {'total': 0}
+    
+    try:
+        current_month_income = db_conn.execute("""
+            SELECT COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+            AND c.name IN ('משכורת', 'קליניקה')
+        """).fetchone()
+    except Exception as e:
+        current_month_income = {'total': 0}
+    
+    # Get transaction count for current month (including both regular and recurring transactions)
+    try:
+        current_month_transactions = db_conn.execute("""
+            SELECT COUNT(*) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+        """).fetchone()
+    except Exception as e:
+        current_month_transactions = {'total': 0}
+    
+    # Get recurring transactions count for current month
+    try:
+        current_month_recurring = db_conn.execute("""
+            SELECT COUNT(*) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+            AND t.recurrence_id IS NOT NULL
+        """).fetchone()
+    except Exception as e:
+        current_month_recurring = {'total': 0}
+    
+    # Get regular transactions count for current month (excluding recurring transactions)
+    try:
+        current_month_regular = db_conn.execute("""
+            SELECT COUNT(*) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+            AND t.recurrence_id IS NULL
+        """).fetchone()
+    except Exception as e:
+        current_month_regular = {'total': 0}
+    
+    try:
+        previous_month_income = db_conn.execute("""
+            SELECT COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now', '-1 month')
+            AND c.name IN ('משכורת', 'קליניקה')
+        """).fetchone()
+    except Exception as e:
+        previous_month_income = {'total': 0}
+    
+    # Get total expenses for last 6 months (including both regular and recurring expenses)
+    try:
+        total_expenses_6months = db_conn.execute("""
+            SELECT COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE t.date >= date('now', '-6 months')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+        """).fetchone()
+    except Exception as e:
+        total_expenses_6months = {'total': 0}
+    
+    # Calculate changes
+    try:
+        expenses_change = 0
+        if previous_month_expenses['total'] > 0:
+            expenses_change = ((current_month_expenses['total'] - previous_month_expenses['total']) / previous_month_expenses['total']) * 100
+        
+        income_change = 0
+        if previous_month_income['total'] > 0:
+            income_change = ((current_month_income['total'] - previous_month_income['total']) / previous_month_income['total']) * 100
+        
+        balance_month = current_month_income['total'] - current_month_expenses['total']
+        balance_change = 0
+        if (previous_month_income['total'] - previous_month_expenses['total']) > 0:
+            balance_change = ((balance_month - (previous_month_income['total'] - previous_month_expenses['total'])) / (previous_month_income['total'] - previous_month_expenses['total'])) * 100
+    except Exception as e:
+        expenses_change = 0
+        income_change = 0
+        balance_month = 0
+        balance_change = 0
+    
+    # Count active categories this month
+    try:
+        categories_count = db_conn.execute("""
+            SELECT COUNT(DISTINCT c.id) as count
+            FROM categories c
+            JOIN transactions t ON c.id = t.category_id
+            WHERE strftime('%Y-%m', t.date) = strftime('%Y-%m', 'now')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+        """).fetchone()
+    except Exception as e:
+        categories_count = {'count': 0}
+    
+    # Get sidebar stats
+    sidebar_stats = await get_finance_stats(db_conn)
+    
+    try:
+        template_data = {
+            "request": request,
+            "show_sidebar": True,
+            "monthly_expenses": [safe_dict_convert(r) for r in (monthly or [])],
+            "user_expenses": [safe_dict_convert(r) for r in (users or [])],
+            "recurring_user_expenses": [safe_dict_convert(r) for r in (recurring_monthly or [])],
+            "category_expenses": [safe_dict_convert(r) for r in (category_monthly_rows or [])],
+            "category_totals": [safe_dict_convert(r) for r in (category_total_rows or [])],
+            "cash_vs_credit": [safe_dict_convert(r) for r in (cash_vs_credit or [])],
+            "top_expenses": [safe_dict_convert(r) for r in (top_expenses or [])],
+            "recurring_monthly": [safe_dict_convert(r) for r in (recurring_monthly or [])],
+            "total_expenses_month": current_month_expenses['total'],
+            "total_income_month": current_month_income['total'],
+            "balance_month": balance_month,
+            "categories_count": categories_count['count'],
+            "expenses_change": expenses_change,
+            "income_change": income_change,
+            "balance_change": balance_change,
+            "total_transactions_month": current_month_transactions['total'],
+            "total_recurring_month": current_month_recurring['total'],
+            "total_regular_month": current_month_regular['total'],
+            "total_expenses_6months": total_expenses_6months['total'],
+            **sidebar_stats
+        }
+    except Exception as e:
+        template_data = {
+            "request": request,
+            "show_sidebar": True,
+            "monthly_expenses": [],
+            "user_expenses": [],
+            "recurring_user_expenses": [],
+            "category_expenses": [],
+            "category_totals": [],
+            "cash_vs_credit": [],
+            "top_expenses": [],
+            "recurring_monthly": [],
+            "total_expenses_month": 0,
+            "total_income_month": 0,
+            "balance_month": 0,
+            "categories_count": 0,
+            "expenses_change": 0,
+            "income_change": 0,
+            "balance_change": 0,
+            "total_transactions_month": 0,
+            "total_recurring_month": 0,
+            "total_regular_month": 0,
+            **sidebar_stats
+        }
+    
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.exception("Error in finances_statistics_page: %s", str(e))
+        template_data = {
+            "request": request,
+            "show_sidebar": True,
+            "monthly_expenses": [],
+            "user_expenses": [],
+            "recurring_user_expenses": [],
+            "category_expenses": [],
+            "category_totals": [],
+            "cash_vs_credit": [],
+            "top_expenses": [],
+            "recurring_monthly": [],
+            "total_expenses_month": 0,
+            "total_income_month": 0,
+            "balance_month": 0,
+            "categories_count": 0,
+            "expenses_change": 0,
+            "income_change": 0,
+            "balance_change": 0,
+            "total_transactions_month": 0,
+            "total_recurring_month": 0,
+            "total_regular_month": 0,
+            **sidebar_stats
+        }
+    
+    logger.info("=== FINANCES STATISTICS PAGE REQUEST END ===")
+    logger.info(f"Template data keys: {list(template_data.keys())}")
+    logger.info(f"Monthly expenses count: {len(template_data.get('monthly_expenses', []))}")
+    logger.info(f"Top expenses count: {len(template_data.get('top_expenses', []))}")
+    logger.info(f"Total expenses month: {template_data.get('total_expenses_month', 0)}")
+    logger.info(f"Total income month: {template_data.get('total_income_month', 0)}")
+    logger.info(f"Total transactions month: {template_data.get('total_transactions_month', 0)}")
+    logger.info(f"Total recurring month: {template_data.get('total_recurring_month', 0)}")
+    logger.info(f"Total regular month: {template_data.get('total_regular_month', 0)}")
+    
+    return templates.TemplateResponse("finances/statistics.html", template_data)
+
+@router.get("/finances/backup", response_class=HTMLResponse)
+async def finances_backup_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
+    """Backup page."""
+    backups = []
+    try:
+        import os
+        backup_service_path = os.path.join(os.path.dirname(__file__), '..', 'services', 'backup_service.py')
+        if os.path.exists(backup_service_path):
+            from ..services.backup_service import list_backup_files
+            backups = list_backup_files()
+        else:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning("Backup service file not found at: %s", backup_service_path)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.exception("Failed to fetch backup list for finances backup page")
+        backups = []
+    
+    # Get sidebar stats
+    sidebar_stats = await get_finance_stats(db_conn)
+    
+    return templates.TemplateResponse("finances/backup.html", {
+        "request": request,
+        "show_sidebar": True,
+        "backups": backups,
+        **sidebar_stats
+    })
+
+@router.get("/finances/challenges", response_class=HTMLResponse)
+async def finances_challenges_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
+    """Challenges page."""
+    # Get sidebar stats
+    sidebar_stats = await get_finance_stats(db_conn)
+    
+    return templates.TemplateResponse("finances/challenges.html", {
+        "request": request,
+        "show_sidebar": True,
+        **sidebar_stats
+    })
+
+# New section routes
+@router.get("/dreams", response_class=HTMLResponse)
+async def dreams_page(request: Request) -> HTMLResponse:
+    """Dreams page."""
+    return templates.TemplateResponse("dreams/index.html", {"request": request})
+
+@router.get("/goals", response_class=HTMLResponse)
+async def goals_page(request: Request) -> HTMLResponse:
+    """Goals page."""
+    return templates.TemplateResponse("goals/index.html", {"request": request})
+
+@router.get("/memories", response_class=HTMLResponse)
+async def memories_page(request: Request) -> HTMLResponse:
+    """Memories page."""
+    return templates.TemplateResponse("memories/index.html", {"request": request})
+
+@router.get("/calendar", response_class=HTMLResponse)
+async def calendar_page(request: Request) -> HTMLResponse:
+    """Calendar page."""
+    return templates.TemplateResponse("calendar/index.html", {"request": request})
 
 
 @router.get("/transactions", response_class=HTMLResponse)
@@ -653,7 +1685,7 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
     
     # Get user expenses for user chart (including both regular and recurring expenses, excluding income categories)
     users = db_conn.execute("""
-        SELECT u.name AS user_name, ABS(SUM(t.amount)) AS total
+        SELECT u.name AS user_name, COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS total
         FROM transactions t
         JOIN users u ON t.user_id = u.id
         JOIN categories c ON t.category_id = c.id
@@ -823,7 +1855,7 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
     # הוצאות קבועות לפי חודש (excluding income categories)
     recurring_monthly = db_conn.execute("""
         SELECT strftime('%Y-%m', t.date) AS month,
-               ABS(SUM(t.amount)) AS total
+               COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS total
         FROM transactions t
         JOIN categories c ON t.category_id = c.id
         WHERE t.date >= date('now', '-6 months')
@@ -846,6 +1878,14 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
             return {"value": row[0] if len(row) == 1 else row}
         else:
             return {"value": row}
+    
+    # Debug logging for monthly expenses
+    logger.info("=== MONTHLY EXPENSES DEBUG ===")
+    logger.info(f"Monthly expenses raw data: {monthly}")
+    logger.info(f"Monthly expenses length: {len(monthly) if monthly else 0}")
+    if monthly:
+        for item in monthly:
+            logger.info(f"Month: {item.get('ym', 'N/A')}, Expenses: {item.get('expenses', 'N/A')}")
     
     template_data = {
         "request": request,

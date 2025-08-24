@@ -1,0 +1,34 @@
+{% extends "layout/base.html" %}
+
+{% block title %}חלומות - המנביטים{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">חלומות</h1>
+        <p class="text-gray-600">שתפו ותכננו את החלומות המשותפים שלכם</p>
+    </div>
+
+    <!-- Coming Soon -->
+    <div class="bg-white rounded-lg shadow-lg p-12 text-center">
+        <div class="mb-6">
+            <svg class="w-16 h-16 text-purple-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+            </svg>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">בקרוב</h2>
+        <p class="text-gray-600 mb-6">פיצ'ר החלומות יגיע בקרוב! כאן תוכלו לשתף ולנהל את החלומות המשותפים שלכם.</p>
+        <div class="bg-purple-50 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-purple-900 mb-2">מה יהיה כאן?</h3>
+            <ul class="text-purple-800 space-y-2 text-right">
+                <li>• הוספת חלומות משותפים</li>
+                <li>• תכנון צעדים להשגת החלומות</li>
+                <li>• מעקב אחר התקדמות</li>
+                <li>• תמונות וזיכרונות</li>
+                <li>• התראות ותזכורות</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

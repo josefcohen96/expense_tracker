@@ -1,0 +1,34 @@
+{% extends "layout/base.html" %}
+
+{% block title %}מטרות - המנביטים{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">מטרות</h1>
+        <p class="text-gray-600">הגדירו ועקבו אחר המטרות המשותפות שלכם</p>
+    </div>
+
+    <!-- Coming Soon -->
+    <div class="bg-white rounded-lg shadow-lg p-12 text-center">
+        <div class="mb-6">
+            <svg class="w-16 h-16 text-blue-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">בקרוב</h2>
+        <p class="text-gray-600 mb-6">פיצ'ר המטרות יגיע בקרוב! כאן תוכלו להגדיר ולנהל את המטרות המשותפות שלכם.</p>
+        <div class="bg-blue-50 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-blue-900 mb-2">מה יהיה כאן?</h3>
+            <ul class="text-blue-800 space-y-2 text-right">
+                <li>• הגדרת מטרות קצרות וארוכות טווח</li>
+                <li>• תכנון צעדים להשגת המטרות</li>
+                <li>• מעקב אחר התקדמות</li>
+                <li>• חגיגת הישגים</li>
+                <li>• התראות ותזכורות</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

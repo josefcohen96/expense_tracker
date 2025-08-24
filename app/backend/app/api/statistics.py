@@ -45,12 +45,14 @@ def statistics(request: Request, db_conn=Depends(get_db_conn)):
     categories_rows = cur.execute("SELECT name FROM categories").fetchall()
     all_categories = [row["name"] for row in categories_rows]
 
-    # Get monthly sums per category (including both regular and recurring expenses)
+    # Get monthly sums per category (only regular expenses, excluding recurring expenses and income categories)
     monthly_raw = cur.execute("""
-        SELECT strftime('%Y-%m', t.date) AS ym, ABS(SUM(t.amount)) AS expenses, c.name AS category
+        SELECT strftime('%Y-%m', t.date) AS ym, COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS expenses, c.name AS category
         FROM transactions t
         JOIN categories c ON t.category_id = c.id
         WHERE t.date >= date('now', '-6 months')
+        AND t.recurrence_id IS NULL
+        AND c.name NOT IN ('משכורת', 'קליניקה')
         GROUP BY ym, c.name
         ORDER BY ym, c.name
     """).fetchall()
@@ -58,48 +60,55 @@ def statistics(request: Request, db_conn=Depends(get_db_conn)):
     # Build a lookup {(ym, category): expenses}
     lookup = {(row["ym"], row["category"]): row["expenses"] for row in monthly_raw}
 
-    # Build full monthly list for each category (including zeros)
+    # Build full monthly list for each category (including zeros, excluding income categories)
     monthly = []
+    expense_categories = [cat for cat in all_categories if cat not in ['משכורת', 'קליניקה']]
+    
     for ym in last_6_months:
-        for cat in all_categories:
+        for cat in expense_categories:
             monthly.append({
                 "ym": ym,
                 "expenses": lookup.get((ym, cat), 0),
                 "category": cat
             })
-        # total for all categories
-        total = sum(lookup.get((ym, cat), 0) for cat in all_categories)
+        # total for all expense categories only
+        total = sum(lookup.get((ym, cat), 0) for cat in expense_categories)
         monthly.append({"ym": ym, "expenses": total, "category": "total"})
 
     # Top 5 expenses in last 3 months (with cache)
     top_expenses = _get_top_expenses(cur)
 
-    # Expenses by category (including both regular and recurring expenses)
+    # Expenses by category (including both regular and recurring expenses, excluding income categories)
     categories = cur.execute("""
-        SELECT c.name AS category, ABS(SUM(t.amount)) AS total
+        SELECT c.name AS category, COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS total
         FROM transactions t
         JOIN categories c ON t.category_id = c.id
         WHERE t.date >= date('now', '-6 months')
+        AND c.name NOT IN ('משכורת', 'קליניקה')
         GROUP BY c.name
     """).fetchall()
 
-    # Expenses by user (including both regular and recurring expenses)
+    # Expenses by user (including both regular and recurring expenses, excluding income categories)
     users = cur.execute("""
-        SELECT u.name AS user_name, ABS(SUM(t.amount)) AS total
+        SELECT u.name AS user_name, COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS total
         FROM transactions t
         JOIN users u ON t.user_id = u.id
+        JOIN categories c ON t.category_id = c.id
         WHERE t.date >= date('now', '-6 months')
+        AND c.name NOT IN ('משכורת', 'קליניקה')
         GROUP BY u.name
         ORDER BY total DESC
     """).fetchall()
 
-    # Recurring expenses by user (last 6 months)
+    # Recurring expenses by user (last 6 months, excluding income categories)
     recurring_users = cur.execute("""
-        SELECT u.name AS user_name, ABS(SUM(t.amount)) AS total
+        SELECT u.name AS user_name, COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS total
         FROM transactions t
         JOIN users u ON t.user_id = u.id
+        JOIN categories c ON t.category_id = c.id
         WHERE t.date >= date('now', '-6 months')
         AND t.recurrence_id IS NOT NULL
+        AND c.name NOT IN ('משכורת', 'קליניקה')
         GROUP BY u.name
         ORDER BY total DESC
     """).fetchall()
@@ -107,19 +116,167 @@ def statistics(request: Request, db_conn=Depends(get_db_conn)):
     # Recurring expenses by month (last 6 months)
     recurring_monthly = _get_recurring_monthly_expenses(cur, last_6_months)
 
+    # Get cash vs credit breakdown for last 6 months (only regular expenses, excluding recurring expenses and income categories)
+    cash_vs_credit = _get_cash_vs_credit_data(cur)
+
+    # Calculate summary statistics for the current month (including both regular and recurring expenses)
+    try:
+        current_month_expenses = cur.execute("""
+            SELECT COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+        """).fetchone()
+    except Exception as e:
+        current_month_expenses = {'total': 0}
+    
+    try:
+        previous_month_expenses = cur.execute("""
+            SELECT COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now', '-1 month')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+        """).fetchone()
+    except Exception as e:
+        previous_month_expenses = {'total': 0}
+    
+    # Get total expenses for last 6 months (including both regular and recurring expenses)
+    try:
+        total_expenses_6months = cur.execute("""
+            SELECT COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE t.date >= date('now', '-6 months')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+        """).fetchone()
+    except Exception as e:
+        total_expenses_6months = {'total': 0}
+    
+    try:
+        current_month_income = cur.execute("""
+            SELECT COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+            AND c.name IN ('משכורת', 'קליניקה')
+        """).fetchone()
+    except Exception as e:
+        current_month_income = {'total': 0}
+    
+    try:
+        previous_month_income = cur.execute("""
+            SELECT COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now', '-1 month')
+            AND c.name IN ('משכורת', 'קליניקה')
+        """).fetchone()
+    except Exception as e:
+        previous_month_income = {'total': 0}
+    
+    # Get transaction count for current month (including both regular and recurring transactions)
+    try:
+        current_month_transactions = cur.execute("""
+            SELECT COUNT(*) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+        """).fetchone()
+    except Exception as e:
+        current_month_transactions = {'total': 0}
+    
+    # Get regular transactions count for current month (excluding recurring transactions)
+    try:
+        current_month_regular = cur.execute("""
+            SELECT COUNT(*) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+            AND t.recurrence_id IS NULL
+        """).fetchone()
+    except Exception as e:
+        current_month_regular = {'total': 0}
+    
+    # Get recurring transactions count for current month
+    try:
+        current_month_recurring = cur.execute("""
+            SELECT COUNT(*) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+            AND t.recurrence_id IS NOT NULL
+        """).fetchone()
+    except Exception as e:
+        current_month_recurring = {'total': 0}
+    
+    # Count active categories this month
+    try:
+        categories_count = cur.execute("""
+            SELECT COUNT(DISTINCT c.id) as count
+            FROM categories c
+            JOIN transactions t ON c.id = t.category_id
+            WHERE strftime('%Y-%m', t.date) = strftime('%Y-%m', 'now')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+        """).fetchone()
+    except Exception as e:
+        categories_count = {'count': 0}
+    
+    # Calculate changes
+    try:
+        expenses_change = 0
+        if previous_month_expenses['total'] > 0:
+            expenses_change = ((current_month_expenses['total'] - previous_month_expenses['total']) / previous_month_expenses['total']) * 100
+        
+        income_change = 0
+        if previous_month_income['total'] > 0:
+            income_change = ((current_month_income['total'] - previous_month_income['total']) / previous_month_income['total']) * 100
+        
+        balance_month = current_month_income['total'] - current_month_expenses['total']
+        balance_change = 0
+        if (previous_month_income['total'] - previous_month_expenses['total']) > 0:
+            balance_change = ((balance_month - (previous_month_income['total'] - previous_month_expenses['total'])) / (previous_month_income['total'] - previous_month_expenses['total'])) * 100
+    except Exception as e:
+        expenses_change = 0
+        income_change = 0
+        balance_month = 0
+        balance_change = 0
+
     template_data = {
         "request": request,
+        "show_sidebar": True,
         "monthly_expenses": monthly,
         "top_expenses": [dict(row) for row in top_expenses],
         "category_expenses": [dict(row) for row in categories],
         "user_expenses": [dict(row) for row in users],
         "recurring_user_expenses": [dict(row) for row in recurring_users],
         "recurring_monthly": recurring_monthly,
+        "cash_vs_credit": cash_vs_credit,
+        "total_expenses_month": current_month_expenses['total'],
+        "total_income_month": current_month_income['total'],
+        "balance_month": balance_month,
+        "expenses_change": expenses_change,
+        "income_change": income_change,
+        "balance_change": balance_change,
+        "total_transactions_month": current_month_transactions['total'],
+        "total_recurring_month": current_month_recurring['total'],
+        "total_regular_month": current_month_regular['total'],
+        "total_expenses_6months": total_expenses_6months['total'],
+        "categories_count": categories_count['count'],
     }
     
     logger.info("=== STATISTICS PAGE REQUEST END ===")
+    logger.info(f"Total expenses month: {template_data.get('total_expenses_month', 0)}")
+    logger.info(f"Total income month: {template_data.get('total_income_month', 0)}")
+    logger.info(f"Total transactions month: {template_data.get('total_transactions_month', 0)}")
+    logger.info(f"Total recurring month: {template_data.get('total_recurring_month', 0)}")
+    logger.info(f"Total regular month: {template_data.get('total_regular_month', 0)}")
     
-    return templates.TemplateResponse("pages/statistics.html", template_data)
+    return templates.TemplateResponse("finances/statistics.html", template_data)
 
 def _get_top_expenses(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
     """Get top 5 expenses from last 3 months with caching."""
@@ -143,6 +300,7 @@ def _get_top_expenses(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
             LEFT JOIN accounts a ON t.account_id = a.id
             WHERE t.date >= date('now', '-3 months')
             AND t.amount < 0  -- Only expenses (negative amounts)
+            AND c.name NOT IN ('משכורת', 'קליניקה')
             ORDER BY ABS(t.amount) DESC
             LIMIT 5
         """).fetchall()
@@ -159,12 +317,14 @@ def _get_top_expenses(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
             return [dict(row) for row in top_expenses]
 
 def _get_recurring_monthly_expenses(cur: sqlite3.Cursor, last_6_months: List[str]) -> List[Dict[str, Any]]:
-    """Get recurring expenses by month for the last 6 months."""
+    """Get recurring expenses by month for the last 6 months (excluding income categories)."""
     recurring_monthly = cur.execute("""
-        SELECT strftime('%Y-%m', t.date) AS month, ABS(SUM(t.amount)) AS total
+        SELECT strftime('%Y-%m', t.date) AS month, COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS total
         FROM transactions t
+        JOIN categories c ON t.category_id = c.id
         WHERE t.date >= date('now', '-6 months')
         AND t.recurrence_id IS NOT NULL
+        AND c.name NOT IN ('משכורת', 'קליניקה')
         GROUP BY strftime('%Y-%m', t.date)
         ORDER BY month
     """).fetchall()
@@ -179,6 +339,119 @@ def _get_recurring_monthly_expenses(cur: sqlite3.Cursor, last_6_months: List[str
         })
     
     return recurring_monthly_full
+
+def _get_cash_vs_credit_data(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
+    """Get cash vs credit breakdown for last 6 months (including both regular and recurring expenses, excluding income categories)."""
+    # First get by user and account
+    try:
+        cash_vs_credit_by_user = cur.execute("""
+            SELECT strftime('%Y-%m', t.date) AS month,
+                   u.name AS user_name,
+                   COALESCE(a.name, 'לא מוגדר') AS account_type,
+                   SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS total
+            FROM transactions t
+            LEFT JOIN accounts a ON t.account_id = a.id
+            JOIN categories c ON t.category_id = c.id
+            JOIN users u ON t.user_id = u.id
+            WHERE t.date >= date('now','start of month','-6 months')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+            GROUP BY month, u.name, a.name
+            ORDER BY month ASC, u.name ASC, a.name ASC
+        """).fetchall()
+    except Exception as e:
+        cash_vs_credit_by_user = []
+    
+    # Then get totals by account (all users combined)
+    try:
+        cash_vs_credit_totals = cur.execute("""
+            SELECT strftime('%Y-%m', t.date) AS month,
+                   COALESCE(a.name, 'לא מוגדר') AS account_type,
+                   SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS total
+            FROM transactions t
+            LEFT JOIN accounts a ON t.account_id = a.id
+            JOIN categories c ON t.category_id = c.id
+            WHERE t.date >= date('now','start of month','-6 months')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
+            GROUP BY month, a.name
+            ORDER BY month ASC, a.name ASC
+        """).fetchall()
+    except Exception as e:
+        cash_vs_credit_totals = []
+    
+    # Combine both results
+    cash_vs_credit = []
+    
+    try:
+        # Create user data with cash and credit amounts per month
+        user_monthly_data = {}
+        for row in cash_vs_credit_by_user:
+            month = row['month']
+            user_name = row['user_name']
+            account_type = row['account_type']
+            total = row['total']
+            
+            if month not in user_monthly_data:
+                user_monthly_data[month] = {}
+            
+            if user_name not in user_monthly_data[month]:
+                user_monthly_data[month][user_name] = {'cash': 0, 'credit': 0}
+            
+            if account_type == 'Cash':
+                user_monthly_data[month][user_name]['cash'] += total
+            elif account_type == 'Credit Card':
+                user_monthly_data[month][user_name]['credit'] += total
+            # Handle other account types - add to credit by default
+            else:
+                user_monthly_data[month][user_name]['credit'] += total
+    except Exception as e:
+        user_monthly_data = {}
+    
+    try:
+        # Add user-specific data (one row per user per month)
+        for month, users in user_monthly_data.items():
+            for user_name, amounts in users.items():
+                total_amount = amounts['cash'] + amounts['credit']
+                cash_vs_credit.append({
+                    'month': month,
+                    'user_name': user_name,
+                    'account_type': 'User',
+                    'total': total_amount,
+                    'cash_amount': amounts['cash'],
+                    'credit_amount': amounts['credit'],
+                    'is_total': False
+                })
+        
+        # Create combined totals by month (all users and accounts combined)
+        monthly_totals = {}
+        for row in cash_vs_credit_totals:
+            month = row['month']
+            if month not in monthly_totals:
+                monthly_totals[month] = {'cash': 0, 'credit': 0}
+            
+            if row['account_type'] == 'Cash':
+                monthly_totals[month]['cash'] += row['total']
+            elif row['account_type'] == 'Credit Card':
+                monthly_totals[month]['credit'] += row['total']
+            # Handle other account types - add to credit by default
+            else:
+                monthly_totals[month]['credit'] += row['total']
+        
+        # Add combined totals data
+        for month, totals in monthly_totals.items():
+            total_amount = totals['cash'] + totals['credit']
+            cash_vs_credit.append({
+                'month': month,
+                'user_name': 'סה"כ',
+                'account_type': 'Combined',
+                'total': total_amount,
+                'cash_amount': totals['cash'],
+                'credit_amount': totals['credit'],
+                'is_total': True
+            })
+    except Exception as e:
+        pass
+    
+    return cash_vs_credit
 
 @router.post("/clear-cache")
 def clear_statistics_cache():
@@ -198,11 +471,13 @@ def monthly_expenses_api(category: str = Query("total"), db_conn=Depends(get_db_
     last_6_months = get_last_6_months()
 
     if category == "total":
-        # Total sum for each month (including both regular and recurring expenses)
+        # Total expenses for each month (including both regular and recurring expenses, excluding income categories)
         rows = cur.execute("""
-            SELECT strftime('%Y-%m', t.date) AS ym, ABS(SUM(t.amount)) AS expenses
+            SELECT strftime('%Y-%m', t.date) AS ym, COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS expenses
             FROM transactions t
+            JOIN categories c ON t.category_id = c.id
             WHERE t.date >= date('now', '-6 months')
+            AND c.name NOT IN ('משכורת', 'קליניקה')
             GROUP BY ym
             ORDER BY ym
         """).fetchall()
@@ -214,7 +489,7 @@ def monthly_expenses_api(category: str = Query("total"), db_conn=Depends(get_db_
     else:
         # Specific category (including both regular and recurring expenses)
         rows = cur.execute("""
-            SELECT strftime('%Y-%m', t.date) AS ym, ABS(SUM(t.amount)) AS expenses
+            SELECT strftime('%Y-%m', t.date) AS ym, COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS expenses
             FROM transactions t
             JOIN categories c ON t.category_id = c.id
             WHERE t.date >= date('now', '-6 months')

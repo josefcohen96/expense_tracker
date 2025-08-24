@@ -1,0 +1,813 @@
+{% extends "layout/base.html" %}
+{% block title %}הוצאות קבועות{% endblock %}
+
+{% block content %}
+<div class="w-full animate-sequence">
+
+    <!-- Advanced Filters -->
+    <div class="card mb-6 animate-sequence">
+        <div class="card-header">
+            <h2 class="text-xl font-semibold text-gray-900 flex items-center">
+                <i class="fas fa-filter mr-3 text-orange-600"></i>
+                פילטרים מתקדמים
+            </h2>
+    </div>
+        <div class="card-body">
+            <form method="GET" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="form-group">
+                    <label for="category_id" class="form-label">קטגוריה</label>
+                    <select name="category_id" id="category_id" class="form-select">
+                    <option value="">כל הקטגוריות</option>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}" {% if request.query_params.get('category_id')|int == category.id %}selected{% endif %}>
+                        {{ category.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+                
+                <div class="form-group">
+                    <label for="user_id" class="form-label">משתמש</label>
+                    <select name="user_id" id="user_id" class="form-select">
+                        <option value="">כל המשתמשים</option>
+                        {% for user in users %}
+                        <option value="{{ user.id }}" {% if request.query_params.get('user_id')|int == user.id %}selected{% endif %}>
+                            {{ user.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="frequency" class="form-label">תדירות</label>
+                    <select name="frequency" id="frequency" class="form-select">
+                        <option value="">כל התדירויות</option>
+                        <option value="monthly" {% if request.query_params.get('frequency') == 'monthly' %}selected{% endif %}>חודשי</option>
+                        <option value="weekly" {% if request.query_params.get('frequency') == 'weekly' %}selected{% endif %}>שבועי</option>
+                        <option value="yearly" {% if request.query_params.get('frequency') == 'yearly' %}selected{% endif %}>שנתי</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="status" class="form-label">סטטוס</label>
+                    <select name="status" id="status" class="form-select">
+                        <option value="">כל הסטטוסים</option>
+                        <option value="active" {% if request.query_params.get('status') == 'active' %}selected{% endif %}>פעיל</option>
+                        <option value="inactive" {% if request.query_params.get('status') == 'inactive' %}selected{% endif %}>לא פעיל</option>
+                    </select>
+                </div>
+                
+                <div class="col-span-full flex gap-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search mr-2"></i>
+                    החל פילטר
+                </button>
+                    <a href="/finances/recurrences" class="btn btn-outline">
+                        <i class="fas fa-times mr-2"></i>
+                    נקה פילטר
+                </a>
+                    <button type="button" onclick="exportRecurrences()" class="btn btn-success">
+                        <i class="fas fa-download mr-2"></i>
+                        ייצא לאקסל
+                    </button>
+            </div>
+        </form>
+        </div>
+    </div>
+
+    <!-- Add Recurrence Button -->
+    <div class="mb-6">
+        <button onclick="openAddModal()" class="btn btn-primary">
+            <i class="fas fa-plus mr-2"></i>
+            הוסף הוצאה קבועה חדשה
+        </button>
+    </div>
+
+    <!-- Recurrences Table -->
+    <div class="card animate-sequence" id="recurrences-table">
+        <div class="card-header">
+            <div class="flex justify-between items-center">
+                <h2 class="text-xl font-semibold text-gray-900 flex items-center">
+                    <i class="fas fa-sync-alt mr-3 text-orange-600"></i>
+                    הוצאות קבועות
+                </h2>
+                <div class="flex items-center gap-4">
+                    <div class="text-sm text-gray-600">
+                        מציג {{ (pagination.page - 1) * pagination.per_page + 1 }} עד {{ pagination.page * pagination.per_page if pagination.page * pagination.per_page < pagination.total else pagination.total }} מתוך {{ pagination.total }} הוצאות קבועות
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label for="sort_by" class="text-sm font-medium text-gray-700">מיון:</label>
+                        <select id="sort_by" class="form-select text-sm" onchange="sortRecurrences()">
+                            <option value="name_asc">שם (א-ת)</option>
+                            <option value="name_desc">שם (ת-א)</option>
+                            <option value="amount_desc">סכום (גבוה לנמוך)</option>
+                            <option value="amount_asc">סכום (נמוך לגבוה)</option>
+                            <option value="start_date_desc">תאריך התחלה (חדש לישן)</option>
+                            <option value="start_date_asc">תאריך התחלה (ישן לחדש)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>שם</th>
+                        <th>סכום</th>
+                        <th>קטגוריה</th>
+                        <th>משתמש</th>
+                        <th>תדירות</th>
+                        <th>תאריך התחלה</th>
+                        <th>סטטוס</th>
+                        <th>פעולות</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for recurrence in recurrences %}
+                    <tr class="animate-sequence" data-recurrence-id="{{ recurrence.id }}">
+                        <td>
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                    <i class="fas fa-tag text-blue-600 text-sm"></i>
+                                </div>
+                                <span class="font-medium view-mode" id="name-view-{{ recurrence.id }}">{{ recurrence.name }}</span>
+                                <input type="text" class="form-input text-sm hidden edit-mode" id="name-edit-{{ recurrence.id }}" value="{{ recurrence.name }}">
+                            </div>
+                        </td>
+                        <td>
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                                    <i class="fas fa-arrow-down text-red-600 text-sm"></i>
+                                </div>
+                                <span class="font-bold text-lg text-red-600 view-mode" id="amount-view-{{ recurrence.id }}">
+                                ₪{{ recurrence.amount | round(2) }}
+                            </span>
+                                <div class="relative edit-mode hidden">
+                                    <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₪</span>
+                                    <input type="number" step="0.01" class="form-input text-sm pl-8" id="amount-edit-{{ recurrence.id }}" value="{{ recurrence.amount | abs }}">
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 view-mode" id="category-view-{{ recurrence.id }}">
+                                <i class="fas fa-tag mr-1"></i>
+                                {{ recurrence.category }}
+                            </span>
+                            <select class="form-select text-sm edit-mode hidden" id="category-edit-{{ recurrence.id }}">
+                                {% for category in categories %}
+                                <option value="{{ category.id }}" {% if category.name == recurrence.category %}selected{% endif %}>{{ category.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
+                                    <i class="fas fa-user text-purple-600 text-sm"></i>
+                                </div>
+                                <span class="view-mode" id="user-view-{{ recurrence.id }}">{{ recurrence.user }}</span>
+                                <select class="form-select text-sm edit-mode hidden" id="user-edit-{{ recurrence.id }}">
+                                    {% for user in users %}
+                                    <option value="{{ user.id }}" {% if user.name == recurrence.user %}selected{% endif %}>{{ user.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="inline-flex items-center px-2 py-1 rounded text-sm bg-orange-100 text-orange-800 view-mode" id="frequency-view-{{ recurrence.id }}">
+                                <i class="fas fa-calendar mr-1"></i>
+                                {% if recurrence.frequency == 'monthly' %}חודשי
+                                {% elif recurrence.frequency == 'weekly' %}שבועי
+                                {% elif recurrence.frequency == 'yearly' %}שנתי
+                                {% else %}{{ recurrence.frequency }}{% endif %}
+                            </span>
+                            <select class="form-select text-sm edit-mode hidden" id="frequency-edit-{{ recurrence.id }}">
+                                <option value="monthly" {% if recurrence.frequency == 'monthly' %}selected{% endif %}>חודשי</option>
+                                <option value="weekly" {% if recurrence.frequency == 'weekly' %}selected{% endif %}>שבועי</option>
+                                <option value="yearly" {% if recurrence.frequency == 'yearly' %}selected{% endif %}>שנתי</option>
+                            </select>
+                        </td>
+                        <td>
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
+                                    <i class="fas fa-calendar-day text-green-600 text-sm"></i>
+                                </div>
+                                <span class="view-mode" id="start-date-view-{{ recurrence.id }}">{{ recurrence.start_date }}</span>
+                                <input type="date" class="form-input text-sm hidden edit-mode" id="start-date-edit-{{ recurrence.id }}" value="{{ recurrence.start_date }}">
+                            </div>
+                        </td>
+                        <td>
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {% if recurrence.active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                <i class="fas {% if recurrence.active %}fa-check-circle{% else %}fa-times-circle{% endif %} mr-1"></i>
+                                {% if recurrence.active %}פעיל{% else %}לא פעיל{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="flex items-center gap-2">
+                                <button onclick="editRecurrenceInline({{ recurrence.id }})" class="btn btn-outline btn-sm" title="עריכה">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button onclick="saveRecurrenceInline({{ recurrence.id }})" class="btn btn-success btn-sm hidden" title="שמור" id="save-btn-{{ recurrence.id }}">
+                                    <i class="fas fa-save"></i>
+                                </button>
+                                <button onclick="cancelEditRecurrenceInline({{ recurrence.id }})" class="btn btn-warning btn-sm hidden" title="ביטול" id="cancel-btn-{{ recurrence.id }}">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                <button onclick="toggleRecurrenceStatus({{ recurrence.id }})" class="btn btn-outline btn-sm" title="{% if recurrence.active %}השבת{% else %}הפעל{% endif %}">
+                                    <i class="fas {% if recurrence.active %}fa-pause{% else %}fa-play{% endif %}"></i>
+                                </button>
+                                <button onclick="duplicateRecurrence({{ recurrence.id }})" class="btn btn-outline btn-sm" title="שכפול">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                                <button onclick="deleteRecurrence({{ recurrence.id }})" class="btn btn-danger btn-sm" title="מחיקה">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Enhanced Pagination -->
+        {% if pagination.total_pages > 1 %}
+        <div class="card-footer">
+            <div class="flex justify-between items-center">
+                <div class="text-sm text-gray-700">
+                    עמוד {{ pagination.page }} מתוך {{ pagination.total_pages }}
+                </div>
+                <div class="flex items-center gap-2">
+                    {% if pagination.has_prev %}
+                    <a href="?page={{ pagination.prev_page }}{% for key, value in request.query_params.items() %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" class="btn btn-outline btn-sm">
+                        <i class="fas fa-chevron-right mr-1"></i>
+                        הקודם
+                    </a>
+                    {% endif %}
+                    
+                    <!-- Page Numbers -->
+                    <div class="flex items-center gap-1">
+                        {% for page_num in range(1, pagination.total_pages + 1) %}
+                        {% if page_num == pagination.page %}
+                        <span class="px-3 py-2 text-sm font-medium bg-orange-600 text-white rounded-md">{{ page_num }}</span>
+                        {% elif page_num <= 3 or page_num > pagination.total_pages - 3 or (page_num >= pagination.page - 1 and page_num <= pagination.page + 1) %}
+                        <a href="?page={{ page_num }}{% for key, value in request.query_params.items() %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                            {{ page_num }}
+                        </a>
+                        {% elif page_num == 4 and pagination.page > 6 %}
+                        <span class="px-3 py-2 text-sm text-gray-500">...</span>
+                        {% elif page_num == pagination.total_pages - 3 and pagination.page < pagination.total_pages - 5 %}
+                        <span class="px-3 py-2 text-sm text-gray-500">...</span>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    
+                    {% if pagination.has_next %}
+                    <a href="?page={{ pagination.next_page }}{% for key, value in request.query_params.items() %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" class="btn btn-outline btn-sm">
+                        הבא
+                        <i class="fas fa-chevron-left mr-1"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Enhanced Add Recurrence Modal -->
+<div id="addModal" class="modal-overlay">
+    <div class="modal-content max-w-2xl">
+        <div class="card-header">
+            <h3 class="text-xl font-semibold text-gray-900 flex items-center">
+                <i class="fas fa-plus-circle mr-3 text-orange-600"></i>
+                הוסף הוצאה קבועה חדשה
+            </h3>
+            </div>
+            <form id="addRecurrenceForm" onsubmit="submitRecurrence(event)">
+            <div class="card-body">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="form-group">
+                        <label for="name" class="form-label">שם</label>
+                        <input type="text" name="name" id="name" required class="form-input" placeholder="למשל: שכירות דירה">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="amount" class="form-label">סכום</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₪</span>
+                            <input type="number" step="0.01" name="amount" id="amount" required class="form-input pl-8" placeholder="0.00">
+                    </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="category_id" class="form-label">קטגוריה</label>
+                        <select name="category_id" id="category_id" required class="form-select">
+                            <option value="">בחר קטגוריה</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="user_id" class="form-label">משתמש</label>
+                        <select name="user_id" id="user_id" required class="form-select">
+                            <option value="">בחר משתמש</option>
+                            {% for user in users %}
+                            <option value="{{ user.id }}">{{ user.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="frequency" class="form-label">תדירות</label>
+                        <select name="frequency" id="frequency" required class="form-select">
+                            <option value="monthly">חודשי</option>
+                            <option value="weekly">שבועי</option>
+                            <option value="yearly">שנתי</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="start_date" class="form-label">תאריך התחלה</label>
+                        <input type="date" name="start_date" id="start_date" required class="form-input" value="{{ today }}">
+                    </div>
+                    
+                    <div class="form-group md:col-span-2">
+                        <label for="notes" class="form-label">הערות</label>
+                        <textarea name="notes" id="notes" rows="3" class="form-input" placeholder="הוסף הערות על ההוצאה הקבועה..."></textarea>
+                    </div>
+                    </div>
+                </div>
+            <div class="card-footer">
+                <div class="flex justify-end gap-3">
+                    <button type="button" onclick="closeAddModal()" class="btn btn-outline">
+                        <i class="fas fa-times mr-2"></i>
+                        ביטול
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save mr-2"></i>
+                        הוסף הוצאה קבועה
+                    </button>
+                </div>
+                </div>
+            </form>
+    </div>
+</div>
+
+<script>
+// Enhanced JavaScript functionality
+let currentSort = 'name_asc';
+
+window.openAddModal = function() {
+    showModal('addModal');
+    // Set today's date as default
+    document.getElementById('start_date').value = new Date().toISOString().split('T')[0];
+    // Focus on name field
+    setTimeout(() => document.getElementById('name').focus(), 300);
+}
+
+window.closeAddModal = function() {
+    hideModal('addModal');
+    // Reset form
+    document.getElementById('addRecurrenceForm').reset();
+}
+
+// Inline editing functions
+window.editRecurrenceInline = function(id) {
+    console.log('editRecurrenceInline called with id:', id);
+    
+    // Hide view mode elements and show edit mode elements
+    const viewElements = document.querySelectorAll(`[id$="-view-${id}"]`);
+    const editElements = document.querySelectorAll(`[id$="-edit-${id}"]`);
+    
+    console.log('Found view elements:', viewElements.length);
+    console.log('Found edit elements:', editElements.length);
+    
+    viewElements.forEach(el => el.classList.add('hidden'));
+    editElements.forEach(el => el.classList.remove('hidden'));
+    
+    // Show save/cancel buttons
+    const saveBtn = document.getElementById(`save-btn-${id}`);
+    const cancelBtn = document.getElementById(`cancel-btn-${id}`);
+    
+    if (saveBtn) saveBtn.classList.remove('hidden');
+    if (cancelBtn) cancelBtn.classList.remove('hidden');
+    
+    // Hide edit button
+    const editBtn = document.querySelector(`[onclick="editRecurrenceInline(${id})"]`);
+    if (editBtn) editBtn.classList.add('hidden');
+    
+    console.log('Edit mode activated for recurrence:', id);
+}
+
+window.saveRecurrenceInline = function(id) {
+    console.log('saveRecurrenceInline called with id:', id);
+    
+    // Get all the edited values
+    const name = document.getElementById(`name-edit-${id}`).value;
+    const amount = parseFloat(document.getElementById(`amount-edit-${id}`).value);
+    const categoryId = document.getElementById(`category-edit-${id}`).value;
+    const userId = document.getElementById(`user-edit-${id}`).value;
+    const frequency = document.getElementById(`frequency-edit-${id}`).value;
+    const startDate = document.getElementById(`start-date-edit-${id}`).value;
+    
+    console.log('Edited values:', { name, amount, categoryId, userId, frequency, startDate });
+    
+    // Ensure positive amount for expense
+    const finalAmount = Math.abs(amount);
+    
+    const recurrenceData = {
+        name: name,
+        amount: finalAmount,
+        category_id: parseInt(categoryId),
+        user_id: parseInt(userId),
+        frequency: frequency,
+        start_date: startDate
+    };
+    
+    // Show loading state
+    const saveBtn = document.getElementById(`save-btn-${id}`);
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    saveBtn.disabled = true;
+    
+    fetch(`/api/recurrences/${id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(recurrenceData)
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.json();
+        }
+        throw new Error('Update failed');
+    })
+    .then(data => {
+        // Update the view elements with new data
+        document.getElementById(`name-view-${id}`).textContent = name;
+        document.getElementById(`amount-view-${id}`).textContent = `₪${finalAmount.toFixed(2)}`;
+        document.getElementById(`start-date-view-${id}`).textContent = startDate;
+        
+        // Update category
+        const categorySelect = document.getElementById(`category-edit-${id}`);
+        const selectedCategory = categorySelect.options[categorySelect.selectedIndex].text;
+        document.getElementById(`category-view-${id}`).innerHTML = `<i class="fas fa-tag mr-1"></i>${selectedCategory}`;
+        
+        // Update user
+        const userSelect = document.getElementById(`user-edit-${id}`);
+        const selectedUser = userSelect.options[userSelect.selectedIndex].text;
+        document.getElementById(`user-view-${id}`).textContent = selectedUser;
+        
+        // Update frequency
+        const frequencySelect = document.getElementById(`frequency-edit-${id}`);
+        const selectedFrequency = frequencySelect.options[frequencySelect.selectedIndex].text;
+        document.getElementById(`frequency-view-${id}`).innerHTML = `<i class="fas fa-calendar mr-1"></i>${selectedFrequency}`;
+        
+        // Exit edit mode
+        cancelEditRecurrenceInline(id);
+        showToast('ההוצאה הקבועה עודכנה בהצלחה!', 'success');
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('שגיאה בעדכון ההוצאה הקבועה', 'error');
+    })
+    .finally(() => {
+        // Reset button state
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+    });
+}
+
+window.cancelEditRecurrenceInline = function(id) {
+    console.log('cancelEditRecurrenceInline called with id:', id);
+    
+    // Show view mode elements and hide edit mode elements
+    const viewElements = document.querySelectorAll(`[id$="-view-${id}"]`);
+    const editElements = document.querySelectorAll(`[id$="-edit-${id}"]`);
+    
+    viewElements.forEach(el => el.classList.remove('hidden'));
+    editElements.forEach(el => el.classList.add('hidden'));
+    
+    // Hide save/cancel buttons
+    const saveBtn = document.getElementById(`save-btn-${id}`);
+    const cancelBtn = document.getElementById(`cancel-btn-${id}`);
+    
+    if (saveBtn) saveBtn.classList.add('hidden');
+    if (cancelBtn) cancelBtn.classList.add('hidden');
+    
+    // Show edit button
+    const editBtn = document.querySelector(`[onclick="editRecurrenceInline(${id})"]`);
+    if (editBtn) editBtn.classList.remove('hidden');
+    
+    console.log('Edit mode cancelled for recurrence:', id);
+}
+
+window.editRecurrence = function(id) {
+    // Show loading state
+    showToast('טוען פרטי ההוצאה הקבועה...', 'info');
+    
+    // Redirect to edit page or open edit modal
+    window.location.href = `/finances/recurrences/${id}/edit`;
+}
+
+window.toggleRecurrenceStatus = function(id) {
+    const row = document.querySelector(`[data-recurrence-id="${id}"]`);
+    const statusCell = row.querySelector('td:nth-child(7) span');
+    const isActive = statusCell.textContent.includes('פעיל');
+    
+    if (confirm(`האם אתה בטוח שברצונך ${isActive ? 'להשבית' : 'להפעיל'} הוצאה קבועה זו?`)) {
+        // Show loading state
+        row.style.opacity = '0.5';
+        row.style.pointerEvents = 'none';
+        
+        fetch(`/api/recurrences/${id}/toggle-status`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            }
+            throw new Error('Toggle failed');
+        })
+        .then(data => {
+            // Update the status display
+            if (data.active) {
+                statusCell.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800';
+                statusCell.innerHTML = '<i class="fas fa-check-circle mr-1"></i>פעיל';
+            } else {
+                statusCell.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800';
+                statusCell.innerHTML = '<i class="fas fa-times-circle mr-1"></i>לא פעיל';
+            }
+            
+            showToast(`ההוצאה הקבועה ${data.active ? 'הופעלה' : 'הושבתה'} בהצלחה!`, 'success');
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('שגיאה בשינוי הסטטוס', 'error');
+        })
+        .finally(() => {
+            // Reset row state
+            row.style.opacity = '1';
+            row.style.pointerEvents = 'auto';
+        });
+    }
+}
+
+window.duplicateRecurrence = function(id) {
+    if (confirm('האם אתה בטוח שברצונך לשכפל הוצאה קבועה זו?')) {
+        fetch(`/api/recurrences/${id}/duplicate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                showToast('ההוצאה הקבועה שוכפלה בהצלחה!', 'success');
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showToast('שגיאה בשכפול ההוצאה הקבועה', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('שגיאה בשכפול ההוצאה הקבועה', 'error');
+        });
+    }
+}
+
+window.deleteRecurrence = function(id) {
+    if (confirm('האם אתה בטוח שברצונך למחוק הוצאה קבועה זו? פעולה זו אינה הפיכה.')) {
+        // Show loading state
+        const row = document.querySelector(`[data-recurrence-id="${id}"]`);
+        if (row) {
+            row.style.opacity = '0.5';
+            row.style.pointerEvents = 'none';
+        }
+        
+        fetch(`/api/recurrences/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                showToast('ההוצאה הקבועה נמחקה בהצלחה!', 'success');
+                if (row) {
+                    row.style.animation = 'slideOut 0.3s ease-out';
+                    setTimeout(() => row.remove(), 300);
+                } else {
+                window.location.reload();
+                }
+            } else {
+                showToast('שגיאה במחיקת ההוצאה הקבועה', 'error');
+                if (row) {
+                    row.style.opacity = '1';
+                    row.style.pointerEvents = 'auto';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('שגיאה במחיקת ההוצאה הקבועה', 'error');
+            if (row) {
+                row.style.opacity = '1';
+                row.style.pointerEvents = 'auto';
+            }
+        });
+    }
+}
+
+window.submitRecurrence = function(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    
+    // Show loading state
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>מוסיף...';
+    submitBtn.disabled = true;
+    
+    const formData = new FormData(form);
+    
+    const recurrenceData = {
+        name: formData.get('name'),
+        amount: parseFloat(formData.get('amount')),
+        category_id: parseInt(formData.get('category_id')),
+        user_id: parseInt(formData.get('user_id')),
+        frequency: formData.get('frequency'),
+        start_date: formData.get('start_date'),
+        notes: formData.get('notes') || null
+    };
+    
+    fetch('/api/recurrences', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(recurrenceData)
+    })
+    .then(response => {
+        if (response.ok) {
+            showToast('ההוצאה הקבועה נוספה בהצלחה!', 'success');
+            closeAddModal();
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            response.json().then(data => {
+                showToast('שגיאה בהוספת ההוצאה הקבועה: ' + (data.detail || 'שגיאה לא ידועה'), 'error');
+            });
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('שגיאה בהוספת ההוצאה הקבועה', 'error');
+    })
+    .finally(() => {
+        // Reset button state
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+}
+
+window.sortRecurrences = function() {
+    const sortBy = document.getElementById('sort_by').value;
+    currentSort = sortBy;
+    
+    // Add loading state
+    const tbody = document.querySelector('#recurrences-table tbody');
+    tbody.style.opacity = '0.5';
+    
+    // Reload with sort parameter
+    const url = new URL(window.location);
+    url.searchParams.set('sort', sortBy);
+    // Preserve all other query parameters
+    const currentParams = new URLSearchParams(window.location.search);
+    currentParams.forEach((value, key) => {
+        if (key !== 'sort') {
+            url.searchParams.set(key, value);
+        }
+    });
+    window.location.href = url.toString();
+}
+
+window.exportRecurrences = function() {
+    showToast('מייצא לאקסל...', 'info');
+    
+    const url = new URL('/api/recurrences/export', window.location.origin);
+    // Add current filters to export
+    const currentParams = new URLSearchParams(window.location.search);
+    currentParams.forEach((value, key) => {
+        url.searchParams.set(key, value);
+    });
+    
+    fetch(url)
+    .then(response => {
+        if (response.ok) {
+            return response.blob();
+        }
+        throw new Error('Export failed');
+    })
+    .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `recurrences_${new Date().toISOString().split('T')[0]}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        showToast('הקובץ יוצא בהצלחה!', 'success');
+    })
+    .catch(error => {
+        console.error('Export error:', error);
+        showToast('שגיאה בייצוא הקובץ', 'error');
+    });
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing recurrences page...');
+    
+    // Set current sort
+    const urlParams = new URLSearchParams(window.location.search);
+    const sort = urlParams.get('sort');
+    if (sort) {
+        document.getElementById('sort_by').value = sort;
+        currentSort = sort;
+    }
+    
+    // Add animation to table rows
+    const rows = document.querySelectorAll('#recurrences-table tbody tr');
+    rows.forEach((row, index) => {
+        row.style.animationDelay = `${index * 0.1}s`;
+    });
+    
+    // Clean empty filter values before form submission
+    const filterForm = document.querySelector('form[method="GET"]');
+    if (filterForm) {
+        filterForm.addEventListener('submit', function(e) {
+            const inputs = this.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                if (input.value === '' || input.value === null) {
+                    input.disabled = true;
+                }
+            });
+        });
+    }
+    
+    // Set current filter values from URL
+    if (urlParams.get('category_id')) {
+        document.getElementById('category_id').value = urlParams.get('category_id');
+    }
+    if (urlParams.get('user_id')) {
+        document.getElementById('user_id').value = urlParams.get('user_id');
+    }
+    if (urlParams.get('frequency')) {
+        document.getElementById('frequency').value = urlParams.get('frequency');
+    }
+    if (urlParams.get('status')) {
+        document.getElementById('status').value = urlParams.get('status');
+    }
+});
+
+// Close modal when clicking outside
+document.getElementById('addModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeAddModal();
+    }
+});
+</script>
+
+<style>
+@keyframes slideOut {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(-100%);
+    }
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+}
+
+#recurrences-table tbody tr {
+    animation: fadeIn 0.6s ease-out;
+    animation-fill-mode: both;
+}
+</style>
+{% endblock %}

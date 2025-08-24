@@ -64,6 +64,16 @@ async def api_update_recurrence(
         raise HTTPException(status_code=404, detail="Recurrence not found")
     return schemas.Recurrence(**dict(row))
 
+@router.delete("/{rec_id}")
+async def api_delete_recurrence(
+    rec_id: int,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> JSONResponse:
+    """Delete a recurring transaction."""
+    db_conn.execute("DELETE FROM recurrences WHERE id = ?", (rec_id,))
+    db_conn.commit()
+    return JSONResponse(content={"deleted": True})
+
 @system_router.post("/apply-recurring")
 async def api_apply_recurring() -> JSONResponse:
     """Apply recurring transactions manually."""

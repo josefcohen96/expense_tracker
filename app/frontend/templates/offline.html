@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>אין חיבור לאינטרנט - המנביטים</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/main.css">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        .offline-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+        
+        .offline-card {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            padding: 3rem;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+        
+        .offline-icon {
+            font-size: 4rem;
+            color: #6b7280;
+            margin-bottom: 1.5rem;
+        }
+        
+        .retry-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0.75rem 2rem;
+            border-radius: 0.5rem;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 1.5rem;
+        }
+        
+        .retry-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-container">
+        <div class="offline-card">
+            <div class="offline-icon pulse">
+                <i class="fas fa-wifi-slash"></i>
+            </div>
+            
+            <h1 class="text-2xl font-bold text-gray-900 mb-4">
+                אין חיבור לאינטרנט
+            </h1>
+            
+            <p class="text-gray-600 mb-6">
+                נראה שאין לך חיבור לאינטרנט כרגע. 
+                <br>
+                אנא בדוק את החיבור שלך ונסה שוב.
+            </p>
+            
+            <div class="text-sm text-gray-500 mb-6">
+                <i class="fas fa-info-circle mr-2"></i>
+                חלק מהפונקציות עשויות להיות זמינות במצב offline
+            </div>
+            
+            <button class="retry-button" onclick="retryConnection()">
+                <i class="fas fa-redo mr-2"></i>
+                נסה שוב
+            </button>
+            
+            <div class="mt-6 text-xs text-gray-400">
+                <i class="fas fa-clock mr-1"></i>
+                <span id="lastSeen"></span>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Show last seen time
+        const lastSeen = localStorage.getItem('lastOnline');
+        if (lastSeen) {
+            const date = new Date(parseInt(lastSeen));
+            document.getElementById('lastSeen').textContent = 
+                `נראה לאחרונה: ${date.toLocaleString('he-IL')}`;
+        }
+        
+        // Retry connection
+        function retryConnection() {
+            const button = document.querySelector('.retry-button');
+            const originalText = button.innerHTML;
+            
+            button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>בודק חיבור...';
+            button.disabled = true;
+            
+            // Check if we're back online
+            if (navigator.onLine) {
+                // Try to fetch a simple resource
+                fetch('/api/health', { method: 'HEAD' })
+                    .then(response => {
+                        if (response.ok) {
+                            // We're back online
+                            localStorage.setItem('lastOnline', Date.now().toString());
+                            window.location.reload();
+                        } else {
+                            throw new Error('Server not responding');
+                        }
+                    })
+                    .catch(error => {
+                        console.log('Still offline:', error);
+                        button.innerHTML = originalText;
+                        button.disabled = false;
+                        
+                        // Show error message
+                        showMessage('עדיין אין חיבור לאינטרנט', 'error');
+                    });
+            } else {
+                // Still offline
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                    showMessage('עדיין אין חיבור לאינטרנט', 'error');
+                }, 2000);
+            }
+        }
+        
+        // Show message
+        function showMessage(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `fixed top-4 right-4 bg-${type === 'error' ? 'red' : 'blue'}-500 text-white px-4 py-2 rounded shadow-lg z-50`;
+            toast.textContent = message;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+        
+        // Listen for online/offline events
+        window.addEventListener('online', () => {
+            localStorage.setItem('lastOnline', Date.now().toString());
+            window.location.reload();
+        });
+        
+        window.addEventListener('offline', () => {
+            // Already on offline page
+        });
+        
+        // Auto-retry every 30 seconds
+        setInterval(() => {
+            if (navigator.onLine) {
+                retryConnection();
+            }
+        }, 30000);
+        
+        // Store current time as last seen
+        localStorage.setItem('lastOnline', Date.now().toString());
+    </script>
+</body>
+</html>

@@ -9,7 +9,7 @@
   <tbody>
     {% for row in monthly_expenses %}
     <tr class="hover:bg-gray-50">
-      <td class="px-4 py-2 border-b">{{ row.month }}</td>
+      <td class="px-4 py-2 border-b">{{ row.month or row.ym }}</td>
       <td class="px-4 py-2 border-b">{{ row.expenses | round(2) }}</td>
     </tr>
     {% endfor %}

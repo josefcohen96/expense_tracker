@@ -25,22 +25,21 @@ const inputMonth = document.getElementById("donut-month-single");
 const ctx = document.getElementById("donut-chart");
 
 // Helpers
-function getPreviousMonth() {
+function getCurrentMonth() {
 	const d = new Date();
-	d.setMonth(d.getMonth() - 1);
 	const y = d.getFullYear();
 	const m = String(d.getMonth() + 1).padStart(2, "0");
 	return `${y}-${m}`;
 }
 
 function setDefaultMonth() {
-	const prev = getPreviousMonth();
+	const current = getCurrentMonth();
 	if (!availableMonths.length) {
-		if (!inputMonth.value) inputMonth.value = prev;
+		if (!inputMonth.value) inputMonth.value = current;
 		return;
 	}
 	const last = availableMonths[availableMonths.length - 1];
-	inputMonth.value = availableMonths.includes(prev) ? prev : last;
+	inputMonth.value = availableMonths.includes(current) ? current : last;
 }
 
 // Aggregate a single month to category totals
@@ -69,7 +68,7 @@ function generateColors(count) {
 let chart;
 
 function renderChart() {
-	const selectedMonth = inputMonth.value || getPreviousMonth();
+	const selectedMonth = inputMonth.value || getCurrentMonth();
 	let { labels, data } = aggregateForMonth(selectedMonth);
 
 	// If no data, show placeholder

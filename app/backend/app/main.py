@@ -146,6 +146,7 @@ from .api.recurrences import router as recurrences_api, system_router as system_
 from .api.backup import router as backup_api
 from .api.statistics import router as statistics_api
 from .api.challenges import router as challenges_api
+from .api.whatsapp import router as whatsapp_router
 
 app.include_router(pages_router)
 app.include_router(partials_router)
@@ -155,6 +156,7 @@ app.include_router(system_api)
 app.include_router(backup_api)
 app.include_router(statistics_api)
 app.include_router(challenges_api)
+app.include_router(whatsapp_router)
 
 # --- startup/shutdown (אופציונלי) ---
 from . import db, recurrence

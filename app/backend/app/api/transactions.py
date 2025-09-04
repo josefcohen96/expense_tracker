@@ -8,6 +8,17 @@ from ..services.cache_service import cache_service
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 
+
+def _is_income_category(db_conn: sqlite3.Connection, category_id: Optional[int]) -> bool:
+    """Return True if the category id corresponds to an income category."""
+    if category_id is None:
+        return False
+    row = db_conn.execute("SELECT name FROM categories WHERE id = ?", (category_id,)).fetchone()
+    if not row:
+        return False
+    name = row[0]
+    return name in ("משכורת", "קליניקה")
+
 @router.get("", response_model=List[schemas.Transaction])
 async def api_get_transactions(
     from_date: Optional[str] = None,
@@ -43,8 +54,9 @@ async def api_create_transaction(
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> schemas.Transaction:
     """Create a new transaction (expense)."""
-    # Make amount negative since this is an expense
-    amount = -abs(tr.amount)
+    # Determine sign by category (income categories stay positive)
+    is_income = _is_income_category(db_conn, tr.category_id)
+    amount = abs(tr.amount) if is_income else -abs(tr.amount)
     
     cur = db_conn.execute(
         "INSERT INTO transactions (date, amount, category_id, user_id, account_id, notes, tags, recurrence_id, period_key) "
@@ -81,9 +93,17 @@ async def api_update_transaction(
     """Update an existing transaction."""
     fields = update.dict(exclude_unset=True)
     
-    # Make amount negative if it's being updated
+    # If amount is being updated, preserve sign according to (new or existing) category
     if 'amount' in fields:
-        fields['amount'] = -abs(fields['amount'])
+        # Determine the effective category for sign
+        effective_category_id: Optional[int]
+        if 'category_id' in fields and fields['category_id'] is not None:
+            effective_category_id = fields['category_id']
+        else:
+            row = db_conn.execute("SELECT category_id FROM transactions WHERE id = ?", (tx_id,)).fetchone()
+            effective_category_id = row[0] if row else None
+        is_income = _is_income_category(db_conn, effective_category_id)
+        fields['amount'] = abs(fields['amount']) if is_income else -abs(fields['amount'])
     
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update")

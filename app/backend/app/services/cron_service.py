@@ -40,6 +40,15 @@ class CronService:
             name='Daily Challenge Progress Update',
             replace_existing=True
         )
+
+        # Apply recurring transactions daily shortly after midnight
+        self.scheduler.add_job(
+            self.apply_recurring_transactions,
+            CronTrigger(hour=0, minute=5),
+            id='daily_apply_recurrences',
+            name='Daily Apply Recurring Transactions',
+            replace_existing=True
+        )
         
         self.scheduler.start()
         logger.info("CRON scheduler started successfully")
@@ -228,6 +237,17 @@ class CronService:
                 
         except Exception as e:
             logger.error(f"Error in daily challenge progress update: {e}")
+
+    async def apply_recurring_transactions(self) -> None:
+        """Apply recurring transactions once a day (idempotent)."""
+        logger.info("Starting daily apply_recurring run...")
+        try:
+            # Import locally to avoid circular imports at module import time
+            from ..recurrence import apply_recurring
+            inserted = await asyncio.to_thread(apply_recurring)
+            logger.info(f"apply_recurring inserted {inserted} transactions")
+        except Exception as e:
+            logger.error(f"Error applying recurring transactions: {e}")
     
     def _add_user_points(self, db_conn: sqlite3.Connection, user_id: int, points: int) -> None:
         """Add points to user and update level."""

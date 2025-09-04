@@ -268,6 +268,7 @@
         </thead>
         <tbody>
           {% for item in cash_vs_credit %}
+            {% if item.account_type == 'User' %}
             {% set total = 0 %}
             {% set cash_amount = 0 %}
             {% set credit_amount = 0 %}
@@ -290,14 +291,15 @@
             
             {% set cash_percentage = (cash_amount / total * 100) if total > 0 else 0 %}
             
-            <tr class="bg-white border-b hover:bg-gray-50 {% if item.is_total %}bg-gray-100 font-semibold{% endif %}">
+            <tr class="bg-white border-b hover:bg-gray-50">
               <td class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">{{ item.month }}</td>
-              <td class="px-6 py-4 {% if item.is_total %}font-bold{% endif %}">{{ item.user_name }}</td>
+              <td class="px-6 py-4">{{ item.user_name }}</td>
               <td class="px-6 py-4">{{ "%.2f"|format(cash_amount) }} ₪</td>
               <td class="px-6 py-4">{{ "%.2f"|format(credit_amount) }} ₪</td>
               <td class="px-6 py-4 font-semibold">{{ "%.2f"|format(total) }} ₪</td>
               <td class="px-6 py-4">{{ "%.1f"|format(cash_percentage) }}%</td>
             </tr>
+            {% endif %}
           {% else %}
             <tr class="bg-white border-b">
               <td colspan="6" class="px-6 py-4 text-center text-gray-500">אין נתונים זמינים</td>

@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 from pathlib import Path as FSPath
 from datetime import date
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
@@ -135,6 +136,7 @@ async def finances_transactions_page(
     account_id: Optional[str] = Query(None, description="Filter by account"),
     date_from: Optional[str] = Query(None, description="Filter from date"),
     date_to: Optional[str] = Query(None, description="Filter to date"),
+    month: Optional[str] = Query(None, description="Filter by month YYYY-MM"),
     amount_min: Optional[str] = Query(None, description="Minimum amount"),
     amount_max: Optional[str] = Query(None, description="Maximum amount"),
     transaction_type: Optional[str] = Query(None, description="Transaction type: income or expense"),
@@ -144,6 +146,36 @@ async def finances_transactions_page(
 ) -> HTMLResponse:
     """Transactions page with pagination and filtering."""
     offset = (page - 1) * per_page
+    
+    # Compute effective month date range if no explicit range is provided
+    effective_date_from = None
+    effective_date_to = None
+    if not (date_from and date_from.strip()) and not (date_to and date_to.strip()):
+        try:
+            if month and len(month) == 7 and month[4] == '-':
+                y, m = month.split('-')
+                year, mon = int(y), int(m)
+                start_of_month = date(year, mon, 1)
+                next_month_first = date(year + (1 if mon == 12 else 0), 1 if mon == 12 else mon + 1, 1)
+            else:
+                today = date.today()
+                start_of_month = today.replace(day=1)
+                next_month_first = date(today.year + (1 if today.month == 12 else 0), 1 if today.month == 12 else today.month + 1, 1)
+            end_of_month = next_month_first - timedelta(days=1)
+            effective_date_from = start_of_month.isoformat()
+            effective_date_to = end_of_month.isoformat()
+        except Exception:
+            # Fallback to current month on any parsing error
+            today = date.today()
+            start_of_month = today.replace(day=1)
+            next_month_first = date(today.year + (1 if today.month == 12 else 0), 1 if today.month == 12 else today.month + 1, 1)
+            end_of_month = next_month_first - timedelta(days=1)
+            effective_date_from = start_of_month.isoformat()
+            effective_date_to = end_of_month.isoformat()
+    else:
+        # Use explicit dates if provided
+        effective_date_from = date_from
+        effective_date_to = date_to
     
     # Build WHERE clause for filtering
     where_clause = "WHERE t.recurrence_id IS NULL AND t.amount < 0"
@@ -180,13 +212,13 @@ async def finances_transactions_page(
         except ValueError:
             pass
     
-    if date_from and date_from.strip():
+    if effective_date_from and effective_date_from.strip():
         where_clause += " AND t.date >= ?"
-        params.append(date_from)
+        params.append(effective_date_from)
     
-    if date_to and date_to.strip():
+    if effective_date_to and effective_date_to.strip():
         where_clause += " AND t.date <= ?"
-        params.append(date_to)
+        params.append(effective_date_to)
     
     if amount_min and amount_min.strip():
         try:
@@ -267,6 +299,9 @@ async def finances_transactions_page(
         "categories": categories,
         "users": users,
         "accounts": accounts,
+        "effective_date_from": effective_date_from,
+        "effective_date_to": effective_date_to,
+        "current_month": (month or date.today().strftime('%Y-%m')),
         "pagination": {
             "page": page,
             "per_page": per_page,
@@ -289,6 +324,7 @@ async def finances_recurrences_page(
     user_id: Optional[int] = Query(None, description="Filter by user"),
     frequency: Optional[str] = Query(None, description="Filter by frequency"),
     status: Optional[str] = Query(None, description="Filter by status"),
+    month: Optional[str] = Query(None, description="Filter by month YYYY-MM (active in month)"),
     sort: Optional[str] = Query("name_asc", description="Sort order"),
     db_conn: sqlite3.Connection = Depends(get_db_conn)
 ) -> HTMLResponse:
@@ -316,6 +352,25 @@ async def finances_recurrences_page(
             where_clause += " AND r.active = 1"
         elif status == "inactive":
             where_clause += " AND r.active = 0"
+
+    # Apply month filter: show recurrences that are active during the selected month
+    # Default to current month if not provided
+    try:
+        if month and len(month) == 7 and month[4] == '-':
+            y, m = month.split('-')
+            year, mon = int(y), int(m)
+            start_of_month = date(year, mon, 1)
+            next_month_first = date(year + (1 if mon == 12 else 0), 1 if mon == 12 else mon + 1, 1)
+        else:
+            today = date.today()
+            start_of_month = today.replace(day=1)
+            next_month_first = date(today.year + (1 if today.month == 12 else 0), 1 if today.month == 12 else today.month + 1, 1)
+        end_of_month = next_month_first - timedelta(days=1)
+        where_clause += " AND date(r.start_date) <= date(?) AND (r.end_date IS NULL OR date(r.end_date) >= date(?))"
+        params.extend([end_of_month.isoformat(), start_of_month.isoformat()])
+    except Exception:
+        # If parsing fails, skip month filter
+        pass
     
     # Get total count
     count_query = f"SELECT COUNT(*) FROM recurrences r {where_clause}"
@@ -371,6 +426,7 @@ async def finances_recurrences_page(
         "recurrences": recurrences,
         "categories": categories,
         "users": users,
+        "current_month": (month or date.today().strftime('%Y-%m')),
         "pagination": {
             "page": page,
             "per_page": per_page,
@@ -398,6 +454,7 @@ async def finances_income_page(
     amount_min: Optional[str] = Query(None, description="Minimum amount"),
     amount_max: Optional[str] = Query(None, description="Maximum amount"),
     tags: Optional[str] = Query(None, description="Filter by tags"),
+    month: Optional[str] = Query(None, description="Filter by month YYYY-MM"),
     sort: Optional[str] = Query("date_desc", description="Sort order")
 ) -> HTMLResponse:
     """Income management page with pagination."""
@@ -408,6 +465,34 @@ async def finances_income_page(
     # Build WHERE clause for filtering
     where_clause = "WHERE t.recurrence_id IS NULL AND t.amount > 0"
     params = []
+
+    # Default to current month if no date range provided
+    effective_date_from = None
+    effective_date_to = None
+    if not (date_from and date_from.strip()) and not (date_to and date_to.strip()):
+        try:
+            if month and len(month) == 7 and month[4] == '-':
+                y, m = month.split('-')
+                year, mon = int(y), int(m)
+                start_of_month = date(year, mon, 1)
+                next_month_first = date(year + (1 if mon == 12 else 0), 1 if mon == 12 else mon + 1, 1)
+            else:
+                today = date.today()
+                start_of_month = today.replace(day=1)
+                next_month_first = date(today.year + (1 if today.month == 12 else 0), 1 if today.month == 12 else today.month + 1, 1)
+            end_of_month = next_month_first - timedelta(days=1)
+            effective_date_from = start_of_month.isoformat()
+            effective_date_to = end_of_month.isoformat()
+        except Exception:
+            today = date.today()
+            start_of_month = today.replace(day=1)
+            next_month_first = date(today.year + (1 if today.month == 12 else 0), 1 if today.month == 12 else today.month + 1, 1)
+            end_of_month = next_month_first - timedelta(days=1)
+            effective_date_from = start_of_month.isoformat()
+            effective_date_to = end_of_month.isoformat()
+    else:
+        effective_date_from = date_from
+        effective_date_to = date_to
     
     if category_id and category_id.strip():
         try:
@@ -433,13 +518,13 @@ async def finances_income_page(
         except ValueError:
             pass
     
-    if date_from and date_from.strip():
+    if effective_date_from and effective_date_from.strip():
         where_clause += " AND t.date >= ?"
-        params.append(date_from)
+        params.append(effective_date_from)
     
-    if date_to and date_to.strip():
+    if effective_date_to and effective_date_to.strip():
         where_clause += " AND t.date <= ?"
-        params.append(date_to)
+        params.append(effective_date_to)
     
     if amount_min and amount_min.strip():
         try:
@@ -523,6 +608,9 @@ async def finances_income_page(
             "users": users,
             "accounts": accounts,
             "today": date.today().isoformat(),
+            "effective_date_from": effective_date_from,
+            "effective_date_to": effective_date_to,
+            "current_month": (month or date.today().strftime('%Y-%m')),
             "pagination": {
                 "page": page,
                 "per_page": per_page,
@@ -749,7 +837,7 @@ async def finances_statistics_page(request: Request, db_conn: sqlite3.Connection
     except Exception as e:
         pass
     
-    # Get top 5 expenses in last 3 months (including both regular and recurring expenses, excluding income categories)
+    # Get top 5 expenses in last 3 months (regular expenses only, excluding income categories)
     try:
         top_expenses = db_conn.execute("""
             SELECT 
@@ -766,6 +854,7 @@ async def finances_statistics_page(request: Request, db_conn: sqlite3.Connection
             LEFT JOIN accounts a ON t.account_id = a.id
             WHERE t.date >= date('now', '-3 months')
             AND t.amount < 0  -- רק הוצאות (סכומים שליליים)
+            AND t.recurrence_id IS NULL  -- exclude recurring transactions
             AND c.name NOT IN ('משכורת', 'קליניקה')
             ORDER BY ABS(t.amount) DESC
             LIMIT 5
@@ -1409,9 +1498,13 @@ async def create_recurrence(request: Request, db_conn: sqlite3.Connection = Depe
         )
         db_conn.commit()
         
-        # Apply recurring transactions to add the expense to the database
-        from ..services.recurrence_service import apply_recurring_transactions
-        apply_recurring_transactions()
+        # Apply recurring transactions using existing recurrence module (best-effort)
+        from .. import recurrence as recurrence_mod
+        try:
+            recurrence_mod.apply_recurring()
+        except Exception:
+            # Non-fatal: creation committed; scheduler application can be run later
+            pass
         
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -1481,7 +1574,8 @@ async def update_recurrence_inline(
         day_of_month = int(form.get("day_of_month")) if form.get("day_of_month") else None
         weekday = int(form.get("weekday")) if form.get("weekday") else None
         end_date = form.get("end_date") or None
-        active = 1 if form.get("active") else 0
+        # active comes as "1" or "0" from select
+        active = 1 if form.get("active") == "1" else 0
         
         # Update the recurrence
         db_conn.execute(
@@ -1503,9 +1597,13 @@ async def update_recurrence_inline(
         )
         db_conn.commit()
         
-        # Apply recurring transactions to update the database
-        from ..services.recurrence_service import apply_recurring_transactions
-        apply_recurring_transactions()
+        # Apply recurring transactions using existing recurrence module
+        from .. import recurrence as recurrence_mod
+        try:
+            recurrence_mod.apply_recurring()
+        except Exception:
+            # Non-fatal; the edit itself was committed
+            pass
         
         # Return the updated row
         recurrence = db_conn.execute(
@@ -1521,7 +1619,8 @@ async def update_recurrence_inline(
             "partials/recurrences/row.html",
             {
                 "request": request,
-                "recurrence": dict(recurrence)
+                # Template expects "r" context key
+                "r": dict(recurrence)
             }
         )
         
@@ -1558,10 +1657,11 @@ async def get_recurrence_row(
 ) -> HTMLResponse:
     """Get a single recurrence row for display."""
     recurrence = db_conn.execute(
-        "SELECT r.*, c.name AS category_name, u.name AS user_name "
+        "SELECT r.*, c.name AS category_name, u.name AS user_name, a.name AS account_name "
         "FROM recurrences r "
         "JOIN categories c ON r.category_id = c.id "
         "JOIN users u ON r.user_id = u.id "
+        "LEFT JOIN accounts a ON r.account_id = a.id "
         "WHERE r.id = ?", (recurrence_id,)
     ).fetchone()
     
@@ -1572,7 +1672,8 @@ async def get_recurrence_row(
         "partials/recurrences/row.html",
         {
             "request": request,
-            "recurrence": dict(recurrence)
+            # Template expects "r" context key
+            "r": dict(recurrence)
         }
     )
 
@@ -1831,7 +1932,7 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
             'is_total': True
         })
     
-    # Get top 5 expenses in last 3 months (including both regular and recurring expenses, excluding income categories)
+    # Get top 5 expenses in last 3 months (regular expenses only, excluding income categories)
     top_expenses = db_conn.execute("""
         SELECT 
             t.id,
@@ -1847,6 +1948,7 @@ async def statistics_page(request: Request, db_conn: sqlite3.Connection = Depend
         LEFT JOIN accounts a ON t.account_id = a.id
         WHERE t.date >= date('now', '-3 months')
         AND t.amount < 0  -- רק הוצאות (סכומים שליליים)
+        AND t.recurrence_id IS NULL  -- exclude recurring transactions
         AND c.name NOT IN ('משכורת', 'קליניקה')
         ORDER BY ABS(t.amount) DESC
         LIMIT 5

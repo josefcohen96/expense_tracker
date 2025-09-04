@@ -15,6 +15,10 @@
         <div class="card-body">
             <form method="GET" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div class="form-group">
+                    <label for="month" class="form-label">חודש</label>
+                    <input type="month" name="month" id="month" class="form-input" value="{{ request.query_params.get('month') or current_month if current_month is defined else '' }}">
+                </div>
+                <div class="form-group">
                     <label for="category_id" class="form-label">קטגוריה</label>
                     <select name="category_id" id="category_id" class="form-select">
                     <option value="">כל הקטגוריות</option>
@@ -102,8 +106,7 @@
                             <option value="name_desc">שם (ת-א)</option>
                             <option value="amount_desc">סכום (גבוה לנמוך)</option>
                             <option value="amount_asc">סכום (נמוך לגבוה)</option>
-                            <option value="start_date_desc">תאריך התחלה (חדש לישן)</option>
-                            <option value="start_date_asc">תאריך התחלה (ישן לחדש)</option>
+                            
                         </select>
                     </div>
                 </div>
@@ -119,14 +122,14 @@
                         <th>קטגוריה</th>
                         <th>משתמש</th>
                         <th>תדירות</th>
-                        <th>תאריך התחלה</th>
+                        <th>תאריך חיוב</th>
                         <th>סטטוס</th>
                         <th>פעולות</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for recurrence in recurrences %}
-                    <tr class="animate-sequence" data-recurrence-id="{{ recurrence.id }}">
+                    <tr class="animate-sequence" data-recurrence-id="{{ recurrence.id }}" data-recurrence-name="{{ recurrence.name }}" data-recurrence-amount="{{ recurrence.amount | abs }}">
                         <td>
                             <div class="flex items-center">
                                 <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
@@ -193,8 +196,21 @@
                                 <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
                                     <i class="fas fa-calendar-day text-green-600 text-sm"></i>
                                 </div>
-                                <span class="view-mode" id="start-date-view-{{ recurrence.id }}">{{ recurrence.start_date }}</span>
-                                <input type="date" class="form-input text-sm hidden edit-mode" id="start-date-edit-{{ recurrence.id }}" value="{{ recurrence.start_date }}">
+                                {% set year = (current_month or '1970-01')[0:4] %}
+                                {% if recurrence.frequency == 'monthly' %}
+                                    {% set dom = recurrence.day_of_month or 1 %}
+                                    {% set dom2 = ('%02d' % dom) %}
+                                    <span class="view-mode" id="charge-date-view-{{ recurrence.id }}">{{ (current_month or (year ~ '-01')) ~ '-' ~ dom2 }}</span>
+                                    <input type="date" class="form-input text-sm hidden edit-mode" id="charge-date-edit-{{ recurrence.id }}" value="{{ (current_month or (year ~ '-01')) ~ '-' ~ dom2 }}">
+                                {% elif recurrence.frequency == 'weekly' %}
+                                    <span class="view-mode" id="charge-date-view-{{ recurrence.id }}">{{ (current_month or (year ~ '-01')) ~ '-01' }}</span>
+                                    <input type="date" class="form-input text-sm hidden edit-mode" id="charge-date-edit-{{ recurrence.id }}" value="{{ (current_month or (year ~ '-01')) ~ '-01' }}">
+                                {% elif recurrence.frequency == 'yearly' %}
+                                    <span class="view-mode" id="charge-date-view-{{ recurrence.id }}">{{ year ~ '-08-01' }}</span>
+                                    <input type="date" class="form-input text-sm hidden edit-mode" id="charge-date-edit-{{ recurrence.id }}" value="{{ year ~ '-08-01' }}">
+                                {% else %}
+                                    <span class="view-mode">—</span>
+                                {% endif %}
                             </div>
                         </td>
                         <td>
@@ -205,6 +221,9 @@
                         </td>
                         <td>
                             <div class="flex items-center gap-2">
+                                <button onclick="openApplyOnceModal({{ recurrence.id }})" class="btn btn-primary btn-sm" title="חיוב חד-פעמי">
+                                    <i class="fas fa-bolt"></i>
+                                </button>
                                 <button onclick="editRecurrenceInline({{ recurrence.id }})" class="btn btn-outline btn-sm" title="עריכה">
                                     <i class="fas fa-edit"></i>
                                 </button>
@@ -290,20 +309,20 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="form-group">
                         <label for="name" class="form-label">שם</label>
-                        <input type="text" name="name" id="name" required class="form-input" placeholder="למשל: שכירות דירה">
+                        <input type="text" name="name" id="rec_modal_name" required class="form-input" placeholder="למשל: שכירות דירה">
                     </div>
                     
                     <div class="form-group">
                         <label for="amount" class="form-label">סכום</label>
                         <div class="relative">
                             <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₪</span>
-                            <input type="number" step="0.01" name="amount" id="amount" required class="form-input pl-8" placeholder="0.00">
+                            <input type="number" step="0.01" name="amount" id="rec_modal_amount" required class="form-input pl-8" placeholder="0.00">
                     </div>
                     </div>
                     
                     <div class="form-group">
                         <label for="category_id" class="form-label">קטגוריה</label>
-                        <select name="category_id" id="category_id" required class="form-select">
+                        <select name="category_id" id="rec_modal_category_id" required class="form-select">
                             <option value="">בחר קטגוריה</option>
                             {% for category in categories %}
                             <option value="{{ category.id }}">{{ category.name }}</option>
@@ -313,7 +332,7 @@
                     
                     <div class="form-group">
                         <label for="user_id" class="form-label">משתמש</label>
-                        <select name="user_id" id="user_id" required class="form-select">
+                        <select name="user_id" id="rec_modal_user_id" required class="form-select">
                             <option value="">בחר משתמש</option>
                             {% for user in users %}
                             <option value="{{ user.id }}">{{ user.name }}</option>
@@ -323,21 +342,18 @@
                     
                     <div class="form-group">
                         <label for="frequency" class="form-label">תדירות</label>
-                        <select name="frequency" id="frequency" required class="form-select">
+                        <select name="frequency" id="rec_modal_frequency" required class="form-select">
                             <option value="monthly">חודשי</option>
                             <option value="weekly">שבועי</option>
                             <option value="yearly">שנתי</option>
                         </select>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="start_date" class="form-label">תאריך התחלה</label>
-                        <input type="date" name="start_date" id="start_date" required class="form-input" value="{{ today }}">
-                    </div>
+                    
                     
                     <div class="form-group md:col-span-2">
                         <label for="notes" class="form-label">הערות</label>
-                        <textarea name="notes" id="notes" rows="3" class="form-input" placeholder="הוסף הערות על ההוצאה הקבועה..."></textarea>
+                        <textarea name="notes" id="rec_modal_notes" rows="3" class="form-input" placeholder="הוסף הערות על ההוצאה הקבועה..."></textarea>
                     </div>
                     </div>
                 </div>
@@ -357,22 +373,124 @@
     </div>
 </div>
 
+<!-- Apply Once Modal -->
+<div id="applyOnceModal" class="modal-overlay">
+    <div class="modal-content max-w-md">
+        <div class="card-header">
+            <h3 class="text-xl font-semibold text-gray-900 flex items-center">
+                <i class="fas fa-bolt mr-3 text-orange-600"></i>
+                חיוב חד-פעמי להוצאה קבועה
+            </h3>
+        </div>
+        <form id="applyOnceForm" onsubmit="submitApplyOnce(event)">
+            <div class="card-body">
+                <div class="space-y-4">
+                    <div class="text-sm text-gray-600" id="apply_once_title"></div>
+                    <div class="form-group">
+                        <label for="apply_once_date" class="form-label">תאריך</label>
+                        <input type="date" id="apply_once_date" required class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="apply_once_amount" class="form-label">סכום</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₪</span>
+                            <input type="number" step="0.01" id="apply_once_amount" required class="form-input pl-8" placeholder="0.00">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="apply_once_notes" class="form-label">הערות (אופציונלי)</label>
+                        <textarea id="apply_once_notes" rows="2" class="form-input" placeholder="נימוק/פירוט לחיוב החד-פעמי"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="flex justify-end gap-3">
+                    <button type="button" onclick="closeApplyOnceModal()" class="btn btn-outline">
+                        ביטול
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        בצע חיוב
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+    
+</div>
+
 <script>
 // Enhanced JavaScript functionality
 let currentSort = 'name_asc';
+let applyOnceRecurrenceId = null;
 
 window.openAddModal = function() {
     showModal('addModal');
-    // Set today's date as default
-    document.getElementById('start_date').value = new Date().toISOString().split('T')[0];
-    // Focus on name field
-    setTimeout(() => document.getElementById('name').focus(), 300);
+    setTimeout(() => document.getElementById('rec_modal_name').focus(), 300);
 }
 
 window.closeAddModal = function() {
     hideModal('addModal');
     // Reset form
     document.getElementById('addRecurrenceForm').reset();
+}
+window.openApplyOnceModal = function(id) {
+    try {
+        applyOnceRecurrenceId = id;
+        const row = document.querySelector(`[data-recurrence-id="${id}"]`);
+        const name = row ? row.getAttribute('data-recurrence-name') : '';
+        const amount = row ? parseFloat(row.getAttribute('data-recurrence-amount') || '0') : 0;
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('apply_once_title').textContent = name ? `להוצאה: ${name}` : '';
+        document.getElementById('apply_once_date').value = today;
+        document.getElementById('apply_once_amount').value = amount.toFixed(2);
+        document.getElementById('apply_once_notes').value = '';
+        showModal('applyOnceModal');
+        setTimeout(() => document.getElementById('apply_once_amount').focus(), 300);
+    } catch (e) {
+        console.error(e);
+        showToast('שגיאה בפתיחת חלון חיוב חד-פעמי', 'error');
+    }
+}
+
+window.closeApplyOnceModal = function() {
+    hideModal('applyOnceModal');
+    const form = document.getElementById('applyOnceForm');
+    if (form) form.reset();
+}
+
+window.submitApplyOnce = function(event) {
+    event.preventDefault();
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    const original = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>מבצע...';
+    submitBtn.disabled = true;
+
+    const date = document.getElementById('apply_once_date').value;
+    const amount = Math.abs(parseFloat(document.getElementById('apply_once_amount').value || '0'));
+    const notes = document.getElementById('apply_once_notes').value || null;
+
+    fetch(`/api/recurrences/${applyOnceRecurrenceId}/apply-once`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, amount, notes })
+    })
+    .then(r => {
+        if (r.ok) return r.json();
+        return r.json().then(d => { throw new Error(d.detail || 'Apply once failed'); });
+    })
+    .then(() => {
+        showToast('החיוב החד-פעמי נוצר בהצלחה!', 'success');
+        closeApplyOnceModal();
+        setTimeout(() => window.location.reload(), 800);
+    })
+    .catch(err => {
+        console.error(err);
+        showToast('שגיאה ביצירת חיוב חד-פעמי', 'error');
+    })
+    .finally(() => {
+        submitBtn.innerHTML = original;
+        submitBtn.disabled = false;
+    });
 }
 
 // Inline editing functions
@@ -412,9 +530,10 @@ window.saveRecurrenceInline = function(id) {
     const categoryId = document.getElementById(`category-edit-${id}`).value;
     const userId = document.getElementById(`user-edit-${id}`).value;
     const frequency = document.getElementById(`frequency-edit-${id}`).value;
-    const startDate = document.getElementById(`start-date-edit-${id}`).value;
+    const chargeDateEl = document.getElementById(`charge-date-edit-${id}`);
+    const chargeDateVal = chargeDateEl ? chargeDateEl.value : null;
     
-    console.log('Edited values:', { name, amount, categoryId, userId, frequency, startDate });
+    console.log('Edited values:', { name, amount, categoryId, userId, frequency });
     
     // Ensure positive amount for expense
     const finalAmount = Math.abs(amount);
@@ -424,9 +543,31 @@ window.saveRecurrenceInline = function(id) {
         amount: finalAmount,
         category_id: parseInt(categoryId),
         user_id: parseInt(userId),
-        frequency: frequency,
-        start_date: startDate
+        frequency: frequency
     };
+
+    // Map chosen date to scheduling fields
+    if (chargeDateVal) {
+        // Always set start_date from chosen date
+        recurrenceData.start_date = chargeDateVal;
+        try {
+            const dt = new Date(chargeDateVal);
+            const day = dt.getUTCDate();
+            // JS: Sunday=0..Saturday=6; Python expects Monday=0..Sunday=6
+            const jsWeekday = dt.getUTCDay();
+            const pyWeekday = (jsWeekday + 6) % 7; // convert to Python convention
+
+            if (frequency === 'monthly') {
+                recurrenceData.day_of_month = day;
+            } else if (frequency === 'weekly') {
+                recurrenceData.weekday = pyWeekday;
+            } else if (frequency === 'yearly') {
+                // start_date is enough
+            }
+        } catch (e) {
+            console.warn('Failed to parse selected charge date', e);
+        }
+    }
     
     // Show loading state
     const saveBtn = document.getElementById(`save-btn-${id}`);
@@ -435,7 +576,7 @@ window.saveRecurrenceInline = function(id) {
     saveBtn.disabled = true;
     
     fetch(`/api/recurrences/${id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: {
             'Content-Type': 'application/json',
         },
@@ -451,7 +592,11 @@ window.saveRecurrenceInline = function(id) {
         // Update the view elements with new data
         document.getElementById(`name-view-${id}`).textContent = name;
         document.getElementById(`amount-view-${id}`).textContent = `₪${finalAmount.toFixed(2)}`;
-        document.getElementById(`start-date-view-${id}`).textContent = startDate;
+        // Update displayed charge date (derived from chosen date)
+        if (chargeDateVal) {
+            const chargeView = document.getElementById(`charge-date-view-${id}`);
+            if (chargeView) chargeView.textContent = chargeDateVal;
+        }
         
         // Update category
         const categorySelect = document.getElementById(`category-edit-${id}`);
@@ -646,7 +791,6 @@ window.submitRecurrence = function(event) {
         category_id: parseInt(formData.get('category_id')),
         user_id: parseInt(formData.get('user_id')),
         frequency: formData.get('frequency'),
-        start_date: formData.get('start_date'),
         notes: formData.get('notes') || null
     };
     
@@ -784,6 +928,12 @@ document.addEventListener('DOMContentLoaded', function() {
 document.getElementById('addModal').addEventListener('click', function(e) {
     if (e.target === this) {
         closeAddModal();
+    }
+});
+
+document.getElementById('applyOnceModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeApplyOnceModal();
     }
 });
 </script>

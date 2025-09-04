@@ -7,6 +7,7 @@ import os
 import logging
 import importlib
 from datetime import datetime, date
+from typing import Optional
 import sqlite3
 
 # --- create app ---
@@ -167,6 +168,8 @@ import sqlite3
 # Global variable to track if monthly evaluation has been done
 _monthly_evaluation_done = False
 
+_cron_service: Optional[CronService] = None
+
 @app.on_event("startup")
 def on_startup() -> None:
     db.initialise_database()
@@ -186,6 +189,14 @@ def on_startup() -> None:
         except Exception as exc:
             print(f"Failed to run monthly challenge evaluation: {exc}")
             logger.exception("Monthly challenge evaluation failed")
+
+    # Start background scheduler for CRON jobs (daily recurrences, challenges)
+    global _cron_service
+    try:
+        _cron_service = CronService(db.get_db_path())
+        _cron_service.start()
+    except Exception as exc:
+        logger.exception("Failed to start CronService")
 
     # dynamically import backup to avoid circular import issues and catch errors
     if os.getenv("COUPLEBUDGET_BACKUP_ON_START", "0") in {"1","true","True","yes"}:
@@ -250,6 +261,14 @@ def _check_and_run_monthly_evaluation():
 
 @app.on_event("shutdown")
 def on_shutdown() -> None:
+    # Stop background scheduler
+    global _cron_service
+    try:
+        if _cron_service is not None:
+            _cron_service.stop()
+    except Exception:
+        logger.exception("Failed to stop CronService cleanly")
+
     if os.getenv("COUPLEBUDGET_BACKUP_ON_SHUTDOWN", "1") in {"1","true","True","yes"}:
         try:
             backup = importlib.import_module(".api.backup", package=__package__)

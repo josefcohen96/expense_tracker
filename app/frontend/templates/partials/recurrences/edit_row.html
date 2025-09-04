@@ -65,8 +65,7 @@
       <input type="hidden" name="day_of_month" value="{{ recurrence['day_of_month'] or '' }}">
       <input type="hidden" name="weekday" value="{{ recurrence['weekday'] or '' }}">
       
-      <!-- Hidden field for account_id -->
-      <input type="hidden" name="account_id" value="{{ recurrence['account_id'] or '' }}">
+      
     </form>
 
     <button type="submit" form="edit-recurrence-{{ recurrence['id'] }}"

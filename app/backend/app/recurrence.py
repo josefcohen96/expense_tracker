@@ -52,13 +52,12 @@ def year_periods(start: date, end: date) -> List[int]:
 # --------- Helpers: meta ---------
 
 def get_meta(conn: sqlite3.Connection, key: str) -> Optional[str]:
-    row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+    row = conn.execute("SELECT value FROM system_settings WHERE key = ?", (key,)).fetchone()
     return row[0] if row else None
 
 def set_meta(conn: sqlite3.Connection, key: str, value: str) -> None:
     conn.execute(
-        "INSERT INTO meta (key, value) VALUES (?, ?) "
-        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        "INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)",
         (key, value),
     )
 
@@ -66,11 +65,16 @@ def set_meta(conn: sqlite3.Connection, key: str, value: str) -> None:
 
 def period_key_for(recurrence: dict, period: Tuple) -> Tuple[str, str]:
     freq = recurrence["frequency"]
-    start_dt = parse_date(recurrence["start_date"])
+    start_dt = parse_date(recurrence["start_date"]) if recurrence.get("start_date") else date(2000, 1, 1)
 
     if freq == "monthly":
         year, month = period
-        day = recurrence["day_of_month"] or start_dt.day
+        # Use configured day_of_month if provided; default to 1
+        configured_day = recurrence.get("day_of_month")
+        try:
+            day = int(configured_day) if configured_day is not None else 1
+        except Exception:
+            day = 1
         last_day = calendar.monthrange(year, month)[1]
         if day > last_day:
             day = last_day
@@ -83,14 +87,24 @@ def period_key_for(recurrence: dict, period: Tuple) -> Tuple[str, str]:
             monday = date.fromisocalendar(iso_year, iso_week, 1)
         except ValueError:
             return "", ""
-        weekday = recurrence["weekday"] or start_dt.weekday()
+        # Use configured weekday (Python: Monday=0..Sunday=6). Default to Sunday (6)
+        configured_weekday = recurrence.get("weekday")
+        try:
+            weekday = int(configured_weekday) if configured_weekday is not None else 6
+        except Exception:
+            weekday = 6
+        if weekday < 0:
+            weekday = 0
+        if weekday > 6:
+            weekday = 6
         due_dt = monday + timedelta(days=weekday)
         return f"{iso_year:04d}-W{iso_week:02d}", format_date(due_dt)
 
     if freq == "yearly":
         year = period
-        month = start_dt.month
-        day = start_dt.day
+        # Charge on 1st of August
+        month = 8
+        day = 1
         last_day = calendar.monthrange(year, month)[1]
         if day > last_day:
             day = last_day
@@ -112,10 +126,10 @@ def apply_recurring(today: Optional[date] = None) -> int:
     try:
         conn.execute("PRAGMA foreign_keys = ON")
 
-        last_opened_str = get_meta(conn, "last_opened_at")
-        last_opened = parse_date(last_opened_str) if last_opened_str else date(1900, 1, 1)
-        if last_opened > today:
-            last_opened = today
+        last_run_str = get_meta(conn, "last_recurring_run")
+        last_run = parse_date(last_run_str) if last_run_str else date(1900, 1, 1)
+        if last_run > today:
+            last_run = today
 
         recurrences = conn.execute(
             "SELECT * FROM recurrences WHERE active = 1"
@@ -126,7 +140,7 @@ def apply_recurring(today: Optional[date] = None) -> int:
             rec_start = parse_date(rec_dict["start_date"])
             rec_end = parse_date(rec_dict["end_date"]) if rec_dict["end_date"] else None
 
-            start_date_for_periods = max(last_opened, rec_start)
+            start_date_for_periods = max(last_run, rec_start)
             end_date_for_periods = min(today, rec_end) if rec_end else today
             if start_date_for_periods > end_date_for_periods:
                 continue
@@ -161,17 +175,17 @@ def apply_recurring(today: Optional[date] = None) -> int:
                         -abs(rec_dict["amount"]),  # Ensure amount is negative for expenses
                         rec_dict["category_id"],
                         rec_dict["user_id"],
-                        None,  # account_id - not available in recurrences table
-                        f"Recurring: {rec_dict['name']}",
-                        "recurring",
+                        rec_dict.get("account_id"),
+                        None,
+                        None,
                         rec_dict["id"],
                         key,
                     ),
                 )
                 count_inserted += 1
 
+        set_meta(conn, "last_recurring_run", format_date(today))
         conn.commit()
-        set_meta(conn, "last_opened_at", format_date(today))
         return count_inserted
     finally:
         conn.close()

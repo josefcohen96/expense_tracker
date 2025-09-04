@@ -9,6 +9,7 @@ from .recurrences import (
     RecurrenceBase,
     RecurrenceCreate,
     Recurrence,
+    RecurrenceApplyOnce,
 )
 
 from .backup import (

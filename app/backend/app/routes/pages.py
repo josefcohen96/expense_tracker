@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path as FSPath
 from datetime import date
 from datetime import timedelta
+import calendar
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
@@ -407,7 +408,61 @@ async def finances_recurrences_page(
         LIMIT ? OFFSET ?
     """
     cur = db_conn.execute(query, params + [per_page, offset])
-    recurrences = cur.fetchall()
+    recurrences_rows = cur.fetchall()
+
+    # Compute a valid charge date for display/edit per recurrence
+    # Prefer the selected month; fallback to current month
+    try:
+        sel_year, sel_month = (start_of_month.year, start_of_month.month)
+    except Exception:
+        today_fallback = date.today()
+        sel_year, sel_month = (today_fallback.year, today_fallback.month)
+
+    def _first_weekday_in_month(year: int, month: int, weekday_py: int) -> date:
+        month_first = date(year, month, 1)
+        offset = (weekday_py - month_first.weekday()) % 7
+        return month_first + timedelta(days=offset)
+
+    computed_recurrences: List[Dict[str, Any]] = []
+    for row in recurrences_rows:
+        r = dict(row)
+        charge_date_str = ""
+        try:
+            if r.get("frequency") == "monthly":
+                day = int(r.get("day_of_month") or 1)
+                # Clamp day to last day of month
+                last_day = calendar.monthrange(sel_year, sel_month)[1]
+                if day > last_day:
+                    day = last_day
+                charge_date_str = date(sel_year, sel_month, day).isoformat()
+            elif r.get("frequency") == "weekly":
+                weekday_py = int(r.get("weekday") if r.get("weekday") is not None else 6)
+                if weekday_py < 0:
+                    weekday_py = 0
+                if weekday_py > 6:
+                    weekday_py = 6
+                charge_date_str = _first_weekday_in_month(sel_year, sel_month, weekday_py).isoformat()
+            elif r.get("frequency") == "yearly":
+                # Use start_date's month/day if present; fallback to Aug 1st
+                month_day = (8, 1)
+                try:
+                    if r.get("start_date"):
+                        parts = str(r["start_date"]).split("-")
+                        if len(parts) >= 3:
+                            mm = max(1, min(12, int(parts[1])))
+                            dd = int(parts[2])
+                            last_day = calendar.monthrange(sel_year, mm)[1]
+                            dd = max(1, min(last_day, dd))
+                            month_day = (mm, dd)
+                except Exception:
+                    pass
+                charge_date_str = date(sel_year, month_day[0], month_day[1]).isoformat()
+        except Exception:
+            # Fallback to month first if anything goes wrong
+            charge_date_str = date(sel_year, sel_month, 1).isoformat()
+
+        r["charge_date"] = charge_date_str
+        computed_recurrences.append(r)
     
     # Get only expense categories (excluding income categories)
     cur = db_conn.execute("SELECT id, name FROM categories WHERE name NOT IN ('משכורת', 'קליניקה') ORDER BY name")
@@ -423,7 +478,7 @@ async def finances_recurrences_page(
     return templates.TemplateResponse("finances/recurrences.html", {
         "request": request,
         "show_sidebar": True,
-        "recurrences": recurrences,
+        "recurrences": computed_recurrences,
         "categories": categories,
         "users": users,
         "current_month": (month or date.today().strftime('%Y-%m')),

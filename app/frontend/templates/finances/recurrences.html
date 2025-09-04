@@ -196,21 +196,8 @@
                                 <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
                                     <i class="fas fa-calendar-day text-green-600 text-sm"></i>
                                 </div>
-                                {% set year = (current_month or '1970-01')[0:4] %}
-                                {% if recurrence.frequency == 'monthly' %}
-                                    {% set dom = recurrence.day_of_month or 1 %}
-                                    {% set dom2 = ('%02d' % dom) %}
-                                    <span class="view-mode" id="charge-date-view-{{ recurrence.id }}">{{ (current_month or (year ~ '-01')) ~ '-' ~ dom2 }}</span>
-                                    <input type="date" class="form-input text-sm hidden edit-mode" id="charge-date-edit-{{ recurrence.id }}" value="{{ (current_month or (year ~ '-01')) ~ '-' ~ dom2 }}">
-                                {% elif recurrence.frequency == 'weekly' %}
-                                    <span class="view-mode" id="charge-date-view-{{ recurrence.id }}">{{ (current_month or (year ~ '-01')) ~ '-01' }}</span>
-                                    <input type="date" class="form-input text-sm hidden edit-mode" id="charge-date-edit-{{ recurrence.id }}" value="{{ (current_month or (year ~ '-01')) ~ '-01' }}">
-                                {% elif recurrence.frequency == 'yearly' %}
-                                    <span class="view-mode" id="charge-date-view-{{ recurrence.id }}">{{ year ~ '-08-01' }}</span>
-                                    <input type="date" class="form-input text-sm hidden edit-mode" id="charge-date-edit-{{ recurrence.id }}" value="{{ year ~ '-08-01' }}">
-                                {% else %}
-                                    <span class="view-mode">—</span>
-                                {% endif %}
+                                <span class="view-mode" id="charge-date-view-{{ recurrence.id }}">{{ recurrence.charge_date }}</span>
+                                <input type="date" class="form-input text-sm hidden edit-mode" id="charge-date-edit-{{ recurrence.id }}" value="{{ recurrence.charge_date }}">
                             </div>
                         </td>
                         <td>

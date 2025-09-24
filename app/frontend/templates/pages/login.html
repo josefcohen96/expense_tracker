@@ -1,0 +1,41 @@
+{% extends "layout/base.html" %}
+{% block title %}התחברות{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto mt-10">
+  <div class="card">
+    <div class="card-header">
+      <h2 class="text-xl font-semibold text-gray-900 flex items-center">
+        <i class="fas fa-lock mr-3 text-orange-600"></i>
+        התחברות
+      </h2>
+    </div>
+    <form method="post" action="/login">
+      <div class="card-body space-y-4">
+        {% if error %}
+          <div class="p-3 rounded bg-red-100 text-red-800 text-sm">{{ error }}</div>
+        {% endif %}
+        <div class="form-group">
+          <label for="username" class="form-label">שם משתמש</label>
+          <input type="text" id="username" name="username" required class="form-input" autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="password" class="form-label">סיסמה</label>
+          <input type="password" id="password" name="password" required class="form-input" autocomplete="current-password">
+        </div>
+      </div>
+      <div class="card-footer flex justify-end">
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-sign-in-alt mr-2"></i>
+          התחבר
+        </button>
+      </div>
+    </form>
+  </div>
+  <p class="text-center text-xs text-gray-500 mt-4">כניסה מותרת רק למשתמש מורשה</p>
+  <script>
+    document.getElementById('username').focus();
+  </script>
+{% endblock %}
+
+

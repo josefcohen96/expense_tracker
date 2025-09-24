@@ -1,12 +1,11 @@
 """
-Statistics API endpoints for expense tracking and reporting.
+Statistics API endpoints for expense tracking and reporting (JSON only).
 """
 
-from fastapi import APIRouter, Request, Depends, Query
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from ..db import get_db_conn
 from ..services.cache_service import cache_service
-from starlette.templating import Jinja2Templates
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from typing import Dict, Any, List
@@ -14,8 +13,6 @@ import sqlite3
 import logging
 
 logger = logging.getLogger(__name__)
-
-templates = Jinja2Templates(directory="../frontend/templates")
 
 router = APIRouter(prefix="/api/statistics", tags=["statistics"])
 
@@ -28,14 +25,9 @@ def get_last_6_months() -> List[str]:
         months.append(month)
     return months
 
-@router.get("/page", response_class=HTMLResponse)
-def statistics_page(request: Request, db_conn=Depends(get_db_conn)):
-    """Statistics page endpoint."""
-    return statistics(request, db_conn)
-
-@router.get("", response_class=HTMLResponse)
-def statistics(request: Request, db_conn=Depends(get_db_conn)):
-    """Main statistics endpoint - returns HTML with all statistics data."""
+@router.get("")
+def statistics(db_conn=Depends(get_db_conn)):
+    """Main statistics data endpoint - returns JSON with all statistics data."""
     cur = db_conn.cursor()
     
     # Get last 6 months as strings
@@ -246,9 +238,7 @@ def statistics(request: Request, db_conn=Depends(get_db_conn)):
         balance_month = 0
         balance_change = 0
 
-    template_data = {
-        "request": request,
-        "show_sidebar": True,
+    payload = {
         "monthly_expenses": monthly,
         "top_expenses": [dict(row) for row in top_expenses],
         "category_expenses": [dict(row) for row in categories],
@@ -268,15 +258,8 @@ def statistics(request: Request, db_conn=Depends(get_db_conn)):
         "total_expenses_6months": total_expenses_6months['total'],
         "categories_count": categories_count['count'],
     }
-    
-    logger.info("=== STATISTICS PAGE REQUEST END ===")
-    logger.info(f"Total expenses month: {template_data.get('total_expenses_month', 0)}")
-    logger.info(f"Total income month: {template_data.get('total_income_month', 0)}")
-    logger.info(f"Total transactions month: {template_data.get('total_transactions_month', 0)}")
-    logger.info(f"Total recurring month: {template_data.get('total_recurring_month', 0)}")
-    logger.info(f"Total regular month: {template_data.get('total_regular_month', 0)}")
-    
-    return templates.TemplateResponse("finances/statistics.html", template_data)
+    logger.info("Statistics data computed")
+    return JSONResponse(payload)
 
 def _get_top_expenses(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
     """Get top 5 expenses from last 3 months with caching."""

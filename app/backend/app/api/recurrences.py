@@ -131,9 +131,8 @@ async def api_delete_recurrence(
 
 @system_router.post("/apply-recurring")
 async def api_apply_recurring() -> JSONResponse:
-    """Apply recurring transactions manually."""
-    inserted = recurrence.apply_recurring()
-    return JSONResponse(content={"inserted": inserted})
+    """Disabled: applying recurring transactions has been turned off."""
+    return JSONResponse(content={"inserted": 0, "status": "disabled"})
 
 
 @router.post("/{rec_id}/apply-once")
@@ -142,54 +141,5 @@ async def api_apply_recurrence_once(
     payload: schemas.RecurrenceApplyOnce,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> JSONResponse:
-    """Insert a single transaction occurrence for a recurrence without altering its schedule.
-
-    - date: optional; defaults to today or next due date logic if omitted
-    - amount: optional override; defaults to recurrence amount
-    - notes: optional notes
-    """
-    rec = db_conn.execute("SELECT * FROM recurrences WHERE id = ?", (rec_id,)).fetchone()
-    if not rec:
-        raise HTTPException(status_code=404, detail="Recurrence not found")
-
-    from datetime import date as _date
-    target_date = payload.date or _date.today().isoformat()
-    base_amount = float(rec["amount"])
-    amount = float(payload.amount) if payload.amount is not None else base_amount
-    # Ensure negative (expense)
-    amount = -abs(amount)
-
-    # Link to the recurrence but with a custom non-conflicting period_key so it won't block
-    # the regular monthly/weekly/yearly generator which uses canonical keys.
-    base_key = f"adhoc:{target_date}"
-    period_key = base_key
-
-    # Ensure UNIQUE(recurrence_id, period_key)
-    suffix = 1
-    while True:
-        exists = db_conn.execute(
-            "SELECT 1 FROM transactions WHERE recurrence_id = ? AND period_key = ? LIMIT 1",
-            (rec_id, period_key),
-        ).fetchone()
-        if not exists:
-            break
-        suffix += 1
-        period_key = f"{base_key}-{suffix}"
-
-    cur = db_conn.execute(
-        "INSERT INTO transactions (date, amount, category_id, user_id, account_id, notes, tags, recurrence_id, period_key) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (
-            target_date,
-            amount,
-            rec["category_id"],
-            rec["user_id"],
-            rec["account_id"] if "account_id" in rec.keys() else None,
-            payload.notes,
-            None,
-            rec_id,
-            period_key,
-        ),
-    )
-    db_conn.commit()
-    return JSONResponse(content={"inserted": True, "transaction_id": cur.lastrowid})
+    """Disabled: ad-hoc recurrence application has been turned off."""
+    return JSONResponse(content={"inserted": False, "status": "disabled"})

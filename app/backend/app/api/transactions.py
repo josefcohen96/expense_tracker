@@ -1,10 +1,12 @@
 from typing import List, Optional, Any
 import sqlite3
+from io import BytesIO
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from .. import schemas
 from ..db import get_db_conn
 from ..services.cache_service import cache_service
+from openpyxl import Workbook
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 
@@ -134,3 +136,139 @@ async def api_delete_transaction(
     cache_service.invalidate("top_expenses_3months")
     
     return JSONResponse(content={"deleted": True})
+
+@router.post("/{tx_id}/duplicate")
+async def api_duplicate_transaction(
+    tx_id: int,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> JSONResponse:
+    """Duplicate a transaction by id and return the new id."""
+    row = db_conn.execute(
+        "SELECT date, amount, category_id, user_id, account_id, notes, tags "
+        "FROM transactions WHERE id = ? AND recurrence_id IS NULL",
+        (tx_id,),
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    cur = db_conn.execute(
+        "INSERT INTO transactions (date, amount, category_id, user_id, account_id, notes, tags) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            row["date"],
+            row["amount"],
+            row["category_id"],
+            row["user_id"],
+            row["account_id"],
+            row["notes"],
+            row["tags"],
+        ),
+    )
+    db_conn.commit()
+    new_id = cur.lastrowid
+    cache_service.invalidate("top_expenses_3months")
+    return JSONResponse(content={"duplicated": True, "id": new_id})
+
+@router.get("/export")
+async def api_export_transactions(
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    category_id: Optional[int] = None,
+    user_id: Optional[int] = None,
+    account_id: Optional[int] = None,
+    amount_min: Optional[float] = None,
+    amount_max: Optional[float] = None,
+    transaction_type: Optional[str] = None,  # 'income' or 'expense'
+    tags: Optional[str] = None,
+    sort: Optional[str] = "date_desc",
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+):
+    """Export filtered transactions to an Excel file (xlsx)."""
+    where_clause = "WHERE t.recurrence_id IS NULL"
+    params: List[Any] = []
+
+    if transaction_type == "income":
+        where_clause += " AND t.amount > 0"
+    elif transaction_type == "expense":
+        where_clause += " AND t.amount < 0"
+
+    if category_id:
+        where_clause += " AND t.category_id = ?"
+        params.append(category_id)
+    if user_id:
+        where_clause += " AND t.user_id = ?"
+        params.append(user_id)
+    if account_id:
+        where_clause += " AND t.account_id = ?"
+        params.append(account_id)
+    if from_date:
+        where_clause += " AND t.date >= ?"
+        params.append(from_date)
+    if to_date:
+        where_clause += " AND t.date <= ?"
+        params.append(to_date)
+    if amount_min is not None:
+        where_clause += " AND ABS(t.amount) >= ?"
+        params.append(abs(amount_min))
+    if amount_max is not None:
+        where_clause += " AND ABS(t.amount) <= ?"
+        params.append(abs(amount_max))
+    if tags and tags.strip():
+        tag_list = [tg.strip() for tg in tags.split(',') if tg.strip()]
+        if tag_list:
+            where_clause += " AND (" + " OR ".join(["t.tags LIKE ?"] * len(tag_list)) + ")"
+            params.extend([f"%{tg}%" for tg in tag_list])
+
+    order_clause = "ORDER BY "
+    if sort == "date_asc":
+        order_clause += "t.date ASC, t.id ASC"
+    elif sort == "amount_desc":
+        order_clause += "ABS(t.amount) DESC, t.date DESC"
+    elif sort == "amount_asc":
+        order_clause += "ABS(t.amount) ASC, t.date DESC"
+    else:
+        order_clause += "t.date DESC, t.id DESC"
+
+    query = f"""
+        SELECT t.id, t.date, t.amount, c.name as category, u.name as user, 
+               a.name as account, t.notes, t.tags
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.user_id = u.id
+        LEFT JOIN accounts a ON t.account_id = a.id
+        {where_clause}
+        {order_clause}
+    """
+    rows = db_conn.execute(query, params).fetchall()
+
+    # Build workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Transactions"
+    headers = [
+        "ID", "Date", "Amount", "Category", "User", "Account", "Notes", "Tags"
+    ]
+    ws.append(headers)
+    for r in rows:
+        ws.append([
+            r["id"],
+            r["date"],
+            float(r["amount"] or 0),
+            r["category"],
+            r["user"],
+            r["account"],
+            r["notes"],
+            r["tags"],
+        ])
+
+    # Stream response
+    bio = BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    filename = "transactions_export.xlsx"
+    return StreamingResponse(
+        bio,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        },
+    )

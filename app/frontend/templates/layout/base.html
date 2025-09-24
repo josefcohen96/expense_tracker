@@ -457,29 +457,9 @@
                 
                 <!-- Main Categories Navigation -->
                 <div class="hidden md:flex space-x-8 space-x-reverse">
-                    <a href="/" class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors animate-sequence">
-                        <i class="fas fa-home mr-2"></i>
-                        דף הבית
-                    </a>
-                    <a href="/finances" class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors animate-sequence">
+                    <a href="/finances/transactions" class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors animate-sequence">
                         <i class="fas fa-wallet mr-2"></i>
                         פיננסים
-                    </a>
-                    <a href="/dreams" class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors animate-sequence">
-                        <i class="fas fa-star mr-2"></i>
-                        חלומות
-                    </a>
-                    <a href="/goals" class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors animate-sequence">
-                        <i class="fas fa-bullseye mr-2"></i>
-                        מטרות
-                    </a>
-                    <a href="/memories" class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors animate-sequence">
-                        <i class="fas fa-heart mr-2"></i>
-                        זיכרונות
-                    </a>
-                    <a href="/calendar" class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors animate-sequence">
-                        <i class="fas fa-calendar mr-2"></i>
-                        לוח שנה
                     </a>
                 </div>
                 
@@ -497,29 +477,9 @@
         <!-- Mobile menu -->
         <div id="mobile-menu" class="hidden md:hidden bg-purple-700 animate-slide-in-right">
             <div class="px-2 pt-2 pb-3 space-y-1">
-                <a href="/" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
-                    <i class="fas fa-home mr-2"></i>
-                    דף הבית
-                </a>
-                <a href="/finances" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
+                <a href="/finances/transactions" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
                     <i class="fas fa-wallet mr-2"></i>
                     פיננסים
-                </a>
-                <a href="/dreams" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
-                    <i class="fas fa-star mr-2"></i>
-                    חלומות
-                </a>
-                <a href="/goals" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
-                    <i class="fas fa-bullseye mr-2"></i>
-                    מטרות
-                </a>
-                <a href="/memories" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
-                    <i class="fas fa-heart mr-2"></i>
-                    זיכרונות
-                </a>
-                <a href="/calendar" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
-                    <i class="fas fa-calendar mr-2"></i>
-                    לוח שנה
                 </a>
             </div>
         </div>
@@ -544,39 +504,9 @@
                 
                 <!-- Finance Navigation -->
                 <nav class="space-y-2">
-                    <a href="/finances" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if request.path == '/finances' %}active{% endif %}">
-                        <i class="fas fa-chart-line mr-3 w-5 text-center"></i>
-                        <span>דשבורד</span>
-                    </a>
-                    
                     <a href="/finances/transactions" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'transactions' in request.path %}active{% endif %}">
                         <i class="fas fa-exchange-alt mr-3 w-5 text-center"></i>
                         <span>עסקאות</span>
-                    </a>
-                    
-                    <a href="/finances/recurrences" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'recurrences' in request.path %}active{% endif %}">
-                        <i class="fas fa-sync-alt mr-3 w-5 text-center"></i>
-                        <span>הוצאות קבועות</span>
-                    </a>
-                    
-                    <a href="/finances/income" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'income' in request.path %}active{% endif %}">
-                        <i class="fas fa-arrow-up mr-3 w-5 text-center"></i>
-                        <span>הכנסות</span>
-                    </a>
-                    
-                    <a href="/finances/statistics" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'statistics' in request.path %}active{% endif %}">
-                        <i class="fas fa-chart-pie mr-3 w-5 text-center"></i>
-                        <span>סטטיסטיקות</span>
-                    </a>
-                    
-                    <a href="/finances/backup" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'backup' in request.path %}active{% endif %}">
-                        <i class="fas fa-download mr-3 w-5 text-center"></i>
-                        <span>גיבוי</span>
-                    </a>
-                    
-                    <a href="/finances/challenges" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'challenges' in request.path %}active{% endif %}">
-                        <i class="fas fa-trophy mr-3 w-5 text-center"></i>
-                        <span>אתגרים</span>
                     </a>
                 </nav>
                 
@@ -594,32 +524,8 @@
                 </div>
                 
                 <nav class="space-y-2">
-                    <a href="/finances" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if request.path == '/finances' %}active{% endif %}" title="דשבורד">
-                        <i class="fas fa-chart-line"></i>
-                    </a>
-                    
                     <a href="/finances/transactions" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'transactions' in request.path %}active{% endif %}" title="עסקאות">
                         <i class="fas fa-exchange-alt"></i>
-                    </a>
-                    
-                    <a href="/finances/recurrences" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'recurrences' in request.path %}active{% endif %}" title="הוצאות קבועות">
-                        <i class="fas fa-sync-alt"></i>
-                    </a>
-                    
-                    <a href="/finances/income" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'income' in request.path %}active{% endif %}" title="הכנסות">
-                        <i class="fas fa-arrow-up"></i>
-                    </a>
-                    
-                    <a href="/finances/statistics" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'statistics' in request.path %}active{% endif %}" title="סטטיסטיקות">
-                        <i class="fas fa-chart-pie"></i>
-                    </a>
-                    
-                    <a href="/finances/backup" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'backup' in request.path %}active{% endif %}" title="גיבוי">
-                        <i class="fas fa-download"></i>
-                    </a>
-                    
-                    <a href="/finances/challenges" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'challenges' in request.path %}active{% endif %}" title="אתגרים">
-                        <i class="fas fa-trophy"></i>
                     </a>
                 </nav>
             </div>
@@ -650,9 +556,7 @@
                 <div class="animate-sequence">
                     <h3 class="text-lg font-semibold mb-3">קישורים מהירים</h3>
                     <div class="space-y-2">
-                        <a href="/finances" class="block text-gray-300 hover:text-white transition-colors">פיננסים</a>
-                        <a href="/goals" class="block text-gray-300 hover:text-white transition-colors">מטרות</a>
-                        <a href="/memories" class="block text-gray-300 hover:text-white transition-colors">זיכרונות</a>
+                        <a href="/finances/transactions" class="block text-gray-300 hover:text-white transition-colors">פיננסים</a>
                     </div>
                 </div>
                 <div class="animate-sequence">

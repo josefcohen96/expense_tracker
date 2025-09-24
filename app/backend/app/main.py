@@ -67,9 +67,16 @@ from fastapi.responses import JSONResponse, RedirectResponse
 # --- include routers (אחרי app = FastAPI) ---
 from .routes.pages import router as pages_router
 from .api.transactions import router as transactions_api
+from .api.recurrences import router as recurrences_api, system_router as system_api
+from .api.backup import router as backup_api
+from .api.statistics import router as statistics_api
 
 app.include_router(pages_router)
 app.include_router(transactions_api)
+app.include_router(recurrences_api)
+app.include_router(system_api)
+app.include_router(backup_api)
+app.include_router(statistics_api)
 
 # Redirect root to expenses if needed (handled in pages router too)
 @app.get("/health")

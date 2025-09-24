@@ -1,0 +1,33 @@
+{% extends "layout/base.html" %}
+
+{% block title %}סטטיסטיקות - פיננסים{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <h1 class="text-2xl font-bold">סטטיסטיקות</h1>
+
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="bg-white p-4 rounded shadow">
+      <div class="text-gray-500">הוצאות החודש</div>
+      <div class="text-2xl font-bold text-red-600">₪{{ total_expenses_month }}</div>
+    </div>
+    <div class="bg-white p-4 rounded shadow">
+      <div class="text-gray-500">הכנסות החודש</div>
+      <div class="text-2xl font-bold text-green-600">₪{{ total_income_month }}</div>
+    </div>
+    <div class="bg-white p-4 rounded shadow">
+      <div class="text-gray-500">עסקאות החודש</div>
+      <div class="text-2xl font-bold">{{ total_transactions_month }}</div>
+    </div>
+    <div class="bg-white p-4 rounded shadow">
+      <div class="text-gray-500">הוצאות קבועות החודש</div>
+      <div class="text-2xl font-bold">{{ total_recurring_month }}</div>
+    </div>
+  </div>
+
+  {% include 'partials/stats/charts.html' ignore missing %}
+  {% include 'partials/stats/monthly_table.html' ignore missing %}
+</div>
+{% endblock %}
+
+

@@ -88,6 +88,7 @@ async def finances_dashboard(request: Request, db_conn: sqlite3.Connection = Dep
 
     return templates.TemplateResponse("finances/index.html", {
         "request": request,
+        "show_sidebar": True,
         "stats": {
             "total_expenses": (stats_row["total_expenses"] or 0) if stats_row else 0,
             "total_income": (stats_row["total_income"] or 0) if stats_row else 0,
@@ -404,8 +405,13 @@ async def finances_income_page(
 
     sidebar = await get_finance_stats(db_conn)
 
+    # Choose template with fallback to legacy pages
+    income_tpl = "finances/income.html"
+    if not (TEMPLATES_DIR / "finances" / "income.html").exists() and (TEMPLATES_DIR / "pages" / "income.html").exists():
+        income_tpl = "pages/income.html"
+
     return templates.TemplateResponse(
-        "finances/income.html",
+        income_tpl,
         {
             "request": request,
             "show_sidebar": True,
@@ -567,7 +573,12 @@ async def finances_recurrences_page(
 
     sidebar = await get_finance_stats(db_conn)
 
-    return templates.TemplateResponse("finances/recurrences.html", {
+    # Choose template with fallback to legacy pages
+    rec_tpl = "finances/recurrences.html"
+    if not (TEMPLATES_DIR / "finances" / "recurrences.html").exists() and (TEMPLATES_DIR / "pages" / "recurrences.html").exists():
+        rec_tpl = "pages/recurrences.html"
+
+    return templates.TemplateResponse(rec_tpl, {
         "request": request,
         "show_sidebar": True,
         "recurrences": computed_recurrences,
@@ -746,4 +757,4 @@ async def finances_statistics_page(request: Request, db_conn: sqlite3.Connection
 
 @router.get("/finances/backup", response_class=HTMLResponse)
 async def finances_backup_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
-    return templates.TemplateResponse("finances/backup.html", {"request": request})
+    return templates.TemplateResponse("finances/backup.html", {"request": request, "show_sidebar": True})

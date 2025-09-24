@@ -504,9 +504,29 @@
                 
                 <!-- Finance Navigation -->
                 <nav class="space-y-2">
+                    <a href="/finances" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if request.path == '/finances' %}active{% endif %}">
+                        <i class="fas fa-gauge mr-3 w-5 text-center"></i>
+                        <span>לוח בקרה</span>
+                    </a>
                     <a href="/finances/transactions" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'transactions' in request.path %}active{% endif %}">
                         <i class="fas fa-exchange-alt mr-3 w-5 text-center"></i>
                         <span>עסקאות</span>
+                    </a>
+                    <a href="/finances/income" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'income' in request.path %}active{% endif %}">
+                        <i class="fas fa-shekel-sign mr-3 w-5 text-center"></i>
+                        <span>הכנסות</span>
+                    </a>
+                    <a href="/finances/recurrences" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'recurrences' in request.path %}active{% endif %}">
+                        <i class="fas fa-repeat mr-3 w-5 text-center"></i>
+                        <span>הוצאות קבועות</span>
+                    </a>
+                    <a href="/finances/statistics" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'statistics' in request.path %}active{% endif %}">
+                        <i class="fas fa-chart-line mr-3 w-5 text-center"></i>
+                        <span>סטטיסטיקות</span>
+                    </a>
+                    <a href="/finances/backup" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'backup' in request.path %}active{% endif %}">
+                        <i class="fas fa-database mr-3 w-5 text-center"></i>
+                        <span>גיבוי</span>
                     </a>
                 </nav>
                 
@@ -524,8 +544,23 @@
                 </div>
                 
                 <nav class="space-y-2">
+                    <a href="/finances" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if request.path == '/finances' %}active{% endif %}" title="לוח בקרה">
+                        <i class="fas fa-gauge"></i>
+                    </a>
                     <a href="/finances/transactions" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'transactions' in request.path %}active{% endif %}" title="עסקאות">
                         <i class="fas fa-exchange-alt"></i>
+                    </a>
+                    <a href="/finances/income" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'income' in request.path %}active{% endif %}" title="הכנסות">
+                        <i class="fas fa-shekel-sign"></i>
+                    </a>
+                    <a href="/finances/recurrences" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'recurrences' in request.path %}active{% endif %}" title="הוצאות קבועות">
+                        <i class="fas fa-repeat"></i>
+                    </a>
+                    <a href="/finances/statistics" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'statistics' in request.path %}active{% endif %}" title="סטטיסטיקות">
+                        <i class="fas fa-chart-line"></i>
+                    </a>
+                    <a href="/finances/backup" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'backup' in request.path %}active{% endif %}" title="גיבוי">
+                        <i class="fas fa-database"></i>
                     </a>
                 </nav>
             </div>

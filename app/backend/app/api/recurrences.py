@@ -23,46 +23,66 @@ async def api_create_recurrence(
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> schemas.Recurrence:
     """Create a new recurring transaction."""
-    # Set scheduling defaults only when fields are missing
+    # Determine next_charge_date if not provided
+    from datetime import date, timedelta
     frequency = rec.frequency
-    start_date = rec.start_date
     day_of_month = rec.day_of_month
     weekday = rec.weekday
+    next_charge_date = rec.next_charge_date
 
-    # Provide sensible defaults
-    from datetime import date
-    today_iso = date.today().isoformat()
+    def clamp_day(year: int, month: int, day: int) -> str:
+        import calendar
+        last = calendar.monthrange(year, month)[1]
+        if day < 1:
+            day = 1
+        if day > last:
+            day = last
+        return f"{year:04d}-{month:02d}-{day:02d}"
 
-    if frequency == "monthly":
-        if day_of_month is None:
-            day_of_month = 1
-        if not start_date:
-            # default to today to satisfy NOT NULL constraint
-            start_date = today_iso
-    elif frequency == "weekly":
-        if weekday is None:
-            weekday = 6  # Sunday default
-        if not start_date:
-            start_date = today_iso
-    elif frequency == "yearly":
-        if not start_date:
-            year = date.today().year
-            start_date = f"{year:04d}-08-01"
+    if not next_charge_date:
+        today = date.today()
+        if frequency == "monthly":
+            if day_of_month is None:
+                day_of_month = 1
+            y, m = today.year, today.month
+            tentative = clamp_day(y, m, int(day_of_month))
+            if tentative < today.isoformat():
+                if m == 12:
+                    y, m = y + 1, 1
+                else:
+                    m += 1
+                tentative = clamp_day(y, m, int(day_of_month))
+            next_charge_date = tentative
+        elif frequency == "weekly":
+            if weekday is None:
+                weekday = 6
+            delta = (int(weekday) - today.weekday()) % 7
+            next_dt = today if delta == 0 else today + timedelta(days=delta)
+            next_charge_date = next_dt.isoformat()
+        elif frequency == "yearly":
+            # Default Aug 1st
+            mm, dd = 8, 1
+            y = today.year
+            candidate = f"{y:04d}-{mm:02d}-{dd:02d}"
+            if candidate < today.isoformat():
+                candidate = f"{y+1:04d}-{mm:02d}-{dd:02d}"
+            next_charge_date = candidate
+        else:
+            next_charge_date = (today + timedelta(days=1)).isoformat()
 
-    # Align with current DB schema (no custom_cron/account_id columns)
+    # Insert according to new schema
     cur = db_conn.execute(
-        "INSERT INTO recurrences (name, amount, category_id, user_id, start_date, end_date, frequency, day_of_month, weekday, active) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO recurrences (name, amount, category_id, user_id, frequency, day_of_month, weekday, next_charge_date, active) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             rec.name,
             rec.amount,
             rec.category_id,
             rec.user_id,
-            start_date,
-            rec.end_date,
             frequency,
             day_of_month,
             weekday,
+            next_charge_date,
             1 if rec.active else 0,
         ),
     )
@@ -75,11 +95,10 @@ async def api_create_recurrence(
         amount=rec.amount,
         category_id=rec.category_id,
         user_id=rec.user_id,
-        start_date=start_date,
-        end_date=rec.end_date,
         frequency=frequency,
         day_of_month=day_of_month,
         weekday=weekday,
+        next_charge_date=next_charge_date,
         custom_cron=rec.custom_cron,
         account_id=rec.account_id,
         active=rec.active,
@@ -88,26 +107,47 @@ async def api_create_recurrence(
 @router.patch("/{rec_id}", response_model=schemas.Recurrence)
 async def api_update_recurrence(
     rec_id: int,
-    update: schemas.RecurrenceCreate,
+    update: schemas.RecurrenceUpdate,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> schemas.Recurrence:
     """Update an existing recurring transaction."""
     fields = update.dict(exclude_unset=True)
-    # Enforce canonical schedule rules on update as well
-    if "frequency" in fields:
+    # Adjust defaults if frequency changes and next_charge_date not provided
+    if "frequency" in fields and "next_charge_date" not in fields:
+        from datetime import date, timedelta
         freq = fields["frequency"]
+        today = date.today()
         if freq == "monthly":
-            # Only set default day if not provided
-            if fields.get("day_of_month") is None:
-                fields["day_of_month"] = 1
+            dom = fields.get("day_of_month", 1)
+            def clamp_day(year: int, month: int, day: int) -> str:
+                import calendar
+                last = calendar.monthrange(year, month)[1]
+                if day < 1:
+                    day = 1
+                if day > last:
+                    day = last
+                return f"{year:04d}-{month:02d}-{day:02d}"
+            y, m = today.year, today.month
+            tentative = clamp_day(y, m, int(dom))
+            if tentative < today.isoformat():
+                if m == 12:
+                    y, m = y + 1, 1
+                else:
+                    m += 1
+                tentative = clamp_day(y, m, int(dom))
+            fields["next_charge_date"] = tentative
         elif freq == "weekly":
-            if fields.get("weekday") is None:
-                fields["weekday"] = 6
+            wday = fields.get("weekday", 6)
+            delta = (int(wday) - today.weekday()) % 7
+            next_dt = today if delta == 0 else today + timedelta(days=delta)
+            fields["next_charge_date"] = next_dt.isoformat()
         elif freq == "yearly":
-            if not fields.get("start_date"):
-                from datetime import date
-                year = date.today().year
-                fields["start_date"] = f"{year:04d}-08-01"
+            mm, dd = 8, 1
+            y = today.year
+            candidate = f"{y:04d}-{mm:02d}-{dd:02d}"
+            if candidate < today.isoformat():
+                candidate = f"{y+1:04d}-{mm:02d}-{dd:02d}"
+            fields["next_charge_date"] = candidate
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update")
     set_clause = ", ".join([f"{k} = ?" for k in fields.keys()])
@@ -131,8 +171,9 @@ async def api_delete_recurrence(
 
 @system_router.post("/apply-recurring")
 async def api_apply_recurring() -> JSONResponse:
-    """Disabled: applying recurring transactions has been turned off."""
-    return JSONResponse(content={"inserted": 0, "status": "disabled"})
+    """Run recurrence materialization once, on demand."""
+    inserted = recurrence.apply_recurring()
+    return JSONResponse(content={"inserted": inserted, "status": "ok"})
 
 
 @router.post("/{rec_id}/apply-once")
@@ -141,5 +182,33 @@ async def api_apply_recurrence_once(
     payload: schemas.RecurrenceApplyOnce,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> JSONResponse:
-    """Disabled: ad-hoc recurrence application has been turned off."""
-    return JSONResponse(content={"inserted": False, "status": "disabled"})
+    """Insert a single occurrence immediately for the given recurrence id and date.
+
+    If date is omitted, uses today's date. Amount defaults to the recurrence amount.
+    """
+    row = db_conn.execute("SELECT * FROM recurrences WHERE id = ?", (rec_id,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Recurrence not found")
+    rec = dict(row)
+
+    from datetime import date as _date
+    due_date = payload.date or _date.today().isoformat()
+    amount = payload.amount if payload.amount is not None else -abs(rec["amount"])  # ensure expense
+
+    cur = db_conn.execute(
+        "INSERT INTO transactions (date, amount, category_id, user_id, account_id, notes, tags, recurrence_id, period_key) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            due_date,
+            amount,
+            rec["category_id"],
+            rec["user_id"],
+            rec.get("account_id"),
+            payload.notes,
+            None,
+            rec_id,
+            f"adhoc-{due_date}",
+        ),
+    )
+    db_conn.commit()
+    return JSONResponse(content={"inserted": True, "transaction_id": cur.lastrowid})

@@ -8,6 +8,7 @@ from .transactions import (
 from .recurrences import (
     RecurrenceBase,
     RecurrenceCreate,
+    RecurrenceUpdate,
     Recurrence,
     RecurrenceApplyOnce,
 )

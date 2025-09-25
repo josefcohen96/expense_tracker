@@ -26,8 +26,85 @@
   </div>
 
   {% include 'partials/stats/charts.html' ignore missing %}
-  {% include 'partials/stats/monthly_table.html' ignore missing %}
+
+  <!-- טבלה: 5 ההוצאות הרגילות הגדולות ביותר -->
+  <h2 class="text-lg font-semibold mt-8 mb-2">5 ההוצאות הרגילות הגדולות ביותר (6 חודשים)</h2>
+  <div class="bg-white rounded shadow overflow-x-auto">
+    <table class="min-w-full text-center">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-4 py-2 border-b">תאריך</th>
+          <th class="px-4 py-2 border-b">סכום (₪)</th>
+          <th class="px-4 py-2 border-b">קטגוריה</th>
+          <th class="px-4 py-2 border-b">משתמש</th>
+          <th class="px-4 py-2 border-b">אמצעי</th>
+          <th class="px-4 py-2 border-b">הערות</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in top_regular_expenses %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-2 border-b">{{ r.date }}</td>
+          <td class="px-4 py-2 border-b text-red-600 font-semibold">{{ (r.amount or 0) | round(2) }}</td>
+          <td class="px-4 py-2 border-b">{{ r.category }}</td>
+          <td class="px-4 py-2 border-b">{{ r.user }}</td>
+          <td class="px-4 py-2 border-b">{{ r.account }}</td>
+          <td class="px-4 py-2 border-b">{{ r.notes }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="px-4 py-6 text-gray-500">אין נתונים להצגה</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- טבלה: מזומן ואשראי לפי משתמש -->
+  <h2 class="text-lg font-semibold mt-8 mb-2">הוצאות מזומן ואשראי לפי משתמש (6 חודשים)</h2>
+  <div class="bg-white rounded shadow overflow-x-auto">
+    <table class="min-w-full text-center">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-4 py-2 border-b">משתמש</th>
+          <th class="px-4 py-2 border-b">מזומן</th>
+          <th class="px-4 py-2 border-b">אשראי</th>
+          <th class="px-4 py-2 border-b">אחר</th>
+          <th class="px-4 py-2 border-b">סה"כ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in cash_credit_user_totals %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-2 border-b">{{ row.user }}</td>
+          <td class="px-4 py-2 border-b">{{ row.cash | round(2) }}</td>
+          <td class="px-4 py-2 border-b">{{ row.credit | round(2) }}</td>
+          <td class="px-4 py-2 border-b">{{ row.other | round(2) }}</td>
+          <td class="px-4 py-2 border-b font-semibold">{{ row.total | round(2) }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="px-4 py-6 text-gray-500">אין נתונים להצגה</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  
 </div>
 {% endblock %}
 
+{% block scripts %}
+  <!-- Chart.js -->
+  <script src="/static/js/vendor/chart.umd.min.js"></script>
 
+  <!-- Inline JSON data for charts -->
+  <script id="monthly-data" type="application/json">{{ monthly_data | tojson }}</script>
+  <script id="category-data" type="application/json">{{ category_data | tojson }}</script>
+  {# removed recurrences inline data (unused) #}
+
+  <!-- Charts scripts -->
+  <script type="module" src="/static/js/charts/monthly.js"></script>
+  <script type="module" src="/static/js/charts/donut.js"></script>
+  {# removed recurrences chart script (canvas removed) #}
+{% endblock %}

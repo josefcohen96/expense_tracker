@@ -516,9 +516,13 @@
                         <i class="fas fa-shekel-sign mr-3 w-5 text-center"></i>
                         <span>הכנסות</span>
                     </a>
-                    <a href="/finances/recurrences" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'recurrences' in request.path %}active{% endif %}">
+                    <a href="/finances/recurrences" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}active{% endif %}">
                         <i class="fas fa-repeat mr-3 w-5 text-center"></i>
                         <span>הוצאות קבועות</span>
+                    </a>
+                    <a href="http://127.0.0.1:8080/finances/recurrences/active" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'recurrences/active' in request.path %}active{% endif %}">
+                        <i class="fas fa-toggle-on mr-3 w-5 text-center"></i>
+                        <span>ניהול הוצאות קבועות</span>
                     </a>
                     <a href="/finances/statistics" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'statistics' in request.path %}active{% endif %}">
                         <i class="fas fa-chart-line mr-3 w-5 text-center"></i>
@@ -553,8 +557,11 @@
                     <a href="/finances/income" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'income' in request.path %}active{% endif %}" title="הכנסות">
                         <i class="fas fa-shekel-sign"></i>
                     </a>
-                    <a href="/finances/recurrences" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'recurrences' in request.path %}active{% endif %}" title="הוצאות קבועות">
+                    <a href="/finances/recurrences" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}active{% endif %}" title="הוצאות קבועות">
                         <i class="fas fa-repeat"></i>
+                    </a>
+                    <a href="http://127.0.0.1:8080/finances/recurrences/active" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'recurrences/active' in request.path %}active{% endif %}" title="ניהול הוצאות קבועות">
+                        <i class="fas fa-toggle-on"></i>
                     </a>
                     <a href="/finances/statistics" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'statistics' in request.path %}active{% endif %}" title="סטטיסטיקות">
                         <i class="fas fa-chart-line"></i>

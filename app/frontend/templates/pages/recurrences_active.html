@@ -1,0 +1,118 @@
+{% extends 'layout/base.html' %}
+
+{% block title %}הוצאות קבועות פעילות - CoupleBudget{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">הוצאות קבועות פעילות</h1>
+
+<div class="card animate-sequence">
+  <div class="card-header">
+    <h2 class="text-xl font-semibold text-gray-900 flex items-center">
+      <i class="fas fa-toggle-on mr-3 text-green-600"></i>
+      רק הוצאות קבועות פעילות
+    </h2>
+  </div>
+
+  <!-- Filters -->
+  <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+    <h3 class="text-lg font-medium mb-3">סינון</h3>
+    <form method="GET" class="flex flex-wrap gap-4 items-end">
+      <div>
+        <label class="block text-sm font-medium mb-1">קטגוריה</label>
+        <select name="category_id" class="border border-gray-300 rounded px-3 py-2 min-w-[200px]">
+          <option value="">כל הקטגוריות</option>
+          {% for c in categories %}
+            <option value="{{ c.id }}" {% if request.query_params.get('category_id')|int == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+        החל סינון
+      </button>
+      {% if request.query_params.get('category_id') %}
+        <a href="/finances/recurrences/active" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+          נקה סינון
+        </a>
+      {% endif %}
+    </form>
+  </div>
+
+  <!-- Pagination Info -->
+  <div class="mb-4 text-sm text-gray-600">
+    מציג {{ (pagination.page - 1) * pagination.per_page + 1 }} עד {{ (pagination.page - 1) * pagination.per_page + recurrences|length }} מתוך {{ pagination.total }} הוצאות קבועות פעילות
+  </div>
+
+  <div id="recurrencesTable" class="overflow-x-auto">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>שם</th>
+          <th>סכום</th>
+          <th>קטגוריה</th>
+          <th>משתמש</th>
+          <th>חשבון</th>
+          <th>תדירות</th>
+          <th>תאריך חיוב הבא</th>
+          <th>פעיל</th>
+          <th>פעולות</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in recurrences %}
+          {% include 'partials/recurrences/row.html' with context %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination Controls -->
+  {% if pagination.total_pages > 1 %}
+  <div class="card-footer flex items-center justify-between">
+    <div class="flex items-center space-x-2">
+      <span class="text-sm text-gray-700">עמוד:</span>
+      <select id="perPageSelect" onchange="changePerPage(this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm">
+        <option value="10" {% if pagination.per_page == 10 %}selected{% endif %}>10</option>
+        <option value="20" {% if pagination.per_page == 20 %}selected{% endif %}>20</option>
+        <option value="50" {% if pagination.per_page == 50 %}selected{% endif %}>50</option>
+        <option value="100" {% if pagination.per_page == 100 %}selected{% endif %}>100</option>
+      </select>
+      <span class="text-sm text-gray-700">הוצאות קבועות לעמוד</span>
+    </div>
+    <div class="flex items-center space-x-2">
+      {% if pagination.has_prev %}
+        <a href="/finances/recurrences/active?page={{ pagination.prev_page }}&per_page={{ pagination.per_page }}{% if request.query_params.get('category_id') %}&category_id={{ request.query_params.get('category_id') }}{% endif %}"
+           class="btn btn-outline btn-sm">הקודם</a>
+      {% endif %}
+      <span class="text-sm text-gray-700">
+        עמוד {{ pagination.page }} מתוך {{ pagination.total_pages }}
+      </span>
+      {% if pagination.has_next %}
+        <a href="/finances/recurrences/active?page={{ pagination.next_page }}&per_page={{ pagination.per_page }}{% if request.query_params.get('category_id') %}&category_id={{ request.query_params.get('category_id') }}{% endif %}"
+           class="btn btn-outline btn-sm">הבא</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function changePerPage(perPage) {
+  const url = new URL(window.location);
+  url.searchParams.set('per_page', perPage);
+  url.searchParams.set('page', '1');
+  window.location.href = url.toString();
+}
+
+// On HTMX swap of a row (toggle active), if it becomes inactive, remove from active list
+document.addEventListener('htmx:afterSwap', function(e) {
+  const target = e.target;
+  if (!target || !target.id || !target.id.startsWith('recurrence-row-')) return;
+  const isActive = target.getAttribute('data-active');
+  if (isActive === '0') {
+    target.remove();
+  }
+});
+</script>
+{% endblock %}
+
+

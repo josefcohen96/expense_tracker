@@ -38,14 +38,20 @@
     </select>
   </td>
   <td>
-    <input form="edit-recurrence-{{ recurrence['id'] }}" name="start_date" type="date" required
-           value="{{ recurrence['start_date'] }}"
+    <input form="edit-recurrence-{{ recurrence['id'] }}" name="next_charge_date" type="date"
+           value="{{ recurrence['next_charge_date'] }}"
            class="w-full border rounded px-2 py-1">
-  </td>
-  <td>
-    <input form="edit-recurrence-{{ recurrence['id'] }}" name="end_date" type="date"
-           value="{{ recurrence['end_date'] or '' }}"
-           class="w-full border rounded px-2 py-1">
+    <div class="text-xs text-gray-500 mt-1">
+      לחודשי: יום בחודש | לשבועי: 0=שני ... 6=ראשון
+    </div>
+    <div class="mt-2 grid grid-cols-2 gap-2">
+      <input form="edit-recurrence-{{ recurrence['id'] }}" name="day_of_month" type="number" min="1" max="31"
+             placeholder="יום בחודש" value="{{ recurrence['day_of_month'] or '' }}"
+             class="w-full border rounded px-2 py-1">
+      <input form="edit-recurrence-{{ recurrence['id'] }}" name="weekday" type="number" min="0" max="6"
+             placeholder="יום בשבוע (0=Mon)" value="{{ recurrence['weekday'] or '' }}"
+             class="w-full border rounded px-2 py-1">
+    </div>
   </td>
   <td>
     <select form="edit-recurrence-{{ recurrence['id'] }}" name="active" class="w-full border rounded px-2 py-1">
@@ -60,12 +66,7 @@
           hx-target="#recurrence-row-{{ recurrence['id'] }}"
           hx-swap="outerHTML"
           hx-disabled-elt="this">
-      
-      <!-- Hidden fields for frequency-specific data -->
-      <input type="hidden" name="day_of_month" value="{{ recurrence['day_of_month'] or '' }}">
-      <input type="hidden" name="weekday" value="{{ recurrence['weekday'] or '' }}">
-      
-      
+
     </form>
 
     <button type="submit" form="edit-recurrence-{{ recurrence['id'] }}"

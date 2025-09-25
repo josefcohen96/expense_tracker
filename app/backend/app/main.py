@@ -63,6 +63,8 @@ for uv_logger_name in ("uvicorn.error", "uvicorn.access", "uvicorn"):
 logger = logging.getLogger(__name__)
 
 from fastapi.responses import JSONResponse, RedirectResponse
+from . import db
+from .services.cron_service import CronService
 
 # --- include routers (אחרי app = FastAPI) ---
 from .routes.pages import router as pages_router
@@ -82,3 +84,29 @@ app.include_router(statistics_api)
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+# --- lifecycle: init DB and start/stop cron ---
+@app.on_event("startup")
+async def _on_startup() -> None:
+    try:
+        db.initialise_database()
+    except Exception:
+        logger.exception("Database initialization failed")
+        # Keep starting the app; routes like backup may help diagnose
+    try:
+        cron = CronService()
+        cron.start()
+        app.state.cron = cron
+    except Exception:
+        logger.exception("CronService failed to start")
+
+
+@app.on_event("shutdown")
+async def _on_shutdown() -> None:
+    cron = getattr(app.state, "cron", None)
+    if cron is not None:
+        try:
+            cron.stop()
+        except Exception:
+            logger.exception("CronService shutdown error")

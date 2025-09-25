@@ -6,14 +6,27 @@
 <div class="space-y-6">
   <h1 class="text-2xl font-bold">לוח בקרה</h1>
 
+  <form method="get" class="flex flex-wrap gap-3 items-end">
+    <div>
+      <label class="block text-sm font-medium">חודש</label>
+      <input type="month" name="month" value="{{ selected_month }}" class="border rounded px-3 py-2" />
+    </div>
+    <button class="px-4 py-2 bg-blue-600 text-white rounded">סנן</button>
+    {% if selected_month %}
+      <a href="/finances" class="px-3 py-2 text-sm text-gray-600">איפוס</a>
+    {% endif %}
+  </form>
+
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
     <div class="bg-white p-4 rounded shadow">
       <div class="text-gray-500">סה"כ הוצאות החודש</div>
       <div class="text-2xl font-bold text-red-600">₪{{ total_expenses }}</div>
+      <div class="text-sm text-gray-500 mt-1">שינוי: {{ expenses_change | round(1) }}%</div>
     </div>
     <div class="bg-white p-4 rounded shadow">
       <div class="text-gray-500">סה"כ הכנסות החודש</div>
       <div class="text-2xl font-bold text-green-600">₪{{ total_income }}</div>
+      <div class="text-sm text-gray-500 mt-1">שינוי: {{ income_change | round(1) }}%</div>
     </div>
     <div class="bg-white p-4 rounded shadow">
       <div class="text-gray-500">מספר עסקאות</div>
@@ -52,6 +65,35 @@
           {% endfor %}
         </tbody>
       </table>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="bg-white p-4 rounded shadow">
+      <h2 class="text-xl font-semibold mb-4">קטגוריות עיקריות ({{ selected_month or 'חודש נוכחי' }})</h2>
+      <ul class="space-y-2">
+        {% for c in top_categories %}
+        <li class="flex justify-between">
+          <span>{{ c.category }}</span>
+          <span class="font-semibold">₪{{ c.total }}</span>
+        </li>
+        {% else %}
+        <li class="text-gray-500">אין נתונים</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="bg-white p-4 rounded shadow">
+      <h2 class="text-xl font-semibold mb-4">חיובים קבועים צפויים ({{ selected_month or 'חודש נוכחי' }})</h2>
+      <ul class="space-y-2">
+        {% for r in upcoming_recurrences %}
+        <li class="flex justify-between">
+          <span>{{ r.date }} — {{ r.name }} ({{ r.category or '-' }})</span>
+          <span class="font-semibold">₪{{ r.amount }}</span>
+        </li>
+        {% else %}
+        <li class="text-gray-500">אין חיובים צפויים</li>
+        {% endfor %}
+      </ul>
     </div>
   </div>
 </div>

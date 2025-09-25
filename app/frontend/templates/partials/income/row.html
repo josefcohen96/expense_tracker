@@ -3,19 +3,68 @@
 {% if _mode == 'read' %}
 <tr id="txrow-{{ tx['id'] }}">
   <td>{{ tx['date'] }}</td>
-  <td class="text-green-600 font-semibold">{{ tx['amount']|abs }}</td>
-  <td>{{ tx['category_name'] }}</td>
-  <td>{{ tx['user_name'] }}</td>
-  <td>{{ tx['notes'] or '' }}</td>
-  <td>{{ tx['tags'] or '' }}</td>
-  <td class="space-x-2">
-    <button class="px-3 py-1 rounded bg-blue-600 text-white"
-            hx-get="/income/{{ tx['id'] }}/edit-inline"
-            hx-target="#txrow-{{ tx['id'] }}" hx-swap="outerHTML">עריכה</button>
-    <button class="px-3 py-1 rounded bg-red-600 text-white"
-            hx-post="/income/{{ tx['id'] }}/delete-inline"
-            hx-target="#txrow-{{ tx['id'] }}" hx-swap="outerHTML"
-            hx-confirm="למחוק את ההכנסה? הפעולה בלתי הפיכה.">מחיקה</button>
+  <td>
+    <div class="flex items-center">
+      <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
+        <i class="fas fa-arrow-up text-green-600 text-sm"></i>
+      </div>
+      <span class="font-bold text-lg text-green-600">+₪{{ tx['amount']|abs|round(2) }}</span>
+    </div>
+  </td>
+  <td>
+    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+      <i class="fas fa-tag mr-1"></i>{{ tx['category_name'] }}
+    </span>
+  </td>
+  <td>
+    <div class="flex items-center">
+      <div class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
+        <i class="fas fa-user text-purple-600 text-sm"></i>
+      </div>
+      <span>{{ tx['user_name'] }}</span>
+    </div>
+  </td>
+  <td>
+    {% if tx['account_name'] %}
+    <span class="inline-flex items-center px-2 py-1 rounded text-sm bg-gray-100 text-gray-800">
+      <i class="fas fa-credit-card mr-1"></i>{{ tx['account_name'] }}
+    </span>
+    {% else %}
+    <span class="text-gray-400">-</span>
+    {% endif %}
+  </td>
+  <td>
+    {% if tx['notes'] %}
+    <div class="max-w-xs truncate" title="{{ tx['notes'] }}">
+      <i class="fas fa-sticky-note text-gray-400 mr-1"></i>
+      {{ tx['notes'] }}
+    </div>
+    {% else %}
+    <span class="text-gray-400">-</span>
+    {% endif %}
+  </td>
+  <td>
+    {% if tx['tags'] %}
+    <div class="flex flex-wrap gap-1">
+      {% for tag in tx['tags'].split(',') %}
+      <span class="inline-flex items-center px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">
+        <i class="fas fa-tag mr-1"></i>{{ tag.strip() }}
+      </span>
+      {% endfor %}
+    </div>
+    {% else %}
+    <span class="text-gray-400">-</span>
+    {% endif %}
+  </td>
+  <td>
+    <div class="flex items-center gap-2">
+      <button class="btn btn-outline btn-sm" hx-get="/income/{{ tx['id'] }}/edit-inline" hx-target="#txrow-{{ tx['id'] }}" hx-swap="outerHTML" title="עריכה">
+        <i class="fas fa-edit"></i>
+      </button>
+      <button class="btn btn-danger btn-sm" hx-post="/income/{{ tx['id'] }}/delete-inline" hx-target="#txrow-{{ tx['id'] }}" hx-swap="outerHTML" hx-confirm="למחוק את ההכנסה? הפעולה בלתי הפיכה." title="מחיקה">
+        <i class="fas fa-trash"></i>
+      </button>
+    </div>
   </td>
 </tr>
 {% else %}
@@ -31,7 +80,7 @@
   <td>
     <input form="edit-{{ tx['id'] }}" name="amount" type="number" step="0.01" required
            value="{{ tx['amount']|abs }}"
-           class="w-full border rounded px-2 py-1">
+           class="form-input text-sm">
   </td>
 
   <td>
@@ -53,13 +102,22 @@
   <td>
     <input form="edit-{{ tx['id'] }}" name="notes" type="text"
            value="{{ tx['notes'] or '' }}"
-           class="w-full border rounded px-2 py-1">
+           class="form-input text-sm">
   </td>
 
   <td>
     <input form="edit-{{ tx['id'] }}" name="tags" type="text"
            value="{{ tx['tags'] or '' }}"
-           class="w-full border rounded px-2 py-1">
+           class="form-input text-sm">
+  </td>
+
+  <td>
+    <select form="edit-{{ tx['id'] }}" name="account_id" class="form-select text-sm">
+      <option value="">בחר חשבון (אופציונלי)</option>
+      {% for a in accounts %}
+        <option value="{{ a.id }}" {% if tx['account_id'] and a.id == tx['account_id'] %}selected{% endif %}>{{ a.name }}</option>
+      {% endfor %}
+    </select>
   </td>
 
   <td class="space-x-2">
@@ -71,17 +129,14 @@
           hx-disabled-elt="this">
     </form>
 
-    <button type="submit" form="edit-{{ tx['id'] }}"
-            class="px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700">
-      שמירה
+    <button type="submit" form="edit-{{ tx['id'] }}" class="btn btn-success btn-sm">
+      <i class="fas fa-save"></i>
     </button>
 
-    <button type="button"
-            class="px-3 py-1 rounded border hover:bg-gray-50"
+    <button type="button" class="btn btn-warning btn-sm"
             hx-get="/income/{{ tx['id'] }}/row"
-            hx-target="#txrow-{{ tx['id'] }}"
-            hx-swap="outerHTML">
-      ביטול
+            hx-target="#txrow-{{ tx['id'] }}" hx-swap="outerHTML">
+      <i class="fas fa-times"></i>
     </button>
   </td>
 </tr>

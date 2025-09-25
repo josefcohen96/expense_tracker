@@ -2,67 +2,67 @@
 {% block title %}הכנסות - CoupleBudget{% endblock %}
 
 {% block content %}
-<h1 class="text-2xl font-bold mb-6">ניהול הכנסות</h1>
 
 {% include 'partials/income/form.html' %}
 
-<div class="bg-white p-6 rounded-lg shadow">
-  <h2 class="text-xl font-semibold mb-4">הכנסות קיימות</h2>
-  
-  <!-- Pagination Info -->
-  <div class="mb-4 text-sm text-gray-600">
-    מציג {{ (pagination.page - 1) * pagination.per_page + 1 }} עד {{ (pagination.page - 1) * pagination.per_page + transactions|length }} מתוך {{ pagination.total }} הכנסות
+<div class="card animate-sequence" id="income-table">
+  <div class="card-header">
+    <div class="flex justify-between items-center">
+      <h2 class="text-xl font-semibold text-gray-900 flex items-center">
+        <i class="fas fa-list mr-3 text-blue-600"></i>
+        הכנסות
+      </h2>
+      <div class="text-sm text-gray-600">
+        מציג {{ (pagination.page - 1) * pagination.per_page + 1 }} עד {{ (pagination.page - 1) * pagination.per_page + transactions|length }} מתוך {{ pagination.total }} הכנסות
+      </div>
+    </div>
   </div>
-  
+
   <div class="overflow-x-auto">
-    <table class="min-w-full divide-y divide-gray-200">
-      <thead class="bg-gray-50">
+    <table class="table">
+      <thead>
         <tr>
-          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">תאריך</th>
-          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">סכום</th>
-          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">קטגוריה</th>
-          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">משתמש</th>
-          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">הערות</th>
-          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">תגיות</th>
-          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">פעולות</th>
+          <th>תאריך</th>
+          <th>סכום</th>
+          <th>קטגוריה</th>
+          <th>משתמש</th>
+          <th>חשבון</th>
+          <th>הערות</th>
+          <th>תגיות</th>
+          <th>פעולות</th>
         </tr>
       </thead>
-      <tbody class="bg-white divide-y divide-gray-200">
+      <tbody>
         {% for tx in transactions %}
           {% include 'partials/income/row.html' with context %}
         {% endfor %}
       </tbody>
     </table>
   </div>
-  
-  <!-- Pagination Controls -->
+
   {% if pagination.total_pages > 1 %}
-  <div class="mt-6 flex items-center justify-between">
-    <div class="flex items-center space-x-2">
-      <span class="text-sm text-gray-700">עמוד:</span>
-      <select id="perPageSelect" onchange="changePerPage(this.value)" class="border border-gray-300 rounded px-2 py-1 text-sm">
-        <option value="10" {% if pagination.per_page == 10 %}selected{% endif %}>10</option>
-        <option value="20" {% if pagination.per_page == 20 %}selected{% endif %}>20</option>
-        <option value="50" {% if pagination.per_page == 50 %}selected{% endif %}>50</option>
-        <option value="100" {% if pagination.per_page == 100 %}selected{% endif %}>100</option>
-      </select>
-      <span class="text-sm text-gray-700">הכנסות לעמוד</span>
-    </div>
-    
-    <div class="flex items-center space-x-2">
-      {% if pagination.has_prev %}
-        <a href="/income?page={{ pagination.prev_page }}&per_page={{ pagination.per_page }}" 
-           class="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300">הקודם</a>
-      {% endif %}
-      
-      <span class="text-sm text-gray-700">
+  <div class="card-footer">
+    <div class="flex justify-between items-center">
+      <div class="text-sm text-gray-700">
         עמוד {{ pagination.page }} מתוך {{ pagination.total_pages }}
-      </span>
-      
-      {% if pagination.has_next %}
-        <a href="/income?page={{ pagination.next_page }}&per_page={{ pagination.per_page }}" 
-           class="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300">הבא</a>
-      {% endif %}
+      </div>
+      <div class="flex items-center gap-2">
+        {% if pagination.has_prev %}
+          <a href="/finances/income?page={{ pagination.prev_page }}&per_page={{ pagination.per_page }}" class="btn btn-outline btn-sm">
+            <i class="fas fa-chevron-right mr-1"></i>
+            הקודם
+          </a>
+        {% endif %}
+        <div class="flex items-center gap-1">
+          <span class="px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-md">{{ pagination.page }}</span>
+        </div>
+        {% if pagination.has_next %}
+          <a href="/finances/income?page={{ pagination.next_page }}&per_page={{ pagination.per_page }}" class="btn btn-outline btn-sm">
+            הבא
+            <i class="fas fa-chevron-left mr-1"></i>
+          </a>
+        {% endif %}
+      </div>
     </div>
   </div>
   {% endif %}
@@ -72,8 +72,7 @@
 function changePerPage(perPage) {
   const url = new URL(window.location);
   url.searchParams.set('per_page', perPage);
-  url.searchParams.set('page', '1'); // Reset to first page when changing per_page
-  
+  url.searchParams.set('page', '1');
   window.location.href = url.toString();
 }
 </script>

@@ -39,10 +39,10 @@ async def api_get_transactions(
     if to_date:
         query += " AND date <= ?"
         params.append(to_date)
-    if category_id:
+    if category_id is not None:
         query += " AND category_id = ?"
         params.append(category_id)
-    if user_id:
+    if user_id is not None:
         query += " AND user_id = ?"
         params.append(user_id)
     
@@ -128,8 +128,20 @@ async def api_delete_transaction(
     tx_id: int,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> JSONResponse:
-    """Delete a transaction."""
-    db_conn.execute("DELETE FROM transactions WHERE id = ? AND recurrence_id IS NULL", (tx_id,))
+    """Delete a transaction. If it's a recurring instance, mark the period as skipped and delete it."""
+    # Check if this is a recurring instance; if so, record a skip
+    row = db_conn.execute(
+        "SELECT recurrence_id, period_key FROM transactions WHERE id = ?",
+        (tx_id,),
+    ).fetchone()
+    if row and row["recurrence_id"] and row["period_key"]:
+        db_conn.execute(
+            "INSERT OR IGNORE INTO recurrence_skips (recurrence_id, period_key) VALUES (?, ?)",
+            (row["recurrence_id"], row["period_key"]),
+        )
+        db_conn.execute("DELETE FROM transactions WHERE id = ?", (tx_id,))
+    else:
+        db_conn.execute("DELETE FROM transactions WHERE id = ? AND recurrence_id IS NULL", (tx_id,))
     db_conn.commit()
     
     # Clear cache when transaction is deleted

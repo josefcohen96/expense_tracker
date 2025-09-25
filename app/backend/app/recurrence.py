@@ -27,27 +27,20 @@ def parse_date(ds: str) -> date:
 def format_date(d: date) -> str:
     return d.isoformat()
 
-def month_periods(start: date, end: date) -> List[Tuple[int, int]]:
-    periods: List[Tuple[int, int]] = []
-    y, m = start.year, start.month
-    while (y < end.year) or (y == end.year and m <= end.month):
-        periods.append((y, m))
-        m = 1 if m == 12 else m + 1
-        if m == 1:
-            y += 1
-    return periods
+def _clamp_day(year: int, month: int, day: int) -> date:
+    last_day = calendar.monthrange(year, month)[1]
+    if day < 1:
+        day = 1
+    if day > last_day:
+        day = last_day
+    return date(year, month, day)
 
-def week_periods(start: date, end: date) -> List[Tuple[int, int]]:
-    periods: List[Tuple[int, int]] = []
-    current = start - timedelta(days=start.weekday())  # Monday
-    while current <= end:
-        iso_year, iso_week, _ = current.isocalendar()
-        periods.append((iso_year, iso_week))
-        current += timedelta(days=7)
-    return periods
-
-def year_periods(start: date, end: date) -> List[int]:
-    return list(range(start.year, end.year + 1))
+def _add_months_keep_dom(current: date, months: int, desired_day: Optional[int]) -> date:
+    total_months = current.year * 12 + current.month - 1 + months
+    y = total_months // 12
+    m = total_months % 12 + 1
+    day = int(desired_day) if desired_day is not None else current.day
+    return _clamp_day(y, m, day)
 
 # --------- Helpers: meta ---------
 
@@ -63,60 +56,26 @@ def set_meta(conn: sqlite3.Connection, key: str, value: str) -> None:
 
 # --------- Core ---------
 
-def period_key_for(recurrence: dict, period: Tuple) -> Tuple[str, str]:
-    freq = recurrence["frequency"]
-    start_dt = parse_date(recurrence["start_date"]) if recurrence.get("start_date") else date(2000, 1, 1)
-
+def _compute_next_charge_date(current_due: date, freq: str, day_of_month: Optional[int], weekday: Optional[int]) -> date:
     if freq == "monthly":
-        year, month = period
-        # Use configured day_of_month if provided; default to 1
-        configured_day = recurrence.get("day_of_month")
-        try:
-            day = int(configured_day) if configured_day is not None else 1
-        except Exception:
-            day = 1
-        last_day = calendar.monthrange(year, month)[1]
-        if day > last_day:
-            day = last_day
-        due_dt = date(year, month, day)
-        return f"{year:04d}-{month:02d}", format_date(due_dt)
-
+        return _add_months_keep_dom(current_due, 1, day_of_month)
     if freq == "weekly":
-        iso_year, iso_week = period
-        try:
-            monday = date.fromisocalendar(iso_year, iso_week, 1)
-        except ValueError:
-            return "", ""
-        # Use configured weekday (Python: Monday=0..Sunday=6). Default to Sunday (6)
-        configured_weekday = recurrence.get("weekday")
-        try:
-            weekday = int(configured_weekday) if configured_weekday is not None else 6
-        except Exception:
-            weekday = 6
-        if weekday < 0:
-            weekday = 0
-        if weekday > 6:
-            weekday = 6
-        due_dt = monday + timedelta(days=weekday)
-        return f"{iso_year:04d}-W{iso_week:02d}", format_date(due_dt)
-
+        return current_due + timedelta(days=7)
     if freq == "yearly":
-        year = period
-        # Charge on 1st of August
-        month = 8
-        day = 1
-        last_day = calendar.monthrange(year, month)[1]
-        if day > last_day:
-            day = last_day
-        due_dt = date(year, month, day)
-        return f"{year:04d}", format_date(due_dt)
-
-    # unsupported/custom
-    return "", ""
+        try:
+            return current_due.replace(year=current_due.year + 1)
+        except ValueError:
+            # Feb 29th case => move to Feb 28th next year
+            return current_due.replace(month=2, day=28, year=current_due.year + 1)
+    # default: push one day
+    return current_due + timedelta(days=1)
 
 def apply_recurring(today: Optional[date] = None) -> int:
     """
-    Generate missing recurring transactions and return count inserted.
+    Materialize due recurring transactions using `next_charge_date`.
+    For each active recurrence, if its `next_charge_date` is in the past or today,
+    insert a transaction for that date (idempotent via (recurrence_id, period_key)),
+    and advance `next_charge_date` by one interval. Repeat until next_charge_date > today.
     """
     if today is None:
         today = date.today()
@@ -126,65 +85,60 @@ def apply_recurring(today: Optional[date] = None) -> int:
     try:
         conn.execute("PRAGMA foreign_keys = ON")
 
-        last_run_str = get_meta(conn, "last_recurring_run")
-        last_run = parse_date(last_run_str) if last_run_str else date(1900, 1, 1)
-        if last_run > today:
-            last_run = today
-
-        recurrences = conn.execute(
-            "SELECT * FROM recurrences WHERE active = 1"
+        rows = conn.execute(
+            "SELECT * FROM recurrences WHERE active = 1 AND next_charge_date IS NOT NULL"
         ).fetchall()
 
-        for rec in recurrences:
-            rec_dict = dict(rec)
-            rec_start = parse_date(rec_dict["start_date"])
-            rec_end = parse_date(rec_dict["end_date"]) if rec_dict["end_date"] else None
-
-            start_date_for_periods = max(last_run, rec_start)
-            end_date_for_periods = min(today, rec_end) if rec_end else today
-            if start_date_for_periods > end_date_for_periods:
+        for row in rows:
+            rec = dict(row)
+            try:
+                due = parse_date(rec["next_charge_date"]) if rec.get("next_charge_date") else None
+            except Exception:
+                due = None
+            if not due:
                 continue
 
-            freq = rec_dict["frequency"]
-            if freq == "monthly":
-                periods = month_periods(start_date_for_periods, end_date_for_periods)
-            elif freq == "weekly":
-                periods = week_periods(start_date_for_periods, end_date_for_periods)
-            elif freq == "yearly":
-                periods = year_periods(start_date_for_periods, end_date_for_periods)
-            else:
-                continue
+            # Loop while overdue (catch up if app was down)
+            while due <= today:
+                period_key = due.isoformat()
 
-            for period in periods:
-                key, due_date_str = period_key_for(rec_dict, period)
-                if not key:
-                    continue
-
-                exists = conn.execute(
-                    "SELECT 1 FROM transactions WHERE recurrence_id = ? AND period_key = ? LIMIT 1",
-                    (rec_dict["id"], key),
+                # Skip if explicitly marked as skipped
+                skipped = conn.execute(
+                    "SELECT 1 FROM recurrence_skips WHERE recurrence_id = ? AND period_key = ? LIMIT 1",
+                    (rec["id"], period_key),
                 ).fetchone()
-                if exists:
-                    continue
+                if not skipped:
+                    # Idempotency: check if already exists
+                    exists = conn.execute(
+                        "SELECT 1 FROM transactions WHERE recurrence_id = ? AND period_key = ? LIMIT 1",
+                        (rec["id"], period_key),
+                    ).fetchone()
+                    if not exists:
+                        conn.execute(
+                            "INSERT INTO transactions (date, amount, category_id, user_id, account_id, notes, tags, recurrence_id, period_key) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (
+                                due.isoformat(),
+                                -abs(rec["amount"]),
+                                rec["category_id"],
+                                rec["user_id"],
+                                rec.get("account_id"),
+                                None,
+                                None,
+                                rec["id"],
+                                period_key,
+                            ),
+                        )
+                        count_inserted += 1
 
+                # Advance next charge date by one interval
+                next_due = _compute_next_charge_date(due, rec.get("frequency"), rec.get("day_of_month"), rec.get("weekday"))
                 conn.execute(
-                    "INSERT INTO transactions (date, amount, category_id, user_id, account_id, notes, tags, recurrence_id, period_key) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        due_date_str,
-                        -abs(rec_dict["amount"]),  # Ensure amount is negative for expenses
-                        rec_dict["category_id"],
-                        rec_dict["user_id"],
-                        rec_dict.get("account_id"),
-                        None,
-                        None,
-                        rec_dict["id"],
-                        key,
-                    ),
+                    "UPDATE recurrences SET next_charge_date = ? WHERE id = ?",
+                    (next_due.isoformat(), rec["id"]),
                 )
-                count_inserted += 1
+                due = next_due
 
-        set_meta(conn, "last_recurring_run", format_date(today))
         conn.commit()
         return count_inserted
     finally:

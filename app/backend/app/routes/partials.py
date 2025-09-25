@@ -125,8 +125,9 @@ async def get_income_row(
     tx = _fetch_income_row(db_conn, tx_id)
     cats = db_conn.execute("SELECT id, name FROM categories WHERE name IN ('קליניקה', 'משכורת') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/income/row.html", {
-        "request": request, "tx": tx, "categories": cats, "users": users, "mode": "read",
+        "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "read",
     })
 
 
@@ -139,8 +140,9 @@ async def edit_income_row(
     tx = _fetch_income_row(db_conn, tx_id)
     cats = db_conn.execute("SELECT id, name FROM categories WHERE name IN ('קליניקה', 'משכורת') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/income/row.html", {
-        "request": request, "tx": tx, "categories": cats, "users": users, "mode": "edit",
+        "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "edit",
     })
 
 
@@ -157,6 +159,7 @@ async def update_income_row(
     amount = form.get("amount")
     category_id = form.get("category_id")
     user_id = form.get("user_id")
+    account_id = form.get("account_id") or None
     notes = form.get("notes") or None
     tags = form.get("tags") or None
 
@@ -166,11 +169,12 @@ async def update_income_row(
         amount_val = abs(amount_val)
         category_int = int(category_id) if category_id is not None else None
         user_int = int(user_id) if user_id is not None else None
+        account_int = int(account_id) if account_id not in (None, "") else None
 
         db_conn.execute(
-            "UPDATE transactions SET date=?, amount=?, category_id=?, user_id=?, notes=?, tags=? "
+            "UPDATE transactions SET date=?, amount=?, category_id=?, user_id=?, account_id=?, notes=?, tags=? "
             "WHERE id=? AND recurrence_id IS NULL",
-            (date, amount_val, category_int, user_int, notes, tags, tx_id),
+            (date, amount_val, category_int, user_int, account_int, notes, tags, tx_id),
         )
         db_conn.commit()
     except Exception as exc:
@@ -179,8 +183,9 @@ async def update_income_row(
     tx = _fetch_income_row(db_conn, tx_id)
     cats = db_conn.execute("SELECT id, name FROM categories WHERE name IN ('קליניקה', 'משכורת') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/income/row.html", {
-        "request": request, "tx": tx, "categories": cats, "users": users, "mode": "read",
+        "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "read",
     })
 
 
@@ -209,3 +214,138 @@ def _fetch_income_row(db_conn: sqlite3.Connection, tx_id: int):
     if not tx:
         raise HTTPException(status_code=404, detail="Income transaction not found")
     return tx
+
+
+# -----------------------------
+# Recurrences inline partials
+# -----------------------------
+def _fetch_recurrence_row(db_conn: sqlite3.Connection, rec_id: int):
+    r = db_conn.execute(
+        """
+        SELECT r.id,
+               r.name,
+               r.amount,
+               r.category_id,
+               r.user_id,
+               r.account_id,
+               r.frequency,
+               r.next_charge_date,
+               r.start_date,
+               r.end_date,
+               r.active,
+               c.name AS category_name,
+               u.name AS user_name,
+               a.name AS account_name
+          FROM recurrences r
+     LEFT JOIN categories c ON r.category_id = c.id
+     LEFT JOIN users u ON r.user_id = u.id
+     LEFT JOIN accounts a ON r.account_id = a.id
+         WHERE r.id = ?
+        """,
+        (rec_id,),
+    ).fetchone()
+    if not r:
+        raise HTTPException(status_code=404, detail="Recurrence not found")
+    return r
+
+
+@router.get("/recurrences/{rec_id}/row", response_class=HTMLResponse)
+async def get_recurrence_row(
+    request: Request,
+    rec_id: int,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> HTMLResponse:
+    r = _fetch_recurrence_row(db_conn, rec_id)
+    return templates.TemplateResponse(
+        "partials/recurrences/row.html",
+        {"request": request, "r": r},
+    )
+
+
+@router.get("/recurrences/{rec_id}/edit-inline", response_class=HTMLResponse)
+async def edit_recurrence_row(
+    request: Request,
+    rec_id: int,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> HTMLResponse:
+    r = _fetch_recurrence_row(db_conn, rec_id)
+    categories = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
+    return templates.TemplateResponse(
+        "partials/recurrences/edit_row.html",
+        {
+            "request": request,
+            "recurrence": r,
+            "categories": categories,
+            "users": users,
+            "accounts": accounts,
+        },
+    )
+
+
+@router.post("/recurrences/{rec_id}/edit-inline", response_class=HTMLResponse)
+async def update_recurrence_row(
+    request: Request,
+    rec_id: int,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> HTMLResponse:
+    body = await request.body()
+    form = {k: v[0] if isinstance(v, list) else v for k, v in parse_qs(body.decode("utf-8")).items()}
+
+    name = form.get("name")
+    amount = form.get("amount")
+    category_id = form.get("category_id")
+    user_id = form.get("user_id")
+    account_id = form.get("account_id") or None
+    frequency = form.get("frequency")
+    start_date = form.get("start_date")
+    end_date = form.get("end_date") or None
+    active = form.get("active")
+
+    try:
+        amount_val = float(amount) if amount is not None else 0.0
+        category_int = int(category_id) if category_id is not None else None
+        user_int = int(user_id) if user_id is not None else None
+        account_int = int(account_id) if account_id not in (None, "") else None
+        active_int = 1 if str(active) in ("1", "true", "True", "on") else 0
+
+        db_conn.execute(
+            """
+            UPDATE recurrences
+               SET name = ?, amount = ?, category_id = ?, user_id = ?, account_id = ?,
+                   frequency = ?, start_date = ?, end_date = ?, active = ?
+             WHERE id = ?
+            """,
+            (
+                name,
+                amount_val,
+                category_int,
+                user_int,
+                account_int,
+                frequency,
+                start_date,
+                end_date,
+                active_int,
+                rec_id,
+            ),
+        )
+        db_conn.commit()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    r = _fetch_recurrence_row(db_conn, rec_id)
+    return templates.TemplateResponse(
+        "partials/recurrences/row.html",
+        {"request": request, "r": r},
+    )
+
+
+@router.post("/recurrences/{rec_id}/delete-inline", response_class=HTMLResponse)
+async def delete_recurrence_row(
+    rec_id: int,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> HTMLResponse:
+    db_conn.execute("DELETE FROM recurrences WHERE id = ?", (rec_id,))
+    db_conn.commit()
+    return HTMLResponse(content="")

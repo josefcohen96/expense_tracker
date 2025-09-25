@@ -1,54 +1,30 @@
 from __future__ import annotations
 import sqlite3
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 from datetime import date, timedelta, datetime
 from pathlib import Path as FSPath
 import calendar
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
+from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 
 from ..db import get_db_conn
 
-# ===== Templates dir (frontend) =====
-ROOT_DIR = FSPath(__file__).resolve().parents[3]  # .../expense_tracker/app
+# Frontend paths
+ROOT_DIR = FSPath(__file__).resolve().parents[3]
 FRONTEND_DIR = ROOT_DIR / "frontend"
 TEMPLATES_DIR = FRONTEND_DIR / "templates"
 STATIC_DIR = FRONTEND_DIR / "static"
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-
 router = APIRouter(tags=["pages"])
 
-# --------- Helper Functions ---------
-async def get_finance_stats(db_conn: sqlite3.Connection) -> Dict[str, float]:
-    try:
-        cur = db_conn.execute(
-            """
-            SELECT 
-                SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as total_expenses,
-                SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as total_income,
-                COUNT(*) as total_transactions
-            FROM transactions 
-            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
-            """
-        )
-        stats = cur.fetchone()
-        recurrences_count_row = db_conn.execute("SELECT COUNT(*) as cnt FROM recurrences WHERE active = 1").fetchone()
-        return {
-            "total_expenses_month": (stats["total_expenses"] or 0) if stats else 0,
-            "total_income_month": (stats["total_income"] or 0) if stats else 0,
-            "total_transactions_month": (stats["total_transactions"] or 0) if stats else 0,
-            "recurrences_count": (recurrences_count_row["cnt"] if recurrences_count_row else 0),
-        }
-    except Exception:
-        return {"total_expenses_month": 0, "total_income_month": 0, "total_transactions_month": 0, "recurrences_count": 0}
 
-# --------- Pages ---------
 @router.get("/", response_class=HTMLResponse)
 async def index(_: Request) -> RedirectResponse:
     return RedirectResponse(url="/finances", status_code=status.HTTP_302_FOUND)
+
 
 @router.get("/sw.js")
 async def service_worker() -> FileResponse:
@@ -58,9 +34,666 @@ async def service_worker() -> FileResponse:
         return Response("", media_type="application/javascript")
     return FileResponse(str(sw_path), media_type="application/javascript")
 
+
 @router.get("/finances", response_class=HTMLResponse)
-async def finances_dashboard(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
+async def finances_dashboard(
+    request: Request,
+    month: Optional[str] = None,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> HTMLResponse:
+    # Resolve selected month (YYYY-MM), default to current
+    today = date.today()
+    default_ym = today.strftime("%Y-%m")
+    selected_ym = default_ym
+    if month:
+        try:
+            # Validate format
+            dt_obj = datetime.strptime(month, "%Y-%m")
+            selected_ym = dt_obj.strftime("%Y-%m")
+        except Exception:
+            selected_ym = default_ym
+
+    sel_year, sel_month = map(int, selected_ym.split("-"))
+    month_first = date(sel_year, sel_month, 1)
+    # Compute next month first day to derive month_last
+    next_first = date(sel_year + (1 if sel_month == 12 else 0), 1 if sel_month == 12 else sel_month + 1, 1)
+    month_last = next_first - timedelta(days=1)
+
+    # KPIs for selected month
+    kpi_row = db_conn.execute(
+        """
+        SELECT 
+            SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as total_expenses,
+            SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as total_income,
+            COUNT(*) as total_transactions
+        FROM transactions 
+        WHERE strftime('%Y-%m', date) = ?
+        """,
+        (selected_ym,),
+    ).fetchone() or {"total_expenses": 0, "total_income": 0, "total_transactions": 0}
+
+    cur_expenses = float(kpi_row["total_expenses"] or 0)
+    cur_income = float(kpi_row["total_income"] or 0)
+    tx_count = int(kpi_row["total_transactions"] or 0)
+
+    # Previous month (relative to selected) for deltas
+    prev_year = sel_year if sel_month > 1 else sel_year - 1
+    prev_month_num = sel_month - 1 if sel_month > 1 else 12
+    prev_ym = f"{prev_year:04d}-{prev_month_num:02d}"
+    prev = db_conn.execute(
+        """
+        SELECT 
+            SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as total_expenses,
+            SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as total_income
+        FROM transactions 
+        WHERE strftime('%Y-%m', date) = ?
+        """,
+        (prev_ym,),
+    ).fetchone() or {"total_expenses": 0, "total_income": 0}
+
+    def pct_change(cur_val: float, prev_val: float) -> float:
+        if not prev_val:
+            return 0.0
+        return ((cur_val - prev_val) / prev_val) * 100.0
+
+    expenses_change = pct_change(cur_expenses, float(prev["total_expenses"] or 0))
+    income_change = pct_change(cur_income, float(prev["total_income"] or 0))
+    balance = cur_income - cur_expenses
+
+    # Recent transactions (latest 5) in selected month
+    recent = db_conn.execute(
+        """
+        SELECT t.id, t.date, t.amount, c.name as category, u.name as user, a.name as account, t.notes
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.user_id = u.id
+        LEFT JOIN accounts a ON t.account_id = a.id
+        WHERE strftime('%Y-%m', t.date) = ?
+        ORDER BY t.date DESC, t.id DESC
+        LIMIT 5
+        """,
+        (selected_ym,),
+    ).fetchall()
+
+    # Active recurrences count
+    rec_count_row = db_conn.execute("SELECT COUNT(*) AS cnt FROM recurrences WHERE active = 1").fetchone()
+    recurrences_count = int(rec_count_row["cnt"] if rec_count_row else 0)
+
+    # Top expense categories (selected month)
+    top_categories = db_conn.execute(
+        """
+        SELECT c.name AS category, COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS total
+        FROM transactions t
+        JOIN categories c ON t.category_id = c.id
+        WHERE strftime('%Y-%m', t.date) = ? AND t.amount < 0
+        GROUP BY c.name
+        ORDER BY total DESC
+        LIMIT 5
+        """,
+        (selected_ym,),
+    ).fetchall()
+
+    # Upcoming recurrences for selected month
+
+    recs = db_conn.execute(
+        """
+        SELECT r.id, r.name, r.amount, r.frequency, r.day_of_month, r.weekday,
+               r.next_charge_date, c.name AS category, u.name AS user
+        FROM recurrences r
+        LEFT JOIN categories c ON r.category_id = c.id
+        LEFT JOIN users u ON r.user_id = u.id
+        WHERE r.active = 1
+        """
+    ).fetchall()
+
+    def first_weekday_in_month(year: int, month: int, weekday_py: int) -> date:
+        mf = date(year, month, 1)
+        off = (weekday_py - mf.weekday()) % 7
+        return mf + timedelta(days=off)
+
+    upcoming: List[Dict[str, Any]] = []
+    for r in recs:
+        charge: Optional[date] = None
+        try:
+            if r["frequency"] == "monthly":
+                day = int(r["day_of_month"] or 1)
+                last_day = calendar.monthrange(sel_year, sel_month)[1]
+                day = max(1, min(last_day, day))
+                charge = date(sel_year, sel_month, day)
+            elif r["frequency"] == "weekly":
+                wd = int(r["weekday"] if r["weekday"] is not None else 6)
+                wd = max(0, min(6, wd))
+                charge = first_weekday_in_month(sel_year, sel_month, wd)
+            elif r["frequency"] == "yearly":
+                # For yearly, use month/day from next_charge_date if present; fallback to 01-08
+                mm, dd = 8, 1
+                if r["next_charge_date"]:
+                    parts = str(r["next_charge_date"]).split("-")
+                    if len(parts) >= 3:
+                        mm = max(1, min(12, int(parts[1])))
+                        dd = max(1, min(calendar.monthrange(sel_year, mm)[1], int(parts[2])))
+                charge = date(sel_year, mm, dd)
+        except Exception:
+            charge = None
+        if charge and month_first <= charge <= month_last:
+            upcoming.append({
+                "id": r["id"],
+                "name": r["name"],
+                "amount": r["amount"],
+                "date": charge.isoformat(),
+                "category": r["category"],
+                "user": r["user"],
+            })
+    upcoming = sorted(upcoming, key=lambda x: x["date"])[:5]
+
+    return templates.TemplateResponse(
+        "finances/index.html",
+        {
+            "request": request,
+            "show_sidebar": True,
+            "selected_month": selected_ym,
+            "total_expenses": cur_expenses,
+            "total_income": cur_income,
+            "transactions_count": tx_count,
+            "recurrences_count": recurrences_count,
+            "balance": balance,
+            "expenses_change": expenses_change,
+            "income_change": income_change,
+            "top_categories": top_categories,
+            "upcoming_recurrences": upcoming,
+            "recent_transactions": recent,
+        },
+    )
+
+
+# -----------------------------
+# Finances: Transactions page
+# -----------------------------
+@router.get("/finances/transactions", response_class=HTMLResponse)
+async def finances_transactions(
+    request: Request,
+    page: int = 1,
+    per_page: int = 20,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> HTMLResponse:
+    page = max(1, page)
+    per_page = max(1, min(100, per_page))
+    offset = (page - 1) * per_page
+
+    total = db_conn.execute("SELECT COUNT(*) FROM transactions WHERE recurrence_id IS NULL AND amount < 0").fetchone()[0]
+    rows = db_conn.execute(
+        """
+        SELECT t.id, t.date, t.amount,
+               c.name as category,
+               u.name as user,
+               a.name as account,
+               t.notes
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.user_id = u.id
+        LEFT JOIN accounts a ON t.account_id = a.id
+        WHERE t.recurrence_id IS NULL AND t.amount < 0
+        ORDER BY t.date DESC, t.id DESC
+        LIMIT ? OFFSET ?
+        """,
+        (per_page, offset),
+    ).fetchall()
+
+    categories = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
+
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    pagination = {
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "total_pages": total_pages,
+        "has_prev": page > 1,
+        "has_next": page < total_pages,
+        "prev_page": page - 1,
+        "next_page": page + 1,
+    }
+
+    return templates.TemplateResponse(
+        "finances/transactions.html",
+        {
+            "request": request,
+            "transactions": rows,
+            "categories": categories,
+            "users": users,
+            "accounts": accounts,
+            "pagination": pagination,
+            "show_sidebar": True,
+        },
+    )
+
+
+# -----------------------------
+# Finances: Income page
+# -----------------------------
+@router.get("/finances/income", response_class=HTMLResponse)
+async def finances_income(
+    request: Request,
+    page: int = 1,
+    per_page: int = 20,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> HTMLResponse:
+    page = max(1, page)
+    per_page = max(1, min(100, per_page))
+    offset = (page - 1) * per_page
+
+    total = db_conn.execute("SELECT COUNT(*) FROM transactions WHERE amount > 0").fetchone()[0]
+    rows = db_conn.execute(
+        """
+        SELECT t.id, t.date, t.amount,
+               c.id AS category_id, c.name as category,
+               u.id AS user_id, u.name as user,
+               a.name AS account_name,
+               t.notes,
+               t.tags
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.user_id = u.id
+        LEFT JOIN accounts a ON t.account_id = a.id
+        WHERE t.amount > 0 AND t.recurrence_id IS NULL
+        ORDER BY t.date DESC, t.id DESC
+        LIMIT ? OFFSET ?
+        """,
+        (per_page, offset),
+    ).fetchall()
+
+    categories = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
+
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    pagination = {
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "total_pages": total_pages,
+        "has_prev": page > 1,
+        "has_next": page < total_pages,
+        "prev_page": page - 1,
+        "next_page": page + 1,
+    }
+
+    from datetime import date as _date
+
+    return templates.TemplateResponse(
+        "pages/income.html",
+        {
+            "request": request,
+            "transactions": rows,
+            "categories": categories,
+            "users": users,
+            "accounts": accounts,
+            "pagination": pagination,
+            "today": _date.today().isoformat(),
+            "show_sidebar": True,
+        },
+    )
+
+
+# -----------------------------
+# Finances: Recurrences page
+# -----------------------------
+@router.get("/finances/recurrences", response_class=HTMLResponse)
+async def finances_recurrences(
+    request: Request,
+    page: int = 1,
+    per_page: int = 20,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> HTMLResponse:
+    page = max(1, page)
+    per_page = max(1, min(100, per_page))
+    offset = (page - 1) * per_page
+
+    base_sql = (
+        """
+        SELECT r.id, r.name, r.amount, r.frequency, r.next_charge_date, r.active,
+               c.name AS category_name,
+               u.name AS user_name,
+               a.name AS account_name
+        FROM recurrences r
+        LEFT JOIN categories c ON r.category_id = c.id
+        LEFT JOIN users u ON r.user_id = u.id
+        LEFT JOIN accounts a ON r.account_id = a.id
+        """
+    )
+
+    # Optional filters: category_id, only_active
+    where_clauses: List[str] = []
+    params: List[Any] = []
+
+    cat_id_raw = request.query_params.get("category_id")
+    if cat_id_raw:
+        try:
+            cat_id_val = int(cat_id_raw)
+            where_clauses.append("r.category_id = ?")
+            params.append(cat_id_val)
+        except Exception:
+            pass
+
+    only_active = request.query_params.get("only_active")
+    if only_active in ("1", "true", "True", "on"):
+        where_clauses.append("r.active = 1")
+
+    where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+    total = db_conn.execute(f"SELECT COUNT(*) FROM recurrences r{where_sql}", params).fetchone()[0]
+    recs = db_conn.execute(base_sql + where_sql + " ORDER BY r.id DESC LIMIT ? OFFSET ?", (*params, per_page, offset)).fetchall()
+
+    categories = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
+
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    pagination = {
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "total_pages": total_pages,
+        "has_prev": page > 1,
+        "has_next": page < total_pages,
+        "prev_page": page - 1,
+        "next_page": page + 1,
+    }
+
+    return templates.TemplateResponse(
+        "pages/recurrences.html",
+        {
+            "request": request,
+            "recurrences": recs,
+            "categories": categories,
+            "users": users,
+            "accounts": accounts,
+            "pagination": pagination,
+            "show_sidebar": True,
+        },
+    )
+
+
+# -----------------------------
+# Finances: Active Recurrences page
+# -----------------------------
+@router.get("/finances/recurrences/active", response_class=HTMLResponse)
+async def finances_recurrences_active(
+    request: Request,
+    page: int = 1,
+    per_page: int = 50,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> HTMLResponse:
+    page = max(1, page)
+    per_page = max(1, min(100, per_page))
+    offset = (page - 1) * per_page
+
+    base_sql = (
+        """
+        SELECT r.id, r.name, r.amount, r.frequency, r.next_charge_date, r.active,
+               c.name AS category_name,
+               u.name AS user_name,
+               a.name AS account_name
+        FROM recurrences r
+        LEFT JOIN categories c ON r.category_id = c.id
+        LEFT JOIN users u ON r.user_id = u.id
+        LEFT JOIN accounts a ON r.account_id = a.id
+        """
+    )
+
+    where_clauses: List[str] = ["r.active = 1"]
+    params: List[Any] = []
+
+    cat_id_raw = request.query_params.get("category_id")
+    if cat_id_raw:
+        try:
+            cat_id_val = int(cat_id_raw)
+            where_clauses.append("r.category_id = ?")
+            params.append(cat_id_val)
+        except Exception:
+            pass
+
+    where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+    total = db_conn.execute(f"SELECT COUNT(*) FROM recurrences r{where_sql}", params).fetchone()[0]
+    recs = db_conn.execute(base_sql + where_sql + " ORDER BY r.id DESC LIMIT ? OFFSET ?", (*params, per_page, offset)).fetchall()
+
+    categories = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
+
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    pagination = {
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "total_pages": total_pages,
+        "has_prev": page > 1,
+        "has_next": page < total_pages,
+        "prev_page": page - 1,
+        "next_page": page + 1,
+    }
+
+    return templates.TemplateResponse(
+        "pages/recurrences_active.html",
+        {
+            "request": request,
+            "recurrences": recs,
+            "categories": categories,
+            "users": users,
+            "accounts": accounts,
+            "pagination": pagination,
+            "show_sidebar": True,
+        },
+    )
+
+# ---- Recurrences inline CRUD (HTMX) ----
+@router.post("/recurrences", response_class=HTMLResponse)
+async def create_recurrence_form(
+    request: Request,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+):
+    form = await request.form()
+    name = form.get("name")
+    amount = float(form.get("amount")) if form.get("amount") else 0.0
+    category_id = int(form.get("category_id"))
+    user_id = int(form.get("user_id"))
+    account_id = int(form.get("account_id", "0") or 0) or None
+    frequency = form.get("frequency") or "monthly"
+    day_of_month = form.get("day_of_month")
+    weekday = form.get("weekday")
+    next_charge_date = form.get("next_charge_date")
+
+    # Compute sensible default next_charge_date if not provided
+    from datetime import date as _date, timedelta as _timedelta
+
+    def _clamp_day(year: int, month: int, day: int) -> _date:
+        import calendar as _calendar
+        last = _calendar.monthrange(year, month)[1]
+        if day < 1:
+            day = 1
+        if day > last:
+            day = last
+        return _date(year, month, day)
+
+    if not next_charge_date:
+        today = _date.today()
+        if frequency == "monthly":
+            d = int(day_of_month) if day_of_month else 1
+            candidate = _clamp_day(today.year, today.month, d)
+            if candidate <= today:
+                # move to next month
+                nm_year = today.year + (1 if today.month == 12 else 0)
+                nm_month = 1 if today.month == 12 else today.month + 1
+                candidate = _clamp_day(nm_year, nm_month, d)
+            next_charge_date = candidate.isoformat()
+        elif frequency == "weekly":
+            # Python weekday: Monday=0..Sunday=6. Default to Sunday if not provided
+            target = int(weekday) if weekday not in (None, "") else 6
+            target = max(0, min(6, target))
+            delta = (target - today.weekday()) % 7
+            if delta == 0:
+                delta = 7  # next week
+            candidate = today + _timedelta(days=delta)
+            next_charge_date = candidate.isoformat()
+            # Ensure weekday saved even if user omitted it
+            weekday = str(target)
+        elif frequency == "yearly":
+            # Default: same day next month/year heuristic -> set to one month ahead on the 1st
+            nm_year = today.year + (1 if today.month == 12 else 0)
+            nm_month = 1 if today.month == 12 else today.month + 1
+            candidate = _clamp_day(nm_year, nm_month, 1)
+            next_charge_date = candidate.isoformat()
+        else:
+            next_charge_date = (today + _timedelta(days=1)).isoformat()
+
+    payload = {
+        "name": name,
+        "amount": amount,
+        "category_id": category_id,
+        "user_id": user_id,
+        "account_id": account_id,
+        "frequency": frequency,
+        "day_of_month": int(day_of_month) if day_of_month else None,
+        "weekday": int(weekday) if weekday else None,
+        "next_charge_date": next_charge_date or None,
+        "active": True,
+    }
+    # Insert into recurrences table directly
     cur = db_conn.execute(
+        """
+        INSERT INTO recurrences (name, amount, category_id, user_id, frequency, day_of_month, weekday, next_charge_date, active, account_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            payload["name"], payload["amount"], payload["category_id"], payload["user_id"],
+            payload["frequency"], payload["day_of_month"], payload["weekday"], payload["next_charge_date"],
+            1, account_id,
+        ),
+    )
+    db_conn.commit()
+
+    return RedirectResponse(url="/finances/recurrences", status_code=303)
+
+
+@router.post("/recurrences/{rec_id}/toggle-active", response_class=HTMLResponse)
+async def toggle_recurrence_active(
+    request: Request,
+    rec_id: int,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+):
+    cur = db_conn.execute("SELECT active FROM recurrences WHERE id = ?", (rec_id,))
+    row = cur.fetchone()
+    if not row:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Recurrence not found")
+    new_val = 0 if int(row[0] or 0) == 1 else 1
+    db_conn.execute("UPDATE recurrences SET active = ? WHERE id = ?", (new_val, rec_id))
+    db_conn.commit()
+    return await get_recurrence_row(request, rec_id, db_conn)
+
+
+@router.get("/recurrences/{rec_id}/row", response_class=HTMLResponse)
+async def get_recurrence_row(
+    request: Request,
+    rec_id: int,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+):
+    row = db_conn.execute(
+        """
+        SELECT r.id, r.name, r.amount, r.frequency, r.next_charge_date, r.active,
+               r.day_of_month, r.weekday,
+               r.category_id, r.user_id, r.account_id,
+               c.name AS category_name, u.name AS user_name, a.name AS account_name
+        FROM recurrences r
+        LEFT JOIN categories c ON r.category_id = c.id
+        LEFT JOIN users u ON r.user_id = u.id
+        LEFT JOIN accounts a ON r.account_id = a.id
+        WHERE r.id = ?
+        """,
+        (rec_id,),
+    ).fetchone()
+    return templates.TemplateResponse(
+        "partials/recurrences/row.html",
+        {"request": request, "r": row},
+    )
+
+
+@router.get("/recurrences/{rec_id}/edit-inline", response_class=HTMLResponse)
+async def edit_recurrence_inline(
+    request: Request,
+    rec_id: int,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+):
+    row = db_conn.execute("SELECT * FROM recurrences WHERE id = ?", (rec_id,)).fetchone()
+    categories = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
+    return templates.TemplateResponse(
+        "partials/recurrences/edit_row.html",
+        {
+            "request": request,
+            "recurrence": row,
+            "categories": categories,
+            "users": users,
+            "accounts": accounts,
+        },
+    )
+
+
+@router.post("/recurrences/{rec_id}/edit-inline", response_class=HTMLResponse)
+async def save_recurrence_inline(
+    request: Request,
+    rec_id: int,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+):
+    form = await request.form()
+    fields: Dict[str, Any] = {}
+    for k in ("name", "frequency", "next_charge_date"):
+        if k in form and form[k] != "":
+            fields[k] = form[k]
+    for k in ("amount", "category_id", "user_id", "account_id", "day_of_month", "weekday", "active"):
+        if k in form and form[k] != "":
+            if k in ("amount",):
+                fields[k] = float(form[k])
+            elif k in ("active",):
+                fields[k] = 1 if str(form[k]) in ("1", "true", "True") else 0
+            else:
+                fields[k] = int(form[k])
+    if not fields:
+        return await get_recurrence_row(request, rec_id, db_conn)
+
+    set_clause = ", ".join([f"{k} = ?" for k in fields.keys()])
+    params = list(fields.values()) + [rec_id]
+    db_conn.execute(f"UPDATE recurrences SET {set_clause} WHERE id = ?", params)
+    db_conn.commit()
+
+    return await get_recurrence_row(request, rec_id, db_conn)
+
+
+@router.post("/recurrences/{rec_id}/delete-inline", response_class=HTMLResponse)
+async def delete_recurrence_inline(
+    request: Request,
+    rec_id: int,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+):
+    db_conn.execute("DELETE FROM recurrences WHERE id = ?", (rec_id,))
+    db_conn.commit()
+    # Return an empty row placeholder that HTMX will remove / leave blank
+    from starlette.responses import PlainTextResponse
+    return PlainTextResponse("", status_code=204)
+
+
+# -----------------------------
+# Finances: Statistics page
+# -----------------------------
+@router.get("/finances/statistics", response_class=HTMLResponse)
+async def finances_statistics(
+    request: Request,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> HTMLResponse:
+    month_totals = db_conn.execute(
         """
         SELECT 
             SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as total_expenses,
@@ -69,692 +702,176 @@ async def finances_dashboard(request: Request, db_conn: sqlite3.Connection = Dep
         FROM transactions 
         WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
         """
-    )
-    stats_row = cur.fetchone()
+    ).fetchone() or {"total_expenses": 0, "total_income": 0, "total_transactions": 0}
 
-    recent = db_conn.execute(
+    total_recurring_month = db_conn.execute(
         """
-        SELECT t.id, t.date, t.amount, c.name as category, u.name as user, a.name as account, t.notes
+        SELECT COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) as total
+        FROM transactions 
+        WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now') AND recurrence_id IS NOT NULL
+        """
+    ).fetchone()[0]
+
+    categories = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+
+    # Monthly totals (6 months) for the bar chart are fetched via /api/statistics/monthly
+    monthly_data = []
+
+    # Category by month data for donut (last 6 months window, excluding income categories)
+    category_data_rows = db_conn.execute(
+        """
+        SELECT strftime('%Y-%m', t.date) AS month,
+               c.name AS category,
+               SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS amount
+        FROM transactions t
+        JOIN categories c ON t.category_id = c.id
+        WHERE t.date >= date('now', '-6 months')
+          AND c.name NOT IN ('משכורת', 'קליניקה')
+        GROUP BY month, c.name
+        ORDER BY month ASC, amount DESC
+        """
+    ).fetchall()
+    category_data = [dict(row) for row in (category_data_rows or [])]
+
+    # Top 5 regular (non-recurring) expenses for the last 6 months (largest absolute amounts)
+    top_regular_expenses_rows = db_conn.execute(
+        """
+        SELECT t.id,
+               t.date,
+               ABS(t.amount) AS amount,
+               c.name AS category,
+               u.name AS user,
+               COALESCE(a.name, 'לא מוגדר') AS account,
+               t.notes
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
         LEFT JOIN users u ON t.user_id = u.id
         LEFT JOIN accounts a ON t.account_id = a.id
-        ORDER BY t.date DESC, t.id DESC
+        WHERE t.date >= date('now', '-6 months')
+          AND t.amount < 0
+          AND t.recurrence_id IS NULL
+          AND c.name NOT IN ('משכורת', 'קליניקה')
+        ORDER BY ABS(t.amount) DESC, t.date DESC
         LIMIT 5
         """
     ).fetchall()
+    top_regular_expenses = [dict(row) for row in (top_regular_expenses_rows or [])]
 
-    rec_count = db_conn.execute("SELECT COUNT(*) as cnt FROM recurrences WHERE active = 1").fetchone()
+    # Cash vs Credit per user for the last 6 months, plus total per user
+    cash_credit_rows = db_conn.execute(
+        """
+        SELECT u.name AS user_name,
+               COALESCE(a.name, 'לא מוגדר') AS account_name,
+               SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS total
+        FROM transactions t
+        LEFT JOIN accounts a ON t.account_id = a.id
+        LEFT JOIN users u ON t.user_id = u.id
+        LEFT JOIN categories c ON t.category_id = c.id
+        WHERE t.date >= date('now', '-6 months')
+          AND c.name NOT IN ('משכורת', 'קליניקה')
+        GROUP BY u.name, a.name
+        ORDER BY u.name ASC
+        """
+    ).fetchall()
 
-    return templates.TemplateResponse("finances/index.html", {
-        "request": request,
-        "show_sidebar": True,
-        "stats": {
-            "total_expenses": (stats_row["total_expenses"] or 0) if stats_row else 0,
-            "total_income": (stats_row["total_income"] or 0) if stats_row else 0,
-            "transactions_count": (stats_row["total_transactions"] or 0) if stats_row else 0,
-            "recurrences_count": (rec_count["cnt"] if rec_count else 0),
-        },
-        "recent_transactions": recent,
-    })
+    # Normalize cash/credit per user to a compact structure for the template table
+    cash_credit_user_totals: List[Dict[str, Any]] = []
+    user_map: Dict[str, Dict[str, float]] = {}
+    for row in cash_credit_rows or []:
+        user = row["user_name"]
+        account = (row["account_name"] or '').strip()
+        total = float(row["total"] or 0)
+        m = user_map.setdefault(user, {"cash": 0.0, "credit": 0.0, "other": 0.0})
 
-@router.get("/finances/transactions", response_class=HTMLResponse)
-async def finances_transactions_page(
-    request: Request, 
-    page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
-    category_id: Optional[str] = Query(None),
-    user_id: Optional[str] = Query(None),
-    account_id: Optional[str] = Query(None),
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    month: Optional[str] = Query(None),
-    amount_min: Optional[str] = Query(None),
-    amount_max: Optional[str] = Query(None),
-    transaction_type: Optional[str] = Query(None),
-    tags: Optional[str] = Query(None),
-    sort: Optional[str] = Query("date_desc"),
-    db_conn: sqlite3.Connection = Depends(get_db_conn)
-) -> HTMLResponse:
-    offset = (page - 1) * per_page
-    effective_date_from = None
-    effective_date_to = None
-    if not (date_from and date_from.strip()) and not (date_to and date_to.strip()):
-        try:
-            if month and len(month) == 7 and month[4] == '-':
-                y, m = month.split('-')
-                year, mon = int(y), int(m)
-                start_of_month = date(year, mon, 1)
-                next_month_first = date(year + (1 if mon == 12 else 0), 1 if mon == 12 else mon + 1, 1)
-            else:
-                today = date.today()
-                start_of_month = today.replace(day=1)
-                next_month_first = date(today.year + (1 if today.month == 12 else 0), 1 if today.month == 12 else today.month + 1, 1)
-            end_of_month = next_month_first - timedelta(days=1)
-            effective_date_from = start_of_month.isoformat()
-            effective_date_to = end_of_month.isoformat()
-        except Exception:
-            today = date.today()
-            start_of_month = today.replace(day=1)
-            next_month_first = date(today.year + (1 if today.month == 12 else 0), 1 if today.month == 12 else today.month + 1, 1)
-            end_of_month = next_month_first - timedelta(days=1)
-            effective_date_from = start_of_month.isoformat()
-            effective_date_to = end_of_month.isoformat()
-    else:
-        effective_date_from = date_from
-        effective_date_to = date_to
+        # Normalize account names (support Hebrew and English labels)
+        name_norm = account.lower()
+        is_cash = (account in ("מזומן",)) or ("cash" in name_norm)
+        is_credit = (account in ("כרטיס אשראי",)) or ("אשראי" in account) or ("credit" in name_norm)
 
-    where_clause = "WHERE t.recurrence_id IS NULL AND t.amount < 0"
-    params: list[Any] = []
+        if is_cash:
+            m["cash"] += total
+        elif is_credit:
+            m["credit"] += total
+        else:
+            m["other"] += total
+    for user, sums in user_map.items():
+        cash_credit_user_totals.append({
+            "user": user,
+            "cash": round(sums.get("cash", 0.0), 2),
+            "credit": round(sums.get("credit", 0.0), 2),
+            "other": round(sums.get("other", 0.0), 2),
+            "total": round(sums.get("cash", 0.0) + sums.get("credit", 0.0) + sums.get("other", 0.0), 2),
+        })
+    # Sort by total desc
+    cash_credit_user_totals.sort(key=lambda r: r["total"], reverse=True)
 
-    if transaction_type and transaction_type.strip():
-        if transaction_type == "income":
-            where_clause = "WHERE t.recurrence_id IS NULL AND t.amount > 0"
-        elif transaction_type == "expense":
-            where_clause = "WHERE t.recurrence_id IS NULL AND t.amount < 0"
+    # No longer using recurring_user_expenses chart in this page
+    recurring_user_expenses = []
 
-    if category_id and category_id.strip():
-        try:
-            category_id_int = int(category_id)
-            where_clause += " AND t.category_id = ?"
-            params.append(category_id_int)
-        except ValueError:
-            pass
-
-    if user_id and user_id.strip():
-        try:
-            user_id_int = int(user_id)
-            where_clause += " AND t.user_id = ?"
-            params.append(user_id_int)
-        except ValueError:
-            pass
-
-    if account_id and account_id.strip():
-        try:
-            account_id_int = int(account_id)
-            where_clause += " AND t.account_id = ?"
-            params.append(account_id_int)
-        except ValueError:
-            pass
-
-    if effective_date_from and effective_date_from.strip():
-        where_clause += " AND t.date >= ?"
-        params.append(effective_date_from)
-
-    if effective_date_to and effective_date_to.strip():
-        where_clause += " AND t.date <= ?"
-        params.append(effective_date_to)
-
-    if amount_min and amount_min.strip():
-        try:
-            amount_min_float = float(amount_min)
-            where_clause += " AND ABS(t.amount) >= ?"
-            params.append(abs(amount_min_float))
-        except ValueError:
-            pass
-
-    if amount_max and amount_max.strip():
-        try:
-            amount_max_float = float(amount_max)
-            where_clause += " AND ABS(t.amount) <= ?"
-            params.append(abs(amount_max_float))
-        except ValueError:
-            pass
-
-    if tags and tags.strip():
-        tag_list = [tag.strip() for tag in tags.split(',') if tag.strip()]
-        if tag_list:
-            where_clause += " AND (" + " OR ".join(["t.tags LIKE ?"] * len(tag_list)) + ")"
-            params.extend([f"%{tag}%" for tag in tag_list])
-
-    count_query = f"SELECT COUNT(*) FROM transactions t {where_clause}"
-    cur = db_conn.execute(count_query, params)
-    total = cur.fetchone()[0]
-
-    order_clause = "ORDER BY "
-    if sort == "date_asc":
-        order_clause += "t.date ASC, t.id ASC"
-    elif sort == "amount_desc":
-        order_clause += "ABS(t.amount) DESC, t.date DESC"
-    elif sort == "amount_asc":
-        order_clause += "ABS(t.amount) ASC, t.date DESC"
-    else:
-        order_clause += "t.date DESC, t.id DESC"
-
-    query = f"""
-        SELECT t.id, t.date, t.amount, c.name as category, u.name as user, 
-               a.name as account, t.notes, t.tags, t.recurrence_id
+    # Recurring expenses (instances) in the last 6 months (separate from regular)
+    recurring_expenses_rows = db_conn.execute(
+        """
+        SELECT t.id,
+               t.date,
+               ABS(t.amount) AS amount,
+               c.name AS category,
+               u.name AS user,
+               COALESCE(a.name, 'לא מוגדר') AS account,
+               t.notes,
+               r.name AS recurrence_name
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
         LEFT JOIN users u ON t.user_id = u.id
         LEFT JOIN accounts a ON t.account_id = a.id
-        {where_clause}
-        {order_clause}
-        LIMIT ? OFFSET ?
-    """
-    cur = db_conn.execute(query, params + [per_page, offset])
-    transactions = cur.fetchall()
-
-    cur = db_conn.execute("SELECT id, name FROM categories ORDER BY name")
-    categories = cur.fetchall()
-    cur = db_conn.execute("SELECT id, name FROM users ORDER BY name")
-    users = cur.fetchall()
-    cur = db_conn.execute("SELECT id, name FROM accounts ORDER BY name")
-    accounts = cur.fetchall()
-
-    sidebar = await get_finance_stats(db_conn)
-
-    return templates.TemplateResponse("finances/transactions.html", {
-        "request": request,
-        "show_sidebar": True,
-        "transactions": transactions,
-        "categories": categories,
-        "users": users,
-        "accounts": accounts,
-        "effective_date_from": effective_date_from,
-        "effective_date_to": effective_date_to,
-        "current_month": (month or date.today().strftime('%Y-%m')),
-        "pagination": {
-            "page": page,
-            "per_page": per_page,
-            "total": total,
-            "total_pages": (total + per_page - 1) // per_page,
-            "has_prev": page > 1,
-            "has_next": page < (total + per_page - 1) // per_page,
-            "prev_page": page - 1,
-            "next_page": page + 1
-        },
-        **sidebar
-    })
-
-@router.get("/finances/income", response_class=HTMLResponse)
-async def finances_income_page(
-    request: Request, 
-    db_conn: sqlite3.Connection = Depends(get_db_conn),
-    page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
-    category_id: Optional[str] = Query(None),
-    user_id: Optional[str] = Query(None),
-    account_id: Optional[str] = Query(None),
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    amount_min: Optional[str] = Query(None),
-    amount_max: Optional[str] = Query(None),
-    tags: Optional[str] = Query(None),
-    month: Optional[str] = Query(None),
-    sort: Optional[str] = Query("date_desc")
-) -> HTMLResponse:
-    offset = (page - 1) * per_page
-
-    effective_date_from = None
-    effective_date_to = None
-    if not (date_from and date_from.strip()) and not (date_to and date_to.strip()):
-        try:
-            if month and len(month) == 7 and month[4] == '-':
-                y, m = month.split('-')
-                year, mon = int(y), int(m)
-                start_of_month = date(year, mon, 1)
-                next_month_first = date(year + (1 if mon == 12 else 0), 1 if mon == 12 else mon + 1, 1)
-            else:
-                today = date.today()
-                start_of_month = today.replace(day=1)
-                next_month_first = date(today.year + (1 if today.month == 12 else 0), 1 if today.month == 12 else today.month + 1, 1)
-            end_of_month = next_month_first - timedelta(days=1)
-            effective_date_from = start_of_month.isoformat()
-            effective_date_to = end_of_month.isoformat()
-        except Exception:
-            today = date.today()
-            start_of_month = today.replace(day=1)
-            next_month_first = date(today.year + (1 if today.month == 12 else 0), 1 if today.month == 12 else today.month + 1, 1)
-            end_of_month = next_month_first - timedelta(days=1)
-            effective_date_from = start_of_month.isoformat()
-            effective_date_to = end_of_month.isoformat()
-    else:
-        effective_date_from = date_from
-        effective_date_to = date_to
-
-    where_clause = "WHERE t.recurrence_id IS NULL AND t.amount > 0"
-    params: list[Any] = []
-
-    if category_id and category_id.strip():
-        try:
-            cid = int(category_id)
-            where_clause += " AND t.category_id = ?"
-            params.append(cid)
-        except ValueError:
-            pass
-
-    if user_id and user_id.strip():
-        try:
-            uid = int(user_id)
-            where_clause += " AND t.user_id = ?"
-            params.append(uid)
-        except ValueError:
-            pass
-
-    if account_id and account_id.strip():
-        try:
-            aid = int(account_id)
-            where_clause += " AND t.account_id = ?"
-            params.append(aid)
-        except ValueError:
-            pass
-
-    if effective_date_from and effective_date_from.strip():
-        where_clause += " AND t.date >= ?"
-        params.append(effective_date_from)
-
-    if effective_date_to and effective_date_to.strip():
-        where_clause += " AND t.date <= ?"
-        params.append(effective_date_to)
-
-    if amount_min and amount_min.strip():
-        try:
-            amount_min_float = float(amount_min)
-            where_clause += " AND t.amount >= ?"
-            params.append(amount_min_float)
-        except ValueError:
-            pass
-
-    if amount_max and amount_max.strip():
-        try:
-            amount_max_float = float(amount_max)
-            where_clause += " AND t.amount <= ?"
-            params.append(amount_max_float)
-        except ValueError:
-            pass
-
-    if tags and tags.strip():
-        tag_list = [tg.strip() for tg in tags.split(',') if tg.strip()]
-        if tag_list:
-            where_clause += " AND (" + " OR ".join(["t.tags LIKE ?"] * len(tag_list)) + ")"
-            params.extend([f"%{tg}%" for tg in tag_list])
-
-    count_query = f"SELECT COUNT(*) as total FROM transactions t {where_clause}"
-    total_transactions = db_conn.execute(count_query, params).fetchone()[0]
-    total_pages = (total_transactions + per_page - 1) // per_page
-
-    order_clause = "ORDER BY "
-    if sort == "date_asc":
-        order_clause += "t.date ASC, t.id ASC"
-    elif sort == "amount_desc":
-        order_clause += "t.amount DESC"
-    elif sort == "amount_asc":
-        order_clause += "t.amount ASC"
-    else:
-        order_clause += "t.date DESC, t.id DESC"
-
-    query = f"""
-        SELECT t.id, t.date, t.amount, c.name AS category_name, u.name AS user_name, 
-               a.name AS account_name, t.notes, t.tags, t.category_id, t.user_id, t.account_id 
-        FROM transactions t 
-        JOIN categories c ON t.category_id = c.id 
-        JOIN users u ON t.user_id = u.id 
-        LEFT JOIN accounts a ON t.account_id = a.id 
-        {where_clause}
-        {order_clause}
-        LIMIT ? OFFSET ?
-    """
-    txs = db_conn.execute(query, params + [per_page, offset]).fetchall()
-
-    cats = db_conn.execute(
-        "SELECT id, name FROM categories WHERE name IN ('קליניקה', 'משכורת') ORDER BY name"
+        LEFT JOIN recurrences r ON t.recurrence_id = r.id
+        WHERE t.date >= date('now', '-6 months')
+          AND t.amount < 0
+          AND t.recurrence_id IS NOT NULL
+          AND c.name NOT IN ('משכורת', 'קליניקה')
+        ORDER BY ABS(t.amount) DESC, t.date DESC
+        LIMIT 10
+        """
     ).fetchall()
-    users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
-    accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
+    recurring_expenses = [dict(row) for row in (recurring_expenses_rows or [])]
 
-    sidebar = await get_finance_stats(db_conn)
-
-    # Choose template with fallback to legacy pages
-    income_tpl = "finances/income.html"
-    if not (TEMPLATES_DIR / "finances" / "income.html").exists() and (TEMPLATES_DIR / "pages" / "income.html").exists():
-        income_tpl = "pages/income.html"
-
-    return templates.TemplateResponse(
-        income_tpl,
-        {
-            "request": request,
-            "show_sidebar": True,
-            "transactions": txs, 
-            "categories": cats, 
-            "users": users,
-            "accounts": accounts,
-            "today": date.today().isoformat(),
-            "effective_date_from": effective_date_from,
-            "effective_date_to": effective_date_to,
-            "current_month": (month or date.today().strftime('%Y-%m')),
-            "pagination": {
-                "page": page,
-                "per_page": per_page,
-                "total": total_transactions,
-                "total_pages": total_pages,
-                "has_prev": page > 1,
-                "has_next": page < total_pages,
-                "prev_page": page - 1,
-                "next_page": page + 1
-            },
-            **sidebar
-        },
-    )
-
-@router.get("/finances/recurrences", response_class=HTMLResponse)
-async def finances_recurrences_page(
-    request: Request, 
-    page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
-    category_id: Optional[int] = Query(None),
-    user_id: Optional[int] = Query(None),
-    frequency: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    month: Optional[str] = Query(None),
-    sort: Optional[str] = Query("name_asc"),
-    db_conn: sqlite3.Connection = Depends(get_db_conn)
-) -> HTMLResponse:
-    offset = (page - 1) * per_page
-
-    where_clause = "WHERE 1=1"
-    params: list[Any] = []
-
-    if category_id:
-        where_clause += " AND r.category_id = ?"
-        params.append(category_id)
-    if user_id:
-        where_clause += " AND r.user_id = ?"
-        params.append(user_id)
-    if frequency:
-        where_clause += " AND r.frequency = ?"
-        params.append(frequency)
-    if status:
-        if status == "active":
-            where_clause += " AND r.active = 1"
-        elif status == "inactive":
-            where_clause += " AND r.active = 0"
-
-    try:
-        if month and len(month) == 7 and month[4] == '-':
-            y, m = month.split('-')
-            year, mon = int(y), int(m)
-            start_of_month = date(year, mon, 1)
-            next_month_first = date(year + (1 if mon == 12 else 0), 1 if mon == 12 else mon + 1, 1)
-        else:
-            today = date.today()
-            start_of_month = today.replace(day=1)
-            next_month_first = date(today.year + (1 if today.month == 12 else 0), 1 if today.month == 12 else today.month + 1, 1)
-        end_of_month = next_month_first - timedelta(days=1)
-        where_clause += " AND date(r.start_date) <= date(?) AND (r.end_date IS NULL OR date(r.end_date) >= date(?))"
-        params.extend([end_of_month.isoformat(), start_of_month.isoformat()])
-    except Exception:
-        pass
-
-    count_query = f"SELECT COUNT(*) FROM recurrences r {where_clause}"
-    total = db_conn.execute(count_query, params).fetchone()[0]
-
-    order_clause = "ORDER BY "
-    if sort == "name_asc":
-        order_clause += "r.name ASC"
-    elif sort == "name_desc":
-        order_clause += "r.name DESC"
-    elif sort == "amount_desc":
-        order_clause += "r.amount DESC"
-    elif sort == "amount_asc":
-        order_clause += "r.amount ASC"
-    elif sort == "start_date_desc":
-        order_clause += "r.start_date DESC"
-    elif sort == "start_date_asc":
-        order_clause += "r.start_date ASC"
-    else:
-        order_clause += "r.name ASC"
-
-    query = f"""
-        SELECT r.id, r.name, r.amount, c.name as category, u.name as user,
-               r.frequency, r.start_date, r.end_date, r.day_of_month, 
-               r.weekday, r.active
+    # Active recurring definitions with frequency
+    active_recurrences_rows = db_conn.execute(
+        """
+        SELECT r.id,
+               r.name,
+               ABS(r.amount) AS amount,
+               r.frequency,
+               r.next_charge_date,
+               r.day_of_month,
+               r.weekday,
+               r.active,
+               c.name AS category,
+               u.name AS user
         FROM recurrences r
         LEFT JOIN categories c ON r.category_id = c.id
         LEFT JOIN users u ON r.user_id = u.id
-        {where_clause}
-        {order_clause}
-        LIMIT ? OFFSET ?
-    """
-    recurrences_rows = db_conn.execute(query, params + [per_page, offset]).fetchall()
+        WHERE r.active = 1
+        ORDER BY r.name ASC
+        """
+    ).fetchall()
+    active_recurrences = [dict(row) for row in (active_recurrences_rows or [])]
 
-    # Compute charge date for display
-    try:
-        sel_year, sel_month = (start_of_month.year, start_of_month.month)
-    except Exception:
-        today_fallback = date.today()
-        sel_year, sel_month = (today_fallback.year, today_fallback.month)
-
-    def _first_weekday_in_month(year: int, month: int, weekday_py: int) -> date:
-        month_first = date(year, month, 1)
-        offset = (weekday_py - month_first.weekday()) % 7
-        return month_first + timedelta(days=offset)
-
-    computed_recurrences: List[Dict[str, Any]] = []
-    for row in recurrences_rows:
-        r = dict(row)
-        charge_date_str = ""
-        try:
-            if r.get("frequency") == "monthly":
-                day = int(r.get("day_of_month") or 1)
-                last_day = calendar.monthrange(sel_year, sel_month)[1]
-                if day > last_day:
-                    day = last_day
-                charge_date_str = date(sel_year, sel_month, day).isoformat()
-            elif r.get("frequency") == "weekly":
-                weekday_py = int(r.get("weekday") if r.get("weekday") is not None else 6)
-                if weekday_py < 0:
-                    weekday_py = 0
-                if weekday_py > 6:
-                    weekday_py = 6
-                charge_date_str = _first_weekday_in_month(sel_year, sel_month, weekday_py).isoformat()
-            elif r.get("frequency") == "yearly":
-                month_day = (8, 1)
-                try:
-                    if r.get("start_date"):
-                        parts = str(r["start_date"]).split("-")
-                        if len(parts) >= 3:
-                            mm = max(1, min(12, int(parts[1])))
-                            dd = int(parts[2])
-                            last_day = calendar.monthrange(sel_year, mm)[1]
-                            dd = max(1, min(last_day, dd))
-                            month_day = (mm, dd)
-                except Exception:
-                    pass
-                charge_date_str = date(sel_year, month_day[0], month_day[1]).isoformat()
-        except Exception:
-            charge_date_str = date(sel_year, sel_month, 1).isoformat()
-
-        r["charge_date"] = charge_date_str
-        computed_recurrences.append(r)
-
-    categories = db_conn.execute("SELECT id, name FROM categories WHERE name NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
-    users = db_conn.execute("SELECT id, name FROM users ORDER BY name").fetchall()
-
-    sidebar = await get_finance_stats(db_conn)
-
-    # Choose template with fallback to legacy pages
-    rec_tpl = "finances/recurrences.html"
-    if not (TEMPLATES_DIR / "finances" / "recurrences.html").exists() and (TEMPLATES_DIR / "pages" / "recurrences.html").exists():
-        rec_tpl = "pages/recurrences.html"
-
-    return templates.TemplateResponse(rec_tpl, {
-        "request": request,
-        "show_sidebar": True,
-        "recurrences": computed_recurrences,
-        "categories": categories,
-        "users": users,
-        "current_month": (month or date.today().strftime('%Y-%m')),
-        "pagination": {
-            "page": page,
-            "per_page": per_page,
-            "total": total,
-            "total_pages": (total + per_page - 1) // per_page,
-            "has_prev": page > 1,
-            "has_next": page < (total + per_page - 1) // per_page,
-            "prev_page": page - 1,
-            "next_page": page + 1
+    return templates.TemplateResponse(
+        "finances/statistics.html",
+        {
+            "request": request,
+            "total_expenses_month": float(month_totals["total_expenses"] or 0),
+            "total_income_month": float(month_totals["total_income"] or 0),
+            "total_transactions_month": int(month_totals["total_transactions"] or 0),
+            "total_recurring_month": float(total_recurring_month or 0),
+            "categories": categories,
+            "monthly_data": monthly_data,
+        "category_data": category_data,
+        "top_regular_expenses": top_regular_expenses,
+        "recurring_expenses": recurring_expenses,
+        "active_recurrences": active_recurrences,
+        "cash_credit_user_totals": cash_credit_user_totals,
+        "recurring_user_expenses": recurring_user_expenses,
+            "show_sidebar": True,
         },
-        **sidebar
-    })
-
-@router.get("/finances/statistics", response_class=HTMLResponse)
-async def finances_statistics_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
-    # Minimal but compatible data for the template's summary cards
-    try:
-        current_month_expenses = db_conn.execute(
-            """
-            SELECT COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) as total
-            FROM transactions t
-            JOIN categories c ON t.category_id = c.id
-            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
-            AND c.name NOT IN ('משכורת', 'קליניקה')
-            """
-        ).fetchone()
-    except Exception:
-        current_month_expenses = {"total": 0}
-
-    try:
-        previous_month_expenses = db_conn.execute(
-            """
-            SELECT COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) as total
-            FROM transactions t
-            JOIN categories c ON t.category_id = c.id
-            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now', '-1 month')
-            AND c.name NOT IN ('משכורת', 'קליניקה')
-            """
-        ).fetchone()
-    except Exception:
-        previous_month_expenses = {"total": 0}
-
-    try:
-        current_month_income = db_conn.execute(
-            """
-            SELECT COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) as total
-            FROM transactions t
-            JOIN categories c ON t.category_id = c.id
-            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
-            AND c.name IN ('משכורת', 'קליניקה')
-            """
-        ).fetchone()
-    except Exception:
-        current_month_income = {"total": 0}
-
-    try:
-        total_transactions_month = db_conn.execute(
-            """
-            SELECT COUNT(*) as total
-            FROM transactions
-            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
-            """
-        ).fetchone()
-    except Exception:
-        total_transactions_month = {"total": 0}
-
-    try:
-        total_recurring_month = db_conn.execute(
-            """
-            SELECT COUNT(*) as total
-            FROM transactions
-            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
-            AND recurrence_id IS NOT NULL
-            """
-        ).fetchone()
-    except Exception:
-        total_recurring_month = {"total": 0}
-
-    try:
-        total_regular_month = db_conn.execute(
-            """
-            SELECT COUNT(*) as total
-            FROM transactions
-            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
-            AND recurrence_id IS NULL
-            """
-        ).fetchone()
-    except Exception:
-        total_regular_month = {"total": 0}
-
-    try:
-        total_expenses_6months = db_conn.execute(
-            """
-            SELECT COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) as total
-            FROM transactions t
-            JOIN categories c ON t.category_id = c.id
-            WHERE t.date >= date('now', '-6 months')
-            AND c.name NOT IN ('משכורת', 'קליניקה')
-            """
-        ).fetchone()
-    except Exception:
-        total_expenses_6months = {"total": 0}
-
-    # Change percentages
-    try:
-        expenses_change = 0
-        if (previous_month_expenses["total"] or 0) > 0:
-            expenses_change = ((current_month_expenses["total"] - previous_month_expenses["total"]) / previous_month_expenses["total"]) * 100
-        income_change = 0
-        # Simplified: compare to previous month income too
-        previous_month_income = db_conn.execute(
-            """
-            SELECT COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) as total
-            FROM transactions t
-            JOIN categories c ON t.category_id = c.id
-            WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now', '-1 month')
-            AND c.name IN ('משכורת', 'קליניקה')
-            """
-        ).fetchone()
-        if (previous_month_income["total"] or 0) > 0:
-            income_change = ((current_month_income["total"] - previous_month_income["total"]) / previous_month_income["total"]) * 100
-        balance_month = (current_month_income["total"] or 0) - (current_month_expenses["total"] or 0)
-        balance_change = 0
-    except Exception:
-        expenses_change = 0
-        income_change = 0
-        balance_month = 0
-        balance_change = 0
-
-    # Minimal lists for charts (can be empty and charts will handle)
-    monthly_expenses: List[Dict[str, Any]] = []
-    category_expenses: List[Dict[str, Any]] = []
-    user_expenses: List[Dict[str, Any]] = []
-    recurring_monthly: List[Dict[str, Any]] = []
-    cash_vs_credit: List[Dict[str, Any]] = []
-    top_expenses: List[Dict[str, Any]] = []
-
-    sidebar = await get_finance_stats(db_conn)
-
-    template_data = {
-        "request": request,
-        "show_sidebar": True,
-        "monthly_expenses": monthly_expenses,
-        "user_expenses": user_expenses,
-        "recurring_user_expenses": recurring_monthly,
-        "category_expenses": category_expenses,
-        "category_totals": category_expenses,
-        "cash_vs_credit": cash_vs_credit,
-        "top_expenses": top_expenses,
-        "total_expenses_month": current_month_expenses["total"],
-        "total_income_month": current_month_income["total"],
-        "balance_month": balance_month,
-        "categories_count": 0,
-        "expenses_change": expenses_change,
-        "income_change": income_change,
-        "balance_change": balance_change,
-        "total_transactions_month": total_transactions_month["total"],
-        "total_recurring_month": total_recurring_month["total"],
-        "total_regular_month": total_regular_month["total"],
-        "total_expenses_6months": total_expenses_6months["total"],
-        **sidebar,
-    }
-
-    # Pick existing template file (finances or legacy pages directory)
-    target_tpl = "finances/statistics.html"
-    if not (TEMPLATES_DIR / "finances" / "statistics.html").exists() and (TEMPLATES_DIR / "pages" / "statistics.html").exists():
-        target_tpl = "pages/statistics.html"
-
-    return templates.TemplateResponse(target_tpl, template_data)
-
-@router.get("/finances/backup", response_class=HTMLResponse)
-async def finances_backup_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
-    return templates.TemplateResponse("finances/backup.html", {"request": request, "show_sidebar": True})
+    )

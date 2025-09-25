@@ -1,36 +1,31 @@
-<!-- פילטרים לגרף החודשי -->
+<!-- פילטר לגרף החודשי לפי קטגוריה -->
 <div class="flex flex-wrap gap-4 items-end mt-4">
   <div>
-    <label class="block text-sm font-medium">קטגוריה</label>
-    <select id="filterCategory" class="border rounded px-3 py-2 min-w-[200px]">
-      <option value="">כל הקטגוריות</option>
+    <label class="block text-sm font-medium">קטגוריה לגרף החודשי</label>
+    <select id="monthly-category" class="border rounded px-3 py-2 min-w-[220px]">
+      <option value="total">סך הכל</option>
       {% for c in categories %}
-        <option value="{{ c.id }}">{{ c.name }}</option>
+        <option value="{{ c.name }}">{{ c.name }}</option>
       {% endfor %}
     </select>
   </div>
   <div>
-    <label class="block text-sm font-medium">משתמש</label>
-    <select id="filterUser" class="border rounded px-3 py-2 min-w-[200px]">
-      <option value="">כל המשתמשים</option>
-      {% for u in users %}
-        <option value="{{ u.id }}">{{ u.name }}</option>
-      {% endfor %}
-    </select>
+    <label class="block text-sm font-medium">חודש לדונאט</label>
+    <input id="donut-month-single" type="month" class="border rounded px-3 py-2" />
   </div>
-  <button id="applyFilters" class="px-4 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700">
-    החל סינון
-  </button>
 </div>
 
 <!-- גרף חודשי -->
 <h2 class="text-lg font-semibold mt-6 mb-2">הוצאות חודשיות (6 חודשים אחרונים)</h2>
-<canvas id="monthlyChart" height="120"></canvas>
+<div class="bg-white p-4 rounded shadow" style="height: 320px;">
+  <canvas id="monthly-chart"></canvas>
+  <div class="text-sm text-gray-500 mt-1">ניתן לבחור קטגוריה לבחירה למעלה</div>
+  </div>
 
 <!-- דונאט קטגוריות -->
-<h2 class="text-lg font-semibold mt-8 mb-2">התפלגות הוצאות לפי קטגוריה (6 חודשים)</h2>
-<canvas id="categoryDonut" height="120"></canvas>
+<h2 class="text-lg font-semibold mt-8 mb-2">התפלגות הוצאות לפי קטגוריה (חודש נבחר)</h2>
+<div class="bg-white p-4 rounded shadow" style="height: 320px;">
+  <canvas id="donut-chart"></canvas>
+</div>
 
-<!-- עמודות לפי משתמש -->
-<h2 class="text-lg font-semibold mt-8 mb-2">לפי משתמש (6 חודשים)</h2>
-<canvas id="userBar" height="120"></canvas>
+<!-- הסרת גרף הוצאות קבועות לפי דרישה -->

@@ -29,9 +29,9 @@ EXPENSES_HEADERS = [
     "id", "date", "amount", "category", "user", "account", "notes", "tags", "recurrence_id"
 ]
 
-# Headers for recurrences table
+# Headers for recurrences table (updated to next_charge_date)
 RECURRENCES_HEADERS = [
-    "id", "name", "amount", "category", "user", "frequency", "start_date", "end_date", 
+    "id", "name", "amount", "category", "user", "frequency", "next_charge_date",
     "day_of_month", "weekday", "active"
 ]
 
@@ -161,7 +161,7 @@ def create_backup_file(db_conn: Optional[sqlite3.Connection] = None) -> Path:
             recurrences_cur = conn.execute(
                 """
                 SELECT r.id, r.name, r.amount, c.name as category, u.name as user,
-                       r.frequency, r.start_date, r.end_date, r.day_of_month, 
+                       r.frequency, r.next_charge_date, r.day_of_month, 
                        r.weekday, r.active
                 FROM recurrences r
                 LEFT JOIN categories c ON r.category_id = c.id
@@ -180,8 +180,7 @@ def create_backup_file(db_conn: Optional[sqlite3.Connection] = None) -> Path:
                     r["category"],
                     r["user"],
                     r["frequency"],
-                    r["start_date"],
-                    r["end_date"] or "",
+                    r["next_charge_date"],
                     r["day_of_month"] or "",
                     r["weekday"] or "",
                     "כן" if r["active"] else "לא",
@@ -280,7 +279,7 @@ def create_monthly_backup(year: int, month: int, db_conn: Optional[sqlite3.Conne
         recurrences_cur = conn.execute(
             """
             SELECT r.id, r.name, r.amount, c.name as category, u.name as user,
-                   r.frequency, r.start_date, r.end_date, r.day_of_month, 
+                   r.frequency, r.next_charge_date, r.day_of_month, 
                    r.weekday, r.active
             FROM recurrences r
             LEFT JOIN categories c ON r.category_id = c.id
@@ -299,8 +298,7 @@ def create_monthly_backup(year: int, month: int, db_conn: Optional[sqlite3.Conne
                 r["category"],
                 r["user"],
                 r["frequency"],
-                r["start_date"],
-                r["end_date"] or "",
+                r["next_charge_date"],
                 r["day_of_month"] or "",
                 r["weekday"] or "",
                 "כן" if r["active"] else "לא",

@@ -947,3 +947,17 @@ async def finances_statistics(
             "show_sidebar": True,
         },
     )
+
+
+# -----------------------------
+# Finances: Backup page
+# -----------------------------
+@router.get("/finances/backup", response_class=HTMLResponse)
+async def finances_backup(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "finances/backup.html",
+        {
+            "request": request,
+            "show_sidebar": True,
+        },
+    )

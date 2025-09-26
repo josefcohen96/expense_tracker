@@ -217,17 +217,18 @@
                         </td>
                         <td class="hidden lg:table-cell">
                             {% if transaction.notes %}
-                            <div class="max-w-xs truncate" title="{{ transaction.notes }}">
+                            <div id="notes-view-{{ transaction.id }}" class="max-w-xs truncate view-mode" title="{{ transaction.notes }}">
                                 <i class="fas fa-sticky-note text-gray-400 mr-1"></i>
                                 {{ transaction.notes }}
                             </div>
                             {% else %}
-                            <span class="text-gray-400">-</span>
+                            <span id="notes-view-{{ transaction.id }}" class="text-gray-400 view-mode">-</span>
                             {% endif %}
+                            <textarea class="form-input text-sm hidden edit-mode mt-2" id="notes-edit-{{ transaction.id }}" rows="2" placeholder="הוסף הערות...">{{ transaction.notes or '' }}</textarea>
                         </td>
                         <td class="hidden lg:table-cell">
                             {% if transaction.tags %}
-                            <div class="flex flex-wrap gap-1">
+                            <div id="tags-view-{{ transaction.id }}" class="flex flex-wrap gap-1 view-mode">
                                 {% for tag in transaction.tags.split(',') %}
                                 <span class="inline-flex items-center px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">
                                     <i class="fas fa-tag mr-1"></i>
@@ -236,8 +237,9 @@
                                 {% endfor %}
                             </div>
                             {% else %}
-                            <span class="text-gray-400">-</span>
+                            <span id="tags-view-{{ transaction.id }}" class="text-gray-400 view-mode">-</span>
                             {% endif %}
+                            <input type="text" class="form-input text-sm hidden edit-mode mt-2" id="tags-edit-{{ transaction.id }}" placeholder="תגיות מופרדות בפסיקים" value="{{ transaction.tags or '' }}" />
                         </td>
                         <td>
                             <div class="flex items-center gap-2">
@@ -437,8 +439,12 @@ window.saveTransactionInline = function(id) {
     const categoryId = document.getElementById(`category-edit-${id}`).value;
     const userId = document.getElementById(`user-edit-${id}`).value;
     const accountId = document.getElementById(`account-edit-${id}`).value || null;
+    const notesEl = document.getElementById(`notes-edit-${id}`);
+    const tagsEl = document.getElementById(`tags-edit-${id}`);
+    const notes = notesEl ? notesEl.value : null;
+    const tags = tagsEl ? tagsEl.value : null;
     
-    console.log('Edited values:', { date, amount, categoryId, userId, accountId });
+    console.log('Edited values:', { date, amount, categoryId, userId, accountId, notes, tags });
     
     // Determine if it's income or expense based on original amount
     const originalAmount = parseFloat(document.getElementById(`amount-view-${id}`).textContent.replace(/[₪+\s]/g, ''));
@@ -450,7 +456,9 @@ window.saveTransactionInline = function(id) {
         amount: finalAmount,
         category_id: parseInt(categoryId),
         user_id: parseInt(userId),
-        account_id: accountId ? parseInt(accountId) : null
+        account_id: accountId ? parseInt(accountId) : null,
+        notes: notes !== null ? (notes.trim() || null) : null,
+        tags: tags !== null ? (tags.trim() || null) : null
     };
     
     // Show loading state
@@ -500,6 +508,33 @@ window.saveTransactionInline = function(id) {
             document.getElementById(`account-view-${id}`).innerHTML = '<span class="text-gray-400">-</span>';
         }
         
+        // Update notes view
+        const updatedNotes = (data && typeof data.notes !== 'undefined') ? data.notes : notes;
+        const notesView = document.getElementById(`notes-view-${id}`);
+        if (notesView) {
+            if (updatedNotes && updatedNotes.trim()) {
+                notesView.className = 'max-w-xs truncate view-mode';
+                notesView.innerHTML = `<i class=\"fas fa-sticky-note text-gray-400 mr-1\"></i>${updatedNotes}`;
+            } else {
+                notesView.className = 'text-gray-400 view-mode';
+                notesView.textContent = '-';
+            }
+        }
+
+        // Update tags view
+        const updatedTags = (data && typeof data.tags !== 'undefined') ? data.tags : tags;
+        const tagsView = document.getElementById(`tags-view-${id}`);
+        if (tagsView) {
+            if (updatedTags && updatedTags.trim()) {
+                const tagHtml = updatedTags.split(',').map(t => t.trim()).filter(Boolean).map(t => `<span class=\"inline-flex items-center px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800\"><i class=\"fas fa-tag mr-1\"></i>${t}</span>`).join('');
+                tagsView.className = 'flex flex-wrap gap-1 view-mode';
+                tagsView.innerHTML = tagHtml;
+            } else {
+                tagsView.className = 'text-gray-400 view-mode';
+                tagsView.textContent = '-';
+            }
+        }
+
         // Exit edit mode
         cancelEditInline(id);
         showToast('העסקה עודכנה בהצלחה!', 'success');

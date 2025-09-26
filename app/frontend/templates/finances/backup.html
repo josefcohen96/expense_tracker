@@ -17,6 +17,15 @@
 </div>
 
 <script>
+function formatSize(bytes){
+  const b = Number(bytes || 0);
+  if (!isFinite(b) || b <= 0) return '0 B';
+  const units = ['B','KB','MB','GB','TB'];
+  const i = Math.min(units.length - 1, Math.floor(Math.log(b) / Math.log(1024)));
+  const val = b / Math.pow(1024, i);
+  return `${val.toFixed(val >= 10 ? 0 : 1)} ${units[i]}`;
+}
+
 async function refreshBackups() {
   try {
     const res = await fetch('/api/backup');
@@ -24,13 +33,18 @@ async function refreshBackups() {
     const data = await res.json();
     const list = document.getElementById('backupList');
     list.innerHTML = '';
-    (data.backups || []).forEach(f => {
+    (data.backups || []).forEach(item => {
+      const name = item && typeof item === 'object' ? (item.file || '') : String(item || '');
+      const sizeStr = item && typeof item === 'object' ? formatSize(item.size) : '';
+      const createdStr = item && typeof item === 'object' && item.created ? new Date(item.created).toLocaleString('he-IL') : '';
+      const canDownload = /\.(zip|xlsx|xlsm)$/i.test(name);
       const li = document.createElement('li');
       li.className = 'mb-2';
       li.innerHTML = `
-        <span class="mr-2">${f}</span>
-        <a class="text-blue-600 hover:underline mr-2" href="/api/backup/download/${f}">הורדה</a>
-        <button class="text-red-600 hover:underline" onclick="deleteBackup('${f}')">מחיקה</button>
+        <span class="mr-2 font-medium">${name}</span>
+        <span class="text-gray-500 mr-2">${sizeStr}${createdStr ? ' · ' + createdStr : ''}</span>
+        ${canDownload ? `<a class="text-blue-600 hover:underline mr-2" href="/api/backup/download/${name}">הורדה</a>` : ''}
+        <button class="text-red-600 hover:underline" onclick="deleteBackup('${name}')">מחיקה</button>
       `;
       list.appendChild(li);
     });

@@ -40,10 +40,52 @@ def get_db_path() -> str:
     """Get the database file path."""
     return str(DB_PATH)
 
+def _reset_database_if_requested() -> None:
+    """
+    אם FORCE_DB_RESET=1 – מוחק את קובץ ה-DB (אם קיים),
+    וכדי להיות עמיד גם במקרה של Volume נעשה גם ניסיון Drop לכל הטבלאות.
+    לקרוא לפונקציה הזו בתחילת initialise_database().
+    """
+    flag = os.environ.get("FORCE_DB_RESET", "").strip()
+    if flag != "1":
+        return
+
+    # 1) מחיקת הקובץ (הדרך הנקייה ביותר לאתחול מלא)
+    try:
+        if DB_PATH.exists():
+            DB_PATH.unlink()
+            return  # אין צורך ב-DROP כשמחקנו קובץ
+    except Exception:
+        # אם לא הצלחנו למחוק קובץ (למשל על Volume), נמשיך ל-DROP
+        pass
+
+    # 2) אתחול בקונקציה וקיפול יחסי זרים, ואז DROP לכל הטבלאות (סדר: ילדים -> הורים)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("PRAGMA foreign_keys = OFF;")
+        for tbl in [
+            "transactions",
+            "recurrence_skips",
+            "recurrences",
+            "accounts",
+            "users",
+            "categories",
+            "system_settings",
+        ]:
+            try:
+                cur.execute(f"DROP TABLE IF EXISTS {tbl}")
+            except sqlite3.Error:
+                pass
+        conn.commit()
+    finally:
+        conn.close()
 
 def initialise_database() -> None:
     """Create database tables if they don't exist."""
+    _reset_database_if_requested()
     conn = get_connection()
+    
     cur = conn.cursor()
 
     # Create tables
@@ -209,7 +251,7 @@ def initialise_database() -> None:
 
     # Insert default data if tables are empty
     if not cur.execute("SELECT COUNT(*) FROM categories").fetchone()[0]:
-        for _cat in ("משכורת", "קליניקה", "בריאות", "חסכונות", "בילויים", "קניות", "רכב", "שכד", "תחבורה", "הוצאות בית"):
+        for _cat in ("משכורת", "קליניקה", "בריאות", "חסכונות", "פנאי", "הוצאות בית", "רכב", "תחבורה"):
             cur.execute("INSERT INTO categories (name) VALUES (?)", (_cat,))
 
     if not cur.execute("SELECT COUNT(*) FROM users").fetchone()[0]:

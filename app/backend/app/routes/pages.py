@@ -298,7 +298,8 @@ async def finances_transactions(
         (per_page, offset),
     ).fetchall()
 
-    categories = db_conn.execute("SELECT id, name FROM categories WHERE name IN ('משכורת','קליניקה') ORDER BY name").fetchall()
+    # For expenses page: exclude income categories from the dropdown
+    categories = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת','קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users WHERE name IN ('יוסף','קארינה') ORDER BY id").fetchall()
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
 
@@ -363,7 +364,8 @@ async def finances_income(
         (per_page, offset),
     ).fetchall()
 
-    categories = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    # For income page: show only income categories
+    categories = db_conn.execute("SELECT id, name FROM categories WHERE name IN ('משכורת','קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users WHERE name IN ('יוסף','קארינה') ORDER BY id").fetchall()
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
 
@@ -446,7 +448,8 @@ async def finances_recurrences(
     user_filter_sql = " AND r.user_id IN (SELECT id FROM users WHERE name IN ('יוסף','קארינה'))"
     recs = db_conn.execute(base_sql + where_sql + user_filter_sql + " ORDER BY r.id DESC LIMIT ? OFFSET ?", (*params, per_page, offset)).fetchall()
 
-    categories = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    # Recurrences are expenses: exclude income categories
+    categories = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת','קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users WHERE name IN ('יוסף','קארינה') ORDER BY id").fetchall()
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
 
@@ -520,7 +523,8 @@ async def finances_recurrences_active(
     user_filter_sql = " AND r.user_id IN (SELECT id FROM users WHERE name IN ('יוסף','קארינה'))"
     recs = db_conn.execute(base_sql + where_sql + user_filter_sql + " ORDER BY r.id DESC LIMIT ? OFFSET ?", (*params, per_page, offset)).fetchall()
 
-    categories = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    # Active recurrences are expenses: exclude income categories
+    categories = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת','קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users WHERE name IN ('יוסף','קארינה') ORDER BY id").fetchall()
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
 
@@ -687,7 +691,8 @@ async def edit_recurrence_inline(
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ):
     row = db_conn.execute("SELECT * FROM recurrences WHERE id = ?", (rec_id,)).fetchone()
-    categories = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    # Edit recurrence: restrict to expense categories
+    categories = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת','קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users WHERE name IN ('יוסף','קארינה') ORDER BY id").fetchall()
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse(
@@ -774,7 +779,7 @@ async def finances_statistics(
         """
     ).fetchone()[0]
 
-    categories = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    categories = db_conn.execute("SELECT id, name FROM categories WHERE name NOT IN ('משכורת','קליניקה') ORDER BY name").fetchall()
 
     # Monthly totals (6 months) for the bar chart are fetched via /api/statistics/monthly
     monthly_data = []

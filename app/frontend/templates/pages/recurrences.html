@@ -19,7 +19,9 @@
       <label class="block text-sm font-medium mb-1">קטגוריה</label>
       <select name="category_id" class="w-full border border-gray-300 rounded px-3 py-2">
         {% for c in categories %}
+        {% if c.name not in ['משכורת','קליניקה'] %}
         <option value="{{ c.id }}">{{ c.name }}</option>
+        {% endif %}
         {% endfor %}
       </select>
     </div>
@@ -82,7 +84,9 @@
         <select name="category_id" class="border border-gray-300 rounded px-3 py-2 min-w-[200px]">
           <option value="">כל הקטגוריות</option>
           {% for c in categories %}
+            {% if c.name not in ['משכורת','קליניקה'] %}
             <option value="{{ c.id }}" {% if request.query_params.get('category_id')|int == c.id %}selected{% endif %}>{{ c.name }}</option>
+            {% endif %}
           {% endfor %}
         </select>
       </div>

@@ -21,11 +21,13 @@
                     <label for="category_id" class="form-label">קטגוריה</label>
                     <select name="category_id" id="category_id" class="form-select">
                         <option value="">כל הקטגוריות</option>
-                                                 {% for category in categories %}
-                         <option value="{{ category.id }}" {% if request.query_params.get('category_id') == category.id|string %}selected{% endif %}>
-                             {{ category.name }}
-                         </option>
-                         {% endfor %}
+                        {% for category in categories %}
+                        {% if category.name not in ['משכורת','קליניקה'] %}
+                        <option value="{{ category.id }}" {% if request.query_params.get('category_id') == category.id|string %}selected{% endif %}>
+                            {{ category.name }}
+                        </option>
+                        {% endif %}
+                        {% endfor %}
                     </select>
                 </div>
                 
@@ -184,7 +186,9 @@
                             </span>
                             <select class="form-select text-sm edit-mode hidden" id="category-edit-{{ transaction.id }}">
                                 {% for category in categories %}
+                                {% if category.name not in ['משכורת','קליניקה'] %}
                                 <option value="{{ category.id }}" {% if category.name == transaction.category %}selected{% endif %}>{{ category.name }}</option>
+                                {% endif %}
                                 {% endfor %}
                             </select>
                         </td>
@@ -343,7 +347,9 @@
                         <select name="category_id" id="modal_category_id" required class="form-select">
                             <option value="">בחר קטגוריה</option>
                             {% for category in categories %}
+                            {% if category.name not in ['משכורת','קליניקה'] %}
                             <option value="{{ category.id }}">{{ category.name }}</option>
+                            {% endif %}
                             {% endfor %}
                         </select>
                     </div>
@@ -368,13 +374,7 @@
                         </select>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="transaction_type" class="form-label">סוג עסקה</label>
-                        <select name="transaction_type" id="modal_transaction_type" class="form-select" onchange="updateAmountPlaceholder()">
-                            <option value="expense">הוצאה</option>
-                            <option value="income">הכנסה</option>
-                        </select>
-                    </div>
+                    
                     
                     <div class="form-group md:col-span-2">
                         <label for="notes" class="form-label">הערות</label>
@@ -557,16 +557,6 @@ window.closeAddModal = function() {
     hideModal('addModal');
     document.getElementById('addTransactionForm').reset();
     document.getElementById('tagsPreview').innerHTML = '';
-}
-
-window.updateAmountPlaceholder = function() {
-    const type = document.getElementById('modal_transaction_type').value;
-    const amountInput = document.getElementById('modal_amount');
-    if (type === 'income') {
-        amountInput.placeholder = 'הכנס סכום חיובי';
-    } else {
-        amountInput.placeholder = 'הכנס סכום שלילי';
-    }
 }
 
 // Tags preview functionality

@@ -39,7 +39,7 @@ async def get_transaction_row(
 ) -> HTMLResponse:
     tx = _fetch_tx_row(db_conn, tx_id)
     # Get only expense categories (excluding income categories)
-    cats = db_conn.execute("SELECT id, name FROM categories WHERE name NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
+    cats = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/transactions/row.html", {
@@ -54,7 +54,7 @@ async def edit_transaction_row(
 ) -> HTMLResponse:
     tx = _fetch_tx_row(db_conn, tx_id)
     # Get only expense categories (excluding income categories)
-    cats = db_conn.execute("SELECT id, name FROM categories WHERE name NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
+    cats = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/transactions/row.html", {
@@ -97,7 +97,7 @@ async def update_transaction_row(
 
     tx = _fetch_tx_row(db_conn, tx_id)
     # Get only expense categories (excluding income categories)
-    cats = db_conn.execute("SELECT id, name FROM categories WHERE name NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
+    cats = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/transactions/row.html", {
@@ -269,7 +269,8 @@ async def edit_recurrence_row(
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> HTMLResponse:
     r = _fetch_recurrence_row(db_conn, rec_id)
-    categories = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    # Recurrences are expenses: exclude income categories from the dropdown
+    categories = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת','קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse(

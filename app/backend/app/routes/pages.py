@@ -285,7 +285,8 @@ async def finances_transactions(
                c.name as category,
                u.name as user,
                a.name as account,
-               t.notes
+               t.notes,
+               t.tags
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
         LEFT JOIN users u ON t.user_id = u.id

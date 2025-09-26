@@ -159,13 +159,10 @@
                         </td>
                         <td>
                             <div class="flex items-center">
-                                <div class="w-8 h-8 {% if transaction.amount > 0 %}bg-green-100{% else %}bg-red-100{% endif %} rounded-full flex items-center justify-center mr-3">
-                                    <i class="fas {% if transaction.amount > 0 %}fa-arrow-up text-green-600{% else %}fa-arrow-down text-red-600{% endif %} text-sm"></i>
-                                </div>
                                 <span class="font-bold text-lg {% if transaction.amount > 0 %}text-green-600{% else %}text-red-600{% endif %} view-mode" id="amount-view-{{ transaction.id }}">
                                     {% if transaction.amount > 0 %}+{% endif %}₪{{ transaction.amount | round(2) }}
                                 </span>
-                                <div class="relative edit-mode hidden">
+                                <div class="relative edit-mode hidden ml-0">
                                     <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₪</span>
                                     <input type="number" step="0.01" class="form-input text-sm pl-8" id="amount-edit-{{ transaction.id }}" value="{{ transaction.amount | abs }}">
                                 </div>

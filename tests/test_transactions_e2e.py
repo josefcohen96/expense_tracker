@@ -48,7 +48,6 @@ def test_filter_by_category_and_date(app_client, db_conn):
             "user_id": usr_id,
             "date_from": payload["date"],
             "date_to": payload["date"],
-            "transaction_type": "expense",
         },
     )
     assert page.status_code == 200

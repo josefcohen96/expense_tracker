@@ -83,7 +83,6 @@ def _reset_database_if_requested() -> None:
 
 def initialise_database() -> None:
     """Create database tables if they don't exist."""
-    _reset_database_if_requested()
     conn = get_connection()
     
     cur = conn.cursor()

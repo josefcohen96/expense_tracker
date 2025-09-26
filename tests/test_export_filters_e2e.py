@@ -27,21 +27,21 @@ def test_export_filters_and_sorts(app_client, db_conn):
     # Filter by tagA should include only first
     r1 = app_client.get(
         "/api/transactions/export",
-        params={"tags": "tagA", "transaction_type": "expense"},
+        params={"tags": "tagA"},
     )
     assert r1.status_code == 200
 
     # Filter by amount_min should include only tx2
     r2 = app_client.get(
         "/api/transactions/export",
-        params={"amount_min": 30, "transaction_type": "expense"},
+        params={"amount_min": 30},
     )
     assert r2.status_code == 200
 
     # Sort by amount_desc should be valid
     r3 = app_client.get(
         "/api/transactions/export",
-        params={"sort": "amount_desc", "transaction_type": "expense"},
+        params={"sort": "amount_desc"},
     )
     assert r3.status_code == 200
 

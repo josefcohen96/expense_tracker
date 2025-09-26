@@ -189,7 +189,6 @@ async def api_export_transactions(
     account_id: Optional[int] = None,
     amount_min: Optional[float] = None,
     amount_max: Optional[float] = None,
-    transaction_type: Optional[str] = None,  # 'income' or 'expense'
     tags: Optional[str] = None,
     sort: Optional[str] = "date_desc",
     db_conn: sqlite3.Connection = Depends(get_db_conn),
@@ -198,10 +197,7 @@ async def api_export_transactions(
     where_clause = "WHERE t.recurrence_id IS NULL"
     params: List[Any] = []
 
-    if transaction_type == "income":
-        where_clause += " AND t.amount > 0"
-    elif transaction_type == "expense":
-        where_clause += " AND t.amount < 0"
+    # Removed transaction_type filter: export now includes all transactions unless filtered by other params
 
     if category_id:
         where_clause += " AND t.category_id = ?"

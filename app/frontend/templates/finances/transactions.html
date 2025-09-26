@@ -162,7 +162,7 @@
                                 <span class="font-bold text-lg {% if transaction.amount > 0 %}text-green-600{% else %}text-red-600{% endif %} view-mode" id="amount-view-{{ transaction.id }}">
                                     {% if transaction.amount > 0 %}+{% endif %}₪{{ transaction.amount | round(2) }}
                                 </span>
-                                <div class="relative edit-mode hidden ml-0">
+                                <div id="amount-wrap-edit-{{ transaction.id }}" class="relative edit-mode hidden ml-0">
                                     <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₪</span>
                                     <input type="number" step="0.01" class="form-input text-sm pl-8" id="amount-edit-{{ transaction.id }}" value="{{ transaction.amount | abs }}">
                                 </div>

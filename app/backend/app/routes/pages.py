@@ -34,8 +34,8 @@ async def login_page(request: Request) -> HTMLResponse:
     )
 
 
-@router.post("/login", response_class=HTMLResponse)
-async def login_post(request: Request) -> RedirectResponse | HTMLResponse:
+@router.post("/login", response_class=HTMLResponse, response_model=None)
+async def login_post(request: Request):
     form = await request.form()
     username = (form.get("username") or "").strip()
     password = (form.get("password") or "").strip()

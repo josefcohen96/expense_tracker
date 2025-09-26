@@ -25,6 +25,7 @@ def temp_db_path(tmp_path_factory) -> Path:
 @pytest.fixture(scope="session")
 def app_client(temp_db_path):
     os.environ["BUDGET_DB_PATH"] = str(temp_db_path)
+    os.environ["AUTH_ENABLED"] = "0"
     # Ensure modules read the env var at import time and initialize schema/data
     import app.backend.app.db as db_module
     importlib.reload(db_module)

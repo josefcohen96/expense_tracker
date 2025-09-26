@@ -251,7 +251,7 @@ def initialise_database() -> None:
 
     # Insert default data if tables are empty
     if not cur.execute("SELECT COUNT(*) FROM categories").fetchone()[0]:
-        for _cat in ("משכורת", "קליניקה", "בריאות", "חסכונות", "פנאי", "הוצאות בית", "רכב", "תחבורה"):
+        for _cat in ("משכורת", "קליניקה", "בריאות", "חסכונות", "פנאי", "הוצאות בית", "רכב", "תחבורה","אוכל בחוץ"):
             cur.execute("INSERT INTO categories (name) VALUES (?)", (_cat,))
 
     if not cur.execute("SELECT COUNT(*) FROM users").fetchone()[0]:

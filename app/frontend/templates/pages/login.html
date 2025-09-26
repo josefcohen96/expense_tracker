@@ -23,6 +23,9 @@
           <label for="password" class="form-label">סיסמה</label>
           <input type="password" id="password" name="password" required class="form-input" autocomplete="current-password">
         </div>
+        {% if request.query_params.get('next') %}
+          <input type="hidden" name="next" value="{{ request.query_params.get('next') }}">
+        {% endif %}
       </div>
       <div class="card-footer flex justify-end">
         <button type="submit" class="btn btn-primary">

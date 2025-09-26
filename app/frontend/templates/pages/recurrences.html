@@ -95,7 +95,7 @@
         החל סינון
       </button>
       {% if request.query_params.get('category_id') or request.query_params.get('only_active') %}
-        <a href="/recurrences" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+        <a href="/finances/recurrences" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
           נקה סינון
         </a>
       {% endif %}
@@ -146,7 +146,7 @@
     
     <div class="flex items-center space-x-2">
       {% if pagination.has_prev %}
-        <a href="/recurrences?page={{ pagination.prev_page }}&per_page={{ pagination.per_page }}{% if request.query_params.get('category_id') %}&category_id={{ request.query_params.get('category_id') }}{% endif %}{% if request.query_params.get('only_active') %}&only_active={{ request.query_params.get('only_active') }}{% endif %}" 
+        <a href="/finances/recurrences?page={{ pagination.prev_page }}&per_page={{ pagination.per_page }}{% if request.query_params.get('category_id') %}&category_id={{ request.query_params.get('category_id') }}{% endif %}{% if request.query_params.get('only_active') %}&only_active={{ request.query_params.get('only_active') }}{% endif %}" 
            class="btn btn-outline btn-sm">הקודם</a>
       {% endif %}
       
@@ -155,7 +155,7 @@
       </span>
       
       {% if pagination.has_next %}
-        <a href="/recurrences?page={{ pagination.next_page }}&per_page={{ pagination.per_page }}{% if request.query_params.get('category_id') %}&category_id={{ request.query_params.get('category_id') }}{% endif %}{% if request.query_params.get('only_active') %}&only_active={{ request.query_params.get('only_active') }}{% endif %}" 
+        <a href="/finances/recurrences?page={{ pagination.next_page }}&per_page={{ pagination.per_page }}{% if request.query_params.get('category_id') %}&category_id={{ request.query_params.get('category_id') }}{% endif %}{% if request.query_params.get('only_active') %}&only_active={{ request.query_params.get('only_active') }}{% endif %}" 
            class="btn btn-outline btn-sm">הבא</a>
       {% endif %}
     </div>

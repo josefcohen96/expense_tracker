@@ -21,6 +21,59 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 router = APIRouter(tags=["pages"])
 
 
+@router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request) -> HTMLResponse:
+    error = request.query_params.get("error")
+    return templates.TemplateResponse(
+        "pages/login.html",
+        {
+            "request": request,
+            "error": error,
+            "show_sidebar": False,
+        },
+    )
+
+
+@router.post("/login", response_class=HTMLResponse)
+async def login_post(request: Request) -> RedirectResponse | HTMLResponse:
+    form = await request.form()
+    username = (form.get("username") or "").strip()
+    password = (form.get("password") or "").strip()
+
+    # Static users per request: KARINA/KA1234, YOSEF/YO1234
+    valid_users = {
+        "KARINA": "KA1234",
+        "YOSEF": "YO1234",
+    }
+
+    # case-insensitive username match
+    user_key = username.upper()
+    if user_key in valid_users and password == valid_users[user_key]:
+        request.session["user"] = {"username": user_key}
+        nxt = request.query_params.get("next") or form.get("next") or "/finances"
+        # Basic safety: only allow internal paths
+        if not isinstance(nxt, str) or not nxt.startswith("/"):
+            nxt = "/finances"
+        return RedirectResponse(url=nxt, status_code=status.HTTP_302_FOUND)
+
+    # invalid credentials
+    return templates.TemplateResponse(
+        "pages/login.html",
+        {
+            "request": request,
+            "error": "שם משתמש או סיסמה שגויים",
+            "show_sidebar": False,
+        },
+        status_code=status.HTTP_401_UNAUTHORIZED,
+    )
+
+
+@router.get("/logout")
+async def logout(request: Request) -> RedirectResponse:
+    request.session.clear()
+    return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+
 @router.get("/", response_class=HTMLResponse)
 async def index(_: Request) -> RedirectResponse:
     return RedirectResponse(url="/finances", status_code=status.HTTP_302_FOUND)
@@ -239,7 +292,7 @@ async def finances_transactions(
         (per_page, offset),
     ).fetchall()
 
-    categories = db_conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    categories = db_conn.execute("SELECT id, name FROM categories WHERE name IN ('משכורת','קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
 

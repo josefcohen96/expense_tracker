@@ -1,5 +1,6 @@
 # --- imports ---
 from fastapi import FastAPI
+from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path as FSPath
@@ -9,6 +10,7 @@ import importlib
 from datetime import datetime, date
 from typing import Optional
 import sqlite3
+from urllib.parse import quote_plus
 
 # --- create app ---
 app = FastAPI(title="Expense Tracker", version="0.1.0")
@@ -21,6 +23,15 @@ STATIC_DIR = FRONTEND_DIR / "static"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+# --- sessions ---
+SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", "please_change_session_secret")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET_KEY,
+    same_site="lax",
+    https_only=False,
+)
 
 # --- logging (writes tracebacks to logs/server.log) ---
 LOG_DIR = ROOT_DIR / "logs"
@@ -112,3 +123,38 @@ async def _on_shutdown() -> None:
             cron.stop()
         except Exception:
             logger.exception("CronService shutdown error")
+
+
+# --- simple auth gate (redirect to /login if not authenticated) ---
+@app.middleware("http")
+async def _require_login(request, call_next):
+    try:
+        # allow disabling auth via env for tests/dev
+        if os.environ.get("AUTH_ENABLED", "1") != "1":
+            return await call_next(request)
+        path = request.url.path
+        # Allow unauthenticated access to static, health, service worker and login
+        if (
+            path.startswith("/static/")
+            or path == "/sw.js"
+            or path.startswith("/login")
+            or path == "/health"
+        ):
+            return await call_next(request)
+
+        # Require session user for everything else
+        if request.session.get("user"):
+            return await call_next(request)
+
+        # Preserve next only for GET requests
+        if request.method == "GET":
+            query = ("?" + str(request.url.query)) if request.url.query else ""
+            nxt = quote_plus(path + query)
+            from fastapi.responses import RedirectResponse as _RR
+
+            return _RR(url=f"/login?next={nxt}", status_code=302)
+
+        from fastapi.responses import RedirectResponse as _RR
+        return _RR(url="/login", status_code=302)
+    except Exception:  # fail open to avoid blocking due to auth errors
+        return await call_next(request)

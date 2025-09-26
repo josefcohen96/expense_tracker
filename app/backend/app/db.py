@@ -116,61 +116,7 @@ def initialise_database() -> None:
         )
     """)
 
-    # Challenges tables
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS challenges (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            description TEXT NOT NULL,
-            category TEXT NOT NULL,
-            target_value REAL NOT NULL,
-            target_period TEXT NOT NULL, -- 'week', 'month', 'year'
-            points INTEGER NOT NULL DEFAULT 10,
-            difficulty TEXT NOT NULL DEFAULT 'bronze', -- 'bronze', 'silver', 'gold', 'platinum', 'master'
-            is_active BOOLEAN DEFAULT 1,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS user_challenges (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            challenge_id INTEGER NOT NULL,
-            current_progress REAL DEFAULT 0,
-            target_value REAL NOT NULL,
-            start_date TEXT NOT NULL,
-            end_date TEXT NOT NULL,
-            status TEXT DEFAULT 'active', -- 'active', 'completed', 'failed'
-            completed_at TEXT,
-            points_earned INTEGER DEFAULT 0,
-            FOREIGN KEY (user_id) REFERENCES users (id),
-            FOREIGN KEY (challenge_id) REFERENCES challenges (id)
-        )
-    """)
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS challenge_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_challenge_id INTEGER NOT NULL,
-            progress_date TEXT NOT NULL,
-            progress_value REAL NOT NULL,
-            notes TEXT,
-            FOREIGN KEY (user_challenge_id) REFERENCES user_challenges (id)
-        )
-    """)
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS user_points (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            total_points INTEGER DEFAULT 0,
-            current_level TEXT DEFAULT 'bronze',
-            level_progress INTEGER DEFAULT 0,
-            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        )
-    """)
+    # (removed) challenges-related tables
 
     # System settings table for tracking CRON jobs
     cur.execute("""
@@ -253,6 +199,10 @@ def initialise_database() -> None:
                     "UPDATE recurrences SET next_charge_date = ? WHERE id = ?",
                     (next_date, r[0]),
                 )
+        # 2) Ensure recurrences has account_id column (nullable FK)
+        cols = [r[1] for r in cur.execute("PRAGMA table_info('recurrences')").fetchall()]
+        if "account_id" not in cols:
+            cur.execute("ALTER TABLE recurrences ADD COLUMN account_id INTEGER")
     except Exception:
         # Migration best-effort; do not fail app startup
         pass
@@ -270,28 +220,17 @@ def initialise_database() -> None:
         cur.execute("INSERT INTO users (name) VALUES ('משתמש 2')")
 
     if not cur.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]:
-        cur.execute("INSERT INTO accounts (name) VALUES ('חשבון עו\"ש')")
+        cur.execute("INSERT INTO accounts (name) VALUES ('מזומן')")
         cur.execute("INSERT INTO accounts (name) VALUES ('כרטיס אשראי')")
 
-    # Insert default challenges
-    if not cur.execute("SELECT COUNT(*) FROM challenges").fetchone()[0]:
-        # שבוע בלי להזמין אוכל מבחוץ
-        cur.execute("""
-            INSERT INTO challenges (name, description, category, target_value, target_period, points, difficulty)
-            VALUES ('שבוע נקי', 'שבוע שלם בלי להזמין אוכל מבחוץ', 'expertise', 0, 'week', 25, 'bronze')
-        """)
-        
-        # חודש בלי להזמין אוכל מבחוץ
-        cur.execute("""
-            INSERT INTO challenges (name, description, category, target_value, target_period, points, difficulty)
-            VALUES ('חודש נקי', 'חודש שלם בלי להזמין אוכל מבחוץ', 'veterancy', 0, 'month', 50, 'silver')
-        """)
-        
-        # חודש עם הוצאות קטנות מ-7000
-        cur.execute("""
-            INSERT INTO challenges (name, description, category, target_value, target_period, points, difficulty)
-            VALUES ('חוסך מתחיל', 'הוצאות חודשיות מתחת ל-7000 ₪', 'expertise', 7000, 'month', 35, 'bronze')
-        """)
+    # Ensure required categories and users exist (idempotent upserts)
+    for _cat in ("בריאות", "שכד", "רכב", "חסכונות", "משכורת", "קליניקה"):
+        cur.execute("INSERT OR IGNORE INTO categories (name) VALUES (?)", (_cat,))
+
+    for _user in ("יוסף", "קארינה"):
+        cur.execute("INSERT OR IGNORE INTO users (name) VALUES (?)", (_user,))
+
+    # (removed) default challenges seed
 
     conn.commit()
     conn.close()

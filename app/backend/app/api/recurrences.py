@@ -70,10 +70,10 @@ async def api_create_recurrence(
         else:
             next_charge_date = (today + timedelta(days=1)).isoformat()
 
-    # Insert according to new schema
+    # Insert according to schema (including optional account_id)
     cur = db_conn.execute(
-        "INSERT INTO recurrences (name, amount, category_id, user_id, frequency, day_of_month, weekday, next_charge_date, active) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO recurrences (name, amount, category_id, user_id, frequency, day_of_month, weekday, next_charge_date, active, account_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             rec.name,
             rec.amount,
@@ -84,6 +84,7 @@ async def api_create_recurrence(
             weekday,
             next_charge_date,
             1 if rec.active else 0,
+            rec.account_id,
         ),
     )
     db_conn.commit()

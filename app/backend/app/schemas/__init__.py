@@ -18,14 +18,3 @@ from .backup import (
     BackupList,
 )
 
-# Challenge schemas
-from .challenges import (
-    Challenge,
-    ChallengeCreate,
-    UserChallenge,
-    UserChallengeCreate,
-    ChallengeProgress,
-    ChallengeProgressCreate,
-    UserPoints,
-    ChallengeStatus,
-)

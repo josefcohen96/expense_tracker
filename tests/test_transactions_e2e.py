@@ -5,10 +5,11 @@ def _count_transactions(client, params=None):
     params = params or {}
     # Use API listing as a reliable count source
     resp = client.get("/api/transactions", params={
-        "from_date": params.get("from_date"),
-        "to_date": params.get("to_date"),
-        "category_id": params.get("category_id"),
-        "user_id": params.get("user_id"),
+        # Only include provided params to avoid FastAPI 422 on empty strings
+        **({"from_date": params["from_date"]} if params.get("from_date") else {}),
+        **({"to_date": params["to_date"]} if params.get("to_date") else {}),
+        **({"category_id": params["category_id"]} if params.get("category_id") is not None else {}),
+        **({"user_id": params["user_id"]} if params.get("user_id") is not None else {}),
     })
     assert resp.status_code == 200
     return len(resp.json())
@@ -106,5 +107,56 @@ def test_create_update_delete_transaction(app_client, db_conn):
 
     final_count = _count_transactions(app_client, base_params)
     assert final_count == before_count
+
+
+def test_transactions_inline_row_partial_routes(app_client, db_conn):
+    # Create a transaction to operate on
+    cat_id = db_conn.execute("SELECT id FROM categories WHERE name NOT IN ('משכורת','קליניקה') ORDER BY id LIMIT 1").fetchone()[0]
+    usr_id = db_conn.execute("SELECT id FROM users ORDER BY id LIMIT 1").fetchone()[0]
+
+    payload = {
+        "date": date.today().isoformat(),
+        "amount": 33.33,
+        "category_id": cat_id,
+        "user_id": usr_id,
+        "account_id": None,
+        "notes": "pytest-inline",
+        "tags": "e2e,inline",
+    }
+    resp = app_client.post("/api/transactions", json=payload)
+    assert resp.status_code == 200, resp.text
+    tx_id = resp.json()["id"]
+
+    # Fetch row partial (read)
+    row_read = app_client.get(f"/transactions/{tx_id}/row")
+    assert row_read.status_code == 200
+    assert "pytest-inline" in row_read.text
+
+    # Fetch edit partial
+    row_edit = app_client.get(f"/transactions/{tx_id}/edit-inline")
+    assert row_edit.status_code == 200
+    assert f"form=\"edit-{tx_id}\"" in row_edit.text
+
+    # Save edit via partial POST (change amount and notes)
+    form_data = {
+        "date": payload["date"],
+        "amount": "44.44",
+        "category_id": str(cat_id),
+        "user_id": str(usr_id),
+        "account_id": "",
+        "notes": "pytest-inline-upd",
+        "tags": "e2e,inline",
+    }
+    row_saved = app_client.post(
+        f"/transactions/{tx_id}/edit-inline",
+        data=form_data,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert row_saved.status_code == 200
+    assert "pytest-inline-upd" in row_saved.text
+
+    # Delete via partial
+    row_del = app_client.post(f"/transactions/{tx_id}/delete-inline")
+    assert row_del.status_code == 200
 
 

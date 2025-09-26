@@ -180,7 +180,6 @@
             border-radius: 8px;
             margin: 16px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            overflow: hidden;
             margin-right: 272px;
             margin-left: 16px;
             margin-top: calc(80px + env(safe-area-inset-top)); /* Space for fixed navbar + notch */
@@ -230,7 +229,7 @@
             }
         }
         
-        @media (max-width: 1024px) {
+        @media (min-width: 769px) and (max-width: 1024px) {
             /* Tablet: Adjust sidebar width */
             #sidebar {
                 width: 200px !important;

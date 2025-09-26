@@ -207,7 +207,7 @@ async def api_apply_recurrence_once(
             payload.notes,
             None,
             rec_id,
-            f"adhoc-{due_date}",
+            due_date,
         ),
     )
     db_conn.commit()

@@ -58,8 +58,12 @@ def restore_from_backup(path: Path):
 async def list_backups() -> schemas.BackupList:
     """List all available backup files."""
     try:
-        backup_files = list_backup_files()
-        return schemas.BackupList(backups=backup_files)
+        raw = list_backup_files()
+        items = [
+            schemas.BackupItem(file=e.get("file_name"), size=int(e.get("size", 0)), created=e.get("created_at"))
+            for e in raw
+        ]
+        return schemas.BackupList(backups=items)
     except Exception as exc:
         logger.exception("Exception listing backups")
         raise HTTPException(status_code=500, detail=str(exc))
@@ -101,8 +105,12 @@ async def delete_backup(filename: str) -> JSONResponse:
         backup_path = BACKUP_DIR / filename
         if not backup_path.exists():
             raise HTTPException(status_code=404, detail="Backup file not found")
-        
-        backup_path.unlink()
+        # Support both files and directories
+        if backup_path.is_dir():
+            import shutil
+            shutil.rmtree(backup_path)
+        else:
+            backup_path.unlink()
         return JSONResponse({"message": "Backup deleted successfully"})
     except HTTPException:
         raise

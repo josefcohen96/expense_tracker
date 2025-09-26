@@ -355,11 +355,10 @@ async def finances_recurrences(
         SELECT r.id, r.name, r.amount, r.frequency, r.next_charge_date, r.active,
                c.name AS category_name,
                u.name AS user_name,
-               a.name AS account_name
+               NULL AS account_name
         FROM recurrences r
         LEFT JOIN categories c ON r.category_id = c.id
         LEFT JOIN users u ON r.user_id = u.id
-        LEFT JOIN accounts a ON r.account_id = a.id
         """
     )
 
@@ -434,11 +433,10 @@ async def finances_recurrences_active(
         SELECT r.id, r.name, r.amount, r.frequency, r.next_charge_date, r.active,
                c.name AS category_name,
                u.name AS user_name,
-               a.name AS account_name
+               NULL AS account_name
         FROM recurrences r
         LEFT JOIN categories c ON r.category_id = c.id
         LEFT JOIN users u ON r.user_id = u.id
-        LEFT JOIN accounts a ON r.account_id = a.id
         """
     )
 
@@ -604,12 +602,11 @@ async def get_recurrence_row(
         """
         SELECT r.id, r.name, r.amount, r.frequency, r.next_charge_date, r.active,
                r.day_of_month, r.weekday,
-               r.category_id, r.user_id, r.account_id,
-               c.name AS category_name, u.name AS user_name, a.name AS account_name
+               r.category_id, r.user_id, NULL as account_id,
+               c.name AS category_name, u.name AS user_name, NULL AS account_name
         FROM recurrences r
         LEFT JOIN categories c ON r.category_id = c.id
         LEFT JOIN users u ON r.user_id = u.id
-        LEFT JOIN accounts a ON r.account_id = a.id
         WHERE r.id = ?
         """,
         (rec_id,),

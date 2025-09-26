@@ -51,10 +51,16 @@ def _last_n_months(n: int) -> List[Tuple[int, int]]:
 def _find_db_file() -> Optional[Path]:
     """Find database file in known locations."""
     candidates = [
+        os.getenv("BUDGET_DB_PATH"),  # preferred (set by tests/runner)
         os.getenv("COUPLEBUDGET_DB"),
-        "app/data/budget.db",  # Put the correct one first
+        # common relative locations under project root
+        "backend/app/data/budget.db",
+        "app/backend/app/data/budget.db",
+        "app/data/budget.db",
         "data/budget.db",
         "budget.db",
+        "backend/app/data/couplebudget.sqlite3",
+        "app/backend/app/data/couplebudget.sqlite3",
         "app/data/couplebudget.sqlite3",
         "data/couplebudget.sqlite3",
         "couplebudget.sqlite3",

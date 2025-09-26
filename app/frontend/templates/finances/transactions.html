@@ -138,10 +138,10 @@
                         <th>תאריך</th>
                         <th>סכום</th>
                         <th>קטגוריה</th>
-                        <th>משתמש</th>
-                        <th>חשבון</th>
-                        <th>הערות</th>
-                        <th>תגיות</th>
+                        <th class="hidden sm:table-cell">משתמש</th>
+                        <th class="hidden md:table-cell">חשבון</th>
+                        <th class="hidden lg:table-cell">הערות</th>
+                        <th class="hidden lg:table-cell">תגיות</th>
                         <th>פעולות</th>
                     </tr>
                 </thead>
@@ -184,7 +184,7 @@
                                 {% endfor %}
                             </select>
                         </td>
-                        <td>
+                        <td class="hidden sm:table-cell">
                             <div class="flex items-center">
                                 <div class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
                                     <i class="fas fa-user text-purple-600 text-sm"></i>
@@ -197,7 +197,7 @@
                                 </select>
                             </div>
                         </td>
-                        <td>
+                        <td class="hidden md:table-cell">
                             <span class="view-mode" id="account-view-{{ transaction.id }}">
                                 {% if transaction.account %}
                                 <span class="inline-flex items-center px-2 py-1 rounded text-sm bg-gray-100 text-gray-800">
@@ -215,7 +215,7 @@
                                 {% endfor %}
                             </select>
                         </td>
-                        <td>
+                        <td class="hidden lg:table-cell">
                             {% if transaction.notes %}
                             <div class="max-w-xs truncate" title="{{ transaction.notes }}">
                                 <i class="fas fa-sticky-note text-gray-400 mr-1"></i>
@@ -225,7 +225,7 @@
                             <span class="text-gray-400">-</span>
                             {% endif %}
                         </td>
-                        <td>
+                        <td class="hidden lg:table-cell">
                             {% if transaction.tags %}
                             <div class="flex flex-wrap gap-1">
                                 {% for tag in transaction.tags.split(',') %}

@@ -471,6 +471,24 @@ h6 { font-size: 1rem; }
     width: 100%;
     margin-bottom: 0.5rem;
   }
+
+  /* Keep table action buttons compact on mobile */
+  .table .btn {
+    width: auto;
+    margin-bottom: 0;
+    padding: 0.5rem 0.75rem;
+  }
+}
+
+/* Mobile fine-tuning for table density */
+@media (max-width: 640px) {
+  .table th {
+    font-size: 0.75rem;
+    padding: 0.5rem;
+  }
+  .table td {
+    padding: 0.5rem;
+  }
 }
 
 /* Dark Mode Support */

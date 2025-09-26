@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
     <title>{% block title %}המנביטים{% endblock %}</title>
     
     <!-- Tailwind CSS - PERFORMANCE OPTIMIZED -->
@@ -50,6 +50,7 @@
             right: 0;
             z-index: 200;
             overflow: hidden;
+            padding-top: calc(0.5rem + env(safe-area-inset-top));
         }
         
         .nav-gradient::before {
@@ -100,8 +101,8 @@
         /* ===== FLOATING ACTION BUTTON (z-index: 700-800) ===== */
         .fab {
             position: fixed;
-            bottom: 30px;
-            right: 30px;
+            bottom: calc(30px + env(safe-area-inset-bottom));
+            right: calc(30px + env(safe-area-inset-right));
             width: 60px;
             height: 60px;
             border-radius: 50%;
@@ -135,7 +136,7 @@
             box-sizing: border-box;
             z-index: 100;
             position: fixed;
-            top: 64px; /* Space for navbar */
+            top: calc(64px + env(safe-area-inset-top)); /* Space for navbar + notch */
             right: 0;
         }
         
@@ -182,7 +183,7 @@
             overflow: hidden;
             margin-right: 272px;
             margin-left: 16px;
-            margin-top: 80px; /* Space for fixed navbar */
+            margin-top: calc(80px + env(safe-area-inset-top)); /* Space for fixed navbar + notch */
             z-index: 10;
             position: relative;
         }
@@ -442,7 +443,7 @@
     
     {% block head %}{% endblock %}
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-gray-50 min-h-screen full-viewport-safe">
     <!-- Main Navigation Bar -->
     <nav class="nav-gradient text-white shadow-lg relative z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -486,7 +487,7 @@
     </nav>
 
             <!-- Main Content Area -->
-        <div class="flex min-h-screen bg-gray-100 p-4 overflow-hidden">
+        <div class="flex min-h-screen full-viewport-safe bg-gray-100 p-4 overflow-hidden">
         <!-- Sidebar (only for specific sections like finances) -->
         {% if show_sidebar %}
         <div id="sidebar" class="sidebar shadow-lg sidebar-transition">
@@ -520,7 +521,7 @@
                         <i class="fas fa-repeat mr-3 w-5 text-center"></i>
                         <span>הוצאות קבועות</span>
                     </a>
-                    <a href="http://127.0.0.1:8080/finances/recurrences/active" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'recurrences/active' in request.path %}active{% endif %}">
+                    <a href="/finances/recurrences/active" class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'recurrences/active' in request.path %}active{% endif %}">
                         <i class="fas fa-toggle-on mr-3 w-5 text-center"></i>
                         <span>ניהול הוצאות קבועות</span>
                     </a>
@@ -560,7 +561,7 @@
                     <a href="/finances/recurrences" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}active{% endif %}" title="הוצאות קבועות">
                         <i class="fas fa-repeat"></i>
                     </a>
-                    <a href="http://127.0.0.1:8080/finances/recurrences/active" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'recurrences/active' in request.path %}active{% endif %}" title="ניהול הוצאות קבועות">
+                    <a href="/finances/recurrences/active" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'recurrences/active' in request.path %}active{% endif %}" title="ניהול הוצאות קבועות">
                         <i class="fas fa-toggle-on"></i>
                     </a>
                     <a href="/finances/statistics" class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'statistics' in request.path %}active{% endif %}" title="סטטיסטיקות">

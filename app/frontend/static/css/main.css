@@ -640,6 +640,58 @@ body.loaded .animate-sequence {
   }
 }
 
+/* iOS safe areas and dynamic viewport support */
+:root {
+  --safe-top: env(safe-area-inset-top);
+  --safe-right: env(safe-area-inset-right);
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-left: env(safe-area-inset-left);
+}
+
+/* Prefer modern viewport units when supported */
+@supports (height: 100dvh) {
+  html, body {
+    min-height: 100dvh;
+    height: 100dvh;
+  }
+}
+
+/* Apply safe-area paddings for full-bleed UIs */
+body {
+  padding-top: max(0px, var(--safe-top));
+  padding-right: max(0px, var(--safe-right));
+  padding-bottom: max(0px, var(--safe-bottom));
+  padding-left: max(0px, var(--safe-left));
+}
+
+/* Ensure fixed navbar respects safe area */
+.nav-gradient {
+  padding-top: calc(0.5rem + var(--safe-top));
+}
+
+/* FAB should float above home indicator */
+.fab {
+  bottom: calc(30px + var(--safe-bottom));
+  right: calc(30px + var(--safe-right));
+}
+
+/* Modal viewport within dynamic viewport on iOS */
+@supports (height: 100dvh) {
+  .modal-content {
+    max-height: calc(100dvh - 2rem - var(--safe-top) - var(--safe-bottom));
+  }
+}
+
+/* Utility: full screen container that avoids notch */
+.full-viewport-safe {
+  min-height: 100vh;
+}
+@supports (min-height: 100dvh) {
+  .full-viewport-safe {
+    min-height: 100dvh;
+  }
+}
+
 /* Critical CSS for above-the-fold content */
 .critical {
   contain: layout style paint;

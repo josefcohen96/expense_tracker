@@ -209,26 +209,19 @@ def initialise_database() -> None:
 
     # Insert default data if tables are empty
     if not cur.execute("SELECT COUNT(*) FROM categories").fetchone()[0]:
-        cur.execute("INSERT INTO categories (name) VALUES ('מזון')")
-        cur.execute("INSERT INTO categories (name) VALUES ('תחבורה')")
-        cur.execute("INSERT INTO categories (name) VALUES ('בילויים')")
-        cur.execute("INSERT INTO categories (name) VALUES ('קניות')")
-        cur.execute("INSERT INTO categories (name) VALUES ('חשבונות')")
+        for _cat in ("משכורת", "קליניקה", "בריאות", "חסכונות", "בילויים", "קניות", "רכב", "שכד", "תחבורה"):
+            cur.execute("INSERT INTO categories (name) VALUES (?)", (_cat,))
 
     if not cur.execute("SELECT COUNT(*) FROM users").fetchone()[0]:
-        cur.execute("INSERT INTO users (name) VALUES ('משתמש 1')")
-        cur.execute("INSERT INTO users (name) VALUES ('משתמש 2')")
+        # Seed only the real users
+        cur.execute("INSERT INTO users (name) VALUES ('יוסף')")
+        cur.execute("INSERT INTO users (name) VALUES ('קארינה')")
 
     if not cur.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]:
         cur.execute("INSERT INTO accounts (name) VALUES ('מזומן')")
         cur.execute("INSERT INTO accounts (name) VALUES ('כרטיס אשראי')")
 
-    # Ensure required categories and users exist (idempotent upserts)
-    for _cat in ("בריאות", "שכד", "רכב", "חסכונות", "משכורת", "קליניקה"):
-        cur.execute("INSERT OR IGNORE INTO categories (name) VALUES (?)", (_cat,))
 
-    for _user in ("יוסף", "קארינה"):
-        cur.execute("INSERT OR IGNORE INTO users (name) VALUES (?)", (_user,))
 
     # (removed) default challenges seed
 

@@ -39,6 +39,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Allow unauthenticated access to static and service worker
         if path.startswith("/static/") or path == "/sw.js":
             return await call_next(request)
+        # Always allow health endpoint
+        if path == "/health":
+            return await call_next(request)
 
         # Allow @public endpoints
         try:

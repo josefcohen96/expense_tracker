@@ -61,28 +61,8 @@ async def login_post(request: Request):
     if user_key in valid_users and password == valid_users[user_key]:
         logger.info(f"LOGIN success username={user_key}")
         request.session["user"] = {"username": user_key}
-        nxt_raw = request.query_params.get("next") or form.get("next") or "/finances"
-        # Decode value that was encoded by middleware with quote_plus
-        try:
-            nxt = unquote_plus(nxt_raw) if isinstance(nxt_raw, str) else "/finances"
-        except Exception:
-            nxt = "/finances"
-        # Basic safety: only allow internal paths after decode
-        if not isinstance(nxt, str) or not nxt.startswith("/"):
-            nxt = "/finances"
-        # Prevent redirecting to logout or back to login to avoid bounce loops
-        unsafe_targets = {"/logout", "/login"}
-        try:
-            # Normalize by stripping trailing slashes except root
-            if nxt != "/":
-                nxt_norm = nxt.rstrip("/")
-            else:
-                nxt_norm = nxt
-        except Exception:
-            nxt_norm = "/finances"
-        if nxt_norm in unsafe_targets:
-            nxt = "/finances"
-        return RedirectResponse(url=nxt, status_code=status.HTTP_303_SEE_OTHER)
+        # Always go to dashboard after successful login
+        return RedirectResponse(url="/finances", status_code=status.HTTP_303_SEE_OTHER)
 
     # invalid credentials
     logger.info(f"LOGIN failed username={username}")
@@ -313,9 +293,73 @@ async def finances_transactions(
     per_page = max(1, min(100, per_page))
     offset = (page - 1) * per_page
 
-    total = db_conn.execute("SELECT COUNT(*) FROM transactions WHERE recurrence_id IS NULL AND amount < 0").fetchone()[0]
+    # Optional filters
+    qp = request.query_params
+    category_id_raw = qp.get("category_id")
+    user_id_raw = qp.get("user_id")
+    date_from = qp.get("date_from")
+    date_to = qp.get("date_to")
+    amount_min = qp.get("amount_min")
+    amount_max = qp.get("amount_max")
+    account_id_raw = qp.get("account_id")
+    tags = qp.get("tags")
+
+    where_clauses = ["t.recurrence_id IS NULL"]
+    params: List[Any] = []
+
+    if date_from:
+        where_clauses.append("t.date >= ?")
+        params.append(date_from)
+    if date_to:
+        where_clauses.append("t.date <= ?")
+        params.append(date_to)
+    if category_id_raw:
+        try:
+            category_id = int(category_id_raw)
+            where_clauses.append("t.category_id = ?")
+            params.append(category_id)
+        except Exception:
+            pass
+    if user_id_raw:
+        try:
+            user_id_val = int(user_id_raw)
+            where_clauses.append("t.user_id = ?")
+            params.append(user_id_val)
+        except Exception:
+            pass
+    if account_id_raw:
+        try:
+            account_id_val = int(account_id_raw)
+            where_clauses.append("t.account_id = ?")
+            params.append(account_id_val)
+        except Exception:
+            pass
+    if amount_min not in (None, ""):
+        try:
+            where_clauses.append("ABS(t.amount) >= ?")
+            params.append(abs(float(amount_min)))
+        except Exception:
+            pass
+    if amount_max not in (None, ""):
+        try:
+            where_clauses.append("ABS(t.amount) <= ?")
+            params.append(abs(float(amount_max)))
+        except Exception:
+            pass
+    if tags and tags.strip():
+        tag_list = [tg.strip() for tg in tags.split(',') if tg.strip()]
+        if tag_list:
+            where_clauses.append("(" + " OR ".join(["t.tags LIKE ?"] * len(tag_list)) + ")")
+            params.extend([f"%{tg}%" for tg in tag_list])
+
+    # Restrict users to Yosef and Karina
+    where_clauses.append("t.user_id IN (SELECT id FROM users WHERE name IN ('יוסף','קארינה'))")
+
+    where_sql = " WHERE " + " AND ".join(where_clauses)
+
+    total = db_conn.execute(f"SELECT COUNT(*) FROM transactions t{where_sql}", params).fetchone()[0]
     rows = db_conn.execute(
-        """
+        f"""
         SELECT t.id, t.date, t.amount,
                c.name as category,
                u.name as user,
@@ -326,12 +370,11 @@ async def finances_transactions(
         LEFT JOIN categories c ON t.category_id = c.id
         LEFT JOIN users u ON t.user_id = u.id
         LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE t.recurrence_id IS NULL AND t.amount < 0
-          AND t.user_id IN (SELECT id FROM users WHERE name IN ('יוסף','קארינה'))
+        {where_sql}
         ORDER BY t.date DESC, t.id DESC
         LIMIT ? OFFSET ?
         """,
-        (per_page, offset),
+        (*params, per_page, offset),
     ).fetchall()
 
     # For expenses page: exclude income categories from the dropdown

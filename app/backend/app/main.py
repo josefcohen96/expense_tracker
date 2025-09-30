@@ -45,6 +45,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from . import db
 from .auth import public, build_public_route_matchers
 from .services.cron_service import CronService
+from .services.auth_middleware import AuthMiddleware
 
 # --- include routers (אחרי app = FastAPI) ---
 from .routes.pages import router as pages_router
@@ -64,6 +65,13 @@ app.include_router(statistics_api)
 
 # Build public route matchers from routes decorated with @public
 PUBLIC_ROUTE_MATCHERS = build_public_route_matchers(app)
+
+# --- auth middleware (after session) ---
+auth_enabled_env = os.environ.get("AUTH_ENABLED", "1")
+running_pytest = os.environ.get("PYTEST_CURRENT_TEST") is not None
+# Allow disabling auth only under pytest
+auth_enabled = not (auth_enabled_env != "1" and running_pytest)
+app.add_middleware(AuthMiddleware, public_route_matchers=PUBLIC_ROUTE_MATCHERS, auth_enabled=auth_enabled)
 
 # Redirect root to expenses if needed (handled in pages router too)
 @app.get("/health")
@@ -98,60 +106,4 @@ async def _on_shutdown() -> None:
             logger.exception("CronService shutdown error")
 
 
-# --- simple auth gate (redirect to /login if not authenticated) ---
-@app.middleware("http")
-async def _require_login(request, call_next):
-    # Allow disabling auth ONLY under pytest (to keep E2E tests working)
-    auth_enabled_env = os.environ.get("AUTH_ENABLED", "1")
-    auth_enabled = auth_enabled_env == "1"
-    running_pytest = os.environ.get("PYTEST_CURRENT_TEST") is not None
-    logger.debug(
-        f"AUTH middleware: enabled={auth_enabled_env}, pytest={running_pytest}, "
-        f"path={request.url.path}, method={request.method}"
-    )
-    if not auth_enabled and running_pytest:
-        logger.debug("AUTH middleware: disabled under pytest -> allowing request")
-        return await call_next(request)
-
-    path = request.url.path
-    method = request.method.upper()
-
-    # Allow unauthenticated access to static and service worker by path
-    if path.startswith("/static/") or path == "/sw.js":
-        logger.debug(f"AUTH middleware: allow public path {path}")
-        return await call_next(request)
-
-    # Check if matches any @public endpoint (best-effort; do not block on errors)
-    try:
-        for (regex, methods) in PUBLIC_ROUTE_MATCHERS:
-            if regex.match(path) and (not methods or method in methods):
-                logger.debug(f"AUTH middleware: allow @public for {path} {method}")
-                return await call_next(request)
-    except Exception:
-        logger.exception("AUTH middleware: error checking public matchers")
-
-    # Require session user for everything else
-    try:
-        user_in_session = bool(request.session.get("user"))
-    except AssertionError:
-        # SessionMiddleware not yet installed in the stack for this scope
-        # Treat as no session (unauthenticated)
-        user_in_session = False
-    if user_in_session:
-        logger.debug("AUTH middleware: session user detected")
-        return await call_next(request)
-
-    # Not authenticated -> redirect to login (preserve next for GET only)
-    from fastapi.responses import RedirectResponse as _RR
-    if request.method == "GET":
-        # Special-case: if someone tries to GET /logout without a session, do not set next=/logout
-        if path == "/logout":
-            logger.info("AUTH: unauthenticated GET /logout -> redirect /login without next")
-            return _RR(url="/login", status_code=302)
-        query = ("?" + str(request.url.query)) if request.url.query else ""
-        nxt = quote_plus(path + query)
-        logger.info(f"AUTH: no session. redirecting to /login?next={nxt}")
-        return _RR(url=f"/login?next={nxt}", status_code=302)
-
-    logger.info("AUTH: no session on non-GET. redirecting to /login")
-    return _RR(url="/login", status_code=302)
+# (Old function-based auth middleware removed in favor of class-based one above)

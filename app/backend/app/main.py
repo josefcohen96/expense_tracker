@@ -11,6 +11,7 @@ from datetime import datetime, date
 from typing import Optional
 import sqlite3
 from urllib.parse import quote_plus
+import re
 
 # --- create app ---
 app = FastAPI(title="Expense Tracker", version="0.1.0")
@@ -74,6 +75,7 @@ for uv_logger_name in ("uvicorn.error", "uvicorn.access", "uvicorn"):
 logger = logging.getLogger(__name__)
 
 from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.routing import APIRoute
 from . import db
 from .auth import is_endpoint_public, public
 from .services.cron_service import CronService
@@ -93,6 +95,22 @@ app.include_router(recurrences_api)
 app.include_router(system_api)
 app.include_router(backup_api)
 app.include_router(statistics_api)
+
+# Build public route matchers from routes decorated with @public
+PUBLIC_ROUTE_MATCHERS = []  # list of tuples: (compiled_regex, set_of_methods)
+try:
+    for r in app.routes:
+        if isinstance(r, APIRoute) and is_endpoint_public(getattr(r, "endpoint", None)):
+            try:
+                regex = r.path_regex
+            except Exception:
+                path_str = getattr(r, "path", getattr(r, "path_format", "")) or ""
+                pattern = "^" + re.escape(path_str) + "$"
+                regex = re.compile(pattern)
+            methods = set(m.upper() for m in (r.methods or {"GET"}))
+            PUBLIC_ROUTE_MATCHERS.append((regex, methods))
+except Exception:
+    logger.exception("Failed building public route matchers")
 
 # Redirect root to expenses if needed (handled in pages router too)
 @app.get("/health")
@@ -143,6 +161,7 @@ async def _require_login(request, call_next):
             logger.info("AUTH middleware: disabled under pytest -> allowing request")
             return await call_next(request)
         path = request.url.path
+        method = request.method.upper()
         # Allow unauthenticated access to static and service worker by path
         if (
             path.startswith("/static/")
@@ -151,17 +170,14 @@ async def _require_login(request, call_next):
             logger.info(f"AUTH middleware: allow public path {path}")
             return await call_next(request)
 
-        # Resolve route to endpoint to check @public decorator
+        # Check if matches any @public endpoint
         try:
-            url = request.scope.get("root_path", "") + request.url.path
-            route_match = app.router.resolve(request.scope)
-            endpoint = getattr(route_match, "endpoint", None)
+            for (regex, methods) in PUBLIC_ROUTE_MATCHERS:
+                if regex.match(path) and (not methods or method in methods):
+                    logger.info(f"AUTH middleware: allow @public for {path} {method}")
+                    return await call_next(request)
         except Exception:
-            endpoint = None
-
-        if endpoint and is_endpoint_public(endpoint):
-            logger.info(f"AUTH middleware: public endpoint {endpoint.__name__}")
-            return await call_next(request)
+            logger.exception("AUTH middleware: error checking public matchers")
 
         # Require session user for everything else
         if request.session.get("user"):
@@ -180,5 +196,7 @@ async def _require_login(request, call_next):
         logger.info("AUTH middleware: no session on non-GET. redirecting to /login")
         return _RR(url="/login", status_code=302)
     except Exception:
-        logger.exception("AUTH middleware: error (failing open)")
-        return await call_next(request)
+        # Fail closed on unexpected errors
+        logger.exception("AUTH middleware: error (failing closed)")
+        from fastapi.responses import RedirectResponse as _RR
+        return _RR(url="/login", status_code=302)

@@ -178,8 +178,17 @@ async def _require_login(request, call_next):
         logger.exception("AUTH middleware: error checking public matchers")
 
     # Require session user for everything else
-    if request.session.get("user"):
-        logger.info(f"AUTH middleware: session user detected: {request.session.get('user')}")
+    try:
+        user_in_session = bool(request.session.get("user"))
+    except AssertionError:
+        # SessionMiddleware not yet installed in the stack for this scope
+        # Treat as no session (unauthenticated)
+        user_in_session = False
+    if user_in_session:
+        try:
+            logger.info(f"AUTH middleware: session user detected: {request.session.get('user')}")
+        except Exception:
+            pass
         return await call_next(request)
 
     # Not authenticated -> redirect to login (preserve next for GET only)

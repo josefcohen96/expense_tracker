@@ -63,15 +63,26 @@ class AuthMiddleware(BaseHTTPMiddleware):
         try:
             user_obj = request.session.get("user")
             user_in_session = bool(user_obj)
-        except Exception:
+            session_id = getattr(request.session, 'session_id', None)
+            session_keys = list(request.session.keys()) if hasattr(request.session, 'keys') else []
+        except Exception as e:
             user_obj = None
             user_in_session = False
+            session_id = None
+            session_keys = []
+            self.logger.warning("AuthMiddleware: session access failed", extra={
+                "path": path,
+                "method": method,
+                "error": str(e),
+            })
 
         if user_in_session:
             self.logger.debug("AuthMiddleware: authenticated request", extra={
                 "path": path,
                 "method": method,
                 "username": (user_obj or {}).get("username") if isinstance(user_obj, dict) else None,
+                "session_id": session_id,
+                "session_keys": session_keys,
             })
             return await call_next(request)
 
@@ -83,12 +94,18 @@ class AuthMiddleware(BaseHTTPMiddleware):
             self.logger.info("AuthMiddleware: redirecting unauthenticated GET", extra={
                 "path": path,
                 "method": method,
+                "session_id": session_id,
+                "session_keys": session_keys,
+                "user_obj": user_obj,
             })
             return RedirectResponse(url="/login", status_code=302)
 
         self.logger.info("AuthMiddleware: redirecting unauthenticated non-GET", extra={
             "path": path,
             "method": method,
+            "session_id": session_id,
+            "session_keys": session_keys,
+            "user_obj": user_obj,
         })
         return RedirectResponse(url="/login", status_code=302)
 

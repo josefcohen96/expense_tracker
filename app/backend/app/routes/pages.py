@@ -68,7 +68,20 @@ async def login_post(request: Request):
     user_key = username.upper()
     if user_key in valid_users and password == valid_users[user_key]:
         logger.info("LOGIN success", extra={"username": user_key})
-        request.session["user"] = {"username": user_key}
+        try:
+            request.session["user"] = {"username": user_key}
+            session_id = getattr(request.session, 'session_id', None)
+            session_keys = list(request.session.keys()) if hasattr(request.session, 'keys') else []
+            logger.info("Session set successfully", extra={
+                "username": user_key,
+                "session_id": session_id,
+                "session_keys": session_keys,
+            })
+        except Exception as e:
+            logger.error("Failed to set session", extra={
+                "username": user_key,
+                "error": str(e),
+            })
         # Always go to dashboard after successful login
         return RedirectResponse(url="/finances", status_code=status.HTTP_303_SEE_OTHER)
 

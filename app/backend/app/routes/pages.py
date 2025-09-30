@@ -31,9 +31,6 @@ router = APIRouter(tags=["pages"])
 @router.get("/login", response_class=HTMLResponse)
 @public
 async def login_page(request: Request) -> HTMLResponse:
-    # If already authenticated, go straight to dashboard
-    if request.session.get("user"):
-        return RedirectResponse(url="/finances", status_code=status.HTTP_303_SEE_OTHER)
     error = request.query_params.get("error")
     return templates.TemplateResponse(
         "pages/login.html",

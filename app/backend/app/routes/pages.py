@@ -8,8 +8,11 @@ import calendar
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
+from ..auth import public
 
 from ..db import get_db_conn
+import logging
+logger = logging.getLogger(__name__)
 
 # Frontend paths
 ROOT_DIR = FSPath(__file__).resolve().parents[3]
@@ -20,8 +23,11 @@ STATIC_DIR = FRONTEND_DIR / "static"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 router = APIRouter(tags=["pages"])
 
+# public decorator is imported from ..auth
+
 
 @router.get("/login", response_class=HTMLResponse)
+@public
 async def login_page(request: Request) -> HTMLResponse:
     error = request.query_params.get("error")
     return templates.TemplateResponse(
@@ -35,10 +41,12 @@ async def login_page(request: Request) -> HTMLResponse:
 
 
 @router.post("/login", response_class=HTMLResponse, response_model=None)
+@public
 async def login_post(request: Request):
     form = await request.form()
     username = (form.get("username") or "").strip()
     password = (form.get("password") or "").strip()
+    logger.info(f"LOGIN attempt username={username}")
 
     # Static users per request: KARINA/KA1234, YOSEF/YO1234
     valid_users = {
@@ -49,6 +57,7 @@ async def login_post(request: Request):
     # case-insensitive username match
     user_key = username.upper()
     if user_key in valid_users and password == valid_users[user_key]:
+        logger.info(f"LOGIN success username={user_key}")
         request.session["user"] = {"username": user_key}
         nxt = request.query_params.get("next") or form.get("next") or "/finances"
         # Basic safety: only allow internal paths
@@ -57,6 +66,7 @@ async def login_post(request: Request):
         return RedirectResponse(url=nxt, status_code=status.HTTP_302_FOUND)
 
     # invalid credentials
+    logger.info(f"LOGIN failed username={username}")
     return templates.TemplateResponse(
         "pages/login.html",
         {
@@ -70,6 +80,7 @@ async def login_post(request: Request):
 
 @router.get("/logout")
 async def logout(request: Request) -> RedirectResponse:
+    logger.info(f"LOGOUT user={request.session.get('user')}")
     request.session.clear()
     return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
 

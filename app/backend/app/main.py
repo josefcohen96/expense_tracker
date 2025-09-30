@@ -75,6 +75,7 @@ logger = logging.getLogger(__name__)
 
 from fastapi.responses import JSONResponse, RedirectResponse
 from . import db
+from .auth import is_endpoint_public, public
 from .services.cron_service import CronService
 
 # --- include routers (אחרי app = FastAPI) ---
@@ -95,6 +96,7 @@ app.include_router(statistics_api)
 
 # Redirect root to expenses if needed (handled in pages router too)
 @app.get("/health")
+@public
 async def health():
     return {"status": "ok"}
 
@@ -129,21 +131,41 @@ async def _on_shutdown() -> None:
 @app.middleware("http")
 async def _require_login(request, call_next):
     try:
-        # allow disabling auth via env for tests/dev
-        if os.environ.get("AUTH_ENABLED", "1") != "1":
+        # Allow disabling auth ONLY under pytest (to keep E2E tests working)
+        auth_enabled_env = os.environ.get("AUTH_ENABLED", "1")
+        auth_enabled = auth_enabled_env == "1"
+        running_pytest = os.environ.get("PYTEST_CURRENT_TEST") is not None
+        logger.info(
+            f"AUTH middleware: AUTH_ENABLED={auth_enabled_env}, running_pytest={running_pytest}, "
+            f"path={request.url.path}, method={request.method}"
+        )
+        if not auth_enabled and running_pytest:
+            logger.info("AUTH middleware: disabled under pytest -> allowing request")
             return await call_next(request)
         path = request.url.path
-        # Allow unauthenticated access to static, health, service worker and login
+        # Allow unauthenticated access to static and service worker by path
         if (
             path.startswith("/static/")
             or path == "/sw.js"
-            or path.startswith("/login")
-            or path == "/health"
         ):
+            logger.info(f"AUTH middleware: allow public path {path}")
+            return await call_next(request)
+
+        # Resolve route to endpoint to check @public decorator
+        try:
+            url = request.scope.get("root_path", "") + request.url.path
+            route_match = app.router.resolve(request.scope)
+            endpoint = getattr(route_match, "endpoint", None)
+        except Exception:
+            endpoint = None
+
+        if endpoint and is_endpoint_public(endpoint):
+            logger.info(f"AUTH middleware: public endpoint {endpoint.__name__}")
             return await call_next(request)
 
         # Require session user for everything else
         if request.session.get("user"):
+            logger.info(f"AUTH middleware: session user detected: {request.session.get('user')}")
             return await call_next(request)
 
         # Preserve next only for GET requests
@@ -151,10 +173,12 @@ async def _require_login(request, call_next):
             query = ("?" + str(request.url.query)) if request.url.query else ""
             nxt = quote_plus(path + query)
             from fastapi.responses import RedirectResponse as _RR
-
+            logger.info(f"AUTH middleware: no session. redirecting to /login?next={nxt}")
             return _RR(url=f"/login?next={nxt}", status_code=302)
 
         from fastapi.responses import RedirectResponse as _RR
+        logger.info("AUTH middleware: no session on non-GET. redirecting to /login")
         return _RR(url="/login", status_code=302)
-    except Exception:  # fail open to avoid blocking due to auth errors
+    except Exception:
+        logger.exception("AUTH middleware: error (failing open)")
         return await call_next(request)

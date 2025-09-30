@@ -1,8 +1,9 @@
 // Service Worker for Performance Optimization and Caching
 
-const CACHE_NAME = 'expense-tracker-v1.0.1';
-const STATIC_CACHE = 'static-v1.0.1';
-const DYNAMIC_CACHE = 'dynamic-v1.0.1';
+// Bump versions to force update on clients
+const CACHE_NAME = 'expense-tracker-v1.0.2';
+const STATIC_CACHE = 'static-v1.0.2';
+const DYNAMIC_CACHE = 'dynamic-v1.0.2';
 
 // Files to cache immediately
 const STATIC_FILES = [
@@ -66,6 +67,30 @@ self.addEventListener('fetch', event => {
         console.log('[SW] fetch', request.method, url.pathname, { mode: request.mode, redirect: request.redirect });
     }
     
+    // If user logs out, proactively clear all dynamic caches to avoid stale UI
+    if (url.pathname === '/logout') {
+        event.respondWith((async () => {
+            try {
+                const cacheNames = await caches.keys();
+                await Promise.all(
+                    cacheNames.map(name => {
+                        if (name !== STATIC_CACHE && name !== DYNAMIC_CACHE) {
+                            return caches.delete(name);
+                        }
+                        return Promise.resolve();
+                    })
+                );
+                // Also clear dynamic cache explicitly
+                await caches.delete(DYNAMIC_CACHE);
+            } catch (e) {
+                // no-op
+            }
+            // Let the network handle the redirect to /login
+            return fetch(request);
+        })());
+        return;
+    }
+
     // Skip non-GET requests, but log login POSTs for debugging
     if (request.method !== 'GET') {
         if (url.pathname === '/login') {
@@ -93,13 +118,28 @@ self.addEventListener('fetch', event => {
         return;
     }
     
-    // Handle HTML pages, but never cache /login page to avoid loops
+    // Handle HTML pages: network-only (do not cache navigations)
     if (request.headers.get('accept').includes('text/html')) {
-        if (url.pathname === '/login') {
-            event.respondWith(fetch(request));
-            return;
-        }
-        event.respondWith(handleHtmlRequest(request));
+        event.respondWith((async () => {
+            try {
+                const response = await fetch(request);
+                const finalUrl = new URL(response.url);
+                // If we were redirected to /login, try to purge any stale cached entry for the requested page
+                if (response.redirected || finalUrl.pathname === '/login') {
+                    try {
+                        const cache = await caches.open(DYNAMIC_CACHE);
+                        await cache.delete(request, { ignoreSearch: true });
+                    } catch (e) { /* no-op */ }
+                }
+                return response;
+            } catch (error) {
+                console.log('HTML request failed, trying cache as last resort:', error);
+                // Fallback to offline page if available
+                const offline = await caches.match('/offline.html');
+                if (offline) return offline;
+                return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+            }
+        })());
         return;
     }
     
@@ -159,43 +199,7 @@ async function handleStaticRequest(request) {
     }
 }
 
-// Handle HTML requests - network first, cache fallback
-async function handleHtmlRequest(request) {
-    try {
-        const response = await fetch(request);
-
-        // Do NOT cache if the navigation was redirected (likely to /login)
-        // or if the final URL is the login page. Also purge any old cached entry
-        // for this request to avoid sticky login pages being served for private routes.
-        const finalUrl = new URL(response.url);
-        if (response.redirected || finalUrl.pathname === '/login') {
-            try {
-                const cache = await caches.open(DYNAMIC_CACHE);
-                await cache.delete(request, { ignoreSearch: true });
-            } catch (e) {
-                // no-op
-            }
-            return response;
-        }
-
-        if (response.ok) {
-            const cache = await caches.open(DYNAMIC_CACHE);
-            cache.put(request, response.clone());
-        }
-
-        return response;
-    } catch (error) {
-        console.log('HTML request failed, trying cache:', error);
-
-        const cachedResponse = await caches.match(request);
-        if (cachedResponse) {
-            return cachedResponse;
-        }
-
-        // Return offline page
-        return caches.match('/offline.html');
-    }
-}
+// (Removed) HTML caching logic — navigations are now network-only to prevent stale auth state
 
 // Handle default requests - cache first, network fallback
 async function handleDefaultRequest(request) {

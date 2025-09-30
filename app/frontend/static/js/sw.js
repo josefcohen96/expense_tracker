@@ -1,8 +1,8 @@
 // Service Worker for Performance Optimization and Caching
 
-const CACHE_NAME = 'expense-tracker-v1.0.0';
-const STATIC_CACHE = 'static-v1.0.0';
-const DYNAMIC_CACHE = 'dynamic-v1.0.0';
+const CACHE_NAME = 'expense-tracker-v1.0.1';
+const STATIC_CACHE = 'static-v1.0.1';
+const DYNAMIC_CACHE = 'dynamic-v1.0.1';
 
 // Files to cache immediately
 const STATIC_FILES = [
@@ -163,21 +163,35 @@ async function handleStaticRequest(request) {
 async function handleHtmlRequest(request) {
     try {
         const response = await fetch(request);
-        
+
+        // Do NOT cache if the navigation was redirected (likely to /login)
+        // or if the final URL is the login page. Also purge any old cached entry
+        // for this request to avoid sticky login pages being served for private routes.
+        const finalUrl = new URL(response.url);
+        if (response.redirected || finalUrl.pathname === '/login') {
+            try {
+                const cache = await caches.open(DYNAMIC_CACHE);
+                await cache.delete(request, { ignoreSearch: true });
+            } catch (e) {
+                // no-op
+            }
+            return response;
+        }
+
         if (response.ok) {
             const cache = await caches.open(DYNAMIC_CACHE);
             cache.put(request, response.clone());
         }
-        
+
         return response;
     } catch (error) {
         console.log('HTML request failed, trying cache:', error);
-        
+
         const cachedResponse = await caches.match(request);
         if (cachedResponse) {
             return cachedResponse;
         }
-        
+
         // Return offline page
         return caches.match('/offline.html');
     }

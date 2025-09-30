@@ -148,55 +148,47 @@ async def _on_shutdown() -> None:
 # --- simple auth gate (redirect to /login if not authenticated) ---
 @app.middleware("http")
 async def _require_login(request, call_next):
+    # Allow disabling auth ONLY under pytest (to keep E2E tests working)
+    auth_enabled_env = os.environ.get("AUTH_ENABLED", "1")
+    auth_enabled = auth_enabled_env == "1"
+    running_pytest = os.environ.get("PYTEST_CURRENT_TEST") is not None
+    logger.info(
+        f"AUTH middleware: AUTH_ENABLED={auth_enabled_env}, running_pytest={running_pytest}, "
+        f"path={request.url.path}, method={request.method}"
+    )
+    if not auth_enabled and running_pytest:
+        logger.info("AUTH middleware: disabled under pytest -> allowing request")
+        return await call_next(request)
+
+    path = request.url.path
+    method = request.method.upper()
+
+    # Allow unauthenticated access to static and service worker by path
+    if path.startswith("/static/") or path == "/sw.js":
+        logger.info(f"AUTH middleware: allow public path {path}")
+        return await call_next(request)
+
+    # Check if matches any @public endpoint (best-effort; do not block on errors)
     try:
-        # Allow disabling auth ONLY under pytest (to keep E2E tests working)
-        auth_enabled_env = os.environ.get("AUTH_ENABLED", "1")
-        auth_enabled = auth_enabled_env == "1"
-        running_pytest = os.environ.get("PYTEST_CURRENT_TEST") is not None
-        logger.info(
-            f"AUTH middleware: AUTH_ENABLED={auth_enabled_env}, running_pytest={running_pytest}, "
-            f"path={request.url.path}, method={request.method}"
-        )
-        if not auth_enabled and running_pytest:
-            logger.info("AUTH middleware: disabled under pytest -> allowing request")
-            return await call_next(request)
-        path = request.url.path
-        method = request.method.upper()
-        # Allow unauthenticated access to static and service worker by path
-        if (
-            path.startswith("/static/")
-            or path == "/sw.js"
-        ):
-            logger.info(f"AUTH middleware: allow public path {path}")
-            return await call_next(request)
-
-        # Check if matches any @public endpoint
-        try:
-            for (regex, methods) in PUBLIC_ROUTE_MATCHERS:
-                if regex.match(path) and (not methods or method in methods):
-                    logger.info(f"AUTH middleware: allow @public for {path} {method}")
-                    return await call_next(request)
-        except Exception:
-            logger.exception("AUTH middleware: error checking public matchers")
-
-        # Require session user for everything else
-        if request.session.get("user"):
-            logger.info(f"AUTH middleware: session user detected: {request.session.get('user')}")
-            return await call_next(request)
-
-        # Preserve next only for GET requests
-        if request.method == "GET":
-            query = ("?" + str(request.url.query)) if request.url.query else ""
-            nxt = quote_plus(path + query)
-            from fastapi.responses import RedirectResponse as _RR
-            logger.info(f"AUTH middleware: no session. redirecting to /login?next={nxt}")
-            return _RR(url=f"/login?next={nxt}", status_code=302)
-
-        from fastapi.responses import RedirectResponse as _RR
-        logger.info("AUTH middleware: no session on non-GET. redirecting to /login")
-        return _RR(url="/login", status_code=302)
+        for (regex, methods) in PUBLIC_ROUTE_MATCHERS:
+            if regex.match(path) and (not methods or method in methods):
+                logger.info(f"AUTH middleware: allow @public for {path} {method}")
+                return await call_next(request)
     except Exception:
-        # Fail closed on unexpected errors
-        logger.exception("AUTH middleware: error (failing closed)")
-        from fastapi.responses import RedirectResponse as _RR
-        return _RR(url="/login", status_code=302)
+        logger.exception("AUTH middleware: error checking public matchers")
+
+    # Require session user for everything else
+    if request.session.get("user"):
+        logger.info(f"AUTH middleware: session user detected: {request.session.get('user')}")
+        return await call_next(request)
+
+    # Not authenticated -> redirect to login (preserve next for GET only)
+    from fastapi.responses import RedirectResponse as _RR
+    if request.method == "GET":
+        query = ("?" + str(request.url.query)) if request.url.query else ""
+        nxt = quote_plus(path + query)
+        logger.info(f"AUTH middleware: no session. redirecting to /login?next={nxt}")
+        return _RR(url=f"/login?next={nxt}", status_code=302)
+
+    logger.info("AUTH middleware: no session on non-GET. redirecting to /login")
+    return _RR(url="/login", status_code=302)

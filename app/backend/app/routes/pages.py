@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from ..auth import public
+from urllib.parse import unquote_plus
 
 from ..db import get_db_conn
 from .. import db as _db
@@ -63,8 +64,13 @@ async def login_post(request: Request):
     if user_key in valid_users and password == valid_users[user_key]:
         logger.info(f"LOGIN success username={user_key}")
         request.session["user"] = {"username": user_key}
-        nxt = request.query_params.get("next") or form.get("next") or "/finances"
-        # Basic safety: only allow internal paths
+        nxt_raw = request.query_params.get("next") or form.get("next") or "/finances"
+        # Decode value that was encoded by middleware with quote_plus
+        try:
+            nxt = unquote_plus(nxt_raw) if isinstance(nxt_raw, str) else "/finances"
+        except Exception:
+            nxt = "/finances"
+        # Basic safety: only allow internal paths after decode
         if not isinstance(nxt, str) or not nxt.startswith("/"):
             nxt = "/finances"
         return RedirectResponse(url=nxt, status_code=status.HTTP_303_SEE_OTHER)

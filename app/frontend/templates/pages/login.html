@@ -10,7 +10,7 @@
         התחברות
       </h2>
     </div>
-    <form method="post" action="/login">
+    <form id="loginForm" method="post" action="/login">
       <div class="card-body space-y-4">
         {% if error %}
           <div class="p-3 rounded bg-red-100 text-red-800 text-sm">{{ error }}</div>
@@ -37,7 +37,22 @@
   </div>
   <p class="text-center text-xs text-gray-500 mt-4">כניסה מותרת רק למשתמש מורשה</p>
   <script>
-    document.getElementById('username').focus();
+    try {
+      console.log('[LOGIN] page loaded', {
+        location: window.location.href,
+        next: new URLSearchParams(window.location.search).get('next') || null,
+        sw: !!navigator.serviceWorker,
+      });
+      const f = document.getElementById('loginForm');
+      f?.addEventListener('submit', function (e) {
+        const u = (document.getElementById('username') || {}).value;
+        console.log('[LOGIN] submitting form', { username: u });
+        // Let the normal form submit happen; we only trace
+      });
+      document.getElementById('username').focus();
+    } catch (err) {
+      console.error('[LOGIN] init error', err);
+    }
   </script>
 {% endblock %}
 

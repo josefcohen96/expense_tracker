@@ -61,9 +61,16 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
     const { request } = event;
     const url = new URL(request.url);
+    // Trace key navigations (avoid noise for static)
+    if (request.headers.get('accept')?.includes('text/html') || url.pathname === '/login') {
+        console.log('[SW] fetch', request.method, url.pathname, { mode: request.mode, redirect: request.redirect });
+    }
     
-    // Skip non-GET requests
+    // Skip non-GET requests, but log login POSTs for debugging
     if (request.method !== 'GET') {
+        if (url.pathname === '/login') {
+            console.log('[SW] bypassing non-GET for /login');
+        }
         return;
     }
     
@@ -86,8 +93,12 @@ self.addEventListener('fetch', event => {
         return;
     }
     
-    // Handle HTML pages
+    // Handle HTML pages, but never cache /login page to avoid loops
     if (request.headers.get('accept').includes('text/html')) {
+        if (url.pathname === '/login') {
+            event.respondWith(fetch(request));
+            return;
+        }
         event.respondWith(handleHtmlRequest(request));
         return;
     }

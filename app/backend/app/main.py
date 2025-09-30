@@ -194,6 +194,10 @@ async def _require_login(request, call_next):
     # Not authenticated -> redirect to login (preserve next for GET only)
     from fastapi.responses import RedirectResponse as _RR
     if request.method == "GET":
+        # Special-case: if someone tries to GET /logout without a session, do not set next=/logout
+        if path == "/logout":
+            logger.info("AUTH middleware: unauthenticated GET /logout -> redirect to /login without next")
+            return _RR(url="/login", status_code=302)
         query = ("?" + str(request.url.query)) if request.url.query else ""
         nxt = quote_plus(path + query)
         logger.info(f"AUTH middleware: no session. redirecting to /login?next={nxt}")

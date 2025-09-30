@@ -70,6 +70,18 @@ async def login_post(request: Request):
         # Basic safety: only allow internal paths after decode
         if not isinstance(nxt, str) or not nxt.startswith("/"):
             nxt = "/finances"
+        # Prevent redirecting to logout or back to login to avoid bounce loops
+        unsafe_targets = {"/logout", "/login"}
+        try:
+            # Normalize by stripping trailing slashes except root
+            if nxt != "/":
+                nxt_norm = nxt.rstrip("/")
+            else:
+                nxt_norm = nxt
+        except Exception:
+            nxt_norm = "/finances"
+        if nxt_norm in unsafe_targets:
+            nxt = "/finances"
         return RedirectResponse(url=nxt, status_code=status.HTTP_303_SEE_OTHER)
 
     # invalid credentials

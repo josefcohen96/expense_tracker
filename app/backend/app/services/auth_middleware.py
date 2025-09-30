@@ -48,6 +48,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
             for regex, methods in self.public_route_matchers:
                 try:
                     if regex.match(path) and (not methods or method in methods):
+                        self.logger.debug("AuthMiddleware: public route allowed", extra={
+                            "path": path,
+                            "method": method,
+                        })
                         return await call_next(request)
                 except Exception:
                     # Best-effort; ignore a broken matcher
@@ -57,11 +61,18 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         # Require a session user for everything else
         try:
-            user_in_session = bool(request.session.get("user"))
+            user_obj = request.session.get("user")
+            user_in_session = bool(user_obj)
         except Exception:
+            user_obj = None
             user_in_session = False
 
         if user_in_session:
+            self.logger.debug("AuthMiddleware: authenticated request", extra={
+                "path": path,
+                "method": method,
+                "username": (user_obj or {}).get("username") if isinstance(user_obj, dict) else None,
+            })
             return await call_next(request)
 
         # Not authenticated -> redirect appropriately
@@ -71,8 +82,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 return RedirectResponse(url="/login", status_code=302)
             query = ("?" + str(request.url.query)) if request.url.query else ""
             nxt = quote_plus(path + query)
+            self.logger.info("AuthMiddleware: redirecting unauthenticated GET", extra={
+                "path": path,
+                "method": method,
+                "next": nxt,
+            })
             return RedirectResponse(url=f"/login?next={nxt}", status_code=302)
 
+        self.logger.info("AuthMiddleware: redirecting unauthenticated non-GET", extra={
+            "path": path,
+            "method": method,
+        })
         return RedirectResponse(url="/login", status_code=302)
 
 

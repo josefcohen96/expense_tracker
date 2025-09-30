@@ -355,6 +355,54 @@ window.showToast = (message, type, duration) => {
     }
 };
 
+// Lightweight frontend debug tracer
+window.__DBG__ = {
+    logNavigation(label, extra = {}) {
+        try {
+            console.log(`[NAV] ${label}`, {
+                url: window.location.href,
+                referrer: document.referrer,
+                sw: !!navigator.serviceWorker,
+                ...extra,
+            });
+        } catch (_) {}
+    },
+    bindHTMX() {
+        try {
+            if (!window.htmx) return;
+            document.body.addEventListener('htmx:beforeRequest', (e) => {
+                const detail = e.detail || {};
+                console.log('[HTMX] beforeRequest', {
+                    path: detail?.path,
+                    verb: detail?.verb,
+                    boosted: detail?.boosted,
+                });
+            });
+            document.body.addEventListener('htmx:afterRequest', (e) => {
+                const detail = e.detail || {};
+                const xhr = detail.xhr;
+                console.log('[HTMX] afterRequest', {
+                    path: detail?.path,
+                    status: xhr?.status,
+                    redirected: xhr ? (xhr.responseURL && !xhr.responseURL.endsWith(detail?.path || '')) : undefined,
+                });
+            });
+            document.body.addEventListener('htmx:beforeOnLoad', (e) => {
+                console.log('[HTMX] beforeOnLoad');
+            });
+            document.body.addEventListener('htmx:afterOnLoad', (e) => {
+                console.log('[HTMX] afterOnLoad');
+            });
+        } catch (_) {}
+    },
+};
+
+// Initialize debug tracer early
+try {
+    window.__DBG__?.logNavigation('page-load');
+    window.__DBG__?.bindHTMX();
+} catch (_) {}
+
 // Add CSS animations - PERFORMANCE OPTIMIZED
 const style = document.createElement('style');
 style.textContent = `

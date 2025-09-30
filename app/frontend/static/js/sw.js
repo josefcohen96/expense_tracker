@@ -1,9 +1,9 @@
 // Service Worker for Performance Optimization and Caching
 
 // Bump versions to force update on clients
-const CACHE_NAME = 'expense-tracker-v1.0.3';
-const STATIC_CACHE = 'static-v1.0.3';
-const DYNAMIC_CACHE = 'dynamic-v1.0.3';
+const CACHE_NAME = 'expense-tracker-v1.0.4';
+const STATIC_CACHE = 'static-v1.0.4';
+const DYNAMIC_CACHE = 'dynamic-v1.0.4';
 
 // Files to cache immediately
 const STATIC_FILES = [
@@ -124,6 +124,9 @@ self.addEventListener('fetch', event => {
             try {
                 const response = await fetch(request);
                 const finalUrl = new URL(response.url);
+                if (finalUrl.pathname !== url.pathname) {
+                    console.log('[SW] navigation redirected', { from: url.pathname, to: finalUrl.pathname });
+                }
                 // If we were redirected to /login, try to purge any stale cached entry for the requested page
                 if (response.redirected || finalUrl.pathname === '/login') {
                     try {

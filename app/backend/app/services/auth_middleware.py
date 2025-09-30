@@ -75,19 +75,16 @@ class AuthMiddleware(BaseHTTPMiddleware):
             })
             return await call_next(request)
 
-        # Not authenticated -> redirect appropriately
+        # Not authenticated -> always go to /login (no next param)
         if method == "GET":
-            # Special-case: avoid next=/logout to prevent loops
+            # Special-case: avoid loop for /logout
             if path == "/logout":
                 return RedirectResponse(url="/login", status_code=302)
-            query = ("?" + str(request.url.query)) if request.url.query else ""
-            nxt = quote_plus(path + query)
             self.logger.info("AuthMiddleware: redirecting unauthenticated GET", extra={
                 "path": path,
                 "method": method,
-                "next": nxt,
             })
-            return RedirectResponse(url=f"/login?next={nxt}", status_code=302)
+            return RedirectResponse(url="/login", status_code=302)
 
         self.logger.info("AuthMiddleware: redirecting unauthenticated non-GET", extra={
             "path": path,

@@ -56,8 +56,7 @@ async def login_post(request: Request):
     form = await request.form()
     username = (form.get("username") or "").strip()
     password = (form.get("password") or "").strip()
-    next_q = (form.get("next") or "").strip()
-    logger.info("LOGIN attempt", extra={"username": username, "next": next_q})
+    logger.info("LOGIN attempt", extra={"username": username})
 
     # Static users per request: KARINA/KA1234, YOSEF/YO1234
     valid_users = {
@@ -68,13 +67,10 @@ async def login_post(request: Request):
     # case-insensitive username match
     user_key = username.upper()
     if user_key in valid_users and password == valid_users[user_key]:
-        logger.info("LOGIN success", extra={"username": user_key, "next": next_q})
+        logger.info("LOGIN success", extra={"username": user_key})
         request.session["user"] = {"username": user_key}
-        # Prefer next parameter if present and safe
-        redirect_url = "/finances"
-        if next_q and isinstance(next_q, str) and next_q.startswith("/"):
-            redirect_url = next_q
-        return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+        # Always go to dashboard after successful login
+        return RedirectResponse(url="/finances", status_code=status.HTTP_303_SEE_OTHER)
 
     # invalid credentials
     logger.info("LOGIN failed", extra={"username": username})

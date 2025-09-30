@@ -113,17 +113,23 @@ class AnimationManager {
     setupHoverEffects() {
         // Use event delegation for better performance
         document.addEventListener('mouseenter', (e) => {
-            if (e.target.classList.contains('card')) {
+            const target = e && e.target;
+            const cls = target && target.classList;
+            if (!cls) return;
+            if (cls.contains('card')) {
                 this.addFloatingEffect(e.target);
-            } else if (e.target.classList.contains('btn')) {
+            } else if (cls.contains('btn')) {
                 this.addButtonGlow(e.target);
             }
         }, { passive: true });
 
         document.addEventListener('mouseleave', (e) => {
-            if (e.target.classList.contains('card')) {
+            const target = e && e.target;
+            const cls = target && target.classList;
+            if (!cls) return;
+            if (cls.contains('card')) {
                 this.removeFloatingEffect(e.target);
-            } else if (e.target.classList.contains('btn')) {
+            } else if (cls.contains('btn')) {
                 this.removeButtonGlow(e.target);
             }
         }, { passive: true });

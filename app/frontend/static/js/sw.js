@@ -1,9 +1,9 @@
 // Service Worker for Performance Optimization and Caching
 
 // Bump versions to force update on clients
-const CACHE_NAME = 'expense-tracker-v1.0.2';
-const STATIC_CACHE = 'static-v1.0.2';
-const DYNAMIC_CACHE = 'dynamic-v1.0.2';
+const CACHE_NAME = 'expense-tracker-v1.0.3';
+const STATIC_CACHE = 'static-v1.0.3';
+const DYNAMIC_CACHE = 'dynamic-v1.0.3';
 
 // Files to cache immediately
 const STATIC_FILES = [
@@ -119,7 +119,7 @@ self.addEventListener('fetch', event => {
     }
     
     // Handle HTML pages: network-only (do not cache navigations)
-    if (request.headers.get('accept').includes('text/html')) {
+    if (request.headers.get('accept')?.includes('text/html')) {
         event.respondWith((async () => {
             try {
                 const response = await fetch(request);

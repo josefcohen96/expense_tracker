@@ -29,6 +29,9 @@ router = APIRouter(tags=["pages"])
 @router.get("/login", response_class=HTMLResponse)
 @public
 async def login_page(request: Request) -> HTMLResponse:
+    # If already authenticated, go straight to dashboard
+    if request.session.get("user"):
+        return RedirectResponse(url="/finances", status_code=status.HTTP_303_SEE_OTHER)
     error = request.query_params.get("error")
     return templates.TemplateResponse(
         "pages/login.html",
@@ -63,7 +66,7 @@ async def login_post(request: Request):
         # Basic safety: only allow internal paths
         if not isinstance(nxt, str) or not nxt.startswith("/"):
             nxt = "/finances"
-        return RedirectResponse(url=nxt, status_code=status.HTTP_302_FOUND)
+        return RedirectResponse(url=nxt, status_code=status.HTTP_303_SEE_OTHER)
 
     # invalid credentials
     logger.info(f"LOGIN failed username={username}")

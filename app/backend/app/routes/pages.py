@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from ..auth import public
 
 from ..db import get_db_conn
+from .. import db as _db
 import logging
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,11 @@ async def finances_dashboard(
     month: Optional[str] = None,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> HTMLResponse:
+    # Ensure schema exists in deployments where startup init may have been skipped
+    try:
+        _db.initialise_database()
+    except Exception:
+        pass
     # Resolve selected month (YYYY-MM), default to current
     today = date.today()
     default_ym = today.strftime("%Y-%m")

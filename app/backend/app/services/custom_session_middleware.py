@@ -2,6 +2,9 @@
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class CustomSessionMiddleware(SessionMiddleware):
@@ -23,25 +26,32 @@ class CustomSessionMiddleware(SessionMiddleware):
         
         async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start" and force_insecure:
-                # Remove Secure flag from Set-Cookie headers when https_only=False
-                headers = MutableHeaders(scope=message)
-                set_cookie_headers = []
-                
-                for idx, (key, value) in enumerate(message.get("headers", [])):
-                    if key.lower() == b"set-cookie":
-                        # Remove "; Secure" from cookie if present
-                        cookie_value = value.decode("latin-1")
-                        if "; Secure" in cookie_value:
-                            cookie_value = cookie_value.replace("; Secure", "")
-                        if "; secure" in cookie_value:
-                            cookie_value = cookie_value.replace("; secure", "")
-                        set_cookie_headers.append((key, cookie_value.encode("latin-1")))
-                    else:
-                        set_cookie_headers.append((key, value))
-                
-                message["headers"] = set_cookie_headers
+                try:
+                    # Remove Secure flag from Set-Cookie headers when https_only=False
+                    headers = message.get("headers", [])
+                    new_headers = []
+                    
+                    for key, value in headers:
+                        if key.lower() == b"set-cookie":
+                            # Remove "; Secure" from cookie if present
+                            cookie_value = value.decode("latin-1")
+                            if "; Secure" in cookie_value:
+                                cookie_value = cookie_value.replace("; Secure", "")
+                            if "; secure" in cookie_value:
+                                cookie_value = cookie_value.replace("; secure", "")
+                            new_headers.append((key, cookie_value.encode("latin-1")))
+                        else:
+                            new_headers.append((key, value))
+                    
+                    message["headers"] = new_headers
+                except Exception as e:
+                    logger.error(f"Error processing Set-Cookie header: {e}")
             
             await send(message)
 
-        await super().__call__(scope, receive, send_wrapper if force_insecure else send)
-
+        # Call parent with the wrapper if force_insecure, otherwise normal send
+        if force_insecure:
+            # We need to call the parent's parent __call__ method with our wrapper
+            await SessionMiddleware.__call__(self, scope, receive, send_wrapper)
+        else:
+            await SessionMiddleware.__call__(self, scope, receive, send)

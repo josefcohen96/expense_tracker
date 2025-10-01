@@ -27,11 +27,12 @@ COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "1")
 COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "lax")
 COOKIE_DOMAIN = os.environ.get("COOKIE_DOMAIN") or None
 
+# FORCE https_only=False for Railway deployment to avoid Secure cookie issues
 app.add_middleware(
     CustomSessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
     same_site=COOKIE_SAMESITE,
-    https_only=(COOKIE_SECURE == "1"),
+    https_only=False,  # Force False to prevent Secure flag
     domain=COOKIE_DOMAIN,
 )
 

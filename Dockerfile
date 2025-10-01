@@ -30,4 +30,6 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 
 # Launch the FastAPI app (SINGLE worker to avoid multiple schedulers)
-CMD ["sh", "-c", "uvicorn app.backend.app.main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1"]
+# --proxy-headers: Trust X-Forwarded-* headers from Railway's reverse proxy
+# --forwarded-allow-ips='*': Allow forwarded headers from any IP (Railway's internal network)
+CMD ["sh", "-c", "uvicorn app.backend.app.main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1 --proxy-headers --forwarded-allow-ips='*'"]

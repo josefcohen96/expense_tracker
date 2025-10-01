@@ -1,6 +1,5 @@
 # --- imports ---
 from fastapi import FastAPI
-from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path as FSPath
 import os
@@ -18,6 +17,8 @@ if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # --- sessions ---
+from .services.custom_session_middleware import CustomSessionMiddleware
+
 SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", "please_change_session_secret")
 
 # Configure cookie security via env (defaults safe for production)
@@ -27,7 +28,7 @@ COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "lax")
 COOKIE_DOMAIN = os.environ.get("COOKIE_DOMAIN") or None
 
 app.add_middleware(
-    SessionMiddleware,
+    CustomSessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
     same_site=COOKIE_SAMESITE,
     https_only=(COOKIE_SECURE == "1"),

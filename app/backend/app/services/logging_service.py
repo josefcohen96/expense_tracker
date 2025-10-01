@@ -19,8 +19,9 @@ def configure_logging(log_dir: Path) -> None:
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
 
-    stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.DEBUG)
+    import sys
+    stream_handler = logging.StreamHandler(sys.stderr)
+    stream_handler.setLevel(logging.INFO)
     stream_handler.setFormatter(formatter)
 
     root_logger = logging.getLogger()

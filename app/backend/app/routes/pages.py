@@ -1,5 +1,6 @@
 from __future__ import annotations
 import sqlite3
+import os
 from typing import Any, Dict, List, Optional
 from datetime import date, timedelta, datetime
 from pathlib import Path as FSPath
@@ -56,6 +57,15 @@ async def login_post(request: Request):
     form = await request.form()
     username = (form.get("username") or "").strip()
     password = (form.get("password") or "").strip()
+    
+    # Debug: Log request headers to see if proxy headers are present
+    headers_dict = dict(request.headers)
+    logger.info("LOGIN attempt with headers", extra={
+        "username": username,
+        "x-forwarded-proto": headers_dict.get("x-forwarded-proto"),
+        "x-forwarded-for": headers_dict.get("x-forwarded-for"),
+        "scheme": request.url.scheme,
+    })
     logger.info("LOGIN attempt", extra={"username": username})
 
     # Static users per request: KARINA/KA1234, YOSEF/YO1234
@@ -82,6 +92,16 @@ async def login_post(request: Request):
 
             # Force session save
             request.session.modified = True
+            
+            # Debug: Check response cookies
+            logger.info("Session configured, preparing redirect", extra={
+                "username": user_key,
+                "session_keys": session_keys,
+                "cookie_settings": {
+                    "https_only": os.environ.get("COOKIE_SECURE", "1"),
+                    "samesite": os.environ.get("COOKIE_SAMESITE", "lax"),
+                }
+            })
         except Exception as e:
             logger.error("Failed to set session", extra={
                 "username": user_key,

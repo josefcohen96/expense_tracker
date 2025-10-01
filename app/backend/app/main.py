@@ -1,5 +1,6 @@
 # --- imports ---
 from fastapi import FastAPI
+from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path as FSPath
 import os
@@ -17,23 +18,20 @@ if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # --- sessions ---
-from .services.custom_session_middleware import CustomSessionMiddleware
-
 SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", "please_change_session_secret")
 
-# Configure cookie security via env (defaults safe for production)
-# Set COOKIE_SECURE=0 for local HTTP development
-COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "1")
+# Configure cookie security via env
 COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "lax")
-COOKIE_DOMAIN = os.environ.get("COOKIE_DOMAIN") or None
 
-# FORCE https_only=False for Railway deployment to avoid Secure cookie issues
+# For Railway: always use https_only=False since Railway terminates HTTPS at proxy
+# and forwards HTTP to container. This ensures cookies work correctly.
 app.add_middleware(
-    CustomSessionMiddleware,
+    SessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
     same_site=COOKIE_SAMESITE,
-    https_only=False,  # Force False to prevent Secure flag
-    domain=COOKIE_DOMAIN,
+    https_only=False,
+    max_age=86400,  # 24 hours
+    session_cookie="session",
 )
 
 from .services.logging_service import configure_logging

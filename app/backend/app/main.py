@@ -6,10 +6,11 @@ from pathlib import Path as FSPath
 import os
 import logging
 from urllib.parse import quote_plus
+from .services.proxy_middleware import ProxyHeaderMiddleware
 
 # --- create app ---
 app = FastAPI(title="Expense Tracker", version="0.1.0")
-
+app.add_middleware(ProxyHeaderMiddleware)
 # --- static (מצביעים ל-frontend) ---
 ROOT_DIR = FSPath(__file__).resolve().parents[2]   # .../expense_tracker/app
 FRONTEND_DIR = ROOT_DIR / "frontend"

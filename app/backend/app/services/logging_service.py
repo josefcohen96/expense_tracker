@@ -16,15 +16,15 @@ def configure_logging(log_dir: Path) -> None:
     formatter = logging.Formatter(fmt)
 
     file_handler = logging.FileHandler(str(log_path))
-    file_handler.setLevel(logging.INFO)
+    file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
 
     stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.INFO)
+    stream_handler.setLevel(logging.DEBUG)
     stream_handler.setFormatter(formatter)
 
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
+    root_logger.setLevel(logging.DEBUG)
 
     if not any(
         getattr(h, "baseFilename", None) == str(log_path)
@@ -38,7 +38,7 @@ def configure_logging(log_dir: Path) -> None:
 
     for uv_logger_name in ("uvicorn.error", "uvicorn.access", "uvicorn"):
         lg = logging.getLogger(uv_logger_name)
-        lg.setLevel(logging.INFO)
+        lg.setLevel(logging.DEBUG)
         if not any(
             getattr(h, "baseFilename", None) == str(log_path)
             for h in lg.handlers

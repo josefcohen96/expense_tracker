@@ -3,8 +3,6 @@
 {% block title %}הוצאות קבועות - CoupleBudget{% endblock %}
 
 {% block content %}
-<h1 class="text-2xl font-bold mb-6">ניהול הוצאות קבועות</h1>
-
 <div class="card animate-sequence">
   <div class="card-header">
     <h2 class="text-xl font-semibold text-gray-900 flex items-center">
@@ -19,14 +17,10 @@
     <form method="GET" class="flex flex-wrap gap-4 items-end">
       <div>
         <label class="block text-sm font-medium mb-1">קטגוריה</label>
-        <select name="category_id" class="border border-gray-300 rounded px-3 py-2 min-w-[200px]">
-          <option value="">כל הקטגוריות</option>
-          {% for c in categories %}
-            {% if c.name not in ['משכורת','קליניקה'] %}
-            <option value="{{ c.id }}" {% if request.query_params.get('category_id')|int == c.id %}selected{% endif %}>{{ c.name }}</option>
-            {% endif %}
-          {% endfor %}
-        </select>
+        <label class="block text-sm font-medium mb-1">חודש</label>
+        <input type="month" name="month" class="border border-gray-300 rounded px-3 py-2 min-w-[200px]"
+               value="{{ request.query_params.get('month', '') }}">
+              
       </div>
       <div class="flex items-center gap-2">
         <input type="checkbox" id="only_active" name="only_active" value="1" class="h-4 w-4"

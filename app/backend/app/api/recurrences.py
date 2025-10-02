@@ -89,21 +89,17 @@ async def api_create_recurrence(
     )
     db_conn.commit()
     new_id = cur.lastrowid
-    # Return with effective values (including defaults applied)
-    return schemas.Recurrence(
-        id=new_id,
-        name=rec.name,
-        amount=rec.amount,
-        category_id=rec.category_id,
-        user_id=rec.user_id,
-        frequency=frequency,
-        day_of_month=day_of_month,
-        weekday=weekday,
-        next_charge_date=next_charge_date,
-        custom_cron=rec.custom_cron,
-        account_id=rec.account_id,
-        active=rec.active,
-    )
+
+    # Immediately materialize missing occurrences up to today
+    # This will also advance next_charge_date as needed
+    inserted = recurrence.apply_recurring()
+    # Optionally could use `inserted` for logging/response if needed
+
+    # Reload and return the updated recurrence row (reflecting any date advancement)
+    row = db_conn.execute("SELECT * FROM recurrences WHERE id = ?", (new_id,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=500, detail="Failed to load created recurrence")
+    return schemas.Recurrence(**dict(row))
 
 @router.patch("/{rec_id}", response_model=schemas.Recurrence)
 async def api_update_recurrence(

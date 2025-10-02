@@ -122,6 +122,8 @@ async def login_post(request: Request):
                 "cookie_settings": {
                     "https_only": os.environ.get("COOKIE_SECURE", "1"),
                     "samesite": os.environ.get("COOKIE_SAMESITE", "lax"),
+                    "domain": os.environ.get("SESSION_COOKIE_DOMAIN"),
+                    "secret_key_set": bool(os.environ.get("SESSION_SECRET_KEY")),
                 },
                 "redirect_url": "/finances",
                 "redirect_status": status.HTTP_303_SEE_OTHER,

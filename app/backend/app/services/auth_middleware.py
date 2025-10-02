@@ -81,22 +81,22 @@ class AuthMiddleware(BaseHTTPMiddleware):
             session_id = getattr(request.session, 'session_id', None)
             session_keys = list(request.session.keys()) if hasattr(request.session, 'keys') else []
             
-            # DEBUG: Log session details for /finances requests
-            if path == "/finances":
-                auth_logger.debug(f"/finances request - user_in_session: {user_in_session}")
-                auth_logger.debug(f"/finances request - user_obj: {user_obj}")
-                auth_logger.debug(f"/finances request - cookies: {dict(request.cookies)}")
-                auth_logger.debug(f"/finances request - session_keys: {session_keys}")
-                
-                self.logger.info("AuthMiddleware: /finances request debug", extra={
-                    "path": path,
-                    "method": method,
-                    "user_obj": user_obj,
-                    "user_in_session": user_in_session,
-                    "session_id": session_id,
-                    "session_keys": session_keys,
-                    "cookies": dict(request.cookies),
-                })
+            # DEBUG: Log session details for all requests
+            auth_logger.info(f"Session check - path: {path}, user_in_session: {user_in_session}")
+            auth_logger.info(f"Session check - user_obj: {user_obj}")
+            auth_logger.info(f"Session check - cookies: {dict(request.cookies)}")
+            auth_logger.info(f"Session check - session_keys: {session_keys}")
+            
+            self.logger.info("AuthMiddleware: session check", extra={
+                "path": path,
+                "method": method,
+                "user_obj": user_obj,
+                "user_in_session": user_in_session,
+                "session_id": session_id,
+                "session_keys": session_keys,
+                "cookies": dict(request.cookies),
+                "session_data": dict(request.session) if hasattr(request.session, '__dict__') else None,
+            })
         except Exception as e:
             user_obj = None
             user_in_session = False
@@ -106,6 +106,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 "path": path,
                 "method": method,
                 "error": str(e),
+                "error_type": type(e).__name__,
             })
 
         if user_in_session:

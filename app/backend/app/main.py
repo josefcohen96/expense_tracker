@@ -30,7 +30,9 @@ _secure_env = os.environ.get("COOKIE_SECURE")
 if _secure_env is not None:
     HTTPS_ONLY = str(_secure_env).strip().lower() in {"1", "true", "yes", "on"}
 else:
-    HTTPS_ONLY = True  # default to secure in production
+    # Auto-detect HTTPS in production (Railway uses HTTPS)
+    is_production = os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.environ.get("ENVIRONMENT") == "production"
+    HTTPS_ONLY = is_production  # Use HTTPS cookies in production
 
 # Respect optional cookie domain
 SESSION_COOKIE_DOMAIN = os.environ.get("SESSION_COOKIE_DOMAIN")
@@ -50,6 +52,9 @@ session_kwargs = {
 }
 if SESSION_COOKIE_DOMAIN:
     session_kwargs["domain"] = SESSION_COOKIE_DOMAIN
+
+# Log session configuration for debugging (logger will be defined later)
+print(f"Session configuration: https_only={HTTPS_ONLY}, same_site={COOKIE_SAMESITE}, domain={SESSION_COOKIE_DOMAIN}, cookie_secure_env={_secure_env}, is_production={is_production}")
 
 app.add_middleware(SessionMiddleware, **session_kwargs)
 

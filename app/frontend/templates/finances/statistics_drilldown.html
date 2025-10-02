@@ -18,7 +18,7 @@
           <th class="px-3 py-2 border-b">קטגוריה</th>
           <th class="px-3 py-2 border-b">משתמש</th>
           <th class="px-3 py-2 border-b">אמצעי</th>
-          <th class="px-3 py-2 border-b">שם</th>
+          <th class="px-3 py-2 border-b">תגיות</th>
         </tr>
       </thead>
       <tbody>
@@ -29,7 +29,7 @@
           <td class="px-3 py-2 border-b">{{ r.category }}</td>
           <td class="px-3 py-2 border-b">{{ r.user }}</td>
           <td class="px-3 py-2 border-b">{{ r.account }}</td>
-          <td class="px-3 py-2 border-b">{{ r.recurrence_name or '' }}</td>
+          <td class="px-3 py-2 border-b">{{ r.display_tags }}</td>
         </tr>
         {% else %}
         <tr>

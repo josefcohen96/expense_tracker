@@ -896,7 +896,13 @@ async def create_recurrence_form(
     )
     db_conn.commit()
 
-    return RedirectResponse(url="/finances/recurrences", status_code=303)
+    # Redirect back to the source page (active/all) using Referer when possible
+    try:
+        ref = request.headers.get("referer", "") or ""
+        target = "/finances/recurrences/active" if "/finances/recurrences/active" in ref else "/finances/recurrences"
+    except Exception:
+        target = "/finances/recurrences"
+    return RedirectResponse(url=target, status_code=303)
 
 
 @router.post("/recurrences/{rec_id}/toggle-active", response_class=HTMLResponse)

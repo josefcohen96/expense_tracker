@@ -5,6 +5,69 @@
 {% block content %}
 <h1 class="text-2xl font-bold mb-6">הוצאות קבועות פעילות</h1>
 
+<div class="bg-white p-6 rounded-lg shadow mb-8">
+  <h2 class="text-xl font-semibold mb-4">הוסף הוצאה קבועה</h2>
+  <form id="recurrenceForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+      <label class="block text-sm font-medium mb-1">שם</label>
+      <input type="text" name="name" required class="w-full border border-gray-300 rounded px-3 py-2" />
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">סכום</label>
+      <input type="number" step="0.01" name="amount" required class="w-full border border-gray-300 rounded px-3 py-2" />
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">קטגוריה</label>
+      <select name="category_id" class="w-full border border-gray-300 rounded px-3 py-2">
+        {% for c in categories %}
+        {% if c.name not in ['משכורת','קליניקה'] %}
+        <option value="{{ c.id }}">{{ c.name }}</option>
+        {% endif %}
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">משתמש</label>
+      <select name="user_id" class="w-full border border-gray-300 rounded px-3 py-2">
+        {% for u in users %}
+        <option value="{{ u.id }}">{{ u.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">חשבון</label>
+      <select name="account_id" class="w-full border border-gray-300 rounded px-3 py-2">
+        {% for a in accounts %}
+        <option value="{{ a.id }}">{{ a.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">תאריך חיוב הבא</label>
+      <input type="date" name="next_charge_date" class="w-full border border-gray-300 rounded px-3 py-2" />
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">תדירות</label>
+      <select name="frequency" class="w-full border border-gray-300 rounded px-3 py-2" id="freq-select">
+        <option value="monthly">חודשי</option>
+        <option value="weekly">שבועי</option>
+        <option value="yearly">שנתי</option>
+      </select>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">יום בחודש (לחודשי)</label>
+      <input type="number" name="day_of_month" min="1" max="31" class="w-full border border-gray-300 rounded px-3 py-2" />
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">יום בשבוע (לשבועי, 0=Monday)</label>
+      <input type="number" name="weekday" min="0" max="6" class="w-full border border-gray-300 rounded px-3 py-2" />
+    </div>
+    <div class="md:col-span-2 text-right">
+      <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">שמור</button>
+    </div>
+  </form>
+</div>
+
 <div class="card animate-sequence">
   <div class="card-header">
     <h2 class="text-xl font-semibold text-gray-900 flex items-center">
@@ -111,6 +174,56 @@ document.addEventListener('htmx:afterSwap', function(e) {
   if (isActive === '0') {
     target.remove();
   }
+});
+
+// Handle create form submit
+document.getElementById('recurrenceForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const formData = new FormData(this);
+  const data = {};
+  for (let [key, value] of formData.entries()) {
+    data[key] = value;
+  }
+  try {
+    const response = await fetch('/recurrences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(data)
+    });
+    if (response.ok) {
+      alert('ההוצאה הקבועה נוספה בהצלחה!');
+      this.reset();
+      location.reload();
+    } else {
+      const error = await response.text();
+      alert('שגיאה: ' + error);
+    }
+  } catch (error) {
+    alert('שגיאה בהוספת ההוצאה הקבועה');
+    console.error('Error:', error);
+  }
+});
+
+// Show/hide frequency-specific fields based on selection
+document.getElementById('freq-select').addEventListener('change', function() {
+  const frequency = this.value;
+  const dayOfMonthField = document.querySelector('input[name="day_of_month"]').parentElement;
+  const weekdayField = document.querySelector('input[name="weekday"]').parentElement;
+  if (frequency === 'monthly') {
+    dayOfMonthField.style.display = 'block';
+    weekdayField.style.display = 'none';
+  } else if (frequency === 'weekly') {
+    dayOfMonthField.style.display = 'none';
+    weekdayField.style.display = 'block';
+  } else {
+    dayOfMonthField.style.display = 'none';
+    weekdayField.style.display = 'none';
+  }
+});
+
+// Initialize field visibility
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('freq-select').dispatchEvent(new Event('change'));
 });
 </script>
 {% endblock %}

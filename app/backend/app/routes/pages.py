@@ -31,6 +31,24 @@ router = APIRouter(tags=["pages"])
 # public decorator is imported from ..auth
 
 
+def _get_main_user_ids(db_conn: sqlite3.Connection) -> str:
+    """
+    Get the user IDs for the main users (English canonical names: Yosef, Karina).
+    Returns a string of comma-separated IDs for use in SQL IN clauses.
+    """
+    # Prefer English-only canonical names
+    result = db_conn.execute(
+        "SELECT id FROM users WHERE name IN ('Yosef','Karina')"
+    ).fetchall()
+
+    if result:
+        return ",".join(str(row["id"]) for row in result)
+
+    # Fallback: if English names missing, pick the first two users consistently
+    all_users = db_conn.execute("SELECT id FROM users ORDER BY id ASC").fetchall()
+    return ",".join(str(row["id"]) for row in all_users[:2]) if all_users else "1,2"
+
+
 @router.get("/login", response_class=HTMLResponse)
 @public
 async def login_page(request: Request) -> HTMLResponse:
@@ -305,16 +323,19 @@ async def finances_dashboard(
     next_first = date(sel_year + (1 if sel_month == 12 else 0), 1 if sel_month == 12 else sel_month + 1, 1)
     month_last = next_first - timedelta(days=1)
 
+    # Get main user IDs (works with both Hebrew and English names)
+    user_ids = _get_main_user_ids(db_conn)
+
     # KPIs for selected month
     kpi_row = db_conn.execute(
-        """
+        f"""
         SELECT 
             SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as total_expenses,
             SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as total_income,
             COUNT(*) as total_transactions
         FROM transactions 
         WHERE strftime('%Y-%m', date) = ?
-          AND user_id IN (SELECT id FROM users WHERE name IN ('Yosef','Karina'))
+          AND user_id IN ({user_ids})
         """,
         (selected_ym,),
     ).fetchone() or {"total_expenses": 0, "total_income": 0, "total_transactions": 0}
@@ -328,13 +349,13 @@ async def finances_dashboard(
     prev_month_num = sel_month - 1 if sel_month > 1 else 12
     prev_ym = f"{prev_year:04d}-{prev_month_num:02d}"
     prev = db_conn.execute(
-        """
+        f"""
         SELECT 
             SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as total_expenses,
             SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as total_income
         FROM transactions 
         WHERE strftime('%Y-%m', date) = ?
-          AND user_id IN (SELECT id FROM users WHERE name IN ('Yosef','Karina'))
+          AND user_id IN ({user_ids})
         """,
         (prev_ym,),
     ).fetchone() or {"total_expenses": 0, "total_income": 0}
@@ -350,14 +371,14 @@ async def finances_dashboard(
 
     # Recent transactions (latest 5) in selected month
     recent = db_conn.execute(
-        """
+        f"""
         SELECT t.id, t.date, t.amount, c.name as category, u.name as user, a.name as account, t.notes
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
         LEFT JOIN users u ON t.user_id = u.id
         LEFT JOIN accounts a ON t.account_id = a.id
         WHERE strftime('%Y-%m', t.date) = ?
-          AND t.user_id IN (SELECT id FROM users WHERE name IN ('Yosef','Karina'))
+          AND t.user_id IN ({user_ids})
         ORDER BY t.date DESC, t.id DESC
         LIMIT 5
         """,
@@ -370,12 +391,12 @@ async def finances_dashboard(
 
     # Top expense categories (selected month)
     top_categories = db_conn.execute(
-        """
+        f"""
         SELECT c.name AS category, COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS total
         FROM transactions t
         JOIN categories c ON t.category_id = c.id
         WHERE strftime('%Y-%m', t.date) = ? AND t.amount < 0
-          AND t.user_id IN (SELECT id FROM users WHERE name IN ('Yosef','Karina'))
+          AND t.user_id IN ({user_ids})
         GROUP BY c.name
         ORDER BY total DESC
         LIMIT 5
@@ -386,14 +407,14 @@ async def finances_dashboard(
     # Upcoming recurrences for selected month
 
     recs = db_conn.execute(
-        """
+        f"""
         SELECT r.id, r.name, r.amount, r.frequency, r.day_of_month, r.weekday,
                r.next_charge_date, c.name AS category, u.name AS user
         FROM recurrences r
         LEFT JOIN categories c ON r.category_id = c.id
         LEFT JOIN users u ON r.user_id = u.id
         WHERE r.active = 1
-          AND r.user_id IN (SELECT id FROM users WHERE name IN ('Yosef','Karina'))
+          AND r.user_id IN ({user_ids})
         """
     ).fetchall()
 
@@ -471,6 +492,9 @@ async def finances_transactions(
     per_page = max(1, min(100, per_page))
     offset = (page - 1) * per_page
 
+    # Get main user IDs (works with both Hebrew and English names)
+    user_ids = _get_main_user_ids(db_conn)
+
     # Optional filters
     qp = request.query_params
     category_id_raw = qp.get("category_id")
@@ -530,8 +554,8 @@ async def finances_transactions(
             where_clauses.append("(" + " OR ".join(["t.tags LIKE ?"] * len(tag_list)) + ")")
             params.extend([f"%{tg}%" for tg in tag_list])
 
-    # Restrict users to Yosef and Karina
-    where_clauses.append("t.user_id IN (SELECT id FROM users WHERE name IN ('Yosef','Karina'))")
+    # Restrict users to main users
+    where_clauses.append(f"t.user_id IN ({user_ids})")
 
     where_sql = " WHERE " + " AND ".join(where_clauses)
 
@@ -557,7 +581,7 @@ async def finances_transactions(
 
     # For expenses page: exclude income categories from the dropdown
     categories = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת','קליניקה') ORDER BY name").fetchall()
-    users = db_conn.execute("SELECT id, name FROM users WHERE name IN ('Yosef','Karina') ORDER BY id").fetchall()
+    users = db_conn.execute(f"SELECT id, name FROM users WHERE id IN ({user_ids}) ORDER BY id").fetchall()
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
 
     total_pages = max(1, (total + per_page - 1) // per_page)
@@ -600,6 +624,9 @@ async def finances_income(
     per_page = max(1, min(100, per_page))
     offset = (page - 1) * per_page
 
+    # Get main user IDs (works with both Hebrew and English names)
+    user_ids = _get_main_user_ids(db_conn)
+
     total = db_conn.execute("SELECT COUNT(*) FROM transactions WHERE amount > 0").fetchone()[0]
     rows = db_conn.execute(
         """
@@ -614,7 +641,7 @@ async def finances_income(
         LEFT JOIN users u ON t.user_id = u.id
         LEFT JOIN accounts a ON t.account_id = a.id
         WHERE t.amount > 0 AND t.recurrence_id IS NULL
-          AND t.user_id IN (SELECT id FROM users WHERE name IN ('Yosef','Karina'))
+          AND t.user_id IN ({user_ids})
         ORDER BY t.date DESC, t.id DESC
         LIMIT ? OFFSET ?
         """,
@@ -623,7 +650,7 @@ async def finances_income(
 
     # For income page: show only income categories
     categories = db_conn.execute("SELECT id, name FROM categories WHERE name IN ('משכורת','קליניקה') ORDER BY name").fetchall()
-    users = db_conn.execute("SELECT id, name FROM users WHERE name IN ('Yosef','Karina') ORDER BY id").fetchall()
+    users = db_conn.execute(f"SELECT id, name FROM users WHERE id IN ({user_ids}) ORDER BY id").fetchall()
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
 
     total_pages = max(1, (total + per_page - 1) // per_page)
@@ -669,6 +696,9 @@ async def finances_recurrences(
     per_page = max(1, min(100, per_page))
     offset = (page - 1) * per_page
 
+    # Get main user IDs (works with both Hebrew and English names)
+    user_ids = _get_main_user_ids(db_conn)
+
     base_sql = (
         """
         SELECT r.id, r.name, r.amount, r.frequency, r.next_charge_date, r.active,
@@ -701,13 +731,13 @@ async def finances_recurrences(
     where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
     total = db_conn.execute(f"SELECT COUNT(*) FROM recurrences r{where_sql}", params).fetchone()[0]
-    # Force user filter to Yosef and Karina only
-    user_filter_sql = " AND r.user_id IN (SELECT id FROM users WHERE name IN ('Yosef','Karina'))"
+    # Force user filter to main users
+    user_filter_sql = f" AND r.user_id IN ({user_ids})"
     recs = db_conn.execute(base_sql + where_sql + user_filter_sql + " ORDER BY r.id DESC LIMIT ? OFFSET ?", (*params, per_page, offset)).fetchall()
 
     # Recurrences are expenses: exclude income categories
     categories = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת','קליניקה') ORDER BY name").fetchall()
-    users = db_conn.execute("SELECT id, name FROM users WHERE name IN ('Yosef','Karina') ORDER BY id").fetchall()
+    users = db_conn.execute(f"SELECT id, name FROM users WHERE id IN ({user_ids}) ORDER BY id").fetchall()
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
 
     total_pages = max(1, (total + per_page - 1) // per_page)
@@ -750,6 +780,9 @@ async def finances_recurrences_active(
     per_page = max(1, min(100, per_page))
     offset = (page - 1) * per_page
 
+    # Get main user IDs (works with both Hebrew and English names)
+    user_ids = _get_main_user_ids(db_conn)
+
     base_sql = (
         """
         SELECT r.id, r.name, r.amount, r.frequency, r.next_charge_date, r.active,
@@ -777,12 +810,12 @@ async def finances_recurrences_active(
     where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
     total = db_conn.execute(f"SELECT COUNT(*) FROM recurrences r{where_sql}", params).fetchone()[0]
-    user_filter_sql = " AND r.user_id IN (SELECT id FROM users WHERE name IN ('Yosef','Karina'))"
+    user_filter_sql = f" AND r.user_id IN ({user_ids})"
     recs = db_conn.execute(base_sql + where_sql + user_filter_sql + " ORDER BY r.id DESC LIMIT ? OFFSET ?", (*params, per_page, offset)).fetchall()
 
     # Active recurrences are expenses: exclude income categories
     categories = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת','קליניקה') ORDER BY name").fetchall()
-    users = db_conn.execute("SELECT id, name FROM users WHERE name IN ('Yosef','Karina') ORDER BY id").fetchall()
+    users = db_conn.execute(f"SELECT id, name FROM users WHERE id IN ({user_ids}) ORDER BY id").fetchall()
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
 
     total_pages = max(1, (total + per_page - 1) // per_page)
@@ -953,10 +986,13 @@ async def edit_recurrence_inline(
     rec_id: int,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ):
+    # Get main user IDs (works with both Hebrew and English names)
+    user_ids = _get_main_user_ids(db_conn)
+
     row = db_conn.execute("SELECT * FROM recurrences WHERE id = ?", (rec_id,)).fetchone()
     # Edit recurrence: restrict to expense categories
     categories = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת','קליניקה') ORDER BY name").fetchall()
-    users = db_conn.execute("SELECT id, name FROM users WHERE name IN ('Yosef','Karina') ORDER BY id").fetchall()
+    users = db_conn.execute(f"SELECT id, name FROM users WHERE id IN ({user_ids}) ORDER BY id").fetchall()
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse(
         "partials/recurrences/edit_row.html",
@@ -1021,24 +1057,27 @@ async def finances_statistics(
     request: Request,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> HTMLResponse:
+    # Get main user IDs (works with both Hebrew and English names)
+    user_ids = _get_main_user_ids(db_conn)
+
     month_totals = db_conn.execute(
-        """
+        f"""
         SELECT 
             SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as total_expenses,
             SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as total_income,
             COUNT(*) as total_transactions
         FROM transactions 
         WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
-          AND user_id IN (SELECT id FROM users WHERE name IN ('Yosef','Karina'))
+          AND user_id IN ({user_ids})
         """
     ).fetchone() or {"total_expenses": 0, "total_income": 0, "total_transactions": 0}
 
     total_recurring_month = db_conn.execute(
-        """
+        f"""
         SELECT COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) as total
         FROM transactions 
         WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now') AND recurrence_id IS NOT NULL
-          AND user_id IN (SELECT id FROM users WHERE name IN ('Yosef','Karina'))
+          AND user_id IN ({user_ids})
         """
     ).fetchone()[0]
 
@@ -1057,7 +1096,7 @@ async def finances_statistics(
         JOIN categories c ON t.category_id = c.id
         WHERE t.date >= date('now', '-6 months')
           AND c.name NOT IN ('משכורת', 'קליניקה')
-          AND t.user_id IN (SELECT id FROM users WHERE name IN ('Yosef','Karina'))
+          AND t.user_id IN ({user_ids})
         GROUP BY month, c.name
         ORDER BY month ASC, amount DESC
         """
@@ -1082,7 +1121,7 @@ async def finances_statistics(
           AND t.amount < 0
           AND t.recurrence_id IS NULL
           AND c.name NOT IN ('משכורת', 'קליניקה')
-          AND t.user_id IN (SELECT id FROM users WHERE name IN ('Yosef','Karina'))
+          AND t.user_id IN ({user_ids})
         ORDER BY ABS(t.amount) DESC, t.date DESC
         LIMIT 5
         """
@@ -1101,7 +1140,7 @@ async def finances_statistics(
         LEFT JOIN categories c ON t.category_id = c.id
         WHERE t.date >= date('now', '-6 months')
           AND c.name NOT IN ('משכורת', 'קליניקה')
-          AND t.user_id IN (SELECT id FROM users WHERE name IN ('Yosef','Karina'))
+          AND t.user_id IN ({user_ids})
         GROUP BY u.name, a.name
         ORDER BY u.name ASC
         """
@@ -1161,7 +1200,7 @@ async def finances_statistics(
           AND t.amount < 0
           AND t.recurrence_id IS NOT NULL
           AND c.name NOT IN ('משכורת', 'קליניקה')
-          AND t.user_id IN (SELECT id FROM users WHERE name IN ('Yosef','Karina'))
+          AND t.user_id IN ({user_ids})
         ORDER BY ABS(t.amount) DESC, t.date DESC
         LIMIT 10
         """
@@ -1185,7 +1224,7 @@ async def finances_statistics(
         LEFT JOIN categories c ON r.category_id = c.id
         LEFT JOIN users u ON r.user_id = u.id
         WHERE r.active = 1
-          AND r.user_id IN (SELECT id FROM users WHERE name IN ('Yosef','Karina'))
+          AND r.user_id IN ({user_ids})
         ORDER BY r.name ASC
         """
     ).fetchall()

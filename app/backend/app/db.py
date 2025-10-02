@@ -248,15 +248,55 @@ def initialise_database() -> None:
         # Migration best-effort; do not fail app startup
         pass
 
+    # 3) Normalize user names to English only (merge Hebrew rows into English)
+    try:
+        # Map of Hebrew -> English canonical names
+        user_name_map = (
+            ("יוסף", "Yosef"),
+            ("קארינה", "Karina"),
+        )
+
+        for heb_name, eng_name in user_name_map:
+            heb_row = cur.execute("SELECT id FROM users WHERE name = ?", (heb_name,)).fetchone()
+            if not heb_row:
+                continue
+
+            eng_row = cur.execute("SELECT id FROM users WHERE name = ?", (eng_name,)).fetchone()
+            if not eng_row:
+                cur.execute("INSERT INTO users (name) VALUES (?)", (eng_name,))
+                eng_id = cur.lastrowid
+            else:
+                # sqlite3.Row supports dict-style access
+                try:
+                    eng_id = int(eng_row[0] if 0 in eng_row.keys() else eng_row["id"])  # defensive
+                except Exception:
+                    eng_id = int(eng_row["id"]) if "id" in eng_row.keys() else int(eng_row[0])
+
+            # Ensure we have heb_id
+            try:
+                heb_id = int(heb_row[0] if 0 in heb_row.keys() else heb_row["id"])  # defensive
+            except Exception:
+                heb_id = int(heb_row["id"]) if "id" in heb_row.keys() else int(heb_row[0])
+
+            # Update FKs in referencing tables
+            cur.execute("UPDATE transactions SET user_id = ? WHERE user_id = ?", (eng_id, heb_id))
+            cur.execute("UPDATE recurrences SET user_id = ? WHERE user_id = ?", (eng_id, heb_id))
+
+            # Delete the old Hebrew user row once references are moved
+            cur.execute("DELETE FROM users WHERE id = ?", (heb_id,))
+    except Exception:
+        # Do not fail startup for normalization; safe to continue
+        pass
+
     # Insert default data if tables are empty
     if not cur.execute("SELECT COUNT(*) FROM categories").fetchone()[0]:
         for _cat in ("משכורת", "קליניקה", "בריאות", "חסכונות", "פנאי", "הוצאות בית", "רכב", "תחבורה","אוכל בחוץ"):
             cur.execute("INSERT INTO categories (name) VALUES (?)", (_cat,))
 
     if not cur.execute("SELECT COUNT(*) FROM users").fetchone()[0]:
-        # Seed only the real users
-        cur.execute("INSERT INTO users (name) VALUES ('יוסף')")
-        cur.execute("INSERT INTO users (name) VALUES ('קארינה')")
+        # Seed only the real users (English canonical names)
+        cur.execute("INSERT INTO users (name) VALUES ('Yosef')")
+        cur.execute("INSERT INTO users (name) VALUES ('Karina')")
 
     if not cur.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]:
         cur.execute("INSERT INTO accounts (name) VALUES ('מזומן')")

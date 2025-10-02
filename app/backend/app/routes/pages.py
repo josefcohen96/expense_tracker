@@ -58,14 +58,13 @@ async def login_post(request: Request):
     username = (form.get("username") or "").strip()
     password = (form.get("password") or "").strip()
     
-    # Debug: Log request headers to see if proxy headers are present
-    headers_dict = dict(request.headers)
-    logger.info("LOGIN attempt with headers", extra={
-        "username": username,
-        "x-forwarded-proto": headers_dict.get("x-forwarded-proto"),
-        "x-forwarded-for": headers_dict.get("x-forwarded-for"),
-        "scheme": request.url.scheme,
-    })
+    # Debug: Log request details to diagnose cookie issues
+    import sys
+    print(f"[DEBUG] request.url.scheme = {request.url.scheme}", file=sys.stderr)
+    print(f"[DEBUG] request.base_url.scheme = {request.base_url.scheme}", file=sys.stderr)
+    print(f"[DEBUG] request.scope['scheme'] = {request.scope.get('scheme')}", file=sys.stderr)
+    print(f"[DEBUG] headers = {dict(request.headers)}", file=sys.stderr)
+    
     logger.info("LOGIN attempt", extra={"username": username})
 
     # Static users per request: KARINA/KA1234, YOSEF/YO1234

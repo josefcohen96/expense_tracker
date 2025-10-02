@@ -6,6 +6,7 @@ from pathlib import Path as FSPath
 import os
 import logging
 from urllib.parse import quote_plus
+from starlette.middleware.proxy_headers import ProxyHeadersMiddleware
 
 # --- create app ---
 app = FastAPI(title="Expense Tracker", version="0.1.0")
@@ -20,19 +21,38 @@ if STATIC_DIR.exists():
 # --- sessions ---
 SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", "please_change_session_secret")
 
-# Configure cookie security via env
-COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "lax")
+COOKIE_SAMESITE = (os.environ.get("COOKIE_SAMESITE", "lax") or "lax").strip().lower()
+if COOKIE_SAMESITE not in {"lax", "strict", "none"}:
+    COOKIE_SAMESITE = "lax"
 
-# For Railway: always use https_only=False since Railway terminates HTTPS at proxy
-# and forwards HTTP to container. This ensures cookies work correctly.
+# Decide if cookie is Secure. If SameSite=None, browsers require Secure
+_secure_env = os.environ.get("COOKIE_SECURE")
+if _secure_env is not None:
+    HTTPS_ONLY = str(_secure_env).strip().lower() in {"1", "true", "yes", "on"}
+else:
+    HTTPS_ONLY = True  # default to secure in production
+
+# Respect optional cookie domain
+SESSION_COOKIE_DOMAIN = os.environ.get("SESSION_COOKIE_DOMAIN")
+
+# Ensure correct scheme/host behind Railway proxy
 app.add_middleware(
-    SessionMiddleware,
-    secret_key=SESSION_SECRET_KEY,
-    same_site=COOKIE_SAMESITE,
-    https_only=False,
-    max_age=86400,  # 24 hours
-    session_cookie="session",
+    ProxyHeadersMiddleware,
+    trusted_hosts=["expensetracker-production-2084.up.railway.app", "127.0.0.1"],
+    x_forwarded_hosts=True,
 )
+
+session_kwargs = {
+    "secret_key": SESSION_SECRET_KEY,
+    "same_site": COOKIE_SAMESITE,
+    "https_only": HTTPS_ONLY,
+    "max_age": 86400,  # 24 hours
+    "session_cookie": "session",
+}
+if SESSION_COOKIE_DOMAIN:
+    session_kwargs["domain"] = SESSION_COOKIE_DOMAIN
+
+app.add_middleware(SessionMiddleware, **session_kwargs)
 
 from .services.logging_service import configure_logging
 

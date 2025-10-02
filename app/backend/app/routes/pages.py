@@ -714,7 +714,7 @@ async def finances_recurrences(
         """
     )
 
-    # Optional filters: category_id, only_active
+    # Optional filters: month(for schedule), category_id, only_active; always restrict to main users
     where_clauses: List[str] = []
     params: List[Any] = []
 
@@ -731,19 +731,29 @@ async def finances_recurrences(
     if only_active in ("1", "true", "True", "on"):
         where_clauses.append("r.active = 1")
 
+    # Always scope to the main users
+    where_clauses.append(f"r.user_id IN ({user_ids})")
+
     where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
-    total = db_conn.execute(f"SELECT COUNT(*) FROM recurrences r{where_sql}", params).fetchone()[0]
-    # Force user filter to main users
-    user_filter_sql = f" AND r.user_id IN ({user_ids})"
-    recs = db_conn.execute(base_sql + where_sql + user_filter_sql + " ORDER BY r.id DESC LIMIT ? OFFSET ?", (*params, per_page, offset)).fetchall()
+    # Fetch all rows (we will compute scheduled date and then apply month filter and paginate in Python)
+    recs_all = db_conn.execute(base_sql + where_sql + " ORDER BY r.id DESC", (*params,)).fetchall()
 
     # Compute scheduled execution date for current month based on frequency/day_of_month/weekday
     from datetime import date as _date
     import calendar as _calendar
 
+    # Resolve selected month (YYYY-MM). If provided, use it; otherwise default to current month
+    month_str = request.query_params.get("month")
     today = _date.today()
     sel_year, sel_month = today.year, today.month
+    if month_str:
+        try:
+            dt_obj = datetime.strptime(month_str, "%Y-%m")
+            sel_year, sel_month = dt_obj.year, dt_obj.month
+        except Exception:
+            # ignore invalid value; keep today
+            pass
 
     def _first_weekday_in_month(year: int, month: int, weekday_py: int) -> _date:
         month_first = _date(year, month, 1)
@@ -751,7 +761,7 @@ async def finances_recurrences(
         return month_first + timedelta(days=offset_days)
 
     recs_enriched: List[Dict[str, Any]] = []
-    for r in recs or []:
+    for r in recs_all or []:
         r_dict = dict(r)
         sched: Optional[_date] = None
         try:
@@ -780,6 +790,16 @@ async def finances_recurrences(
         r_dict["scheduled_date"] = sched.isoformat() if sched else None
         recs_enriched.append(r_dict)
 
+    # If month filter provided, keep only recurrences scheduled in that month
+    if month_str:
+        recs_enriched = [r for r in recs_enriched if r.get("scheduled_date") and r["scheduled_date"].startswith(f"{sel_year:04d}-{sel_month:02d}-")]
+
+    # Pagination over the (possibly) filtered list
+    total = len(recs_enriched)
+    start = offset
+    end = offset + per_page
+    recs_enriched_page = recs_enriched[start:end]
+
     # Recurrences are expenses: exclude income categories
     categories = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת','קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute(f"SELECT id, name FROM users WHERE id IN ({user_ids}) ORDER BY id").fetchall()
@@ -801,7 +821,7 @@ async def finances_recurrences(
         "pages/recurrences.html",
         {
             "request": request,
-            "recurrences": recs_enriched,
+            "recurrences": recs_enriched_page,
             "categories": categories,
             "users": users,
             "accounts": accounts,

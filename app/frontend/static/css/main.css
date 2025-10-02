@@ -36,7 +36,7 @@ body {
   min-height: 100vh;
   /* Performance optimizations */
   will-change: auto;
-  contain: layout style paint;
+  contain: paint;
 }
 
 /* Typography */
@@ -670,7 +670,6 @@ body.loaded .animate-sequence {
 @supports (height: 100dvh) {
   html, body {
     min-height: 100dvh;
-    height: 100dvh;
   }
 }
 

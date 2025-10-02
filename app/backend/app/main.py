@@ -6,7 +6,7 @@ from pathlib import Path as FSPath
 import os
 import logging
 from urllib.parse import quote_plus
-from starlette.middleware.proxy_headers import ProxyHeadersMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 # --- create app ---
 app = FastAPI(title="Expense Tracker", version="0.1.0")
@@ -37,9 +37,8 @@ SESSION_COOKIE_DOMAIN = os.environ.get("SESSION_COOKIE_DOMAIN")
 
 # Ensure correct scheme/host behind Railway proxy
 app.add_middleware(
-    ProxyHeadersMiddleware,
-    trusted_hosts=["expensetracker-production-2084.up.railway.app", "127.0.0.1"],
-    x_forwarded_hosts=True,
+    TrustedHostMiddleware,
+    allowed_hosts=["expensetracker-production-2084.up.railway.app", "127.0.0.1", "localhost"],
 )
 
 session_kwargs = {

@@ -1376,7 +1376,7 @@ async def finances_statistics_drilldown(
             u.name AS user,
             COALESCE(a.name, 'לא מוגדר') AS account,
             t.notes,
-            t.tags AS tags,
+            COALESCE(r.name, t.tags) AS tags,
             r.name AS recurrence_name,
             COALESCE(r.name, t.tags) AS display_tags
         FROM transactions t
@@ -1399,8 +1399,8 @@ async def finances_statistics_drilldown(
         where_extra = " AND t.amount > 0"
     elif metric_key == "expenses":
         title = "הוצאות החודש"
-        # Only regular expenses (exclude recurring instances)
-        where_extra = " AND t.amount < 0 AND t.recurrence_id IS NULL"
+        # All expenses (regular + recurring)
+        where_extra = " AND t.amount < 0"
     elif metric_key == "recurring":
         title = "הוצאות קבועות החודש"
         where_extra = " AND t.amount < 0 AND t.recurrence_id IS NOT NULL"

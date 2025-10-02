@@ -117,8 +117,16 @@ async def login_post(request: Request):
         try:
             logger.info("Setting session", extra={"username": user_key})
             
+            # Check if session exists and is accessible
+            if not hasattr(request, 'session'):
+                logger.error("No session object available on request")
+                raise Exception("No session object available")
+            
             # Clear any existing session data first
-            request.session.clear()
+            try:
+                request.session.clear()
+            except Exception as clear_error:
+                logger.warning(f"Failed to clear session: {clear_error}")
             
             # Set the user in session
             request.session["user"] = {"username": user_key}
@@ -149,6 +157,7 @@ async def login_post(request: Request):
                 "error_type": type(e).__name__,
                 "timestamp": datetime.now().isoformat()
             })
+            # Don't raise the exception, continue with redirect
             
         # Always go to dashboard after successful login
         logger.info("Redirecting to dashboard", extra={

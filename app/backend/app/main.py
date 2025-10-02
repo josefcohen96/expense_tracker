@@ -28,8 +28,8 @@ is_production = os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.environ.
 
 # For Railway deployment, use more permissive cookie settings
 if is_production:
-    COOKIE_SAMESITE = "lax"  # Railway requires lax for cross-site requests
-    HTTPS_ONLY = False  # Railway proxy handles HTTPS termination
+    COOKIE_SAMESITE = "none"  # Railway requires 'none' for cross-site requests
+    HTTPS_ONLY = True  # Railway uses HTTPS, so we need secure cookies
     SESSION_COOKIE_DOMAIN = None  # Let browser handle domain
 else:
     COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "lax")
@@ -64,7 +64,14 @@ if SESSION_COOKIE_DOMAIN:
 print(f"Session configuration: https_only={HTTPS_ONLY}, same_site={COOKIE_SAMESITE}, domain={SESSION_COOKIE_DOMAIN}, is_production={is_production}")
 print(f"Session kwargs: {session_kwargs}")
 
-app.add_middleware(SessionMiddleware, **session_kwargs)
+# Add SessionMiddleware - this must be added before AuthMiddleware
+try:
+    app.add_middleware(SessionMiddleware, **session_kwargs)
+    print("SessionMiddleware added successfully")
+except Exception as e:
+    print(f"Failed to add SessionMiddleware: {e}")
+    # Fallback with minimal configuration
+    app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
 
 from .services.logging_service import configure_logging, redirect_prints_to_logs
 from .services.production_logging import setup_production_logging, log_environment_info

@@ -77,20 +77,30 @@ class AuthMiddleware(BaseHTTPMiddleware):
             self.logger.exception("AuthMiddleware: error checking public matchers")
 
         # Require a session user for everything else
+        user_obj = None
+        user_in_session = False
+        session_id = None
+        session_keys = []
+        session_data = {}
+        
         try:
-            # Try to access session safely
-            if hasattr(request, 'session') and request.session is not None:
-                user_obj = request.session.get("user")
-                user_in_session = bool(user_obj)
-                session_id = getattr(request.session, 'session_id', None)
-                session_keys = list(request.session.keys()) if hasattr(request.session, 'keys') else []
-                session_data = dict(request.session) if hasattr(request.session, '__dict__') else {}
-            else:
-                user_obj = None
-                user_in_session = False
-                session_id = None
-                session_keys = []
-                session_data = {}
+            # Try to access session safely with multiple fallbacks
+            if hasattr(request, 'session'):
+                try:
+                    user_obj = request.session.get("user")
+                    user_in_session = bool(user_obj)
+                    session_id = getattr(request.session, 'session_id', None)
+                    session_keys = list(request.session.keys()) if hasattr(request.session, 'keys') else []
+                    session_data = dict(request.session) if hasattr(request.session, '__dict__') else {}
+                except Exception as session_error:
+                    self.logger.warning("AuthMiddleware: session access failed", extra={
+                        "path": path,
+                        "method": method,
+                        "session_error": str(session_error),
+                        "session_error_type": type(session_error).__name__,
+                        "cookies": dict(request.cookies),
+                    })
+                    # Continue with empty session data
             
             # DEBUG: Log session details for all requests
             if not is_production:
@@ -109,10 +119,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 "session_data": session_data,
             })
         except Exception as e:
-            user_obj = None
-            user_in_session = False
-            session_id = None
-            session_keys = []
             self.logger.warning("AuthMiddleware: session access failed", extra={
                 "path": path,
                 "method": method,

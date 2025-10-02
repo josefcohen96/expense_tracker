@@ -1,9 +1,13 @@
 // Service Worker for Performance Optimization and Caching
 
 // Bump versions to force update on clients
-const CACHE_NAME = 'expense-tracker-v1.0.5';
-const STATIC_CACHE = 'static-v1.0.5';
-const DYNAMIC_CACHE = 'dynamic-v1.0.5';
+const CACHE_NAME = 'expense-tracker-v1.0.6';
+const STATIC_CACHE = 'static-v1.0.6';
+const DYNAMIC_CACHE = 'dynamic-v1.0.6';
+
+// Track login time to avoid intercepting requests immediately after login
+let lastLoginTime = 0;
+const LOGIN_COOLDOWN = 2000; // 2 seconds
 
 // Files to cache immediately
 const STATIC_FILES = [
@@ -61,6 +65,14 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
     const { request } = event;
     const url = new URL(request.url);
+    
+    // Skip intercepting requests for a short period after login to avoid timing issues
+    const timeSinceLogin = Date.now() - lastLoginTime;
+    if (timeSinceLogin < LOGIN_COOLDOWN && url.pathname === '/finances') {
+        console.log('[SW] skipping /finances request due to recent login');
+        return; // Let the browser handle this request directly
+    }
+    
     // Trace key navigations (avoid noise for static)
     if (request.headers.get('accept')?.includes('text/html') || url.pathname === '/login') {
         console.log('[SW] fetch', request.method, url.pathname, { mode: request.mode, redirect: request.redirect });
@@ -121,11 +133,19 @@ self.addEventListener('fetch', event => {
     if (request.headers.get('accept')?.includes('text/html')) {
         event.respondWith((async () => {
             try {
-                const response = await fetch(request, { credentials: 'include' });
+                // For authentication-sensitive requests, ensure proper cookie handling
+                const fetchOptions = { 
+                    credentials: 'include',
+                    cache: 'no-store' // Don't cache authentication-sensitive requests
+                };
+                
+                const response = await fetch(request, fetchOptions);
                 const finalUrl = new URL(response.url);
+                
                 if (finalUrl.pathname !== url.pathname) {
                     console.log('[SW] navigation redirected', { from: url.pathname, to: finalUrl.pathname });
                 }
+                
                 // If we were redirected to /login, try to purge any stale cached entry for the requested page
                 if (response.redirected || finalUrl.pathname === '/login') {
                     try {
@@ -133,6 +153,7 @@ self.addEventListener('fetch', event => {
                         await cache.delete(request, { ignoreSearch: true });
                     } catch (e) { /* no-op */ }
                 }
+                
                 return response;
             } catch (error) {
                 console.log('HTML request failed, trying cache as last resort:', error);
@@ -298,5 +319,15 @@ self.addEventListener('message', event => {
 
     if (event.data && event.data.type === 'GET_VERSION') {
         event.ports[0].postMessage({ version: CACHE_NAME });
+    }
+    
+    if (event.data && event.data.type === 'LOGIN_SUCCESS') {
+        lastLoginTime = Date.now();
+        console.log('[SW] login success tracked, cooldown active');
+    }
+    
+    if (event.data && event.data.type === 'LOGIN_ATTEMPT') {
+        lastLoginTime = Date.now();
+        console.log('[SW] login attempt tracked, cooldown active');
     }
 });

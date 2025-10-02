@@ -56,7 +56,6 @@ session_kwargs = {
     "https_only": HTTPS_ONLY,
     "max_age": 86400,  # 24 hours
     "session_cookie": "session",
-    "key_prefix": "expense_tracker:",  # Add prefix for better session management
 }
 if SESSION_COOKIE_DOMAIN:
     session_kwargs["domain"] = SESSION_COOKIE_DOMAIN

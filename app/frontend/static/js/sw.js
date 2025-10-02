@@ -1,9 +1,9 @@
 // Service Worker for Performance Optimization and Caching
 
 // Bump versions to force update on clients
-const CACHE_NAME = 'expense-tracker-v1.0.4';
-const STATIC_CACHE = 'static-v1.0.4';
-const DYNAMIC_CACHE = 'dynamic-v1.0.4';
+const CACHE_NAME = 'expense-tracker-v1.0.5';
+const STATIC_CACHE = 'static-v1.0.5';
+const DYNAMIC_CACHE = 'dynamic-v1.0.5';
 
 // Files to cache immediately
 const STATIC_FILES = [
@@ -121,7 +121,7 @@ self.addEventListener('fetch', event => {
     if (request.headers.get('accept')?.includes('text/html')) {
         event.respondWith((async () => {
             try {
-                const response = await fetch(request);
+                const response = await fetch(request, { credentials: 'include' });
                 const finalUrl = new URL(response.url);
                 if (finalUrl.pathname !== url.pathname) {
                     console.log('[SW] navigation redirected', { from: url.pathname, to: finalUrl.pathname });
@@ -152,7 +152,7 @@ self.addEventListener('fetch', event => {
 // Handle API requests - network first, cache fallback
 async function handleApiRequest(request) {
     try {
-        const response = await fetch(request);
+        const response = await fetch(request, { credentials: 'include' });
         
         // Cache successful API responses
         if (response.ok) {
@@ -187,7 +187,7 @@ async function handleStaticRequest(request) {
     }
     
     try {
-        const response = await fetch(request);
+        const response = await fetch(request, { credentials: 'include' });
         
         if (response.ok) {
             const cache = await caches.open(STATIC_CACHE);

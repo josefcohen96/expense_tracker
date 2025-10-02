@@ -627,9 +627,11 @@ async def finances_income(
     # Get main user IDs (works with both Hebrew and English names)
     user_ids = _get_main_user_ids(db_conn)
 
-    total = db_conn.execute("SELECT COUNT(*) FROM transactions WHERE amount > 0").fetchone()[0]
+    total = db_conn.execute(
+        f"SELECT COUNT(*) FROM transactions WHERE amount > 0 AND recurrence_id IS NULL AND user_id IN ({user_ids})"
+    ).fetchone()[0]
     rows = db_conn.execute(
-        """
+        f"""
         SELECT t.id, t.date, t.amount,
                c.id AS category_id, c.name as category,
                u.id AS user_id, u.name as user,
@@ -1088,7 +1090,7 @@ async def finances_statistics(
 
     # Category by month data for donut (last 6 months window, excluding income categories)
     category_data_rows = db_conn.execute(
-        """
+        f"""
         SELECT strftime('%Y-%m', t.date) AS month,
                c.name AS category,
                SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS amount
@@ -1105,7 +1107,7 @@ async def finances_statistics(
 
     # Top 5 regular (non-recurring) expenses for the last 6 months (largest absolute amounts)
     top_regular_expenses_rows = db_conn.execute(
-        """
+        f"""
         SELECT t.id,
                t.date,
                ABS(t.amount) AS amount,
@@ -1130,7 +1132,7 @@ async def finances_statistics(
 
     # Cash vs Credit per user for the last 6 months, plus total per user
     cash_credit_rows = db_conn.execute(
-        """
+        f"""
         SELECT u.name AS user_name,
                COALESCE(a.name, 'לא מוגדר') AS account_name,
                SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS total
@@ -1182,7 +1184,7 @@ async def finances_statistics(
 
     # Recurring expenses (instances) in the last 6 months (separate from regular)
     recurring_expenses_rows = db_conn.execute(
-        """
+        f"""
         SELECT t.id,
                t.date,
                ABS(t.amount) AS amount,
@@ -1209,7 +1211,7 @@ async def finances_statistics(
 
     # Active recurring definitions with frequency
     active_recurrences_rows = db_conn.execute(
-        """
+        f"""
         SELECT r.id,
                r.name,
                ABS(r.amount) AS amount,

@@ -37,7 +37,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         method = (request.method or "GET").upper()
         
-        # Log all requests for debugging
+        # Log all requests for debugging - use print for immediate visibility
+        print(f"[AUTH] Request: {method} {path}")
+        print(f"[AUTH] Cookies: {dict(request.cookies)}")
+        print(f"[AUTH] Headers: {dict(request.headers)}")
+        
         self.logger.info("AuthMiddleware: request received", extra={
             "path": path,
             "method": method,
@@ -78,6 +82,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
             
             # DEBUG: Log session details for /finances requests
             if path == "/finances":
+                print(f"[AUTH] /finances request - user_in_session: {user_in_session}")
+                print(f"[AUTH] /finances request - user_obj: {user_obj}")
+                print(f"[AUTH] /finances request - cookies: {dict(request.cookies)}")
+                print(f"[AUTH] /finances request - session_keys: {session_keys}")
+                
                 self.logger.info("AuthMiddleware: /finances request debug", extra={
                     "path": path,
                     "method": method,

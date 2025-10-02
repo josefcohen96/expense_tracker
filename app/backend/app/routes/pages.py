@@ -81,10 +81,12 @@ async def login_post(request: Request):
         "KARINA": "KA1234",
         "YOSEF": "YO1234",
     }
+    print(f"[LOGIN] Attempt: {username}")
     logger.info("LOGIN attempt", extra={"username": username})
     # case-insensitive username match
     user_key = username.upper()
     if user_key in valid_users and password == valid_users[user_key]:
+        print(f"[LOGIN] Credentials validated for: {user_key}")
         logger.info("LOGIN credentials validated", extra={
             "username": user_key,
             "timestamp": datetime.now().isoformat()
@@ -98,6 +100,10 @@ async def login_post(request: Request):
             
             # Force session save
             request.session.modified = True
+            
+            print(f"[LOGIN] Session set successfully for: {user_key}")
+            print(f"[LOGIN] Session keys: {session_keys}")
+            print(f"[LOGIN] Session data: {dict(request.session)}")
             
             logger.info("Session set successfully", extra={
                 "username": user_key,

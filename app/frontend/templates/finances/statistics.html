@@ -6,6 +6,7 @@
 <div class="space-y-6">
   <h1 class="text-2xl font-bold">סטטיסטיקות</h1>
 
+  <!-- KPIs -->
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
     <div class="bg-white p-4 rounded shadow">
       <div class="text-gray-500">הוצאות החודש</div>
@@ -25,72 +26,83 @@
     </div>
   </div>
 
-  {% include 'partials/stats/charts.html' ignore missing %}
+  <!-- Main 2x2 layout -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+    <!-- Left column: tables -->
+    <div class="space-y-6">
+      <!-- Top 5 regular expenses -->
+      <div class="bg-white rounded shadow">
+        <div class="px-4 pt-4">
+          <h2 class="text-lg font-semibold">5 ההוצאות הרגילות הגדולות ביותר (6 חודשים)</h2>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-center text-sm">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-3 py-2 border-b">תאריך</th>
+                <th class="px-3 py-2 border-b">סכום (₪)</th>
+                <th class="px-3 py-2 border-b">הערות</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in top_regular_expenses %}
+              <tr class="hover:bg-gray-50">
+                <td class="px-3 py-2 border-b">{{ r.date }}</td>
+                <td class="px-3 py-2 border-b text-red-600 font-semibold">{{ (r.amount or 0) | round(2) }}</td>
+                <td class="px-3 py-2 border-b">{{ r.notes }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="6" class="px-4 py-6 text-gray-500">אין נתונים להצגה</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-  <!-- טבלה: 5 ההוצאות הרגילות הגדולות ביותר -->
-  <h2 class="text-lg font-semibold mt-8 mb-2">5 ההוצאות הרגילות הגדולות ביותר (6 חודשים)</h2>
-  <div class="bg-white rounded shadow overflow-x-auto">
-    <table class="min-w-full text-center">
-      <thead class="bg-gray-50">
-        <tr>
-          <th class="px-4 py-2 border-b">תאריך</th>
-          <th class="px-4 py-2 border-b">סכום (₪)</th>
-          <th class="px-4 py-2 border-b">קטגוריה</th>
-          <th class="px-4 py-2 border-b">משתמש</th>
-          <th class="px-4 py-2 border-b">אמצעי</th>
-          <th class="px-4 py-2 border-b">הערות</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in top_regular_expenses %}
-        <tr class="hover:bg-gray-50">
-          <td class="px-4 py-2 border-b">{{ r.date }}</td>
-          <td class="px-4 py-2 border-b text-red-600 font-semibold">{{ (r.amount or 0) | round(2) }}</td>
-          <td class="px-4 py-2 border-b">{{ r.category }}</td>
-          <td class="px-4 py-2 border-b">{{ r.user }}</td>
-          <td class="px-4 py-2 border-b">{{ r.account }}</td>
-          <td class="px-4 py-2 border-b">{{ r.notes }}</td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="6" class="px-4 py-6 text-gray-500">אין נתונים להצגה</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+      <!-- Cash vs Credit per user -->
+      <div class="bg-white rounded shadow">
+        <div class="px-4 pt-4">
+          <h2 class="text-lg font-semibold">הוצאות מזומן ואשראי לפי משתמש (6 חודשים)</h2>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-center text-sm">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-3 py-2 border-b">משתמש</th>
+                <th class="px-3 py-2 border-b">מזומן</th>
+                <th class="px-3 py-2 border-b">אשראי</th>
+                <th class="px-3 py-2 border-b">אחר</th>
+                <th class="px-3 py-2 border-b">סה"כ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in cash_credit_user_totals %}
+              <tr class="hover:bg-gray-50">
+                <td class="px-3 py-2 border-b">{{ row.user }}</td>
+                <td class="px-3 py-2 border-b">{{ row.cash | round(2) }}</td>
+                <td class="px-3 py-2 border-b">{{ row.credit | round(2) }}</td>
+                <td class="px-3 py-2 border-b">{{ row.other | round(2) }}</td>
+                <td class="px-3 py-2 border-b font-semibold">{{ row.total | round(2) }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="5" class="px-4 py-6 text-gray-500">אין נתונים להצגה</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column: charts (monthly + donut) -->
+    <div>
+      {% include 'partials/stats/charts.html' ignore missing %}
+    </div>
   </div>
 
-  <!-- טבלה: מזומן ואשראי לפי משתמש -->
-  <h2 class="text-lg font-semibold mt-8 mb-2">הוצאות מזומן ואשראי לפי משתמש (6 חודשים)</h2>
-  <div class="bg-white rounded shadow overflow-x-auto">
-    <table class="min-w-full text-center">
-      <thead class="bg-gray-50">
-        <tr>
-          <th class="px-4 py-2 border-b">משתמש</th>
-          <th class="px-4 py-2 border-b">מזומן</th>
-          <th class="px-4 py-2 border-b">אשראי</th>
-          <th class="px-4 py-2 border-b">אחר</th>
-          <th class="px-4 py-2 border-b">סה"כ</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in cash_credit_user_totals %}
-        <tr class="hover:bg-gray-50">
-          <td class="px-4 py-2 border-b">{{ row.user }}</td>
-          <td class="px-4 py-2 border-b">{{ row.cash | round(2) }}</td>
-          <td class="px-4 py-2 border-b">{{ row.credit | round(2) }}</td>
-          <td class="px-4 py-2 border-b">{{ row.other | round(2) }}</td>
-          <td class="px-4 py-2 border-b font-semibold">{{ row.total | round(2) }}</td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="5" class="px-4 py-6 text-gray-500">אין נתונים להצגה</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  
 </div>
 {% endblock %}
 

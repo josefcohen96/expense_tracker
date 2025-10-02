@@ -131,9 +131,6 @@ async def login_post(request: Request):
             # Set the user in session
             request.session["user"] = {"username": user_key}
             
-            # Force session to be marked as modified
-            request.session.modified = True
-            
             # Get session info for logging
             session_id = getattr(request.session, 'session_id', None)
             session_keys = list(request.session.keys()) if hasattr(request.session, 'keys') else []
@@ -169,12 +166,8 @@ async def login_post(request: Request):
         # Create redirect response and ensure session is saved
         response = RedirectResponse(url="/finances", status_code=status.HTTP_303_SEE_OTHER)
         
-        # Force session save by setting response headers
+        # Log final session state
         if hasattr(request, 'session') and request.session:
-            # Ensure session is marked as modified
-            request.session.modified = True
-            
-            # Log final session state
             logger.info("Final session state before redirect", extra={
                 "username": user_key,
                 "session_data": dict(request.session),
@@ -206,7 +199,6 @@ async def logout(request: Request) -> RedirectResponse:
         # Clear session data
         if hasattr(request, 'session') and request.session:
             request.session.clear()
-            request.session.modified = True
             
         logger.info("Session cleared successfully", extra={
             "username": user_obj.get("username") if isinstance(user_obj, dict) else None,

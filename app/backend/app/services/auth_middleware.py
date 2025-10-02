@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Iterable, List, Set, Tuple
 from urllib.parse import quote_plus
 from datetime import datetime
@@ -37,16 +38,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         method = (request.method or "GET").upper()
         
-        # Log all requests for debugging
+        # Log all requests for debugging (reduce verbosity in production)
         auth_logger = logging.getLogger("app.auth")
-        auth_logger.debug(f"Request: {method} {path}")
-        auth_logger.debug(f"Cookies: {dict(request.cookies)}")
-        auth_logger.debug(f"Headers: {dict(request.headers)}")
+        is_production = os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.environ.get("ENVIRONMENT") == "production"
+        if not is_production:
+            auth_logger.debug(f"Request: {method} {path}")
+            auth_logger.debug(f"Cookies: {dict(request.cookies)}")
+            auth_logger.debug(f"Headers: {dict(request.headers)}")
         
         self.logger.info("AuthMiddleware: request received", extra={
             "path": path,
             "method": method,
-            "headers": dict(request.headers),
             "cookies": dict(request.cookies),
             "timestamp": datetime.now().isoformat()
         })
@@ -76,16 +78,25 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         # Require a session user for everything else
         try:
-            user_obj = request.session.get("user")
-            user_in_session = bool(user_obj)
-            session_id = getattr(request.session, 'session_id', None)
-            session_keys = list(request.session.keys()) if hasattr(request.session, 'keys') else []
+            # Try to access session safely
+            if hasattr(request, 'session') and request.session is not None:
+                user_obj = request.session.get("user")
+                user_in_session = bool(user_obj)
+                session_id = getattr(request.session, 'session_id', None)
+                session_keys = list(request.session.keys()) if hasattr(request.session, 'keys') else []
+                session_data = dict(request.session) if hasattr(request.session, '__dict__') else {}
+            else:
+                user_obj = None
+                user_in_session = False
+                session_id = None
+                session_keys = []
+                session_data = {}
             
             # DEBUG: Log session details for all requests
-            auth_logger.info(f"Session check - path: {path}, user_in_session: {user_in_session}")
-            auth_logger.info(f"Session check - user_obj: {user_obj}")
-            auth_logger.info(f"Session check - cookies: {dict(request.cookies)}")
-            auth_logger.info(f"Session check - session_keys: {session_keys}")
+            if not is_production:
+                auth_logger.debug(f"Session check - path: {path}, user_in_session: {user_in_session}")
+                auth_logger.debug(f"Session check - user_obj: {user_obj}")
+                auth_logger.debug(f"Session check - session_keys: {session_keys}")
             
             self.logger.info("AuthMiddleware: session check", extra={
                 "path": path,
@@ -95,7 +106,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 "session_id": session_id,
                 "session_keys": session_keys,
                 "cookies": dict(request.cookies),
-                "session_data": dict(request.session) if hasattr(request.session, '__dict__') else None,
+                "session_data": session_data,
             })
         except Exception as e:
             user_obj = None
@@ -107,6 +118,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 "method": method,
                 "error": str(e),
                 "error_type": type(e).__name__,
+                "cookies": dict(request.cookies),
             })
 
         if user_in_session:

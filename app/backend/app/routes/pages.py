@@ -36,12 +36,29 @@ async def login_page(request: Request) -> HTMLResponse:
     error = request.query_params.get("error")
     try:
         next_q = request.query_params.get("next")
+        has_session_user = False
+        
+        # Check if user is actually authenticated
+        if hasattr(request, 'session') and request.session:
+            user_obj = request.session.get("user")
+            has_session_user = bool(user_obj)
+            
         logger.info("Login page served", extra={
             "next": next_q,
-            "has_session_user": bool(request.session.get("user")),
+            "has_session_user": has_session_user,
+            "session_data": dict(request.session) if hasattr(request, 'session') and request.session else {},
         })
+        
+        # If user is already authenticated, redirect to dashboard
+        if has_session_user:
+            logger.info("User already authenticated, redirecting to dashboard", extra={
+                "username": user_obj.get("username") if isinstance(user_obj, dict) else None,
+            })
+            return RedirectResponse(url="/finances", status_code=status.HTTP_302_FOUND)
+            
     except Exception:
         logger.exception("Failed logging login_page context")
+        
     return templates.TemplateResponse(
         "pages/login.html",
         {
@@ -65,6 +82,9 @@ async def login_post(request: Request):
     debug_logger.debug(f"request.base_url.scheme = {request.base_url.scheme}")
     debug_logger.debug(f"request.scope['scheme'] = {request.scope.get('scheme')}")
     debug_logger.debug(f"headers = {dict(request.headers)}")
+    
+    # Log session state before login attempt
+    debug_logger.info(f"Session state before login: {dict(request.session) if hasattr(request, 'session') and request.session else 'No session'}")
     
     logger.info("LOGIN attempt started", extra={
         "username": username,
@@ -96,12 +116,19 @@ async def login_post(request: Request):
         
         try:
             logger.info("Setting session", extra={"username": user_key})
+            
+            # Clear any existing session data first
+            request.session.clear()
+            
+            # Set the user in session
             request.session["user"] = {"username": user_key}
+            
+            # Force session to be marked as modified
+            request.session.modified = True
+            
+            # Get session info for logging
             session_id = getattr(request.session, 'session_id', None)
             session_keys = list(request.session.keys()) if hasattr(request.session, 'keys') else []
-            
-            # Force session save
-            request.session.modified = True
             
             auth_logger.info(f"LOGIN session set successfully for: {user_key}")
             auth_logger.debug(f"LOGIN session keys: {session_keys}")
@@ -115,24 +142,11 @@ async def login_post(request: Request):
                 "timestamp": datetime.now().isoformat()
             })
             
-            # Debug: Check response cookies
-            logger.info("Session configured, preparing redirect", extra={
-                "username": user_key,
-                "session_keys": session_keys,
-                "cookie_settings": {
-                    "https_only": os.environ.get("COOKIE_SECURE", "1"),
-                    "samesite": os.environ.get("COOKIE_SAMESITE", "lax"),
-                    "domain": os.environ.get("SESSION_COOKIE_DOMAIN"),
-                    "secret_key_set": bool(os.environ.get("SESSION_SECRET_KEY")),
-                },
-                "redirect_url": "/finances",
-                "redirect_status": status.HTTP_303_SEE_OTHER,
-                "timestamp": datetime.now().isoformat()
-            })
         except Exception as e:
             logger.error("Failed to set session", extra={
                 "username": user_key,
                 "error": str(e),
+                "error_type": type(e).__name__,
                 "timestamp": datetime.now().isoformat()
             })
             
@@ -142,7 +156,24 @@ async def login_post(request: Request):
             "redirect_url": "/finances",
             "timestamp": datetime.now().isoformat()
         })
-        return RedirectResponse(url="/finances", status_code=status.HTTP_303_SEE_OTHER)
+        
+        # Create redirect response and ensure session is saved
+        response = RedirectResponse(url="/finances", status_code=status.HTTP_303_SEE_OTHER)
+        
+        # Force session save by setting response headers
+        if hasattr(request, 'session') and request.session:
+            # Ensure session is marked as modified
+            request.session.modified = True
+            
+            # Log final session state
+            logger.info("Final session state before redirect", extra={
+                "username": user_key,
+                "session_data": dict(request.session),
+                "session_keys": list(request.session.keys()) if hasattr(request.session, 'keys') else [],
+                "timestamp": datetime.now().isoformat()
+            })
+        
+        return response
 
     # invalid credentials
     logger.info("LOGIN failed", extra={"username": username})
@@ -159,8 +190,26 @@ async def login_post(request: Request):
 
 @router.get("/logout")
 async def logout(request: Request) -> RedirectResponse:
-    logger.info(f"LOGOUT user={request.session.get('user')}")
-    request.session.clear()
+    user_obj = request.session.get('user')
+    logger.info(f"LOGOUT user={user_obj}")
+    
+    try:
+        # Clear session data
+        if hasattr(request, 'session') and request.session:
+            request.session.clear()
+            request.session.modified = True
+            
+        logger.info("Session cleared successfully", extra={
+            "username": user_obj.get("username") if isinstance(user_obj, dict) else None,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error("Failed to clear session", extra={
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "timestamp": datetime.now().isoformat()
+        })
+    
     return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
 
 

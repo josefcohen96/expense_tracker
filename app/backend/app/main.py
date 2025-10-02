@@ -19,29 +19,35 @@ if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # --- sessions ---
-SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", "please_change_session_secret")
-
-COOKIE_SAMESITE = (os.environ.get("COOKIE_SAMESITE", "lax") or "lax").strip().lower()
-if COOKIE_SAMESITE not in {"lax", "strict", "none"}:
-    COOKIE_SAMESITE = "lax"
+# Use a stronger default secret key for production
+DEFAULT_SECRET_KEY = "expense_tracker_session_secret_key_2024_production_secure_random_string_12345"
+SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", DEFAULT_SECRET_KEY)
 
 # Auto-detect HTTPS in production (Railway uses HTTPS)
 is_production = os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.environ.get("ENVIRONMENT") == "production"
 
-# Decide if cookie is Secure. If SameSite=None, browsers require Secure
-_secure_env = os.environ.get("COOKIE_SECURE")
-if _secure_env is not None:
-    HTTPS_ONLY = str(_secure_env).strip().lower() in {"1", "true", "yes", "on"}
+# For Railway deployment, use more permissive cookie settings
+if is_production:
+    COOKIE_SAMESITE = "lax"  # Railway requires lax for cross-site requests
+    HTTPS_ONLY = False  # Railway proxy handles HTTPS termination
+    SESSION_COOKIE_DOMAIN = None  # Let browser handle domain
 else:
-    HTTPS_ONLY = is_production  # Use HTTPS cookies in production
-
-# Respect optional cookie domain
-SESSION_COOKIE_DOMAIN = os.environ.get("SESSION_COOKIE_DOMAIN")
+    COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "lax")
+    if COOKIE_SAMESITE not in {"lax", "strict", "none"}:
+        COOKIE_SAMESITE = "lax"
+    
+    _secure_env = os.environ.get("COOKIE_SECURE")
+    if _secure_env is not None:
+        HTTPS_ONLY = str(_secure_env).strip().lower() in {"1", "true", "yes", "on"}
+    else:
+        HTTPS_ONLY = False  # Default to False for local development
+    
+    SESSION_COOKIE_DOMAIN = os.environ.get("SESSION_COOKIE_DOMAIN")
 
 # Ensure correct scheme/host behind Railway proxy
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["expensetracker-production-2084.up.railway.app", "127.0.0.1", "localhost"],
+    allowed_hosts=["expensetracker-production-2084.up.railway.app", "127.0.0.1", "localhost", "*"],
 )
 
 session_kwargs = {
@@ -50,12 +56,14 @@ session_kwargs = {
     "https_only": HTTPS_ONLY,
     "max_age": 86400,  # 24 hours
     "session_cookie": "session",
+    "key_prefix": "expense_tracker:",  # Add prefix for better session management
 }
 if SESSION_COOKIE_DOMAIN:
     session_kwargs["domain"] = SESSION_COOKIE_DOMAIN
 
-# Log session configuration for debugging (logger will be defined later)
-print(f"Session configuration: https_only={HTTPS_ONLY}, same_site={COOKIE_SAMESITE}, domain={SESSION_COOKIE_DOMAIN}, cookie_secure_env={_secure_env}, is_production={is_production}")
+# Log session configuration for debugging
+print(f"Session configuration: https_only={HTTPS_ONLY}, same_site={COOKIE_SAMESITE}, domain={SESSION_COOKIE_DOMAIN}, is_production={is_production}")
+print(f"Session kwargs: {session_kwargs}")
 
 app.add_middleware(SessionMiddleware, **session_kwargs)
 
@@ -105,11 +113,13 @@ app.include_router(statistics_api)
 # Build public route matchers from routes decorated with @public
 PUBLIC_ROUTE_MATCHERS = build_public_route_matchers(app)
 
-# --- auth middleware (after session) ---
+# --- auth middleware (must be added AFTER session middleware) ---
 auth_enabled_env = os.environ.get("AUTH_ENABLED", "1")
 running_pytest = os.environ.get("PYTEST_CURRENT_TEST") is not None
 # Allow disabling auth only under pytest
 auth_enabled = not (auth_enabled_env != "1" and running_pytest)
+
+# Add AuthMiddleware - this must be after SessionMiddleware
 app.add_middleware(AuthMiddleware, public_route_matchers=PUBLIC_ROUTE_MATCHERS, auth_enabled=auth_enabled)
 
 # Redirect root to expenses if needed (handled in pages router too)

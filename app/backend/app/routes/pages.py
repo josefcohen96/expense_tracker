@@ -684,6 +684,43 @@ async def finances_income(
     )
 
 
+@router.post("/income", response_class=HTMLResponse)
+async def create_income_form(
+    request: Request,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+):
+    """Handle create income form submission and redirect back to income page.
+
+    The income page exposes only income categories; we still force a positive sign.
+    """
+    form = await request.form()
+    try:
+        date_val = form.get("date")
+        amount_raw = form.get("amount")
+        category_raw = form.get("category_id")
+        user_raw = form.get("user_id")
+        notes_val = form.get("notes") or None
+        tags_val = form.get("tags") or None
+
+        amount_val = abs(float(amount_raw)) if amount_raw not in (None, "") else 0.0
+        category_id = int(category_raw) if category_raw not in (None, "") else None
+        user_id = int(user_raw) if user_raw not in (None, "") else None
+        account_id = None  # income form does not supply account; store as NULL
+
+        db_conn.execute(
+            """
+            INSERT INTO transactions (date, amount, category_id, user_id, account_id, notes, tags)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (date_val, amount_val, category_id, user_id, account_id, notes_val, tags_val),
+        )
+        db_conn.commit()
+    except Exception:
+        # On failure, still navigate back to the income page; errors will be visible in logs
+        logger.exception("Failed to create income via form")
+    # Redirect back to the income listing
+    return RedirectResponse(url="/finances/income", status_code=303)
+
 # -----------------------------
 # Finances: Recurrences page
 # -----------------------------

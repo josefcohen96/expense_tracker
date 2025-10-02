@@ -33,13 +33,17 @@ function getCurrentMonth() {
 }
 
 function setDefaultMonth() {
-	const current = getCurrentMonth();
-	if (!availableMonths.length) {
-		if (!inputMonth.value) inputMonth.value = current;
-		return;
-	}
-	const last = availableMonths[availableMonths.length - 1];
-	inputMonth.value = availableMonths.includes(current) ? current : last;
+    const current = getCurrentMonth();
+    // Respect a server-provided value (statistics page global month)
+    if (inputMonth && inputMonth.value) {
+        return;
+    }
+    if (!availableMonths.length) {
+        if (inputMonth && !inputMonth.value) inputMonth.value = current;
+        return;
+    }
+    const last = availableMonths[availableMonths.length - 1];
+    if (inputMonth) inputMonth.value = availableMonths.includes(current) ? current : last;
 }
 
 // Aggregate a single month to category totals
@@ -126,4 +130,4 @@ setDefaultMonth();
 renderChart();
 
 // Event listeners
-inputMonth.addEventListener("change", renderChart);
+if (inputMonth) inputMonth.addEventListener("change", renderChart);

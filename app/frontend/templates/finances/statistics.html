@@ -6,6 +6,13 @@
 <div class="space-y-6">
   <h1 class="text-2xl font-bold">סטטיסטיקות</h1>
 
+  <!-- Global month filter -->
+  <form method="get" class="flex items-center gap-3 bg-white p-4 rounded shadow w-full max-w-sm">
+    <label for="month" class="text-sm text-gray-600">בחר חודש</label>
+    <input id="month" name="month" type="month" value="{{ selected_month or '' }}" class="border rounded px-2 py-1">
+    <button type="submit" class="bg-indigo-600 text-white px-3 py-1 rounded">עדכן</button>
+  </form>
+
   <!-- KPIs -->
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
     <div class="bg-white p-4 rounded shadow">

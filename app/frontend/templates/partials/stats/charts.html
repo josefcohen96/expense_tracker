@@ -1,8 +1,17 @@
 <!-- פילטר לגרף החודשי לפי קטגוריה -->
 <div class="flex flex-wrap gap-4 items-end mt-4">
- 
+  <div class="bg-white p-3 rounded shadow flex items-end gap-3">
+    <div class="flex flex-col">
+      <label for="monthly-category" class="text-sm text-gray-600">קטגוריה לגרף חודשי</label>
+      <select id="monthly-category" class="border rounded px-2 py-1">
+        <option value="total" selected>סה"כ</option>
+      </select>
+    </div>
+    <div class="flex flex-col">
+      <label for="donut-month-single" class="text-sm text-gray-600">חודש לדונאט</label>
+      <input id="donut-month-single" type="month" value="{{ selected_month or '' }}" class="border rounded px-2 py-1">
+    </div>
   </div>
-
 </div>
 
 <!-- גרף חודשי -->

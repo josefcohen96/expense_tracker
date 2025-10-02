@@ -1120,10 +1120,22 @@ async def delete_recurrence_inline(
 @router.get("/finances/statistics", response_class=HTMLResponse)
 async def finances_statistics(
     request: Request,
+    month: Optional[str] = None,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> HTMLResponse:
     # Get main user IDs (works with both Hebrew and English names)
     user_ids = _get_main_user_ids(db_conn)
+
+    # Resolve selected month (YYYY-MM), default to current
+    today = date.today()
+    default_ym = today.strftime("%Y-%m")
+    selected_ym = default_ym
+    if month:
+        try:
+            dt_obj = datetime.strptime(month, "%Y-%m")
+            selected_ym = dt_obj.strftime("%Y-%m")
+        except Exception:
+            selected_ym = default_ym
 
     month_totals = db_conn.execute(
         f"""
@@ -1132,18 +1144,20 @@ async def finances_statistics(
             SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as total_income,
             COUNT(*) as total_transactions
         FROM transactions 
-        WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+        WHERE strftime('%Y-%m', date) = ?
           AND user_id IN ({user_ids})
-        """
+        """,
+        (selected_ym,)
     ).fetchone() or {"total_expenses": 0, "total_income": 0, "total_transactions": 0}
 
     total_recurring_month = db_conn.execute(
         f"""
         SELECT COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) as total
         FROM transactions 
-        WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now') AND recurrence_id IS NOT NULL
+        WHERE strftime('%Y-%m', date) = ? AND recurrence_id IS NOT NULL
           AND user_id IN ({user_ids})
-        """
+        """,
+        (selected_ym,)
     ).fetchone()[0]
 
     categories = db_conn.execute("SELECT id, name FROM categories WHERE name NOT IN ('משכורת','קליניקה') ORDER BY name").fetchall()
@@ -1182,14 +1196,15 @@ async def finances_statistics(
         LEFT JOIN categories c ON t.category_id = c.id
         LEFT JOIN users u ON t.user_id = u.id
         LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE t.date >= date('now', '-6 months')
+        WHERE strftime('%Y-%m', t.date) = ?
           AND t.amount < 0
           AND t.recurrence_id IS NULL
           AND c.name NOT IN ('משכורת', 'קליניקה')
           AND t.user_id IN ({user_ids})
         ORDER BY ABS(t.amount) DESC, t.date DESC
         LIMIT 5
-        """
+        """,
+        (selected_ym,)
     ).fetchall()
     top_regular_expenses = [dict(row) for row in (top_regular_expenses_rows or [])]
 
@@ -1203,12 +1218,13 @@ async def finances_statistics(
         LEFT JOIN accounts a ON t.account_id = a.id
         LEFT JOIN users u ON t.user_id = u.id
         LEFT JOIN categories c ON t.category_id = c.id
-        WHERE t.date >= date('now', '-6 months')
+        WHERE strftime('%Y-%m', t.date) = ?
           AND c.name NOT IN ('משכורת', 'קליניקה')
           AND t.user_id IN ({user_ids})
         GROUP BY u.name, a.name
         ORDER BY u.name ASC
-        """
+        """,
+        (selected_ym,)
     ).fetchall()
 
     # Normalize cash/credit per user to a compact structure for the template table
@@ -1261,14 +1277,15 @@ async def finances_statistics(
         LEFT JOIN users u ON t.user_id = u.id
         LEFT JOIN accounts a ON t.account_id = a.id
         LEFT JOIN recurrences r ON t.recurrence_id = r.id
-        WHERE t.date >= date('now', '-6 months')
+        WHERE strftime('%Y-%m', t.date) = ?
           AND t.amount < 0
           AND t.recurrence_id IS NOT NULL
           AND c.name NOT IN ('משכורת', 'קליניקה')
           AND t.user_id IN ({user_ids})
         ORDER BY ABS(t.amount) DESC, t.date DESC
         LIMIT 10
-        """
+        """,
+        (selected_ym,)
     ).fetchall()
     recurring_expenses = [dict(row) for row in (recurring_expenses_rows or [])]
 
@@ -1299,6 +1316,7 @@ async def finances_statistics(
         "finances/statistics.html",
         {
             "request": request,
+            "selected_month": selected_ym,
             "total_expenses_month": float(month_totals["total_expenses"] or 0),
             "total_income_month": float(month_totals["total_income"] or 0),
             "total_transactions_month": int(month_totals["total_transactions"] or 0),

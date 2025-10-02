@@ -1,9 +1,9 @@
 // Service Worker for Performance Optimization and Caching
 
 // Bump versions to force update on clients
-const CACHE_NAME = 'expense-tracker-v1.0.8';
-const STATIC_CACHE = 'static-v1.0.8';
-const DYNAMIC_CACHE = 'dynamic-v1.0.8';
+const CACHE_NAME = 'expense-tracker-v1.0.9';
+const STATIC_CACHE = 'static-v1.0.9';
+const DYNAMIC_CACHE = 'dynamic-v1.0.9';
 
 // Track login time to avoid intercepting requests immediately after login
 let lastLoginTime = 0;
@@ -145,8 +145,8 @@ self.addEventListener('fetch', event => {
 
     // Handle HTML pages: network-only (do not cache navigations)
     if (request.headers.get('accept')?.includes('text/html')) {
-        // TEMPORARY: Skip intercepting HTML requests to debug authentication issue
-        console.log('[SW] skipping HTML request interception for debugging');
+        // TEMPORARY: Skip intercepting ALL HTML requests to debug authentication issue
+        console.log('[SW] skipping ALL HTML request interception for debugging');
         return;
         
         event.respondWith((async () => {

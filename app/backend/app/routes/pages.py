@@ -1,6 +1,7 @@
 from __future__ import annotations
 import sqlite3
 import os
+import logging
 from typing import Any, Dict, List, Optional
 from datetime import date, timedelta, datetime
 from pathlib import Path as FSPath
@@ -59,11 +60,11 @@ async def login_post(request: Request):
     password = (form.get("password") or "").strip()
     
     # Debug: Log request details to diagnose cookie issues
-    import sys
-    print(f"[DEBUG] request.url.scheme = {request.url.scheme}", file=sys.stderr)
-    print(f"[DEBUG] request.base_url.scheme = {request.base_url.scheme}", file=sys.stderr)
-    print(f"[DEBUG] request.scope['scheme'] = {request.scope.get('scheme')}", file=sys.stderr)
-    print(f"[DEBUG] headers = {dict(request.headers)}", file=sys.stderr)
+    debug_logger = logging.getLogger("app.debug")
+    debug_logger.debug(f"request.url.scheme = {request.url.scheme}")
+    debug_logger.debug(f"request.base_url.scheme = {request.base_url.scheme}")
+    debug_logger.debug(f"request.scope['scheme'] = {request.scope.get('scheme')}")
+    debug_logger.debug(f"headers = {dict(request.headers)}")
     
     logger.info("LOGIN attempt started", extra={
         "username": username,
@@ -81,12 +82,13 @@ async def login_post(request: Request):
         "KARINA": "KA1234",
         "YOSEF": "YO1234",
     }
-    print(f"[LOGIN] Attempt: {username}")
+    auth_logger = logging.getLogger("app.auth")
+    auth_logger.info(f"LOGIN attempt: {username}")
     logger.info("LOGIN attempt", extra={"username": username})
     # case-insensitive username match
     user_key = username.upper()
     if user_key in valid_users and password == valid_users[user_key]:
-        print(f"[LOGIN] Credentials validated for: {user_key}")
+        auth_logger.info(f"LOGIN credentials validated for: {user_key}")
         logger.info("LOGIN credentials validated", extra={
             "username": user_key,
             "timestamp": datetime.now().isoformat()
@@ -101,9 +103,9 @@ async def login_post(request: Request):
             # Force session save
             request.session.modified = True
             
-            print(f"[LOGIN] Session set successfully for: {user_key}")
-            print(f"[LOGIN] Session keys: {session_keys}")
-            print(f"[LOGIN] Session data: {dict(request.session)}")
+            auth_logger.info(f"LOGIN session set successfully for: {user_key}")
+            auth_logger.debug(f"LOGIN session keys: {session_keys}")
+            auth_logger.debug(f"LOGIN session data: {dict(request.session)}")
             
             logger.info("Session set successfully", extra={
                 "username": user_key,

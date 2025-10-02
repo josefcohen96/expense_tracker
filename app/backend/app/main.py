@@ -53,12 +53,26 @@ if SESSION_COOKIE_DOMAIN:
 
 app.add_middleware(SessionMiddleware, **session_kwargs)
 
-from .services.logging_service import configure_logging
+from .services.logging_service import configure_logging, redirect_prints_to_logs
+from .services.production_logging import setup_production_logging, log_environment_info
 
 # --- logging (writes tracebacks to logs/server.log) ---
 LOG_DIR = ROOT_DIR / "logs"
-configure_logging(LOG_DIR)
+
+# Check if we're in production (Railway deployment)
+is_production = os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.environ.get("ENVIRONMENT") == "production"
+
+if is_production:
+    setup_production_logging(LOG_DIR)
+    log_environment_info()
+else:
+    configure_logging(LOG_DIR)
+
 logger = logging.getLogger(__name__)
+
+# Redirect print statements to logs for production debugging
+print_handler = redirect_prints_to_logs()
+print_handler.__enter__()
 
 from fastapi.responses import JSONResponse, RedirectResponse
 from . import db

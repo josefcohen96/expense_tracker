@@ -37,10 +37,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         method = (request.method or "GET").upper()
         
-        # Log all requests for debugging - use print for immediate visibility
-        print(f"[AUTH] Request: {method} {path}")
-        print(f"[AUTH] Cookies: {dict(request.cookies)}")
-        print(f"[AUTH] Headers: {dict(request.headers)}")
+        # Log all requests for debugging
+        auth_logger = logging.getLogger("app.auth")
+        auth_logger.debug(f"Request: {method} {path}")
+        auth_logger.debug(f"Cookies: {dict(request.cookies)}")
+        auth_logger.debug(f"Headers: {dict(request.headers)}")
         
         self.logger.info("AuthMiddleware: request received", extra={
             "path": path,
@@ -82,10 +83,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
             
             # DEBUG: Log session details for /finances requests
             if path == "/finances":
-                print(f"[AUTH] /finances request - user_in_session: {user_in_session}")
-                print(f"[AUTH] /finances request - user_obj: {user_obj}")
-                print(f"[AUTH] /finances request - cookies: {dict(request.cookies)}")
-                print(f"[AUTH] /finances request - session_keys: {session_keys}")
+                auth_logger.debug(f"/finances request - user_in_session: {user_in_session}")
+                auth_logger.debug(f"/finances request - user_obj: {user_obj}")
+                auth_logger.debug(f"/finances request - cookies: {dict(request.cookies)}")
+                auth_logger.debug(f"/finances request - session_keys: {session_keys}")
                 
                 self.logger.info("AuthMiddleware: /finances request debug", extra={
                     "path": path,

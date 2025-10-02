@@ -1,0 +1,45 @@
+{% extends "layout/base.html" %}
+
+{% block title %}סטטיסטיקות - פירוט{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold">{{ title }} — {{ selected_month }}</h1>
+    <a href="/finances/statistics?month={{ selected_month }}" class="text-indigo-600 hover:underline">חזרה לסטטיסטיקות</a>
+  </div>
+
+  <div class="bg-white rounded shadow overflow-x-auto">
+    <table class="min-w-full text-center text-sm">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-3 py-2 border-b">תאריך</th>
+          <th class="px-3 py-2 border-b">סכום (₪)</th>
+          <th class="px-3 py-2 border-b">קטגוריה</th>
+          <th class="px-3 py-2 border-b">משתמש</th>
+          <th class="px-3 py-2 border-b">אמצעי</th>
+          <th class="px-3 py-2 border-b">הערות</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-3 py-2 border-b">{{ r.date }}</td>
+          <td class="px-3 py-2 border-b {{ 'text-green-600' if r.amount > 0 else 'text-red-600' }} font-semibold">{{ (r.amount or 0) | round(2) }}</td>
+          <td class="px-3 py-2 border-b">{{ r.category }}</td>
+          <td class="px-3 py-2 border-b">{{ r.user }}</td>
+          <td class="px-3 py-2 border-b">{{ r.account }}</td>
+          <td class="px-3 py-2 border-b">{{ r.notes }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="px-4 py-6 text-gray-500">אין נתונים להצגה</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+

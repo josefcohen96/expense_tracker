@@ -1335,6 +1335,91 @@ async def finances_statistics(
 
 
 # -----------------------------
+# Finances: Statistics Drilldown
+# -----------------------------
+@router.get("/finances/statistics/drilldown", response_class=HTMLResponse)
+async def finances_statistics_drilldown(
+    request: Request,
+    metric: str,
+    month: Optional[str] = None,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> HTMLResponse:
+    """Temporary drilldown table for KPIs on the statistics page.
+
+    Supported metric values:
+    - income: all income transactions in selected month
+    - expenses: all expenses (regular + recurring) in selected month
+    - transactions: all transactions in selected month
+    - recurring: only recurring expenses in selected month
+    """
+    # Resolve selected month
+    today = date.today()
+    default_ym = today.strftime("%Y-%m")
+    selected_ym = default_ym
+    if month:
+        try:
+            dt_obj = datetime.strptime(month, "%Y-%m")
+            selected_ym = dt_obj.strftime("%Y-%m")
+        except Exception:
+            selected_ym = default_ym
+
+    # Restrict to the two main users
+    user_ids = _get_main_user_ids(db_conn)
+
+    base_sql = (
+        """
+        SELECT 
+            t.id,
+            t.date,
+            t.amount,
+            c.name AS category,
+            u.name AS user,
+            COALESCE(a.name, 'לא מוגדר') AS account,
+            t.notes,
+            r.name AS recurrence_name
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.user_id = u.id
+        LEFT JOIN accounts a ON t.account_id = a.id
+        LEFT JOIN recurrences r ON t.recurrence_id = r.id
+        WHERE strftime('%Y-%m', t.date) = ?
+          AND t.user_id IN (
+        """
+        + user_ids
+        + ")"
+    )
+
+    metric_key = (metric or "").strip().lower()
+    title = "עסקאות החודש"
+    where_extra = ""
+    if metric_key == "income":
+        title = "הכנסות החודש"
+        where_extra = " AND t.amount > 0"
+    elif metric_key == "expenses":
+        title = "הוצאות החודש"
+        where_extra = " AND t.amount < 0"
+    elif metric_key == "recurring":
+        title = "הוצאות קבועות החודש"
+        where_extra = " AND t.amount < 0 AND t.recurrence_id IS NOT NULL"
+
+    query = base_sql + where_extra + " ORDER BY t.date DESC, t.id DESC"
+    rows = db_conn.execute(query, (selected_ym,)).fetchall()
+    rows_dict = [dict(r) for r in (rows or [])]
+
+    return templates.TemplateResponse(
+        "finances/statistics_drilldown.html",
+        {
+            "request": request,
+            "show_sidebar": True,
+            "selected_month": selected_ym,
+            "metric": metric_key,
+            "title": title,
+            "rows": rows_dict,
+        },
+    )
+
+
+# -----------------------------
 # Finances: Backup page
 # -----------------------------
 @router.get("/finances/backup", response_class=HTMLResponse)

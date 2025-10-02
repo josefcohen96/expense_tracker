@@ -15,22 +15,22 @@
 
   <!-- KPIs -->
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-    <div class="bg-white p-4 rounded shadow">
+    <a href="/finances/statistics/drilldown?metric=expenses&month={{ selected_month }}" class="bg-white p-4 rounded shadow block hover:shadow-md transition">
       <div class="text-gray-500">הוצאות החודש</div>
       <div class="text-2xl font-bold text-red-600">₪{{ total_expenses_month }}</div>
-    </div>
-    <div class="bg-white p-4 rounded shadow">
+    </a>
+    <a href="/finances/statistics/drilldown?metric=income&month={{ selected_month }}" class="bg-white p-4 rounded shadow block hover:shadow-md transition">
       <div class="text-gray-500">הכנסות החודש</div>
       <div class="text-2xl font-bold text-green-600">₪{{ total_income_month }}</div>
-    </div>
-    <div class="bg-white p-4 rounded shadow">
+    </a>
+    <a href="/finances/statistics/drilldown?metric=transactions&month={{ selected_month }}" class="bg-white p-4 rounded shadow block hover:shadow-md transition">
       <div class="text-gray-500">עסקאות החודש</div>
       <div class="text-2xl font-bold">{{ total_transactions_month }}</div>
-    </div>
-    <div class="bg-white p-4 rounded shadow">
+    </a>
+    <a href="/finances/statistics/drilldown?metric=recurring&month={{ selected_month }}" class="bg-white p-4 rounded shadow block hover:shadow-md transition">
       <div class="text-gray-500">הוצאות קבועות החודש</div>
       <div class="text-2xl font-bold">{{ total_recurring_month }}</div>
-    </div>
+    </a>
   </div>
 
   <!-- Main 2x2 layout -->

@@ -1,13 +1,6 @@
 <!-- פילטר לגרף החודשי לפי קטגוריה -->
 <div class="flex flex-wrap gap-4 items-end mt-4">
-  <div>
-    <label class="block text-sm font-medium">קטגוריה לגרף החודשי</label>
-    <select id="monthly-category" class="border rounded px-3 py-2 min-w-[220px]">
-      <option value="total">סך הכל</option>
-      {% for c in categories %}
-      <option value="{{ c.name }}">{{ c.name }}</option>
-      {% endfor %}
-    </select>
+ 
   </div>
 
 </div>
@@ -21,10 +14,7 @@
 
 <!-- דונאט קטגוריות -->
 <h2 class="text-lg font-semibold mt-8 mb-2">התפלגות הוצאות לפי קטגוריה (חודש נבחר)</h2>
-<div>
-  <label class="block text-sm font-medium">חודש לדונאט</label>
-  <input id="donut-month-single" type="month" class="border rounded px-3 py-2" />
-</div>
+
 <div class="bg-white p-4 rounded shadow" style="height: 320px;">
   <canvas id="donut-chart"></canvas>
 </div>

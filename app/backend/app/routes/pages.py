@@ -9,6 +9,7 @@ import calendar
 
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+from itsdangerous import URLSafeSerializer
 from fastapi.templating import Jinja2Templates
 from ..auth import public
 from urllib.parse import unquote_plus
@@ -165,6 +166,30 @@ async def login_post(request: Request):
         
         # Create redirect response and ensure session is saved
         response = RedirectResponse(url="/finances", status_code=status.HTTP_303_SEE_OTHER)
+
+        # Also set a signed fallback cookie for auth in case session cookie is blocked by the platform
+        try:
+            secret_key = os.environ.get(
+                "SESSION_SECRET_KEY",
+                "expense_tracker_session_secret_key_2024_production_secure_random_string_12345",
+            )
+            serializer = URLSafeSerializer(secret_key, salt="auth-user")
+            token = serializer.dumps({"u": user_key})
+            # Mirror session cookie attributes
+            is_production = os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.environ.get("ENVIRONMENT") == "production"
+            secure = True if is_production else False
+            # Starlette Response.set_cookie uses samesite values: 'lax' | 'strict' | 'none'
+            response.set_cookie(
+                key="auth_user",
+                value=token,
+                max_age=86400,
+                httponly=True,
+                secure=secure,
+                samesite="none" if secure else "lax",
+                path="/",
+            )
+        except Exception as cookie_err:
+            logger.warning("Failed to set auth cookie", extra={"error": str(cookie_err)})
         
         # Log final session state
         if hasattr(request, 'session') and request.session:
@@ -204,6 +229,13 @@ async def logout(request: Request) -> RedirectResponse:
             "username": user_obj.get("username") if isinstance(user_obj, dict) else None,
             "timestamp": datetime.now().isoformat()
         })
+        # Clear fallback cookie
+        try:
+            from starlette.responses import Response as _Response
+            # Use a temporary response to set delete cookie directive; actual redirect below will be returned
+            # We'll attach delete cookie on the final RedirectResponse instead
+        except Exception:
+            pass
     except Exception as e:
         logger.error("Failed to clear session", extra={
             "error": str(e),
@@ -211,7 +243,13 @@ async def logout(request: Request) -> RedirectResponse:
             "timestamp": datetime.now().isoformat()
         })
     
-    return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    resp = RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    # Ensure fallback cookie is removed
+    try:
+        resp.delete_cookie("auth_user", path="/")
+    except Exception:
+        pass
+    return resp
 
 
 @router.get("/", response_class=HTMLResponse)

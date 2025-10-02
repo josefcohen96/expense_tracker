@@ -9,6 +9,7 @@ from datetime import datetime
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
+from itsdangerous import BadSignature, URLSafeSerializer
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -30,6 +31,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
         self.public_route_matchers: List[Tuple[Any, Set[str]]] = list(public_route_matchers)
         self.auth_enabled = auth_enabled
         self.logger = logging.getLogger(__name__)
+        # Fallback cookie-based auth (signed)
+        self.secret_key = os.environ.get(
+            "SESSION_SECRET_KEY",
+            "expense_tracker_session_secret_key_2024_production_secure_random_string_12345",
+        )
+        self.serializer = URLSafeSerializer(self.secret_key, salt="auth-user")
+        self.cookie_name = "auth_user"
 
     async def dispatch(self, request: Request, call_next) -> Response:
         if not self.auth_enabled:
@@ -126,6 +134,35 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 "error_type": type(e).__name__,
                 "cookies": dict(request.cookies),
             })
+
+        # Fallback: if no session user, try signed cookie auth
+        if not user_in_session:
+            try:
+                token = request.cookies.get(self.cookie_name)
+                if token:
+                    data = self.serializer.loads(token)
+                    username = (data or {}).get("u")
+                    if username:
+                        user_obj = {"username": username}
+                        user_in_session = True
+                        session_keys = ["user"]
+                        self.logger.info("AuthMiddleware: authenticated via cookie", extra={
+                            "path": path,
+                            "method": method,
+                            "username": username,
+                        })
+            except BadSignature:
+                self.logger.warning("AuthMiddleware: invalid auth cookie signature", extra={
+                    "path": path,
+                    "method": method,
+                })
+            except Exception as e:
+                self.logger.warning("AuthMiddleware: cookie auth error", extra={
+                    "path": path,
+                    "method": method,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                })
 
         if user_in_session:
             self.logger.info("AuthMiddleware: authenticated request - allowing", extra={

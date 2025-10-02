@@ -5,6 +5,9 @@
       <label for="monthly-category" class="text-sm text-gray-600">קטגוריה לגרף חודשי</label>
       <select id="monthly-category" class="border rounded px-2 py-1">
         <option value="total" selected>סה"כ</option>
+        {% for c in categories %}
+        <option value="{{ c.name }}">{{ c.name }}</option>
+        {% endfor %}
       </select>
     </div>
     <div class="flex flex-col">

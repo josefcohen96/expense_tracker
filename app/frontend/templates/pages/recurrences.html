@@ -59,14 +59,13 @@
           <th>משתמש</th>
           <th>חשבון</th>
           <th>תדירות</th>
-          <th>תאריך חיוב הבא</th>
+          <th>מועד ביצוע</th>
           <th>פעיל</th>
-          <th>פעולות</th>
         </tr>
       </thead>
       <tbody>
         {% for r in recurrences %}
-          {% include 'partials/recurrences/row.html' with context %}
+          {% include 'partials/recurrences/row_readonly.html' with context %}
         {% endfor %}
       </tbody>
     </table>

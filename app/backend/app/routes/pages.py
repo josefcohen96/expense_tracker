@@ -704,6 +704,7 @@ async def finances_recurrences(
     base_sql = (
         """
         SELECT r.id, r.name, r.amount, r.frequency, r.next_charge_date, r.active,
+               r.day_of_month, r.weekday,
                c.name AS category_name,
                u.name AS user_name,
                NULL AS account_name
@@ -737,6 +738,48 @@ async def finances_recurrences(
     user_filter_sql = f" AND r.user_id IN ({user_ids})"
     recs = db_conn.execute(base_sql + where_sql + user_filter_sql + " ORDER BY r.id DESC LIMIT ? OFFSET ?", (*params, per_page, offset)).fetchall()
 
+    # Compute scheduled execution date for current month based on frequency/day_of_month/weekday
+    from datetime import date as _date
+    import calendar as _calendar
+
+    today = _date.today()
+    sel_year, sel_month = today.year, today.month
+
+    def _first_weekday_in_month(year: int, month: int, weekday_py: int) -> _date:
+        month_first = _date(year, month, 1)
+        offset_days = (weekday_py - month_first.weekday()) % 7
+        return month_first + timedelta(days=offset_days)
+
+    recs_enriched: List[Dict[str, Any]] = []
+    for r in recs or []:
+        r_dict = dict(r)
+        sched: Optional[_date] = None
+        try:
+            freq = (r_dict.get("frequency") or "").lower()
+            if freq == "monthly":
+                d = int(r_dict.get("day_of_month") or 1)
+                last = _calendar.monthrange(sel_year, sel_month)[1]
+                d = max(1, min(last, d))
+                sched = _date(sel_year, sel_month, d)
+            elif freq == "weekly":
+                wd = int(r_dict.get("weekday") if r_dict.get("weekday") is not None else 6)
+                wd = max(0, min(6, wd))
+                sched = _first_weekday_in_month(sel_year, sel_month, wd)
+            elif freq == "yearly":
+                # Use month/day from next_charge_date if present; fallback to Aug 1st
+                mm, dd = 8, 1
+                ncd = r_dict.get("next_charge_date")
+                if ncd:
+                    parts = str(ncd).split("-")
+                    if len(parts) >= 3:
+                        mm = max(1, min(12, int(parts[1])))
+                        dd = max(1, min(_calendar.monthrange(sel_year, mm)[1], int(parts[2])))
+                sched = _date(sel_year, mm, dd)
+        except Exception:
+            sched = None
+        r_dict["scheduled_date"] = sched.isoformat() if sched else None
+        recs_enriched.append(r_dict)
+
     # Recurrences are expenses: exclude income categories
     categories = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת','קליניקה') ORDER BY name").fetchall()
     users = db_conn.execute(f"SELECT id, name FROM users WHERE id IN ({user_ids}) ORDER BY id").fetchall()
@@ -758,7 +801,7 @@ async def finances_recurrences(
         "pages/recurrences.html",
         {
             "request": request,
-            "recurrences": recs,
+            "recurrences": recs_enriched,
             "categories": categories,
             "users": users,
             "accounts": accounts,

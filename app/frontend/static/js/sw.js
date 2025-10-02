@@ -1,9 +1,9 @@
 // Service Worker for Performance Optimization and Caching
 
 // Bump versions to force update on clients
-const CACHE_NAME = 'expense-tracker-v1.0.6';
-const STATIC_CACHE = 'static-v1.0.6';
-const DYNAMIC_CACHE = 'dynamic-v1.0.6';
+const CACHE_NAME = 'expense-tracker-v1.0.8';
+const STATIC_CACHE = 'static-v1.0.8';
+const DYNAMIC_CACHE = 'dynamic-v1.0.8';
 
 // Track login time to avoid intercepting requests immediately after login
 let lastLoginTime = 0;
@@ -65,17 +65,31 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
     const { request } = event;
     const url = new URL(request.url);
+    const timestamp = new Date().toISOString();
     
     // Skip intercepting requests for a short period after login to avoid timing issues
     const timeSinceLogin = Date.now() - lastLoginTime;
     if (timeSinceLogin < LOGIN_COOLDOWN && url.pathname === '/finances') {
-        console.log('[SW] skipping /finances request due to recent login');
+        console.log('[SW] skipping /finances request due to recent login', {
+            timeSinceLogin,
+            cooldown: LOGIN_COOLDOWN,
+            timestamp
+        });
         return; // Let the browser handle this request directly
     }
     
     // Trace key navigations (avoid noise for static)
     if (request.headers.get('accept')?.includes('text/html') || url.pathname === '/login') {
-        console.log('[SW] fetch', request.method, url.pathname, { mode: request.mode, redirect: request.redirect });
+        console.log('[SW] fetch intercepted', {
+            method: request.method,
+            pathname: url.pathname,
+            fullUrl: url.href,
+            mode: request.mode,
+            redirect: request.redirect,
+            credentials: request.credentials,
+            headers: Object.fromEntries(request.headers.entries()),
+            timestamp
+        });
     }
 
     // If user logs out, proactively clear all dynamic caches to avoid stale UI
@@ -131,6 +145,10 @@ self.addEventListener('fetch', event => {
 
     // Handle HTML pages: network-only (do not cache navigations)
     if (request.headers.get('accept')?.includes('text/html')) {
+        // TEMPORARY: Skip intercepting HTML requests to debug authentication issue
+        console.log('[SW] skipping HTML request interception for debugging');
+        return;
+        
         event.respondWith((async () => {
             try {
                 // For authentication-sensitive requests, ensure proper cookie handling

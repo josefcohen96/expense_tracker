@@ -65,7 +65,16 @@ async def login_post(request: Request):
     print(f"[DEBUG] request.scope['scheme'] = {request.scope.get('scheme')}", file=sys.stderr)
     print(f"[DEBUG] headers = {dict(request.headers)}", file=sys.stderr)
     
-    logger.info("LOGIN attempt", extra={"username": username})
+    logger.info("LOGIN attempt started", extra={
+        "username": username,
+        "password_length": len(password),
+        "request_url": str(request.url),
+        "request_method": request.method,
+        "headers": dict(request.headers),
+        "cookies": dict(request.cookies),
+        "session_before": dict(request.session) if hasattr(request, 'session') else None,
+        "timestamp": datetime.now().isoformat()
+    })
 
     # Static users per request: KARINA/KA1234, YOSEF/YO1234
     valid_users = {
@@ -76,21 +85,27 @@ async def login_post(request: Request):
     # case-insensitive username match
     user_key = username.upper()
     if user_key in valid_users and password == valid_users[user_key]:
-        logger.info("LOGIN success", extra={"username": user_key})
+        logger.info("LOGIN credentials validated", extra={
+            "username": user_key,
+            "timestamp": datetime.now().isoformat()
+        })
+        
         try:
             logger.info("Setting session", extra={"username": user_key})
             request.session["user"] = {"username": user_key}
             session_id = getattr(request.session, 'session_id', None)
             session_keys = list(request.session.keys()) if hasattr(request.session, 'keys') else []
+            
+            # Force session save
+            request.session.modified = True
+            
             logger.info("Session set successfully", extra={
                 "username": user_key,
                 "session_id": session_id,
                 "session_keys": session_keys,
+                "session_after": dict(request.session),
+                "timestamp": datetime.now().isoformat()
             })
-
-
-            # Force session save
-            request.session.modified = True
             
             # Debug: Check response cookies
             logger.info("Session configured, preparing redirect", extra={
@@ -99,15 +114,24 @@ async def login_post(request: Request):
                 "cookie_settings": {
                     "https_only": os.environ.get("COOKIE_SECURE", "1"),
                     "samesite": os.environ.get("COOKIE_SAMESITE", "lax"),
-                }
+                },
+                "redirect_url": "/finances",
+                "redirect_status": status.HTTP_303_SEE_OTHER,
+                "timestamp": datetime.now().isoformat()
             })
         except Exception as e:
             logger.error("Failed to set session", extra={
                 "username": user_key,
                 "error": str(e),
+                "timestamp": datetime.now().isoformat()
             })
+            
         # Always go to dashboard after successful login
-        logger.info("Redirecting to dashboard", extra={"username": user_key})
+        logger.info("Redirecting to dashboard", extra={
+            "username": user_key,
+            "redirect_url": "/finances",
+            "timestamp": datetime.now().isoformat()
+        })
         return RedirectResponse(url="/finances", status_code=status.HTTP_303_SEE_OTHER)
 
     # invalid credentials
@@ -150,6 +174,16 @@ async def finances_dashboard(
     month: Optional[str] = None,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> HTMLResponse:
+    # Log the request details
+    logger.info("FINANCES dashboard request", extra={
+        "path": request.url.path,
+        "method": request.method,
+        "headers": dict(request.headers),
+        "cookies": dict(request.cookies),
+        "session": dict(request.session) if hasattr(request, 'session') else None,
+        "month": month,
+        "timestamp": datetime.now().isoformat()
+    })
     # Ensure schema exists in deployments where startup init may have been skipped
     try:
         _db.initialise_database()

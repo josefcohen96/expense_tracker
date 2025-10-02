@@ -99,4 +99,54 @@
 </div>
 {% endblock %}
 
+<script>
+  try {
+    console.log('[FINANCES] page loaded', {
+      location: window.location.href,
+      timestamp: new Date().toISOString(),
+      cookies: document.cookie,
+      sw: !!navigator.serviceWorker,
+      swController: !!navigator.serviceWorker?.controller,
+      userAgent: navigator.userAgent,
+      referrer: document.referrer
+    });
+    
+    // Monitor navigation events
+    window.addEventListener('beforeunload', function() {
+      console.log('[FINANCES] page unloading', {
+        timestamp: new Date().toISOString(),
+        cookies: document.cookie
+      });
+    });
+    
+    // Monitor page visibility changes
+    document.addEventListener('visibilitychange', function() {
+      console.log('[FINANCES] page visibility changed', {
+        hidden: document.hidden,
+        visibilityState: document.visibilityState,
+        timestamp: new Date().toISOString()
+      });
+    });
+    
+    // Monitor any redirects
+    let redirectCount = 0;
+    const originalLocation = window.location.href;
+    
+    setInterval(function() {
+      if (window.location.href !== originalLocation) {
+        redirectCount++;
+        console.log('[FINANCES] redirect detected', {
+          count: redirectCount,
+          from: originalLocation,
+          to: window.location.href,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }, 100);
+    
+  } catch (err) {
+    console.error('[FINANCES] init error', err);
+  }
+</script>
+
 

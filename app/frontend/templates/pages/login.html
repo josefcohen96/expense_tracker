@@ -40,22 +40,58 @@
         location: window.location.href,
         next: new URLSearchParams(window.location.search).get('next') || null,
         sw: !!navigator.serviceWorker,
+        swController: !!navigator.serviceWorker?.controller,
+        cookies: document.cookie,
+        timestamp: new Date().toISOString()
       });
+      
       const f = document.getElementById('loginForm');
       f?.addEventListener('submit', function (e) {
         const u = (document.getElementById('username') || {}).value;
-        console.log('[LOGIN] submitting form', { username: u });
+        const p = (document.getElementById('password') || {}).value;
+        
+        console.log('[LOGIN] form submission started', { 
+          username: u,
+          passwordLength: p.length,
+          timestamp: new Date().toISOString(),
+          cookies: document.cookie,
+          formAction: f.action,
+          formMethod: f.method
+        });
         
         // Notify service worker about login attempt
         if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+          console.log('[LOGIN] notifying service worker about login attempt');
           navigator.serviceWorker.controller.postMessage({
             type: 'LOGIN_ATTEMPT',
-            username: u
+            username: u,
+            timestamp: Date.now()
           });
+        } else {
+          console.log('[LOGIN] no service worker controller available');
         }
         
         // Let the normal form submit happen; we only trace
+        console.log('[LOGIN] allowing form submission to proceed');
       });
+      
+      // Monitor page visibility changes
+      document.addEventListener('visibilitychange', function() {
+        console.log('[LOGIN] page visibility changed', {
+          hidden: document.hidden,
+          visibilityState: document.visibilityState,
+          timestamp: new Date().toISOString()
+        });
+      });
+      
+      // Monitor beforeunload
+      window.addEventListener('beforeunload', function() {
+        console.log('[LOGIN] page unloading', {
+          timestamp: new Date().toISOString(),
+          cookies: document.cookie
+        });
+      });
+      
       document.getElementById('username').focus();
     } catch (err) {
       console.error('[LOGIN] init error', err);

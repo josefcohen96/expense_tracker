@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Iterable, List, Set, Tuple
 from urllib.parse import quote_plus
+from datetime import datetime
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -35,6 +36,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         path = request.url.path
         method = (request.method or "GET").upper()
+        
+        # Log all requests for debugging
+        self.logger.info("AuthMiddleware: request received", extra={
+            "path": path,
+            "method": method,
+            "headers": dict(request.headers),
+            "cookies": dict(request.cookies),
+            "timestamp": datetime.now().isoformat()
+        })
 
         # Allow unauthenticated access to static and service worker
         if path.startswith("/static/") or path == "/sw.js":
@@ -65,6 +75,18 @@ class AuthMiddleware(BaseHTTPMiddleware):
             user_in_session = bool(user_obj)
             session_id = getattr(request.session, 'session_id', None)
             session_keys = list(request.session.keys()) if hasattr(request.session, 'keys') else []
+            
+            # DEBUG: Log session details for /finances requests
+            if path == "/finances":
+                self.logger.info("AuthMiddleware: /finances request debug", extra={
+                    "path": path,
+                    "method": method,
+                    "user_obj": user_obj,
+                    "user_in_session": user_in_session,
+                    "session_id": session_id,
+                    "session_keys": session_keys,
+                    "cookies": dict(request.cookies),
+                })
         except Exception as e:
             user_obj = None
             user_in_session = False
@@ -77,12 +99,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
             })
 
         if user_in_session:
-            self.logger.debug("AuthMiddleware: authenticated request", extra={
+            self.logger.info("AuthMiddleware: authenticated request - allowing", extra={
                 "path": path,
                 "method": method,
                 "username": (user_obj or {}).get("username") if isinstance(user_obj, dict) else None,
                 "session_id": session_id,
                 "session_keys": session_keys,
+                "user_obj": user_obj,
+                "timestamp": datetime.now().isoformat()
             })
             return await call_next(request)
 

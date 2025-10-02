@@ -25,13 +25,14 @@ COOKIE_SAMESITE = (os.environ.get("COOKIE_SAMESITE", "lax") or "lax").strip().lo
 if COOKIE_SAMESITE not in {"lax", "strict", "none"}:
     COOKIE_SAMESITE = "lax"
 
+# Auto-detect HTTPS in production (Railway uses HTTPS)
+is_production = os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.environ.get("ENVIRONMENT") == "production"
+
 # Decide if cookie is Secure. If SameSite=None, browsers require Secure
 _secure_env = os.environ.get("COOKIE_SECURE")
 if _secure_env is not None:
     HTTPS_ONLY = str(_secure_env).strip().lower() in {"1", "true", "yes", "on"}
 else:
-    # Auto-detect HTTPS in production (Railway uses HTTPS)
-    is_production = os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.environ.get("ENVIRONMENT") == "production"
     HTTPS_ONLY = is_production  # Use HTTPS cookies in production
 
 # Respect optional cookie domain

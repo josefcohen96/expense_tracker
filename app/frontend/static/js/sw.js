@@ -1,9 +1,9 @@
 // Service Worker for Performance Optimization and Caching
 
 // Bump versions to force update on clients
-const CACHE_NAME = 'expense-tracker-v1.0.4';
-const STATIC_CACHE = 'static-v1.0.4';
-const DYNAMIC_CACHE = 'dynamic-v1.0.4';
+const CACHE_NAME = 'expense-tracker-v1.0.5';
+const STATIC_CACHE = 'static-v1.0.5';
+const DYNAMIC_CACHE = 'dynamic-v1.0.5';
 
 // Files to cache immediately
 const STATIC_FILES = [
@@ -17,7 +17,7 @@ const STATIC_FILES = [
 // Install event - cache static files
 self.addEventListener('install', event => {
     console.log('Service Worker installing...');
-    
+
     event.waitUntil(
         caches.open(STATIC_CACHE)
             .then(cache => {
@@ -37,7 +37,7 @@ self.addEventListener('install', event => {
 // Activate event - clean up old caches
 self.addEventListener('activate', event => {
     console.log('Service Worker activating...');
-    
+
     event.waitUntil(
         caches.keys()
             .then(cacheNames => {
@@ -65,7 +65,7 @@ self.addEventListener('fetch', event => {
     if (request.headers.get('accept')?.includes('text/html') || url.pathname === '/login') {
         console.log('[SW] fetch', request.method, url.pathname, { mode: request.mode, redirect: request.redirect });
     }
-    
+
     // If user logs out, proactively clear all dynamic caches to avoid stale UI
     if (url.pathname === '/logout') {
         event.respondWith((async () => {
@@ -97,31 +97,31 @@ self.addEventListener('fetch', event => {
         }
         return;
     }
-    
+
     // Skip external requests (except CDN resources)
-    if (!url.origin.includes(location.origin) && 
-        !url.href.includes('cdn.tailwindcss.com') && 
+    if (!url.origin.includes(location.origin) &&
+        !url.href.includes('cdn.tailwindcss.com') &&
         !url.href.includes('cdnjs.cloudflare.com')) {
         return;
     }
-    
+
     // Handle API requests
     if (url.pathname.startsWith('/api/')) {
         event.respondWith(handleApiRequest(request));
         return;
     }
-    
+
     // Handle static files
     if (url.pathname.startsWith('/static/')) {
         event.respondWith(handleStaticRequest(request));
         return;
     }
-    
+
     // Handle HTML pages: network-only (do not cache navigations)
     if (request.headers.get('accept')?.includes('text/html')) {
         event.respondWith((async () => {
             try {
-                const response = await fetch(request);
+                const response = await fetch(request, { credentials: 'include' });
                 const finalUrl = new URL(response.url);
                 if (finalUrl.pathname !== url.pathname) {
                     console.log('[SW] navigation redirected', { from: url.pathname, to: finalUrl.pathname });
@@ -144,7 +144,7 @@ self.addEventListener('fetch', event => {
         })());
         return;
     }
-    
+
     // Default: try cache first, then network
     event.respondWith(handleDefaultRequest(request));
 });
@@ -152,24 +152,24 @@ self.addEventListener('fetch', event => {
 // Handle API requests - network first, cache fallback
 async function handleApiRequest(request) {
     try {
-        const response = await fetch(request);
-        
+        const response = await fetch(request, { credentials: 'include' });
+
         // Cache successful API responses
         if (response.ok) {
             const cache = await caches.open(DYNAMIC_CACHE);
             cache.put(request, response.clone());
         }
-        
+
         return response;
     } catch (error) {
         console.log('API request failed, trying cache:', error);
-        
+
         // Try to serve from cache
         const cachedResponse = await caches.match(request);
         if (cachedResponse) {
             return cachedResponse;
         }
-        
+
         // Return offline response
         return new Response(JSON.stringify({ error: 'Offline' }), {
             status: 503,
@@ -181,19 +181,18 @@ async function handleApiRequest(request) {
 // Handle static files - cache first, network fallback
 async function handleStaticRequest(request) {
     const cachedResponse = await caches.match(request);
-    
+
     if (cachedResponse) {
         return cachedResponse;
     }
-    
+
     try {
-        const response = await fetch(request);
-        
+        const response = await fetch(request, { credentials: 'include' });
         if (response.ok) {
             const cache = await caches.open(STATIC_CACHE);
             cache.put(request, response.clone());
         }
-        
+
         return response;
     } catch (error) {
         console.log('Static file request failed:', error);
@@ -206,19 +205,19 @@ async function handleStaticRequest(request) {
 // Handle default requests - cache first, network fallback
 async function handleDefaultRequest(request) {
     const cachedResponse = await caches.match(request);
-    
+
     if (cachedResponse) {
         return cachedResponse;
     }
-    
+
     try {
         const response = await fetch(request);
-        
+
         if (response.ok) {
             const cache = await caches.open(DYNAMIC_CACHE);
             cache.put(request, response.clone());
         }
-        
+
         return response;
     } catch (error) {
         console.log('Request failed:', error);
@@ -237,10 +236,10 @@ async function doBackgroundSync() {
     try {
         // Sync any pending data when connection is restored
         console.log('Performing background sync...');
-        
+
         // You can add specific sync logic here
         // For example, sync offline transactions
-        
+
     } catch (error) {
         console.error('Background sync failed:', error);
     }
@@ -250,7 +249,7 @@ async function doBackgroundSync() {
 self.addEventListener('push', event => {
     if (event.data) {
         const data = event.data.json();
-        
+
         const options = {
             body: data.body,
             icon: '/static/images/icon-192x192.png',
@@ -273,7 +272,7 @@ self.addEventListener('push', event => {
                 }
             ]
         };
-        
+
         event.waitUntil(
             self.registration.showNotification(data.title, options)
         );
@@ -283,7 +282,7 @@ self.addEventListener('push', event => {
 // Handle notification clicks
 self.addEventListener('notificationclick', event => {
     event.notification.close();
-    
+
     if (event.action === 'explore') {
         event.waitUntil(
             clients.openWindow('/')
@@ -296,7 +295,7 @@ self.addEventListener('message', event => {
     if (event.data && event.data.type === 'SKIP_WAITING') {
         self.skipWaiting();
     }
-    
+
     if (event.data && event.data.type === 'GET_VERSION') {
         event.ports[0].postMessage({ version: CACHE_NAME });
     }

@@ -31,6 +31,16 @@ router = APIRouter(tags=["pages"])
 # public decorator is imported from ..auth
 
 
+def _first_weekday_in_month(year: int, month: int, weekday_py: int) -> date:
+    """
+    Get the date of the first occurrence of a specific weekday in a month.
+    weekday_py: 0=Monday, 6=Sunday
+    """
+    mf = date(year, month, 1)
+    off = (weekday_py - mf.weekday()) % 7
+    return mf + timedelta(days=off)
+
+
 def _get_main_user_ids(db_conn: sqlite3.Connection) -> str:
     """
     Get the user IDs for the main users (English canonical names: Yosef, Karina).
@@ -418,11 +428,6 @@ async def finances_dashboard(
         """
     ).fetchall()
 
-    def first_weekday_in_month(year: int, month: int, weekday_py: int) -> date:
-        mf = date(year, month, 1)
-        off = (weekday_py - mf.weekday()) % 7
-        return mf + timedelta(days=off)
-
     upcoming: List[Dict[str, Any]] = []
     for r in recs:
         charge: Optional[date] = None
@@ -435,7 +440,7 @@ async def finances_dashboard(
             elif r["frequency"] == "weekly":
                 wd = int(r["weekday"] if r["weekday"] is not None else 6)
                 wd = max(0, min(6, wd))
-                charge = first_weekday_in_month(sel_year, sel_month, wd)
+                charge = _first_weekday_in_month(sel_year, sel_month, wd)
             elif r["frequency"] == "yearly":
                 # For yearly, use month/day from next_charge_date if present; fallback to 01-08
                 mm, dd = 8, 1
@@ -793,10 +798,6 @@ async def finances_recurrences(
             # ignore invalid value; keep today
             pass
 
-    def _first_weekday_in_month(year: int, month: int, weekday_py: int) -> _date:
-        month_first = _date(year, month, 1)
-        offset_days = (weekday_py - month_first.weekday()) % 7
-        return month_first + timedelta(days=offset_days)
 
     recs_enriched: List[Dict[str, Any]] = []
     for r in recs_all or []:
@@ -1380,8 +1381,10 @@ async def finances_statistics(
 @router.get("/finances/statistics/drilldown", response_class=HTMLResponse)
 async def finances_statistics_drilldown(
     request: Request,
-    metric: str,
+    metric: Optional[str] = None,
+    category: Optional[str] = None,
     month: Optional[str] = None,
+    partial: bool = False,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> HTMLResponse:
     """Temporary drilldown table for KPIs on the statistics page.
@@ -1391,6 +1394,9 @@ async def finances_statistics_drilldown(
     - expenses: all expenses (regular + recurring) in selected month
     - transactions: all transactions in selected month
     - recurring: only recurring expenses in selected month
+    
+    Supported category:
+    - category name (string) to filter by category (implies date range check)
     """
     # Resolve selected month
     today = date.today()
@@ -1434,7 +1440,19 @@ async def finances_statistics_drilldown(
     metric_key = (metric or "").strip().lower()
     title = "עסקאות החודש"
     where_extra = ""
-    if metric_key == "income":
+    params = [selected_ym]
+
+    if category:
+        title = f"הוצאות - {category}"
+        # Filter by category name
+        # Note: category name comes from the chart, which comes from c.name
+        where_extra += " AND c.name = ?"
+        params.append(category)
+        # Usually implies expenses, but we let the DB decide based on amount if needed?
+        # Typically charts show absolute amounts for expenses.
+        # But let's assume if we drill down by category we just want transactions for that category.
+        
+    elif metric_key == "income":
         title = "הכנסות החודש"
         where_extra = " AND t.amount > 0"
     elif metric_key == "expenses":
@@ -1446,14 +1464,16 @@ async def finances_statistics_drilldown(
         where_extra = " AND t.amount < 0 AND t.recurrence_id IS NOT NULL"
 
     query = base_sql + where_extra + " ORDER BY t.date DESC, t.id DESC"
-    rows = db_conn.execute(query, (selected_ym,)).fetchall()
+    rows = db_conn.execute(query, tuple(params)).fetchall()
     rows_dict = [dict(r) for r in (rows or [])]
 
+    template_name = "partials/stats/drilldown_table.html" if partial else "finances/statistics_drilldown.html"
+
     return templates.TemplateResponse(
-        "finances/statistics_drilldown.html",
+        template_name,
         {
             "request": request,
-            "show_sidebar": True,
+            "show_sidebar": not partial,
             "selected_month": selected_ym,
             "metric": metric_key,
             "title": title,

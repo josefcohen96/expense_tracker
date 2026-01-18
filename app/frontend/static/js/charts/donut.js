@@ -33,17 +33,17 @@ function getCurrentMonth() {
 }
 
 function setDefaultMonth() {
-    const current = getCurrentMonth();
-    // Respect a server-provided value (statistics page global month)
-    if (inputMonth && inputMonth.value) {
-        return;
-    }
-    if (!availableMonths.length) {
-        if (inputMonth && !inputMonth.value) inputMonth.value = current;
-        return;
-    }
-    const last = availableMonths[availableMonths.length - 1];
-    if (inputMonth) inputMonth.value = availableMonths.includes(current) ? current : last;
+	const current = getCurrentMonth();
+	// Respect a server-provided value (statistics page global month)
+	if (inputMonth && inputMonth.value) {
+		return;
+	}
+	if (!availableMonths.length) {
+		if (inputMonth && !inputMonth.value) inputMonth.value = current;
+		return;
+	}
+	const last = availableMonths[availableMonths.length - 1];
+	if (inputMonth) inputMonth.value = availableMonths.includes(current) ? current : last;
 }
 
 // Aggregate a single month to category totals
@@ -82,11 +82,11 @@ function renderChart() {
 	}
 
 	const backgroundColor = generateColors(labels.length);
-	const dataset = { 
-		label: "סכום", 
-		data, 
-		backgroundColor, 
-		borderWidth: 0 
+	const dataset = {
+		label: "סכום",
+		data,
+		backgroundColor,
+		borderWidth: 0
 	};
 
 	if (!chart) {
@@ -96,8 +96,18 @@ function renderChart() {
 			options: {
 				responsive: true,
 				maintainAspectRatio: false,
+				onClick: (evt, elements, chart) => {
+					if (elements && elements.length > 0) {
+						const index = elements[0].index;
+						const label = chart.data.labels[index];
+						const selectedMonth = document.getElementById("donut-month-single").value;
+						if (window.openDrilldownModal) {
+							window.openDrilldownModal({ category: label, month: selectedMonth });
+						}
+					}
+				},
 				plugins: {
-					legend: { 
+					legend: {
 						position: "right",
 						labels: {
 							font: {

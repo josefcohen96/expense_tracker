@@ -1,0 +1,30 @@
+<div class="overflow-x-auto">
+    <table class="min-w-full text-center text-sm">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-3 py-2 border-b">תאריך</th>
+                <th class="px-3 py-2 border-b">שם משתמש</th>
+                <th class="px-3 py-2 border-b">קטגוריה</th>
+                <th class="px-3 py-2 border-b">סכום (₪)</th>
+                <th class="px-3 py-2 border-b">הערות</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr class="hover:bg-gray-50">
+                <td class="px-3 py-2 border-b whitespace-nowrap">{{ r.date }}</td>
+                <td class="px-3 py-2 border-b">{{ r.user }}</td>
+                <td class="px-3 py-2 border-b">{{ r.category }}</td>
+                <td class="px-3 py-2 border-b font-semibold {{ 'text-green-600' if r.amount > 0 else 'text-red-600' }}">
+                    {{ (r.amount or 0) | round(2) }}
+                </td>
+                <td class="px-3 py-2 border-b text-gray-600">{{ r.notes or '' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" class="px-4 py-8 text-gray-500">אין נתונים להצגה</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

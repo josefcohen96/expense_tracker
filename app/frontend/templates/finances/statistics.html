@@ -15,19 +15,23 @@
 
   <!-- KPIs -->
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-    <a href="/finances/statistics/drilldown?metric=expenses&month={{ selected_month }}" class="bg-white p-4 rounded shadow block hover:shadow-md transition">
+    <a href="/finances/statistics/drilldown?metric=expenses&month={{ selected_month }}"
+      class="bg-white p-4 rounded shadow block hover:shadow-md transition">
       <div class="text-gray-500">הוצאות החודש</div>
       <div class="text-2xl font-bold text-red-600">₪{{ total_expenses_month }}</div>
     </a>
-    <a href="/finances/statistics/drilldown?metric=income&month={{ selected_month }}" class="bg-white p-4 rounded shadow block hover:shadow-md transition">
+    <a href="/finances/statistics/drilldown?metric=income&month={{ selected_month }}"
+      class="bg-white p-4 rounded shadow block hover:shadow-md transition">
       <div class="text-gray-500">הכנסות החודש</div>
       <div class="text-2xl font-bold text-green-600">₪{{ total_income_month }}</div>
     </a>
-    <a href="/finances/statistics/drilldown?metric=transactions&month={{ selected_month }}" class="bg-white p-4 rounded shadow block hover:shadow-md transition">
+    <a href="/finances/statistics/drilldown?metric=transactions&month={{ selected_month }}"
+      class="bg-white p-4 rounded shadow block hover:shadow-md transition">
       <div class="text-gray-500">עסקאות החודש</div>
       <div class="text-2xl font-bold">{{ total_transactions_month }}</div>
     </a>
-    <a href="/finances/statistics/drilldown?metric=recurring&month={{ selected_month }}" class="bg-white p-4 rounded shadow block hover:shadow-md transition">
+    <a href="/finances/statistics/drilldown?metric=recurring&month={{ selected_month }}"
+      class="bg-white p-4 rounded shadow block hover:shadow-md transition">
       <div class="text-gray-500">הוצאות קבועות החודש</div>
       <div class="text-2xl font-bold">{{ total_recurring_month }}</div>
     </a>
@@ -111,19 +115,21 @@
   </div>
 
 </div>
+{% include 'partials/stats/modal.html' %}
+</div>
 {% endblock %}
 
 {% block scripts %}
-  <!-- Chart.js -->
-  <script src="/static/js/vendor/chart.umd.min.js"></script>
+<!-- Chart.js -->
+<script src="/static/js/vendor/chart.umd.min.js"></script>
 
-  <!-- Inline JSON data for charts -->
-  <script id="monthly-data" type="application/json">{{ monthly_data | tojson }}</script>
-  <script id="category-data" type="application/json">{{ category_data | tojson }}</script>
-  {# removed recurrences inline data (unused) #}
+<!-- Inline JSON data for charts -->
+<script id="monthly-data" type="application/json">{{ monthly_data | tojson }}</script>
+<script id="category-data" type="application/json">{{ category_data | tojson }}</script>
+{# removed recurrences inline data (unused) #}
 
-  <!-- Charts scripts -->
-  <script type="module" src="/static/js/charts/monthly.js"></script>
-  <script type="module" src="/static/js/charts/donut.js"></script>
-  {# removed recurrences chart script (canvas removed) #}
+<!-- Charts scripts -->
+<script type="module" src="/static/js/charts/monthly.js"></script>
+<script type="module" src="/static/js/charts/donut.js"></script>
+{# removed recurrences chart script (canvas removed) #}
 {% endblock %}

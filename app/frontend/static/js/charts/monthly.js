@@ -70,6 +70,15 @@ async function renderChart(category = "total") {
     },
     options: {
       ...baseOptions,
+      onClick: (e, elements, chart) => {
+        if (elements && elements.length > 0) {
+          const index = elements[0].index;
+          const month = chart.data.labels[index];
+          if (window.openDrilldownModal) {
+             window.openDrilldownModal({ metric: 'expenses', month: month });
+          }
+        }
+      },
       scales: {
         ...baseOptions.scales,
         x: { ...baseOptions.scales.x, ticks: { ...baseOptions.scales.x.ticks, font: { size: 12 } } },

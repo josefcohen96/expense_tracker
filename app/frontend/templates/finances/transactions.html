@@ -4,133 +4,142 @@
 {% block content %}
 <div class="w-full animate-sequence">
 
+</div>
+
+<!-- Advanced Filters -->
+<div class="card mb-6 animate-sequence">
+    <div class="card-header">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center">
+            <i class="fas fa-filter mr-3 text-blue-600"></i>
+            פילטרים מתקדמים
+        </h2>
     </div>
+    <div class="card-body">
+        <form method="GET" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
-    <!-- Advanced Filters -->
-    <div class="card mb-6 animate-sequence">
-        <div class="card-header">
+            <div class="form-group">
+                <label for="category_id" class="form-label">קטגוריה</label>
+                <select name="category_id" id="category_id" class="form-select">
+                    <option value="">כל הקטגוריות</option>
+                    {% for category in categories %}
+                    {% if category.name not in ['משכורת','קליניקה'] %}
+                    <option value="{{ category.id }}" {% if request.query_params.get('category_id')==category.id|string
+                        %}selected{% endif %}>
+                        {{ category.name }}
+                    </option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="date_from" class="form-label">מתאריך</label>
+                <input type="date" name="date_from" id="date_from" class="form-input"
+                    value="{{ request.query_params.get('date_from') or effective_date_from if effective_date_from is defined else request.query_params.get('date_from', '') }}">
+            </div>
+
+            <div class="form-group">
+                <label for="date_to" class="form-label">עד תאריך</label>
+                <input type="date" name="date_to" id="date_to" class="form-input"
+                    value="{{ request.query_params.get('date_to') or effective_date_to if effective_date_to is defined else request.query_params.get('date_to', '') }}">
+            </div>
+
+            <div class="form-group">
+                <label for="amount_min" class="form-label">סכום מינימלי</label>
+                <input type="number" step="0.01" name="amount_min" id="amount_min" class="form-input"
+                    value="{{ request.query_params.get('amount_min', '') }}">
+            </div>
+
+            <div class="form-group">
+                <label for="amount_max" class="form-label">סכום מקסימלי</label>
+                <input type="number" step="0.01" name="amount_max" id="amount_max" class="form-input"
+                    value="{{ request.query_params.get('amount_max', '') }}">
+            </div>
+
+            <div class="form-group">
+                <label for="user_id" class="form-label">משתמש</label>
+                <select name="user_id" id="user_id" class="form-select">
+                    <option value="">כל המשתמשים</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}" {% if request.query_params.get('user_id')==user.id|string %}selected{%
+                        endif %}>
+                        {{ user.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="account_id" class="form-label">חשבון</label>
+                <select name="account_id" id="account_id" class="form-select">
+                    <option value="">כל החשבונות</option>
+                    {% for account in accounts %}
+                    <option value="{{ account.id }}" {% if request.query_params.get('account_id')==account.id|string
+                        %}selected{% endif %}>
+                        {{ account.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="tags" class="form-label">תגיות</label>
+                <input type="text" name="tags" id="tags" class="form-input"
+                    value="{{ request.query_params.get('tags', '') }}" placeholder="הזן תגיות מופרדות בפסיקים">
+            </div>
+
+            <div class="col-span-full flex gap-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-search mr-2"></i>
+                    החל פילטר
+                </button>
+                <a href="/finances/transactions" class="btn btn-outline">
+                    <i class="fas fa-times mr-2"></i>
+                    נקה פילטר
+                </a>
+                <button type="button" onclick="exportTransactions()" class="btn btn-success">
+                    <i class="fas fa-download mr-2"></i>
+                    ייצא לאקסל
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Add Transaction Button -->
+<div class="mb-6">
+    <button onclick="openAddModal()" class="btn btn-primary">
+        <i class="fas fa-plus mr-2"></i>
+        הוסף עסקה חדשה
+    </button>
+</div>
+
+<!-- Transactions Table -->
+<div class="card animate-sequence" id="transactions-table">
+    <div class="card-header">
+        <div class="flex justify-between items-center">
             <h2 class="text-xl font-semibold text-gray-900 flex items-center">
-                <i class="fas fa-filter mr-3 text-blue-600"></i>
-                פילטרים מתקדמים
+                <i class="fas fa-list mr-3 text-blue-600"></i>
+                עסקאות
             </h2>
-        </div>
-        <div class="card-body">
-            <form method="GET" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-               
-                <div class="form-group">
-                    <label for="category_id" class="form-label">קטגוריה</label>
-                    <select name="category_id" id="category_id" class="form-select">
-                        <option value="">כל הקטגוריות</option>
-                        {% for category in categories %}
-                        {% if category.name not in ['משכורת','קליניקה'] %}
-                        <option value="{{ category.id }}" {% if request.query_params.get('category_id') == category.id|string %}selected{% endif %}>
-                            {{ category.name }}
-                        </option>
-                        {% endif %}
-                        {% endfor %}
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="date_from" class="form-label">מתאריך</label>
-                    <input type="date" name="date_from" id="date_from" class="form-input" value="{{ request.query_params.get('date_from') or effective_date_from if effective_date_from is defined else request.query_params.get('date_from', '') }}">
-                </div>
-                
-                <div class="form-group">
-                    <label for="date_to" class="form-label">עד תאריך</label>
-                    <input type="date" name="date_to" id="date_to" class="form-input" value="{{ request.query_params.get('date_to') or effective_date_to if effective_date_to is defined else request.query_params.get('date_to', '') }}">
-                </div>
-                
-                <div class="form-group">
-                    <label for="amount_min" class="form-label">סכום מינימלי</label>
-                    <input type="number" step="0.01" name="amount_min" id="amount_min" class="form-input" value="{{ request.query_params.get('amount_min', '') }}">
-                </div>
-                
-                <div class="form-group">
-                    <label for="amount_max" class="form-label">סכום מקסימלי</label>
-                    <input type="number" step="0.01" name="amount_max" id="amount_max" class="form-input" value="{{ request.query_params.get('amount_max', '') }}">
-                </div>
-                
-                <div class="form-group">
-                    <label for="user_id" class="form-label">משתמש</label>
-                    <select name="user_id" id="user_id" class="form-select">
-                        <option value="">כל המשתמשים</option>
-                                                 {% for user in users %}
-                         <option value="{{ user.id }}" {% if request.query_params.get('user_id') == user.id|string %}selected{% endif %}>
-                             {{ user.name }}
-                         </option>
-                         {% endfor %}
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="account_id" class="form-label">חשבון</label>
-                    <select name="account_id" id="account_id" class="form-select">
-                        <option value="">כל החשבונות</option>
-                                                 {% for account in accounts %}
-                         <option value="{{ account.id }}" {% if request.query_params.get('account_id') == account.id|string %}selected{% endif %}>
-                             {{ account.name }}
-                         </option>
-                         {% endfor %}
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="tags" class="form-label">תגיות</label>
-                    <input type="text" name="tags" id="tags" class="form-input" value="{{ request.query_params.get('tags', '') }}" placeholder="הזן תגיות מופרדות בפסיקים">
-                </div>
-                
-                                 <div class="col-span-full flex gap-4">
-                     <button type="submit" class="btn btn-primary">
-                         <i class="fas fa-search mr-2"></i>
-                         החל פילטר
-                     </button>
-                    <a href="/finances/transactions" class="btn btn-outline">
-                         <i class="fas fa-times mr-2"></i>
-                         נקה פילטר
-                     </a>
-                     <button type="button" onclick="exportTransactions()" class="btn btn-success">
-                         <i class="fas fa-download mr-2"></i>
-                         ייצא לאקסל
-                     </button>
-                 </div>
-             </form>
-         </div>
-     </div>
- 
-          <!-- Add Transaction Button -->
-     <div class="mb-6">
-         <button onclick="openAddModal()" class="btn btn-primary">
-             <i class="fas fa-plus mr-2"></i>
-             הוסף עסקה חדשה
-         </button>
-     </div>
-
-    <!-- Transactions Table -->
-    <div class="card animate-sequence" id="transactions-table">
-        <div class="card-header">
-            <div class="flex justify-between items-center">
-                <h2 class="text-xl font-semibold text-gray-900 flex items-center">
-                    <i class="fas fa-list mr-3 text-blue-600"></i>
-                    עסקאות
-                </h2>
-                <div class="flex items-center gap-4">
-                    <div class="text-sm text-gray-600">
-                        מציג {{ (pagination.page - 1) * pagination.per_page + 1 }} עד {{ pagination.page * pagination.per_page if pagination.page * pagination.per_page < pagination.total else pagination.total }} מתוך {{ pagination.total }} עסקאות
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <label for="sort_by" class="text-sm font-medium text-gray-700">מיון:</label>
-                        <select id="sort_by" class="form-select text-sm" onchange="sortTransactions()">
-                            <option value="date_desc">תאריך (חדש לישן)</option>
-                            <option value="date_asc">תאריך (ישן לחדש)</option>
-                            <option value="amount_desc">סכום (גבוה לנמוך)</option>
-                            <option value="amount_asc">סכום (נמוך לגבוה)</option>
-                        </select>
-                    </div>
+            <div class="flex items-center gap-4">
+                <div class="text-sm text-gray-600">
+                    מציג {{ (pagination.page - 1) * pagination.per_page + 1 }} עד {{ pagination.page *
+                    pagination.per_page if pagination.page * pagination.per_page < pagination.total else
+                        pagination.total }} מתוך {{ pagination.total }} עסקאות </div>
+                        <div class="flex items-center gap-2">
+                            <label for="sort_by" class="text-sm font-medium text-gray-700">מיון:</label>
+                            <select id="sort_by" class="form-select text-sm" onchange="sortTransactions()">
+                                <option value="date_desc">תאריך (חדש לישן)</option>
+                                <option value="date_asc">תאריך (ישן לחדש)</option>
+                                <option value="amount_desc">סכום (גבוה לנמוך)</option>
+                                <option value="amount_asc">סכום (נמוך לגבוה)</option>
+                            </select>
+                        </div>
                 </div>
             </div>
         </div>
-        
+
         <div class="overflow-x-auto">
             <table class="table">
                 <thead>
@@ -148,56 +157,70 @@
                 <tbody>
                     {% for transaction in transactions %}
                     <tr class="animate-sequence" data-transaction-id="{{ transaction.id }}">
-                        <td>
+                        <td data-label="תאריך">
                             <div class="flex items-center">
                                 <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
                                     <i class="fas fa-calendar text-blue-600 text-sm"></i>
                                 </div>
-                                <span class="font-medium view-mode" id="date-view-{{ transaction.id }}">{{ transaction.date }}</span>
-                                <input type="date" class="form-input text-sm hidden edit-mode" id="date-edit-{{ transaction.id }}" value="{{ transaction.date }}">
+                                <span class="font-medium view-mode" id="date-view-{{ transaction.id }}">{{
+                                    transaction.date }}</span>
+                                <input type="date" class="form-input text-sm hidden edit-mode"
+                                    id="date-edit-{{ transaction.id }}" value="{{ transaction.date }}">
                             </div>
                         </td>
-                        <td>
+                        <td data-label="סכום">
                             <div class="flex items-center">
-                                <span class="font-bold text-lg {% if transaction.amount > 0 %}text-green-600{% else %}text-red-600{% endif %} view-mode" id="amount-view-{{ transaction.id }}">
+                                <span
+                                    class="font-bold text-lg {% if transaction.amount > 0 %}text-green-600{% else %}text-red-600{% endif %} view-mode"
+                                    id="amount-view-{{ transaction.id }}">
                                     {% if transaction.amount > 0 %}+{% endif %}₪{{ transaction.amount | round(2) }}
                                 </span>
                                 <div id="amount-wrap-edit-{{ transaction.id }}" class="relative edit-mode hidden ml-0">
-                                    <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₪</span>
-                                    <input type="number" step="0.01" class="form-input text-sm pl-8" id="amount-edit-{{ transaction.id }}" value="{{ transaction.amount | abs }}">
+                                    <span
+                                        class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₪</span>
+                                    <input type="number" step="0.01" class="form-input text-sm pl-8"
+                                        id="amount-edit-{{ transaction.id }}" value="{{ transaction.amount | abs }}">
                                 </div>
                             </div>
                         </td>
-                        <td>
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 view-mode" id="category-view-{{ transaction.id }}">
+                        <td data-label="קטגוריה">
+                            <span
+                                class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 view-mode"
+                                id="category-view-{{ transaction.id }}">
                                 <i class="fas fa-tag mr-1"></i>
                                 {{ transaction.category }}
                             </span>
-                            <select class="form-select text-sm edit-mode hidden" id="category-edit-{{ transaction.id }}">
+                            <select class="form-select text-sm edit-mode hidden"
+                                id="category-edit-{{ transaction.id }}">
                                 {% for category in categories %}
                                 {% if category.name not in ['משכורת','קליניקה'] %}
-                                <option value="{{ category.id }}" {% if category.name == transaction.category %}selected{% endif %}>{{ category.name }}</option>
+                                <option value="{{ category.id }}" {% if category.name==transaction.category %}selected{%
+                                    endif %}>{{ category.name }}</option>
                                 {% endif %}
                                 {% endfor %}
                             </select>
                         </td>
-                        <td class="hidden sm:table-cell">
+                        <td class="hidden sm:table-cell" data-label="משתמש">
                             <div class="flex items-center">
                                 <div class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
                                     <i class="fas fa-user text-purple-600 text-sm"></i>
                                 </div>
-                                <span class="view-mode" id="user-view-{{ transaction.id }}">{{ transaction.user }}</span>
-                                <select class="form-select text-sm edit-mode hidden" id="user-edit-{{ transaction.id }}">
+                                <span class="view-mode" id="user-view-{{ transaction.id }}">{{ transaction.user
+                                    }}</span>
+                                <select class="form-select text-sm edit-mode hidden"
+                                    id="user-edit-{{ transaction.id }}">
                                     {% for user in users %}
-                                    <option value="{{ user.id }}" {% if user.name == transaction.user %}selected{% endif %}>{{ user.name }}</option>
+                                    <option value="{{ user.id }}" {% if user.name==transaction.user %}selected{% endif
+                                        %}>{{ user.name }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
                         </td>
-                        <td class="hidden md:table-cell">
+                        <td class="hidden md:table-cell" data-label="חשבון">
                             <span class="view-mode" id="account-view-{{ transaction.id }}">
                                 {% if transaction.account %}
-                                <span class="inline-flex items-center px-2 py-1 rounded text-sm bg-gray-100 text-gray-800">
+                                <span
+                                    class="inline-flex items-center px-2 py-1 rounded text-sm bg-gray-100 text-gray-800">
                                     <i class="fas fa-credit-card mr-1"></i>
                                     {{ transaction.account }}
                                 </span>
@@ -208,26 +231,31 @@
                             <select class="form-select text-sm edit-mode hidden" id="account-edit-{{ transaction.id }}">
                                 <option value="">בחר חשבון (אופציונלי)</option>
                                 {% for account in accounts %}
-                                <option value="{{ account.id }}" {% if account.name == transaction.account %}selected{% endif %}>{{ account.name }}</option>
+                                <option value="{{ account.id }}" {% if account.name==transaction.account %}selected{%
+                                    endif %}>{{ account.name }}</option>
                                 {% endfor %}
                             </select>
                         </td>
-                        <td class="hidden lg:table-cell">
+                        <td class="hidden lg:table-cell" data-label="הערות">
                             {% if transaction.notes %}
-                            <div id="notes-view-{{ transaction.id }}" class="max-w-xs truncate view-mode" title="{{ transaction.notes }}">
+                            <div id="notes-view-{{ transaction.id }}" class="max-w-xs truncate view-mode"
+                                title="{{ transaction.notes }}">
                                 <i class="fas fa-sticky-note text-gray-400 mr-1"></i>
                                 {{ transaction.notes }}
                             </div>
                             {% else %}
                             <span id="notes-view-{{ transaction.id }}" class="text-gray-400 view-mode">-</span>
                             {% endif %}
-                            <textarea class="form-input text-sm hidden edit-mode mt-2" id="notes-edit-{{ transaction.id }}" rows="2" placeholder="הוסף הערות...">{{ transaction.notes or '' }}</textarea>
+                            <textarea class="form-input text-sm hidden edit-mode mt-2"
+                                id="notes-edit-{{ transaction.id }}" rows="2"
+                                placeholder="הוסף הערות...">{{ transaction.notes or '' }}</textarea>
                         </td>
-                        <td class="hidden lg:table-cell">
+                        <td class="hidden lg:table-cell" data-label="תגיות">
                             {% if transaction.tags %}
                             <div id="tags-view-{{ transaction.id }}" class="flex flex-wrap gap-1 view-mode">
                                 {% for tag in transaction.tags.split(',') %}
-                                <span class="inline-flex items-center px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">
+                                <span
+                                    class="inline-flex items-center px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">
                                     <i class="fas fa-tag mr-1"></i>
                                     {{ tag.strip() }}
                                 </span>
@@ -236,23 +264,32 @@
                             {% else %}
                             <span id="tags-view-{{ transaction.id }}" class="text-gray-400 view-mode">-</span>
                             {% endif %}
-                            <input type="text" class="form-input text-sm hidden edit-mode mt-2" id="tags-edit-{{ transaction.id }}" placeholder="תגיות מופרדות בפסיקים" value="{{ transaction.tags or '' }}" />
+                            <input type="text" class="form-input text-sm hidden edit-mode mt-2"
+                                id="tags-edit-{{ transaction.id }}" placeholder="תגיות מופרדות בפסיקים"
+                                value="{{ transaction.tags or '' }}" />
                         </td>
-                        <td>
+                        <td data-label="פעולות">
                             <div class="flex items-center gap-2">
-                                <button onclick="editTransactionInline({{ transaction.id }})" class="btn btn-outline btn-sm" title="עריכה">
+                                <button onclick="editTransactionInline({{ transaction.id }})"
+                                    class="btn btn-outline btn-sm" title="עריכה">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <button onclick="saveTransactionInline({{ transaction.id }})" class="btn btn-success btn-sm hidden" title="שמור" id="save-btn-{{ transaction.id }}">
+                                <button onclick="saveTransactionInline({{ transaction.id }})"
+                                    class="btn btn-success btn-sm hidden" title="שמור"
+                                    id="save-btn-{{ transaction.id }}">
                                     <i class="fas fa-save"></i>
                                 </button>
-                                <button onclick="cancelEditInline({{ transaction.id }})" class="btn btn-warning btn-sm hidden" title="ביטול" id="cancel-btn-{{ transaction.id }}">
+                                <button onclick="cancelEditInline({{ transaction.id }})"
+                                    class="btn btn-warning btn-sm hidden" title="ביטול"
+                                    id="cancel-btn-{{ transaction.id }}">
                                     <i class="fas fa-times"></i>
                                 </button>
-                                <button onclick="duplicateTransaction({{ transaction.id }})" class="btn btn-outline btn-sm" title="שכפול">
+                                <button onclick="duplicateTransaction({{ transaction.id }})"
+                                    class="btn btn-outline btn-sm" title="שכפול">
                                     <i class="fas fa-copy"></i>
                                 </button>
-                                <button onclick="deleteTransaction({{ transaction.id }})" class="btn btn-danger btn-sm" title="מחיקה">
+                                <button onclick="deleteTransaction({{ transaction.id }})" class="btn btn-danger btn-sm"
+                                    title="מחיקה">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
@@ -271,36 +308,42 @@
                     עמוד {{ pagination.page }} מתוך {{ pagination.total_pages }}
                 </div>
                 <div class="flex items-center gap-2">
-                                         {% if pagination.has_prev %}
-                     <a href="?page={{ pagination.prev_page }}{% for key, value in request.query_params.items() %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" class="btn btn-outline btn-sm">
-                         <i class="fas fa-chevron-right mr-1"></i>
-                         הקודם
-                     </a>
-                     {% endif %}
-                    
+                    {% if pagination.has_prev %}
+                    <a href="?page={{ pagination.prev_page }}{% for key, value in request.query_params.items() %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                        class="btn btn-outline btn-sm">
+                        <i class="fas fa-chevron-right mr-1"></i>
+                        הקודם
+                    </a>
+                    {% endif %}
+
                     <!-- Page Numbers -->
                     <div class="flex items-center gap-1">
-                                                 {% for page_num in range(1, pagination.total_pages + 1) %}
-                         {% if page_num == pagination.page %}
-                         <span class="px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-md">{{ page_num }}</span>
-                         {% elif page_num <= 3 or page_num > pagination.total_pages - 3 or (page_num >= pagination.page - 1 and page_num <= pagination.page + 1) %}
-                         <a href="?page={{ page_num }}{% for key, value in request.query_params.items() %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
-                             {{ page_num }}
-                         </a>
-                         {% elif page_num == 4 and pagination.page > 6 %}
-                         <span class="px-3 py-2 text-sm text-gray-500">...</span>
-                         {% elif page_num == pagination.total_pages - 3 and pagination.page < pagination.total_pages - 5 %}
-                         <span class="px-3 py-2 text-sm text-gray-500">...</span>
-                         {% endif %}
-                         {% endfor %}
+                        {% for page_num in range(1, pagination.total_pages + 1) %}
+                        {% if page_num == pagination.page %}
+                        <span class="px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-md">{{ page_num
+                            }}</span>
+                        {% elif page_num <= 3 or page_num> pagination.total_pages - 3 or (page_num >= pagination.page -
+                            1 and page_num <= pagination.page + 1) %} <a
+                                href="?page={{ page_num }}{% for key, value in request.query_params.items() %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                                class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                                {{ page_num }}
+                                </a>
+                                {% elif page_num == 4 and pagination.page > 6 %}
+                                <span class="px-3 py-2 text-sm text-gray-500">...</span>
+                                {% elif page_num == pagination.total_pages - 3 and pagination.page <
+                                    pagination.total_pages - 5 %} <span class="px-3 py-2 text-sm text-gray-500">
+                                    ...</span>
+                                    {% endif %}
+                                    {% endfor %}
                     </div>
-                    
-                                         {% if pagination.has_next %}
-                     <a href="?page={{ pagination.next_page }}{% for key, value in request.query_params.items() %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" class="btn btn-outline btn-sm">
-                         הבא
-                         <i class="fas fa-chevron-left mr-1"></i>
-                     </a>
-                     {% endif %}
+
+                    {% if pagination.has_next %}
+                    <a href="?page={{ pagination.next_page }}{% for key, value in request.query_params.items() %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                        class="btn btn-outline btn-sm">
+                        הבא
+                        <i class="fas fa-chevron-left mr-1"></i>
+                    </a>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -324,15 +367,16 @@
                         <label for="date" class="form-label">תאריך</label>
                         <input type="date" name="date" id="modal_date" required class="form-input" value="{{ today }}">
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="amount" class="form-label">סכום</label>
                         <div class="relative">
                             <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₪</span>
-                            <input type="number" step="0.01" name="amount" id="modal_amount" required class="form-input pl-8" placeholder="0.00">
+                            <input type="number" step="0.01" name="amount" id="modal_amount" required
+                                class="form-input pl-8" placeholder="0.00">
                         </div>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="category_id" class="form-label">קטגוריה</label>
                         <select name="category_id" id="modal_category_id" required class="form-select">
@@ -344,7 +388,7 @@
                             {% endfor %}
                         </select>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="user_id" class="form-label">משתמש</label>
                         <select name="user_id" id="modal_user_id" required class="form-select">
@@ -354,7 +398,7 @@
                             {% endfor %}
                         </select>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="account_id" class="form-label">חשבון</label>
                         <select name="account_id" id="modal_account_id" class="form-select">
@@ -364,17 +408,19 @@
                             {% endfor %}
                         </select>
                     </div>
-                    
-                    
-                    
+
+
+
                     <div class="form-group md:col-span-2">
                         <label for="notes" class="form-label">הערות</label>
-                        <textarea name="notes" id="modal_notes" rows="3" class="form-input" placeholder="הוסף הערות על העסקה..."></textarea>
+                        <textarea name="notes" id="modal_notes" rows="3" class="form-input"
+                            placeholder="הוסף הערות על העסקה..."></textarea>
                     </div>
-                    
+
                     <div class="form-group md:col-span-2">
                         <label for="tags" class="form-label">תגיות</label>
-                        <input type="text" name="tags" id="modal_tags" class="form-input" placeholder="הזן תגיות מופרדות בפסיקים (למשל: אוכל, בילויים, עבודה)">
+                        <input type="text" name="tags" id="modal_tags" class="form-input"
+                            placeholder="הזן תגיות מופרדות בפסיקים (למשל: אוכל, בילויים, עבודה)">
                         <div class="mt-2 flex flex-wrap gap-2" id="tagsPreview"></div>
                     </div>
                 </div>
@@ -396,482 +442,483 @@
 </div>
 
 <script>
-// Enhanced JavaScript functionality
-let currentSort = 'date_desc';
+    // Enhanced JavaScript functionality
+    let currentSort = 'date_desc';
 
-// Inline editing functions - defined first to ensure they're available
-window.editTransactionInline = function(id) {
-    console.log('editTransactionInline called with id:', id);
-    
-    // Hide view mode elements and show edit mode elements
-    const viewElements = document.querySelectorAll(`[id$="-view-${id}"]`);
-    const editElements = document.querySelectorAll(`[id$="-edit-${id}"]`);
-    
-    console.log('Found view elements:', viewElements.length);
-    console.log('Found edit elements:', editElements.length);
-    
-    viewElements.forEach(el => el.classList.add('hidden'));
-    editElements.forEach(el => el.classList.remove('hidden'));
-    
-    // Show save/cancel buttons
-    const saveBtn = document.getElementById(`save-btn-${id}`);
-    const cancelBtn = document.getElementById(`cancel-btn-${id}`);
-    
-    if (saveBtn) saveBtn.classList.remove('hidden');
-    if (cancelBtn) cancelBtn.classList.remove('hidden');
-    
-    // Hide edit button
-    const editBtn = document.querySelector(`[onclick="editTransactionInline(${id})"]`);
-    if (editBtn) editBtn.classList.add('hidden');
-    
-    console.log('Edit mode activated for transaction:', id);
-}
+    // Inline editing functions - defined first to ensure they're available
+    window.editTransactionInline = function (id) {
+        console.log('editTransactionInline called with id:', id);
 
-window.saveTransactionInline = function(id) {
-    console.log('saveTransactionInline called with id:', id);
-    
-    // Get all the edited values
-    const date = document.getElementById(`date-edit-${id}`).value;
-    const amount = parseFloat(document.getElementById(`amount-edit-${id}`).value);
-    const categoryId = document.getElementById(`category-edit-${id}`).value;
-    const userId = document.getElementById(`user-edit-${id}`).value;
-    const accountId = document.getElementById(`account-edit-${id}`).value || null;
-    const notesEl = document.getElementById(`notes-edit-${id}`);
-    const tagsEl = document.getElementById(`tags-edit-${id}`);
-    const notes = notesEl ? notesEl.value : null;
-    const tags = tagsEl ? tagsEl.value : null;
-    
-    console.log('Edited values:', { date, amount, categoryId, userId, accountId, notes, tags });
-    
-    // Determine if it's income or expense based on original amount
-    const originalAmount = parseFloat(document.getElementById(`amount-view-${id}`).textContent.replace(/[₪+\s]/g, ''));
-    const isIncome = originalAmount > 0;
-    const finalAmount = isIncome ? Math.abs(amount) : -Math.abs(amount);
-    
-    const transactionData = {
-        date: date,
-        amount: finalAmount,
-        category_id: parseInt(categoryId),
-        user_id: parseInt(userId),
-        account_id: accountId ? parseInt(accountId) : null,
-        notes: notes !== null ? (notes.trim() || null) : null,
-        tags: tags !== null ? (tags.trim() || null) : null
-    };
-    
-    // Show loading state
-    const saveBtn = document.getElementById(`save-btn-${id}`);
-    const originalText = saveBtn.innerHTML;
-    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-    saveBtn.disabled = true;
-    
-    fetch(`/api/transactions/${id}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(transactionData)
-    })
-    .then(response => {
-        if (response.ok) {
-            return response.json();
-        }
-        throw new Error('Update failed');
-    })
-    .then(data => {
-        // Update the view elements with new data
-        document.getElementById(`date-view-${id}`).textContent = date;
-        const serverAmount = Number((data && data.amount) ?? finalAmount);
-        const amountText = `${serverAmount > 0 ? '+' : ''}₪${Math.abs(serverAmount).toFixed(2)}`;
-        const amountEl = document.getElementById(`amount-view-${id}`);
-        amountEl.textContent = amountText;
-        amountEl.className = `font-bold text-lg ${serverAmount > 0 ? 'text-green-600' : 'text-red-600'} view-mode`;
-        
-        // Update category
-        const categorySelect = document.getElementById(`category-edit-${id}`);
-        const selectedCategory = categorySelect.options[categorySelect.selectedIndex].text;
-        document.getElementById(`category-view-${id}`).innerHTML = `<i class="fas fa-tag mr-1"></i>${selectedCategory}`;
-        
-        // Update user
-        const userSelect = document.getElementById(`user-edit-${id}`);
-        const selectedUser = userSelect.options[userSelect.selectedIndex].text;
-        document.getElementById(`user-view-${id}`).textContent = selectedUser;
-        
-        // Update account
-        const accountSelect = document.getElementById(`account-edit-${id}`);
-        const selectedAccount = accountSelect.options[accountSelect.selectedIndex].text;
-        if (selectedAccount !== 'בחר חשבון (אופציונלי)') {
-            document.getElementById(`account-view-${id}`).innerHTML = `<span class="inline-flex items-center px-2 py-1 rounded text-sm bg-gray-100 text-gray-800"><i class="fas fa-credit-card mr-1"></i>${selectedAccount}</span>`;
-        } else {
-            document.getElementById(`account-view-${id}`).innerHTML = '<span class="text-gray-400">-</span>';
-        }
-        
-        // Update notes view
-        const updatedNotes = (data && typeof data.notes !== 'undefined') ? data.notes : notes;
-        const notesView = document.getElementById(`notes-view-${id}`);
-        if (notesView) {
-            if (updatedNotes && updatedNotes.trim()) {
-                notesView.className = 'max-w-xs truncate view-mode';
-                notesView.innerHTML = `<i class=\"fas fa-sticky-note text-gray-400 mr-1\"></i>${updatedNotes}`;
-            } else {
-                notesView.className = 'text-gray-400 view-mode';
-                notesView.textContent = '-';
-            }
-        }
+        // Hide view mode elements and show edit mode elements
+        const viewElements = document.querySelectorAll(`[id$="-view-${id}"]`);
+        const editElements = document.querySelectorAll(`[id$="-edit-${id}"]`);
 
-        // Update tags view
-        const updatedTags = (data && typeof data.tags !== 'undefined') ? data.tags : tags;
-        const tagsView = document.getElementById(`tags-view-${id}`);
-        if (tagsView) {
-            if (updatedTags && updatedTags.trim()) {
-                const tagHtml = updatedTags.split(',').map(t => t.trim()).filter(Boolean).map(t => `<span class=\"inline-flex items-center px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800\"><i class=\"fas fa-tag mr-1\"></i>${t}</span>`).join('');
-                tagsView.className = 'flex flex-wrap gap-1 view-mode';
-                tagsView.innerHTML = tagHtml;
-            } else {
-                tagsView.className = 'text-gray-400 view-mode';
-                tagsView.textContent = '-';
-            }
-        }
+        console.log('Found view elements:', viewElements.length);
+        console.log('Found edit elements:', editElements.length);
 
-        // Exit edit mode
-        cancelEditInline(id);
-        showToast('העסקה עודכנה בהצלחה!', 'success');
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showToast('שגיאה בעדכון העסקה', 'error');
-    })
-    .finally(() => {
-        // Reset button state
-        saveBtn.innerHTML = originalText;
-        saveBtn.disabled = false;
+        viewElements.forEach(el => el.classList.add('hidden'));
+        editElements.forEach(el => el.classList.remove('hidden'));
+
+        // Show save/cancel buttons
+        const saveBtn = document.getElementById(`save-btn-${id}`);
+        const cancelBtn = document.getElementById(`cancel-btn-${id}`);
+
+        if (saveBtn) saveBtn.classList.remove('hidden');
+        if (cancelBtn) cancelBtn.classList.remove('hidden');
+
+        // Hide edit button
+        const editBtn = document.querySelector(`[onclick="editTransactionInline(${id})"]`);
+        if (editBtn) editBtn.classList.add('hidden');
+
+        console.log('Edit mode activated for transaction:', id);
+    }
+
+    window.saveTransactionInline = function (id) {
+        console.log('saveTransactionInline called with id:', id);
+
+        // Get all the edited values
+        const date = document.getElementById(`date-edit-${id}`).value;
+        const amount = parseFloat(document.getElementById(`amount-edit-${id}`).value);
+        const categoryId = document.getElementById(`category-edit-${id}`).value;
+        const userId = document.getElementById(`user-edit-${id}`).value;
+        const accountId = document.getElementById(`account-edit-${id}`).value || null;
+        const notesEl = document.getElementById(`notes-edit-${id}`);
+        const tagsEl = document.getElementById(`tags-edit-${id}`);
+        const notes = notesEl ? notesEl.value : null;
+        const tags = tagsEl ? tagsEl.value : null;
+
+        console.log('Edited values:', { date, amount, categoryId, userId, accountId, notes, tags });
+
+        // Determine if it's income or expense based on original amount
+        const originalAmount = parseFloat(document.getElementById(`amount-view-${id}`).textContent.replace(/[₪+\s]/g, ''));
+        const isIncome = originalAmount > 0;
+        const finalAmount = isIncome ? Math.abs(amount) : -Math.abs(amount);
+
+        const transactionData = {
+            date: date,
+            amount: finalAmount,
+            category_id: parseInt(categoryId),
+            user_id: parseInt(userId),
+            account_id: accountId ? parseInt(accountId) : null,
+            notes: notes !== null ? (notes.trim() || null) : null,
+            tags: tags !== null ? (tags.trim() || null) : null
+        };
+
+        // Show loading state
+        const saveBtn = document.getElementById(`save-btn-${id}`);
+        const originalText = saveBtn.innerHTML;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        saveBtn.disabled = true;
+
+        fetch(`/api/transactions/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(transactionData)
+        })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                }
+                throw new Error('Update failed');
+            })
+            .then(data => {
+                // Update the view elements with new data
+                document.getElementById(`date-view-${id}`).textContent = date;
+                const serverAmount = Number((data && data.amount) ?? finalAmount);
+                const amountText = `${serverAmount > 0 ? '+' : ''}₪${Math.abs(serverAmount).toFixed(2)}`;
+                const amountEl = document.getElementById(`amount-view-${id}`);
+                amountEl.textContent = amountText;
+                amountEl.className = `font-bold text-lg ${serverAmount > 0 ? 'text-green-600' : 'text-red-600'} view-mode`;
+
+                // Update category
+                const categorySelect = document.getElementById(`category-edit-${id}`);
+                const selectedCategory = categorySelect.options[categorySelect.selectedIndex].text;
+                document.getElementById(`category-view-${id}`).innerHTML = `<i class="fas fa-tag mr-1"></i>${selectedCategory}`;
+
+                // Update user
+                const userSelect = document.getElementById(`user-edit-${id}`);
+                const selectedUser = userSelect.options[userSelect.selectedIndex].text;
+                document.getElementById(`user-view-${id}`).textContent = selectedUser;
+
+                // Update account
+                const accountSelect = document.getElementById(`account-edit-${id}`);
+                const selectedAccount = accountSelect.options[accountSelect.selectedIndex].text;
+                if (selectedAccount !== 'בחר חשבון (אופציונלי)') {
+                    document.getElementById(`account-view-${id}`).innerHTML = `<span class="inline-flex items-center px-2 py-1 rounded text-sm bg-gray-100 text-gray-800"><i class="fas fa-credit-card mr-1"></i>${selectedAccount}</span>`;
+                } else {
+                    document.getElementById(`account-view-${id}`).innerHTML = '<span class="text-gray-400">-</span>';
+                }
+
+                // Update notes view
+                const updatedNotes = (data && typeof data.notes !== 'undefined') ? data.notes : notes;
+                const notesView = document.getElementById(`notes-view-${id}`);
+                if (notesView) {
+                    if (updatedNotes && updatedNotes.trim()) {
+                        notesView.className = 'max-w-xs truncate view-mode';
+                        notesView.innerHTML = `<i class=\"fas fa-sticky-note text-gray-400 mr-1\"></i>${updatedNotes}`;
+                    } else {
+                        notesView.className = 'text-gray-400 view-mode';
+                        notesView.textContent = '-';
+                    }
+                }
+
+                // Update tags view
+                const updatedTags = (data && typeof data.tags !== 'undefined') ? data.tags : tags;
+                const tagsView = document.getElementById(`tags-view-${id}`);
+                if (tagsView) {
+                    if (updatedTags && updatedTags.trim()) {
+                        const tagHtml = updatedTags.split(',').map(t => t.trim()).filter(Boolean).map(t => `<span class=\"inline-flex items-center px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800\"><i class=\"fas fa-tag mr-1\"></i>${t}</span>`).join('');
+                        tagsView.className = 'flex flex-wrap gap-1 view-mode';
+                        tagsView.innerHTML = tagHtml;
+                    } else {
+                        tagsView.className = 'text-gray-400 view-mode';
+                        tagsView.textContent = '-';
+                    }
+                }
+
+                // Exit edit mode
+                cancelEditInline(id);
+                showToast('העסקה עודכנה בהצלחה!', 'success');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('שגיאה בעדכון העסקה', 'error');
+            })
+            .finally(() => {
+                // Reset button state
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+            });
+    }
+
+    window.cancelEditInline = function (id) {
+        console.log('cancelEditInline called with id:', id);
+
+        // Show view mode elements and hide edit mode elements
+        const viewElements = document.querySelectorAll(`[id$="-view-${id}"]`);
+        const editElements = document.querySelectorAll(`[id$="-edit-${id}"]`);
+
+        viewElements.forEach(el => el.classList.remove('hidden'));
+        editElements.forEach(el => el.classList.add('hidden'));
+
+        // Hide save/cancel buttons
+        const saveBtn = document.getElementById(`save-btn-${id}`);
+        const cancelBtn = document.getElementById(`cancel-btn-${id}`);
+
+        if (saveBtn) saveBtn.classList.add('hidden');
+        if (cancelBtn) cancelBtn.classList.add('hidden');
+
+        // Show edit button
+        const editBtn = document.querySelector(`[onclick="editTransactionInline(${id})"]`);
+        if (editBtn) editBtn.classList.remove('hidden');
+
+        console.log('Edit mode cancelled for transaction:', id);
+    }
+
+    window.openAddModal = function () {
+        showModal('addModal');
+        document.getElementById('modal_date').value = new Date().toISOString().split('T')[0];
+        setTimeout(() => document.getElementById('modal_amount').focus(), 300);
+    }
+
+    window.closeAddModal = function () {
+        hideModal('addModal');
+        document.getElementById('addTransactionForm').reset();
+        document.getElementById('tagsPreview').innerHTML = '';
+    }
+
+    // Tags preview functionality
+    document.getElementById('modal_tags').addEventListener('input', function (e) {
+        const tags = e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag);
+        const preview = document.getElementById('tagsPreview');
+        preview.innerHTML = '';
+
+        tags.forEach(tag => {
+            const tagElement = document.createElement('span');
+            tagElement.className = 'inline-flex items-center px-2 py-1 rounded text-xs bg-blue-100 text-blue-800';
+            tagElement.innerHTML = `<i class="fas fa-tag mr-1"></i>${tag}`;
+            preview.appendChild(tagElement);
+        });
     });
-}
 
-window.cancelEditInline = function(id) {
-    console.log('cancelEditInline called with id:', id);
-    
-    // Show view mode elements and hide edit mode elements
-    const viewElements = document.querySelectorAll(`[id$="-view-${id}"]`);
-    const editElements = document.querySelectorAll(`[id$="-edit-${id}"]`);
-    
-    viewElements.forEach(el => el.classList.remove('hidden'));
-    editElements.forEach(el => el.classList.add('hidden'));
-    
-    // Hide save/cancel buttons
-    const saveBtn = document.getElementById(`save-btn-${id}`);
-    const cancelBtn = document.getElementById(`cancel-btn-${id}`);
-    
-    if (saveBtn) saveBtn.classList.add('hidden');
-    if (cancelBtn) cancelBtn.classList.add('hidden');
-    
-    // Show edit button
-    const editBtn = document.querySelector(`[onclick="editTransactionInline(${id})"]`);
-    if (editBtn) editBtn.classList.remove('hidden');
-    
-    console.log('Edit mode cancelled for transaction:', id);
-}
+    window.editTransaction = function (id) {
+        // Show loading state
+        showToast('טוען פרטי העסקה...', 'info');
 
-window.openAddModal = function() {
-    showModal('addModal');
-    document.getElementById('modal_date').value = new Date().toISOString().split('T')[0];
-    setTimeout(() => document.getElementById('modal_amount').focus(), 300);
-}
+        // Redirect to edit page or open edit modal
+        window.location.href = `/transactions/${id}/edit-inline`;
+    }
 
-window.closeAddModal = function() {
-    hideModal('addModal');
-    document.getElementById('addTransactionForm').reset();
-    document.getElementById('tagsPreview').innerHTML = '';
-}
+    window.duplicateTransaction = function (id) {
+        if (confirm('האם אתה בטוח שברצונך לשכפל עסקה זו?')) {
+            fetch(`/api/transactions/${id}/duplicate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+                .then(response => {
+                    if (response.ok) {
+                        showToast('העסקה שוכפלה בהצלחה!', 'success');
+                        setTimeout(() => window.location.reload(), 1000);
+                    } else {
+                        showToast('שגיאה בשכפול העסקה', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('שגיאה בשכפול העסקה', 'error');
+                });
+        }
+    }
 
-// Tags preview functionality
-document.getElementById('modal_tags').addEventListener('input', function(e) {
-    const tags = e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag);
-    const preview = document.getElementById('tagsPreview');
-    preview.innerHTML = '';
-    
-    tags.forEach(tag => {
-        const tagElement = document.createElement('span');
-        tagElement.className = 'inline-flex items-center px-2 py-1 rounded text-xs bg-blue-100 text-blue-800';
-        tagElement.innerHTML = `<i class="fas fa-tag mr-1"></i>${tag}`;
-        preview.appendChild(tagElement);
-    });
-});
+    window.deleteTransaction = function (id) {
+        if (confirm('האם אתה בטוח שברצונך למחוק עסקה זו? פעולה זו אינה הפיכה.')) {
+            // Show loading state
+            const row = document.querySelector(`[data-transaction-id="${id}"]`);
+            if (row) {
+                row.style.opacity = '0.5';
+                row.style.pointerEvents = 'none';
+            }
 
-window.editTransaction = function(id) {
-    // Show loading state
-    showToast('טוען פרטי העסקה...', 'info');
-    
-    // Redirect to edit page or open edit modal
-    window.location.href = `/transactions/${id}/edit-inline`;
-}
+            fetch(`/api/transactions/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+                .then(response => {
+                    if (response.ok) {
+                        showToast('העסקה נמחקה בהצלחה!', 'success');
+                        if (row) {
+                            row.style.animation = 'slideOut 0.3s ease-out';
+                            setTimeout(() => row.remove(), 300);
+                        } else {
+                            window.location.reload();
+                        }
+                    } else {
+                        showToast('שגיאה במחיקת העסקה', 'error');
+                        if (row) {
+                            row.style.opacity = '1';
+                            row.style.pointerEvents = 'auto';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('שגיאה במחיקת העסקה', 'error');
+                    if (row) {
+                        row.style.opacity = '1';
+                        row.style.pointerEvents = 'auto';
+                    }
+                });
+        }
+    }
 
-window.duplicateTransaction = function(id) {
-    if (confirm('האם אתה בטוח שברצונך לשכפל עסקה זו?')) {
-        fetch(`/api/transactions/${id}/duplicate`, {
+    window.submitTransaction = function (event) {
+        event.preventDefault();
+
+        const form = event.target;
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+
+        // Show loading state
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>מוסיף...';
+        submitBtn.disabled = true;
+
+        const formData = new FormData(form);
+
+        const transactionData = {
+            date: formData.get('date'),
+            amount: parseFloat(formData.get('amount')),
+            category_id: parseInt(formData.get('category_id')),
+            user_id: parseInt(formData.get('user_id')),
+            account_id: formData.get('account_id') ? parseInt(formData.get('account_id')) : null,
+            notes: formData.get('notes') || null,
+            tags: formData.get('tags') || null
+        };
+
+        fetch('/api/transactions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-            }
+            },
+            body: JSON.stringify(transactionData)
         })
-        .then(response => {
-            if (response.ok) {
-                showToast('העסקה שוכפלה בהצלחה!', 'success');
-                setTimeout(() => window.location.reload(), 1000);
-            } else {
-                showToast('שגיאה בשכפול העסקה', 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast('שגיאה בשכפול העסקה', 'error');
-        });
-    }
-}
-
-window.deleteTransaction = function(id) {
-    if (confirm('האם אתה בטוח שברצונך למחוק עסקה זו? פעולה זו אינה הפיכה.')) {
-        // Show loading state
-        const row = document.querySelector(`[data-transaction-id="${id}"]`);
-        if (row) {
-            row.style.opacity = '0.5';
-            row.style.pointerEvents = 'none';
-        }
-        
-        fetch(`/api/transactions/${id}`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(response => {
-            if (response.ok) {
-                showToast('העסקה נמחקה בהצלחה!', 'success');
-                if (row) {
-                    row.style.animation = 'slideOut 0.3s ease-out';
-                    setTimeout(() => row.remove(), 300);
+            .then(response => {
+                if (response.ok) {
+                    showToast('העסקה נוספה בהצלחה!', 'success');
+                    closeAddModal();
+                    setTimeout(() => window.location.reload(), 1000);
                 } else {
-                    window.location.reload();
+                    response.json().then(data => {
+                        showToast('שגיאה בהוספת העסקה: ' + (data.detail || 'שגיאה לא ידועה'), 'error');
+                    });
                 }
-            } else {
-                showToast('שגיאה במחיקת העסקה', 'error');
-                if (row) {
-                    row.style.opacity = '1';
-                    row.style.pointerEvents = 'auto';
-                }
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast('שגיאה במחיקת העסקה', 'error');
-            if (row) {
-                row.style.opacity = '1';
-                row.style.pointerEvents = 'auto';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('שגיאה בהוספת העסקה', 'error');
+            })
+            .finally(() => {
+                // Reset button state
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            });
+    }
+
+    window.sortTransactions = function () {
+        const sortBy = document.getElementById('sort_by').value;
+        currentSort = sortBy;
+
+        // Add loading state
+        const tbody = document.querySelector('#transactions-table tbody');
+        tbody.style.opacity = '0.5';
+
+        // Reload with sort parameter
+        const url = new URL(window.location);
+        url.searchParams.set('sort', sortBy);
+        // Preserve all other query parameters
+        const currentParams = new URLSearchParams(window.location.search);
+        currentParams.forEach((value, key) => {
+            if (key !== 'sort') {
+                url.searchParams.set(key, value);
             }
         });
+        window.location.href = url.toString();
     }
-}
 
-window.submitTransaction = function(event) {
-    event.preventDefault();
-    
-    const form = event.target;
-    const submitBtn = form.querySelector('button[type="submit"]');
-    const originalText = submitBtn.innerHTML;
-    
-    // Show loading state
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>מוסיף...';
-    submitBtn.disabled = true;
-    
-    const formData = new FormData(form);
-    
-    const transactionData = {
-        date: formData.get('date'),
-        amount: parseFloat(formData.get('amount')),
-        category_id: parseInt(formData.get('category_id')),
-        user_id: parseInt(formData.get('user_id')),
-        account_id: formData.get('account_id') ? parseInt(formData.get('account_id')) : null,
-        notes: formData.get('notes') || null,
-        tags: formData.get('tags') || null
-    };
-    
-    fetch('/api/transactions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(transactionData)
-    })
-    .then(response => {
-        if (response.ok) {
-            showToast('העסקה נוספה בהצלחה!', 'success');
-            closeAddModal();
-            setTimeout(() => window.location.reload(), 1000);
-        } else {
-            response.json().then(data => {
-                showToast('שגיאה בהוספת העסקה: ' + (data.detail || 'שגיאה לא ידועה'), 'error');
+    window.exportTransactions = function () {
+        showToast('מייצא לאקסל...', 'info');
+
+        const url = new URL('/api/transactions/export', window.location.origin);
+        // Add current filters to export
+        const currentParams = new URLSearchParams(window.location.search);
+        currentParams.forEach((value, key) => {
+            url.searchParams.set(key, value);
+        });
+
+        fetch(url)
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
+                }
+                throw new Error('Export failed');
+            })
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `transactions_${new Date().toISOString().split('T')[0]}.xlsx`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                showToast('הקובץ יוצא בהצלחה!', 'success');
+            })
+            .catch(error => {
+                console.error('Export error:', error);
+                showToast('שגיאה בייצוא הקובץ', 'error');
+            });
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function () {
+        console.log('DOM loaded, initializing inline editing...');
+
+        // Set current sort
+        const urlParams = new URLSearchParams(window.location.search);
+        const sort = urlParams.get('sort');
+        if (sort) {
+            document.getElementById('sort_by').value = sort;
+            currentSort = sort;
+        }
+
+        // Add animation to table rows
+        const rows = document.querySelectorAll('#transactions-table tbody tr');
+        rows.forEach((row, index) => {
+            row.style.animationDelay = `${index * 0.1}s`;
+        });
+
+        // Clean empty filter values before form submission
+        const filterForm = document.querySelector('form[method="GET"]');
+        if (filterForm) {
+            filterForm.addEventListener('submit', function (e) {
+                const inputs = this.querySelectorAll('input, select');
+                inputs.forEach(input => {
+                    if (input.value === '' || input.value === null) {
+                        input.disabled = true;
+                    }
+                });
             });
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showToast('שגיאה בהוספת העסקה', 'error');
-    })
-    .finally(() => {
-        // Reset button state
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
-    });
-}
 
-window.sortTransactions = function() {
-    const sortBy = document.getElementById('sort_by').value;
-    currentSort = sortBy;
-    
-    // Add loading state
-    const tbody = document.querySelector('#transactions-table tbody');
-    tbody.style.opacity = '0.5';
-    
-    // Reload with sort parameter
-    const url = new URL(window.location);
-    url.searchParams.set('sort', sortBy);
-    // Preserve all other query parameters
-    const currentParams = new URLSearchParams(window.location.search);
-    currentParams.forEach((value, key) => {
-        if (key !== 'sort') {
-            url.searchParams.set(key, value);
+        // Set current filter values from URL
+        if (urlParams.get('category_id')) {
+            document.getElementById('category_id').value = urlParams.get('category_id');
+        }
+        if (urlParams.get('user_id')) {
+            document.getElementById('user_id').value = urlParams.get('user_id');
+        }
+        if (urlParams.get('account_id')) {
+            document.getElementById('account_id').value = urlParams.get('account_id');
+        }
+        // transaction_type removed
+        if (urlParams.get('date_from')) {
+            document.getElementById('date_from').value = urlParams.get('date_from');
+        }
+        if (urlParams.get('date_to')) {
+            document.getElementById('date_to').value = urlParams.get('date_to');
+        }
+        if (urlParams.get('amount_min')) {
+            document.getElementById('amount_min').value = urlParams.get('amount_min');
+        }
+        if (urlParams.get('amount_max')) {
+            document.getElementById('amount_max').value = urlParams.get('amount_max');
+        }
+        if (urlParams.get('tags')) {
+            document.getElementById('tags').value = urlParams.get('tags');
+        }
+
+        // Test that inline editing functions are available
+        console.log('Inline editing functions available:', {
+            editTransactionInline: typeof editTransactionInline,
+            saveTransactionInline: typeof saveTransactionInline,
+            cancelEditInline: typeof cancelEditInline
+        });
+    });
+
+    // Close modal when clicking outside
+    document.getElementById('addModal').addEventListener('click', function (e) {
+        if (e.target === this) {
+            closeAddModal();
         }
     });
-    window.location.href = url.toString();
-}
-
-window.exportTransactions = function() {
-    showToast('מייצא לאקסל...', 'info');
-    
-    const url = new URL('/api/transactions/export', window.location.origin);
-    // Add current filters to export
-    const currentParams = new URLSearchParams(window.location.search);
-    currentParams.forEach((value, key) => {
-        url.searchParams.set(key, value);
-    });
-    
-    fetch(url)
-    .then(response => {
-        if (response.ok) {
-            return response.blob();
-        }
-        throw new Error('Export failed');
-    })
-    .then(blob => {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `transactions_${new Date().toISOString().split('T')[0]}.xlsx`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        showToast('הקובץ יוצא בהצלחה!', 'success');
-    })
-    .catch(error => {
-        console.error('Export error:', error);
-        showToast('שגיאה בייצוא הקובץ', 'error');
-    });
-}
-
- // Initialize
- document.addEventListener('DOMContentLoaded', function() {
-     console.log('DOM loaded, initializing inline editing...');
-     
-     // Set current sort
-     const urlParams = new URLSearchParams(window.location.search);
-     const sort = urlParams.get('sort');
-     if (sort) {
-         document.getElementById('sort_by').value = sort;
-         currentSort = sort;
-     }
-     
-     // Add animation to table rows
-     const rows = document.querySelectorAll('#transactions-table tbody tr');
-     rows.forEach((row, index) => {
-         row.style.animationDelay = `${index * 0.1}s`;
-     });
-     
-     // Clean empty filter values before form submission
-     const filterForm = document.querySelector('form[method="GET"]');
-     if (filterForm) {
-         filterForm.addEventListener('submit', function(e) {
-             const inputs = this.querySelectorAll('input, select');
-             inputs.forEach(input => {
-                 if (input.value === '' || input.value === null) {
-                     input.disabled = true;
-                 }
-             });
-         });
-     }
-     
-     // Set current filter values from URL
-     if (urlParams.get('category_id')) {
-         document.getElementById('category_id').value = urlParams.get('category_id');
-     }
-     if (urlParams.get('user_id')) {
-         document.getElementById('user_id').value = urlParams.get('user_id');
-     }
-     if (urlParams.get('account_id')) {
-         document.getElementById('account_id').value = urlParams.get('account_id');
-     }
-    // transaction_type removed
-     if (urlParams.get('date_from')) {
-         document.getElementById('date_from').value = urlParams.get('date_from');
-     }
-     if (urlParams.get('date_to')) {
-         document.getElementById('date_to').value = urlParams.get('date_to');
-     }
-     if (urlParams.get('amount_min')) {
-         document.getElementById('amount_min').value = urlParams.get('amount_min');
-     }
-     if (urlParams.get('amount_max')) {
-         document.getElementById('amount_max').value = urlParams.get('amount_max');
-     }
-     if (urlParams.get('tags')) {
-         document.getElementById('tags').value = urlParams.get('tags');
-     }
-     
-     // Test that inline editing functions are available
-     console.log('Inline editing functions available:', {
-         editTransactionInline: typeof editTransactionInline,
-         saveTransactionInline: typeof saveTransactionInline,
-         cancelEditInline: typeof cancelEditInline
-     });
- });
-
-// Close modal when clicking outside
-document.getElementById('addModal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closeAddModal();
-    }
-});
 </script>
 
 <style>
-@keyframes slideOut {
-    from {
-        opacity: 1;
-        transform: translateX(0);
-    }
-    to {
-        opacity: 0;
-        transform: translateX(-100%);
-    }
-}
+    @keyframes slideOut {
+        from {
+            opacity: 1;
+            transform: translateX(0);
+        }
 
-.btn-sm {
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
-}
+        to {
+            opacity: 0;
+            transform: translateX(-100%);
+        }
+    }
 
-#transactions-table tbody tr {
-    animation: fadeIn 0.6s ease-out;
-    animation-fill-mode: both;
-}
+    .btn-sm {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+
+    #transactions-table tbody tr {
+        animation: fadeIn 0.6s ease-out;
+        animation-fill-mode: both;
+    }
 </style>
 {% endblock %}

@@ -9,23 +9,26 @@
   <form method="get" class="flex flex-wrap gap-3 items-end">
     <div>
       <label class="block text-sm font-medium">חודש</label>
-      <input type="month" name="month" value="{{ selected_month }}" class="border rounded px-3 py-2" />
+      <input type="month" name="month" value="{{ selected_month }}" class="border rounded px-3 py-2 w-full sm:w-auto" />
     </div>
-    <button class="px-4 py-2 bg-blue-600 text-white rounded">סנן</button>
-    {% if selected_month %}
-      <a href="/finances" class="px-3 py-2 text-sm text-gray-600">איפוס</a>
-    {% endif %}
+    <div class="flex gap-2 w-full sm:w-auto">
+      <button class="px-4 py-2 bg-blue-600 text-white rounded w-full sm:w-auto">סנן</button>
+      {% if selected_month %}
+      <a href="/finances"
+        class="px-3 py-2 text-sm text-gray-600 bg-gray-100 rounded flex items-center justify-center w-full sm:w-auto">איפוס</a>
+      {% endif %}
+    </div>
   </form>
 
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
     <div class="bg-white p-4 rounded shadow">
       <div class="text-gray-500">סה"כ הוצאות החודש</div>
-      <div class="text-2xl font-bold text-red-600">₪{{ total_expenses }}</div>
+      <div class="text-2xl font-bold text-red-600 break-words" dir="ltr">₪{{ total_expenses | round(2) }}</div>
       <div class="text-sm text-gray-500 mt-1">שינוי: {{ expenses_change | round(1) }}%</div>
     </div>
     <div class="bg-white p-4 rounded shadow">
       <div class="text-gray-500">סה"כ הכנסות החודש</div>
-      <div class="text-2xl font-bold text-green-600">₪{{ total_income }}</div>
+      <div class="text-2xl font-bold text-green-600 break-words" dir="ltr">₪{{ total_income | round(2) }}</div>
       <div class="text-sm text-gray-500 mt-1">שינוי: {{ income_change | round(1) }}%</div>
     </div>
     <div class="bg-white p-4 rounded shadow">
@@ -38,9 +41,9 @@
     </div>
   </div>
 
-  <div class="bg-white p-4 rounded shadow">
+  <div class="bg-white p-4 rounded shadow overflow-hidden">
     <h2 class="text-xl font-semibold mb-4">עסקאות אחרונות</h2>
-    <div class="overflow-x-auto">
+    <div class="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
       <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
           <tr>
@@ -55,12 +58,13 @@
         <tbody class="bg-white divide-y divide-gray-200">
           {% for t in recent_transactions %}
           <tr>
-            <td class="px-4 py-2">{{ t.date }}</td>
-            <td class="px-4 py-2">{{ t.amount }}</td>
-            <td class="px-4 py-2">{{ t.category }}</td>
-            <td class="px-4 py-2">{{ t.user }}</td>
-            <td class="px-4 py-2">{{ t.account or '-' }}</td>
-            <td class="px-4 py-2">{{ t.notes or '-' }}</td>
+            <td class="px-4 py-2 whitespace-nowrap" data-label="תאריך">{{ t.date }}</td>
+            <td class="px-4 py-2 whitespace-nowrap text-red-600" dir="ltr" data-label="סכום">{{ t.amount | round(2) }}
+            </td>
+            <td class="px-4 py-2" data-label="קטגוריה">{{ t.category }}</td>
+            <td class="px-4 py-2" data-label="משתמש">{{ t.user }}</td>
+            <td class="px-4 py-2" data-label="חשבון">{{ t.account or '-' }}</td>
+            <td class="px-4 py-2" data-label="הערות">{{ t.notes or '-' }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -75,7 +79,7 @@
         {% for c in top_categories %}
         <li class="flex justify-between">
           <span>{{ c.category }}</span>
-          <span class="font-semibold">₪{{ c.total }}</span>
+          <span class="font-semibold" dir="ltr">₪{{ c.total | round(2) }}</span>
         </li>
         {% else %}
         <li class="text-gray-500">אין נתונים</li>
@@ -87,8 +91,8 @@
       <ul class="space-y-2">
         {% for r in upcoming_recurrences %}
         <li class="flex justify-between">
-          <span>{{ r.date }} — {{ r.name }} ({{ r.category or '-' }})</span>
-          <span class="font-semibold">₪{{ r.amount }}</span>
+          <span class="text-sm">{{ r.date }} — {{ r.name }} ({{ r.category or '-' }})</span>
+          <span class="font-semibold whitespace-nowrap" dir="ltr">₪{{ r.amount | round(2) }}</span>
         </li>
         {% else %}
         <li class="text-gray-500">אין חיובים צפויים</li>
@@ -110,29 +114,29 @@
       userAgent: navigator.userAgent,
       referrer: document.referrer
     });
-    
+
     // Monitor navigation events
-    window.addEventListener('beforeunload', function() {
+    window.addEventListener('beforeunload', function () {
       console.log('[FINANCES] page unloading', {
         timestamp: new Date().toISOString(),
         cookies: document.cookie
       });
     });
-    
+
     // Monitor page visibility changes
-    document.addEventListener('visibilitychange', function() {
+    document.addEventListener('visibilitychange', function () {
       console.log('[FINANCES] page visibility changed', {
         hidden: document.hidden,
         visibilityState: document.visibilityState,
         timestamp: new Date().toISOString()
       });
     });
-    
+
     // Monitor any redirects
     let redirectCount = 0;
     const originalLocation = window.location.href;
-    
-    setInterval(function() {
+
+    setInterval(function () {
       if (window.location.href !== originalLocation) {
         redirectCount++;
         console.log('[FINANCES] redirect detected', {
@@ -143,10 +147,8 @@
         });
       }
     }, 100);
-    
+
   } catch (err) {
     console.error('[FINANCES] init error', err);
   }
 </script>
-
-

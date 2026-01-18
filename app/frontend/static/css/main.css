@@ -458,15 +458,66 @@ h6 { font-size: 1rem; }
 }
 
 /* Responsive Design */
-@media (max-width: 768px) {
-  .card {
-    margin-bottom: 1rem;
-  }
-  
+  /* Mobile Card View for Tables */
   .table-container {
-    overflow-x: auto;
+    background: transparent;
+    box-shadow: none;
+    overflow-x: visible;
+  }
+
+  .table, .table tbody, .table tr, .table td {
+    display: block;
+    width: 100%;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table tr {
+    background: white;
+    margin-bottom: 1rem;
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 1rem;
+    border: 1px solid #e5e7eb;
+  }
+
+  .table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  .table td:last-child {
+    border-bottom: none;
+  }
+
+  .table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #6b7280;
+    margin-left: 1rem; /* RTL support */
+    text-align: right;
+    flex-shrink: 0;
   }
   
+  .table td .view-mode, .table td .edit-mode {
+    text-align: left;
+    width: auto;
+  }
+
+  /* Specific adjustment for buttons row on mobile */
+  .table td:last-child {
+      justify-content: flex-end;
+  }
+  .table td:last-child::before {
+      display: none; /* Hide 'Actions' label if preferred, or keep it */
+  }
+
   .btn {
     width: 100%;
     margin-bottom: 0.5rem;

@@ -12,7 +12,7 @@ function getLast6Months(data, category = "total") {
     // Aggregate all categories per month
     const monthMap = {};
     (Array.isArray(data) ? data : []).forEach(item => {
-      if (item && typeof item.ym === "string") {  
+      if (item && typeof item.ym === "string") {
         monthMap[item.ym] = (monthMap[item.ym] || 0) + Number(item.expenses || 0);
       }
     });
@@ -75,7 +75,12 @@ async function renderChart(category = "total") {
           const index = elements[0].index;
           const month = chart.data.labels[index];
           if (window.openDrilldownModal) {
-             window.openDrilldownModal({ metric: 'expenses', month: month });
+            // Pass category if selected
+            const params = { metric: 'expenses', month: month };
+            if (category !== 'total') {
+              params.category = category;
+            }
+            window.openDrilldownModal(params);
           }
         }
       },

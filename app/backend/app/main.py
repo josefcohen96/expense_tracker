@@ -9,7 +9,7 @@ from urllib.parse import quote_plus
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 # --- create app ---
-app = FastAPI(title="Expense Tracker", version="0.1.0")
+app = FastAPI(title="Expense Tracker", version="0.2.0")
 
 # --- static (מצביעים ל-frontend) ---
 ROOT_DIR = FSPath(__file__).resolve().parents[2]   # .../expense_tracker/app

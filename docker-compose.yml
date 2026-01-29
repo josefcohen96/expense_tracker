@@ -5,9 +5,9 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # Persist the sqlite database
-      # logical path maps to: /app/app/backend/data
-      - expense_data:/app/app/backend/data
+      # Persist the sqlite database using a bind mount
+      # Maps host folder (relative to docker-compose.yml) to container folder
+      - ./budget.db:/app/app/backend/data/budget.db
     environment:
       # Ensure we use production settings
       - ENVIRONMENT=production
@@ -17,6 +17,3 @@ services:
       #  if main.py logic is checked carefully. main.py checks RAILWAY_ENVIRONMENT is not None OR ENVIRONMENT==production)
       - PORT=8080
     restart: unless-stopped
-
-volumes:
-  expense_data:

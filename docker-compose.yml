@@ -13,6 +13,4 @@ services:
       - ENVIRONMENT=development
       # - RAILWAY_ENVIRONMENT=true 
       - PORT=8080
-      # Ensure database uses the volume path
-      - BUDGET_DB_PATH=/app/app/backend/data/budget.db (default, but explicit is good)
     restart: unless-stopped

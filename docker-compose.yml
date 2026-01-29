@@ -9,11 +9,10 @@ services:
       # Maps host folder (relative to docker-compose.yml) to container folder
       - ./budget.db:/app/app/backend/data/budget.db
     environment:
-      # Ensure we use production settings
-      - ENVIRONMENT=production
-      - RAILWAY_ENVIRONMENT=true 
-      # (Using RAILWAY_ENVIRONMENT=true temporarily to trigger the 'production' logic in main.py 
-      #  until we refactor main.py to be platform-agnostic, though ENVIRONMENT=production should work too 
-      #  if main.py logic is checked carefully. main.py checks RAILWAY_ENVIRONMENT is not None OR ENVIRONMENT==production)
+      # Use development settings for HTTP (non-SSL) access so cookies work
+      - ENVIRONMENT=development
+      # - RAILWAY_ENVIRONMENT=true 
       - PORT=8080
+      # Ensure database uses the volume path
+      - BUDGET_DB_PATH=/app/app/backend/data/budget.db (default, but explicit is good)
     restart: unless-stopped

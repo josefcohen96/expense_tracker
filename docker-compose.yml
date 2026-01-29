@@ -13,4 +13,7 @@ services:
       - ENVIRONMENT=development
       # - RAILWAY_ENVIRONMENT=true 
       - PORT=8080
+      # Passwords (managed via env vars for security)
+      - USER_PASSWORD_YOSEF=YO1234
+      - USER_PASSWORD_KARINA=KA1234
     restart: unless-stopped

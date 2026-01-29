@@ -126,10 +126,10 @@ async def login_post(request: Request):
         "timestamp": datetime.now().isoformat()
     })
 
-    # Static users per request: KARINA/KA1234, YOSEF/YO1234
+    # Static users per request: KARINA, YOSEF (Auth via Environment Variables)
     valid_users = {
-        "KARINA": "KA1234",
-        "YOSEF": "YO1234",
+        "KARINA": os.environ.get("USER_PASSWORD_KARINA", "KA1234"),
+        "YOSEF": os.environ.get("USER_PASSWORD_YOSEF", "YO1234"),
     }
     auth_logger = logging.getLogger("app.auth")
     auth_logger.info(f"LOGIN attempt: {username}")

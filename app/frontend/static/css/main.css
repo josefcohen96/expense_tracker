@@ -1002,3 +1002,42 @@ body {
   contain: layout style paint;
   will-change: auto;
 }
+
+/* Metric Card Enhancements */
+.hover\:scale-105:hover {
+  transform: scale(1.05);
+}
+
+/* Number Animation */
+@keyframes countUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-count {
+  animation: countUp 0.5s ease-out;
+}
+
+/* Icon Pulse Animation */
+@keyframes iconPulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.icon-pulse {
+  animation: iconPulse 2s ease-in-out infinite;
+}

@@ -21,23 +21,84 @@
   </form>
 
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-    <div class="bg-white p-4 rounded shadow">
-      <div class="text-gray-500">סה"כ הוצאות החודש</div>
-      <div class="text-2xl font-bold text-red-600 break-words" dir="ltr">₪{{ total_expenses | round(2) }}</div>
-      <div class="text-sm text-gray-500 mt-1">שינוי: {{ expenses_change | round(1) }}%</div>
+    <!-- Expenses Card -->
+    <div class="card card-elevated hover:scale-105 transition-transform">
+      <div class="p-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm font-medium text-gray-600">הוצאות החודש</span>
+          <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+            <i class="fas fa-arrow-down text-red-600"></i>
+          </div>
+        </div>
+        <div class="font-mono text-3xl font-bold text-red-600 mb-2" dir="ltr">
+          ₪{{ total_expenses | round(2) }}
+        </div>
+        <div class="flex items-center text-sm">
+          <span class="text-gray-500">שינוי:</span>
+          <span class="font-semibold mr-2 {% if expenses_change > 0 %}text-red-600{% else %}text-green-600{% endif %}">
+            {{ expenses_change | round(1) }}%
+            <i class="fas fa-arrow-{% if expenses_change > 0 %}up{% else %}down{% endif %} text-xs"></i>
+          </span>
+        </div>
+      </div>
     </div>
-    <div class="bg-white p-4 rounded shadow">
-      <div class="text-gray-500">סה"כ הכנסות החודש</div>
-      <div class="text-2xl font-bold text-green-600 break-words" dir="ltr">₪{{ total_income | round(2) }}</div>
-      <div class="text-sm text-gray-500 mt-1">שינוי: {{ income_change | round(1) }}%</div>
+
+    <!-- Income Card -->
+    <div class="card card-elevated hover:scale-105 transition-transform">
+      <div class="p-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm font-medium text-gray-600">הכנסות החודש</span>
+          <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+            <i class="fas fa-arrow-up text-green-600"></i>
+          </div>
+        </div>
+        <div class="font-mono text-3xl font-bold text-green-600 mb-2" dir="ltr">
+          ₪{{ total_income | round(2) }}
+        </div>
+        <div class="flex items-center text-sm">
+          <span class="text-gray-500">שינוי:</span>
+          <span class="font-semibold mr-2 {% if income_change > 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            {{ income_change | round(1) }}%
+            <i class="fas fa-arrow-{% if income_change > 0 %}up{% else %}down{% endif %} text-xs"></i>
+          </span>
+        </div>
+      </div>
     </div>
-    <div class="bg-white p-4 rounded shadow">
-      <div class="text-gray-500">מספר עסקאות</div>
-      <div class="text-2xl font-bold">{{ transactions_count }}</div>
+
+    <!-- Transactions Card -->
+    <div class="card card-elevated hover:scale-105 transition-transform">
+      <div class="p-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm font-medium text-gray-600">מספר עסקאות</span>
+          <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+            <i class="fas fa-exchange-alt text-blue-600"></i>
+          </div>
+        </div>
+        <div class="font-mono text-3xl font-bold text-gray-900 mb-2">
+          {{ transactions_count }}
+        </div>
+        <div class="text-sm text-gray-500">
+          החודש הנוכחי
+        </div>
+      </div>
     </div>
-    <div class="bg-white p-4 rounded shadow">
-      <div class="text-gray-500">הוצאות קבועות פעילות</div>
-      <div class="text-2xl font-bold">{{ recurrences_count }}</div>
+
+    <!-- Recurring Card -->
+    <div class="card card-elevated hover:scale-105 transition-transform">
+      <div class="p-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm font-medium text-gray-600">הוצאות קבועות</span>
+          <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+            <i class="fas fa-repeat text-purple-600"></i>
+          </div>
+        </div>
+        <div class="font-mono text-3xl font-bold text-gray-900 mb-2">
+          {{ recurrences_count }}
+        </div>
+        <div class="text-sm text-gray-500">
+          פעילות
+        </div>
+      </div>
     </div>
   </div>
 

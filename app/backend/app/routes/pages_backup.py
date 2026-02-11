@@ -340,15 +340,12 @@ async def finances_dashboard(
     kpi_row = db_conn.execute(
         f"""
         SELECT 
-            SUM(CASE WHEN t.amount < 0 AND c.name NOT IN ('משכורת', 'קליניקה') 
-                     THEN ABS(t.amount) ELSE 0 END) as total_expenses,
-            SUM(CASE WHEN t.amount > 0 AND c.name IN ('משכורת', 'קליניקה') 
-                     THEN t.amount ELSE 0 END) as total_income,
+            SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as total_expenses,
+            SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as total_income,
             COUNT(*) as total_transactions
-        FROM transactions t
-        LEFT JOIN categories c ON t.category_id = c.id
-        WHERE strftime('%Y-%m', t.date) = ?
-          AND t.user_id IN ({user_ids})
+        FROM transactions 
+        WHERE strftime('%Y-%m', date) = ?
+          AND user_id IN ({user_ids})
         """,
         (selected_ym,),
     ).fetchone() or {"total_expenses": 0, "total_income": 0, "total_transactions": 0}
@@ -364,14 +361,11 @@ async def finances_dashboard(
     prev = db_conn.execute(
         f"""
         SELECT 
-            SUM(CASE WHEN t.amount < 0 AND c.name NOT IN ('משכורת', 'קליניקה') 
-                     THEN ABS(t.amount) ELSE 0 END) as total_expenses,
-            SUM(CASE WHEN t.amount > 0 AND c.name IN ('משכורת', 'קליניקה') 
-                     THEN t.amount ELSE 0 END) as total_income
-        FROM transactions t
-        LEFT JOIN categories c ON t.category_id = c.id
-        WHERE strftime('%Y-%m', t.date) = ?
-          AND t.user_id IN ({user_ids})
+            SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as total_expenses,
+            SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as total_income
+        FROM transactions 
+        WHERE strftime('%Y-%m', date) = ?
+          AND user_id IN ({user_ids})
         """,
         (prev_ym,),
     ).fetchone() or {"total_expenses": 0, "total_income": 0}
@@ -402,7 +396,7 @@ async def finances_dashboard(
     ).fetchall()
 
     # Active recurrences count
-    rec_count_row = db_conn.execute(f"SELECT COUNT(*) AS cnt FROM recurrences WHERE active = 1 AND user_id IN ({user_ids})").fetchone()
+    rec_count_row = db_conn.execute("SELECT COUNT(*) AS cnt FROM recurrences WHERE active = 1").fetchone()
     recurrences_count = int(rec_count_row["cnt"] if rec_count_row else 0)
 
     # Top expense categories (selected month)

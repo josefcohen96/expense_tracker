@@ -7,33 +7,86 @@
   <h1 class="text-2xl font-bold">סטטיסטיקות</h1>
 
   <!-- Global month filter -->
-  <form method="get" class="flex items-center gap-3 bg-white p-4 rounded shadow w-full max-w-sm">
-    <label for="month" class="text-sm text-gray-600">בחר חודש</label>
-    <input id="month" name="month" type="month" value="{{ selected_month or '' }}" class="border rounded px-2 py-1">
-    <button type="submit" class="bg-indigo-600 text-white px-3 py-1 rounded">עדכן</button>
-  </form>
+  <div class="card mb-6">
+    <div class="card-body">
+      <form method="get" class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
+          <i class="fas fa-calendar text-primary-600"></i>
+          <label for="month" class="text-sm font-medium text-gray-700">בחר חודש</label>
+        </div>
+        <input id="month" name="month" type="month" value="{{ selected_month or '' }}" class="form-input">
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-sync-alt mr-2"></i>
+          עדכן
+        </button>
+      </form>
+    </div>
+  </div>
 
   <!-- KPIs -->
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-    <a href="/finances/statistics/drilldown?metric=expenses&month={{ selected_month }}"
-      class="bg-white p-4 rounded shadow block hover:shadow-md transition">
-      <div class="text-gray-500">הוצאות החודש</div>
-      <div class="text-2xl font-bold text-red-600">₪{{ total_expenses_month }}</div>
+    <!-- Expenses Card -->
+    <a href="/finances/statistics/drilldown?metric=expenses&month={{ selectedmonth }}"
+      class="card card-elevated hover:scale-105 transition-all block">
+      <div class="p-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm font-medium text-gray-600">הוצאות החודש</span>
+          <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+            <i class="fas fa-arrow-down text-red-600"></i>
+          </div>
+        </div>
+        <div class="font-mono text-3xl font-bold text-red-600" dir="ltr">
+          ₪{{ total_expenses_month }}
+        </div>
+      </div>
     </a>
+
+    <!-- Income Card -->
     <a href="/finances/statistics/drilldown?metric=income&month={{ selected_month }}"
-      class="bg-white p-4 rounded shadow block hover:shadow-md transition">
-      <div class="text-gray-500">הכנסות החודש</div>
-      <div class="text-2xl font-bold text-green-600">₪{{ total_income_month }}</div>
+      class="card card-elevated hover:scale-105 transition-all block">
+      <div class="p-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm font-medium text-gray-600">הכנסות החודש</span>
+          <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+            <i class="fas fa-arrow-up text-green-600"></i>
+          </div>
+        </div>
+        <div class="font-mono text-3xl font-bold text-green-600" dir="ltr">
+          ₪{{ total_income_month }}
+        </div>
+      </div>
     </a>
+
+    <!-- Transactions Card -->
     <a href="/finances/statistics/drilldown?metric=transactions&month={{ selected_month }}"
-      class="bg-white p-4 rounded shadow block hover:shadow-md transition">
-      <div class="text-gray-500">עסקאות החודש</div>
-      <div class="text-2xl font-bold">{{ total_transactions_month }}</div>
+      class="card card-elevated hover:scale-105 transition-all block">
+      <div class="p-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm font-medium text-gray-600">עסקאות החודש</span>
+          <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+            <i class="fas fa-exchange-alt text-blue-600"></i>
+          </div>
+        </div>
+        <div class="font-mono text-3xl font-bold text-gray-900">
+          {{ total_transactions_month }}
+        </div>
+      </div>
     </a>
+
+    <!-- Recurring Card -->
     <a href="/finances/statistics/drilldown?metric=recurring&month={{ selected_month }}"
-      class="bg-white p-4 rounded shadow block hover:shadow-md transition">
-      <div class="text-gray-500">הוצאות קבועות החודש</div>
-      <div class="text-2xl font-bold">{{ total_recurring_month }}</div>
+      class="card card-elevated hover:scale-105 transition-all block">
+      <div class="p-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm font-medium text-gray-600">הוצאות קבועות</span>
+          <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+            <i class="fas fa-repeat text-purple-600"></i>
+          </div>
+        </div>
+        <div class="font-mono text-3xl font-bold text-gray-900">
+          {{ total_recurring_month }}
+        </div>
+      </div>
     </a>
   </div>
 
@@ -42,29 +95,43 @@
     <!-- Left column: tables -->
     <div class="space-y-6">
       <!-- Top 5 regular expenses -->
-      <div class="bg-white rounded shadow">
-        <div class="px-4 pt-4">
-          <h2 class="text-lg font-semibold">5 ההוצאות הרגילות הגדולות ביותר (6 חודשים)</h2>
+      <div class="card">
+        <div class="card-header">
+          <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+            <i class="fas fa-chart-bar text-red-600 mr-2"></i>
+            5 ההוצאות הרגילות הגדולות ביותר
+            <span class="text-sm font-normal text-gray-500 mr-2">(6 חודשים)</span>
+          </h2>
         </div>
         <div class="overflow-x-auto">
           <table class="min-w-full text-center text-sm">
-            <thead class="bg-gray-50">
+            <thead class="bg-gradient-to-r from-gray-50 to-gray-100">
               <tr>
-                <th class="px-3 py-2 border-b">תאריך</th>
-                <th class="px-3 py-2 border-b">סכום (₪)</th>
-                <th class="px-3 py-2 border-b">הערות</th>
+                <th
+                  class="px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">
+                  תאריך</th>
+                <th
+                  class="px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">
+                  סכום (₪)</th>
+                <th
+                  class="px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">
+                  הערות</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody class="bg-white divide-y divide-gray-200">
               {% for r in top_regular_expenses %}
-              <tr class="hover:bg-gray-50">
-                <td class="px-3 py-2 border-b">{{ r.date }}</td>
-                <td class="px-3 py-2 border-b text-red-600 font-semibold">{{ (r.amount or 0) | round(2) }}</td>
-                <td class="px-3 py-2 border-b">{{ r.notes }}</td>
+              <tr class="hover:bg-red-50 transition-colors">
+                <td class="px-4 py-3 whitespace-nowrap text-gray-900">{{ r.date }}</td>
+                <td class="px-4 py-3 whitespace-nowrap font-mono text-red-600 font-bold" dir="ltr">₪{{ (r.amount or 0) |
+                  round(2) }}</td>
+                <td class="px-4 py-3 text-gray-600">{{ r.notes }}</td>
               </tr>
               {% else %}
               <tr>
-                <td colspan="6" class="px-4 py-6 text-gray-500">אין נתונים להצגה</td>
+                <td colspan="3" class="px-4 py-8 text-center text-gray-500">
+                  <i class="fas fa-inbox text-3xl text-gray-300 mb-2"></i>
+                  <div>אין נתונים להצגה</div>
+                </td>
               </tr>
               {% endfor %}
             </tbody>
@@ -73,33 +140,57 @@
       </div>
 
       <!-- Cash vs Credit per user -->
-      <div class="bg-white rounded shadow">
-        <div class="px-4 pt-4">
-          <h2 class="text-lg font-semibold">הוצאות מזומן ואשראי לפי משתמש (6 חודשים)</h2>
+      <div class="card">
+        <div class="card-header">
+          <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+            <i class="fas fa-users text-blue-600 mr-2"></i>
+            הוצאות מזומן ואשראי לפי משתמש
+            <span class="text-sm font-normal text-gray-500 mr-2">(6 חודשים)</span>
+          </h2>
         </div>
         <div class="overflow-x-auto">
           <table class="min-w-full text-center text-sm">
-            <thead class="bg-gray-50">
+            <thead class="bg-gradient-to-r from-gray-50 to-gray-100">
               <tr>
-                <th class="px-3 py-2 border-b">משתמש</th>
-                <th class="px-3 py-2 border-b">מזומן</th>
-                <th class="px-3 py-2 border-b">אשראי</th>
-                <th class="px-3 py-2 border-b">אחר</th>
-                <th class="px-3 py-2 border-b">סה"כ</th>
+                <th
+                  class="px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">
+                  משתמש</th>
+                <th
+                  class="px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">
+                  מזומן</th>
+                <th
+                  class="px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">
+                  אשראי</th>
+                <th
+                  class="px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">
+                  אחר</th>
+                <th
+                  class="px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-gray-200">
+                  סה"כ</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody class="bg-white divide-y divide-gray-200">
               {% for row in cash_credit_user_totals %}
-              <tr class="hover:bg-gray-50">
-                <td class="px-3 py-2 border-b">{{ row.user }}</td>
-                <td class="px-3 py-2 border-b">{{ row.cash | round(2) }}</td>
-                <td class="px-3 py-2 border-b">{{ row.credit | round(2) }}</td>
-                <td class="px-3 py-2 border-b">{{ row.other | round(2) }}</td>
-                <td class="px-3 py-2 border-b font-semibold">{{ row.total | round(2) }}</td>
+              <tr class="hover:bg-blue-50 transition-colors">
+                <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900">
+                  <i class="fas fa-user text-gray-400 ml-2"></i>
+                  {{ row.user }}
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap font-mono text-gray-700" dir="ltr">₪{{ row.cash | round(2) }}
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap font-mono text-gray-700" dir="ltr">₪{{ row.credit | round(2) }}
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap font-mono text-gray-700" dir="ltr">₪{{ row.other | round(2) }}
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap font-mono font-bold text-gray-900" dir="ltr">₪{{ row.total |
+                  round(2) }}</td>
               </tr>
               {% else %}
               <tr>
-                <td colspan="5" class="px-4 py-6 text-gray-500">אין נתונים להצגה</td>
+                <td colspan="5" class="px-4 py-8 text-center text-gray-500">
+                  <i class="fas fa-inbox text-3xl text-gray-300 mb-2"></i>
+                  <div>אין נתונים להצגה</div>
+                </td>
               </tr>
               {% endfor %}
             </tbody>

@@ -48,3 +48,4 @@ htmlcov/
 # Ignore runtime logs and generated backups
 logs/
 backups/
+transactions_2026-02-12.xlsx

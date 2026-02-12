@@ -1243,15 +1243,14 @@ async def finances_statistics(
         LEFT JOIN categories c ON t.category_id = c.id
         LEFT JOIN users u ON t.user_id = u.id
         LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE strftime('%Y-%m', t.date) = ?
+        WHERE t.date >= date('now', '-6 months')
           AND t.amount < 0
           AND t.recurrence_id IS NULL
           AND c.name NOT IN ('משכורת', 'קליניקה')
           AND t.user_id IN ({user_ids})
         ORDER BY ABS(t.amount) DESC, t.date DESC
         LIMIT 5
-        """,
-        (selected_ym,)
+        """
     ).fetchall()
     top_regular_expenses = [dict(row) for row in (top_regular_expenses_rows or [])]
 
@@ -1265,13 +1264,12 @@ async def finances_statistics(
         LEFT JOIN accounts a ON t.account_id = a.id
         LEFT JOIN users u ON t.user_id = u.id
         LEFT JOIN categories c ON t.category_id = c.id
-        WHERE strftime('%Y-%m', t.date) = ?
+        WHERE t.date >= date('now', '-6 months')
           AND c.name NOT IN ('משכורת', 'קליניקה')
           AND t.user_id IN ({user_ids})
         GROUP BY u.name, a.name
         ORDER BY u.name ASC
-        """,
-        (selected_ym,)
+        """
     ).fetchall()
 
     # Normalize cash/credit per user to a compact structure for the template table

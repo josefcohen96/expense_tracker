@@ -114,6 +114,26 @@
     </button>
 </div>
 
+<!-- Total Sum Card -->
+<div class="card mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 animate-sequence">
+    <div class="card-body">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <div class="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center mr-4">
+                    <i class="fas fa-calculator text-white text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-medium text-gray-600">סה"כ הוצאות מסוננות</h3>
+                    <p class="text-3xl font-bold text-blue-900" dir="ltr">₪{{ total_sum | round(2) }}</p>
+                </div>
+            </div>
+            <div class="text-sm text-gray-600">
+                {{ pagination.total }} עסקאות
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Transactions Table -->
 <div class="card animate-sequence" id="transactions-table">
     <div class="card-header">
@@ -144,11 +164,38 @@
             <table class="table">
                 <thead>
                     <tr>
-                        <th>תאריך</th>
-                        <th>סכום</th>
-                        <th>קטגוריה</th>
-                        <th class="hidden sm:table-cell">משתמש</th>
-                        <th class="hidden md:table-cell">חשבון</th>
+                        <th class="cursor-pointer hover:bg-gray-100 transition-colors" onclick="toggleSort('date')">
+                            <div class="flex items-center justify-center">
+                                תאריך
+                                <i class="fas fa-sort mr-1 text-gray-400" id="sort-icon-date"></i>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-gray-100 transition-colors" onclick="toggleSort('amount')">
+                            <div class="flex items-center justify-center">
+                                סכום
+                                <i class="fas fa-sort mr-1 text-gray-400" id="sort-icon-amount"></i>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-gray-100 transition-colors" onclick="toggleSort('category')">
+                            <div class="flex items-center justify-center">
+                                קטגוריה
+                                <i class="fas fa-sort mr-1 text-gray-400" id="sort-icon-category"></i>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-gray-100 transition-colors hidden sm:table-cell"
+                            onclick="toggleSort('user')">
+                            <div class="flex items-center justify-center">
+                                משתמש
+                                <i class="fas fa-sort mr-1 text-gray-400" id="sort-icon-user"></i>
+                            </div>
+                        </th>
+                        <th class="cursor-pointer hover:bg-gray-100 transition-colors hidden md:table-cell"
+                            onclick="toggleSort('account')">
+                            <div class="flex items-center justify-center">
+                                חשבון
+                                <i class="fas fa-sort mr-1 text-gray-400" id="sort-icon-account"></i>
+                            </div>
+                        </th>
                         <th class="hidden lg:table-cell">הערות</th>
                         <th class="hidden lg:table-cell">תגיות</th>
                         <th>פעולות</th>
@@ -789,6 +836,49 @@
         });
         window.location.href = url.toString();
     }
+
+    // New function to handle column header clicks
+    window.toggleSort = function (column) {
+        const url = new URL(window.location);
+        const currentSort = url.searchParams.get('sort') || 'date_desc';
+
+        // Determine new sort direction
+        let newSort;
+        if (currentSort.startsWith(column)) {
+            // Toggle direction for same column
+            newSort = currentSort.endsWith('_desc') ? `${column}_asc` : `${column}_desc`;
+        } else {
+            // Default to desc for new column
+            newSort = `${column}_desc`;
+        }
+
+        url.searchParams.set('sort', newSort);
+        window.location.href = url.toString();
+    }
+
+    // Update sort icons on page load
+    document.addEventListener('DOMContentLoaded', function () {
+        const currentSort = new URLSearchParams(window.location.search).get('sort') || 'date_desc';
+        const [column, direction] = currentSort.split('_');
+
+        // Reset all icons to default
+        document.querySelectorAll('[id^="sort-icon-"]').forEach(icon => {
+            icon.className = 'fas fa-sort mr-1 text-gray-400';
+        });
+
+        // Highlight active sort column
+        const activeIcon = document.getElementById(`sort-icon-${column}`);
+        if (activeIcon) {
+            const iconClass = direction === 'desc' ? 'fa-sort-down' : 'fa-sort-up';
+            activeIcon.className = `fas ${iconClass} mr-1 text-blue-600`;
+        }
+
+        // Update dropdown to match current sort
+        const sortSelect = document.getElementById('sort_by');
+        if (sortSelect) {
+            sortSelect.value = currentSort;
+        }
+    });
 
     window.exportTransactions = function () {
         showToast('מייצא לאקסל...', 'info');

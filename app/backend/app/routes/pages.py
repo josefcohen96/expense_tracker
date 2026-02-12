@@ -516,6 +516,7 @@ async def finances_transactions(
     amount_max = qp.get("amount_max")
     account_id_raw = qp.get("account_id")
     tags = qp.get("tags")
+    sort_param = qp.get("sort", "date_desc")
 
     where_clauses = ["t.recurrence_id IS NULL"]
     params: List[Any] = []
@@ -570,7 +571,35 @@ async def finances_transactions(
 
     where_sql = " WHERE " + " AND ".join(where_clauses)
 
+    # Determine ORDER BY clause based on sort parameter
+    order_by_map = {
+        "date_desc": "t.date DESC, t.id DESC",
+        "date_asc": "t.date ASC, t.id ASC",
+        "amount_desc": "ABS(t.amount) DESC, t.date DESC",
+        "amount_asc": "ABS(t.amount) ASC, t.date DESC",
+        "category_asc": "c.name ASC, t.date DESC",
+        "category_desc": "c.name DESC, t.date DESC",
+        "user_asc": "u.name ASC, t.date DESC",
+        "user_desc": "u.name DESC, t.date DESC",
+        "account_asc": "a.name ASC, t.date DESC",
+        "account_desc": "a.name DESC, t.date DESC",
+    }
+    order_by = order_by_map.get(sort_param, "t.date DESC, t.id DESC")
+
     total = db_conn.execute(f"SELECT COUNT(*) FROM transactions t{where_sql}", params).fetchone()[0]
+    
+    # Calculate total sum of filtered expenses (negative amounts only)
+    total_sum = db_conn.execute(
+        f"""
+        SELECT COALESCE(SUM(CASE WHEN t.amount < 0 THEN ABS(t.amount) ELSE 0 END), 0)
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.user_id = u.id
+        LEFT JOIN accounts a ON t.account_id = a.id
+        {where_sql}
+        """,
+        params
+    ).fetchone()[0]
     rows = db_conn.execute(
         f"""
         SELECT t.id, t.date, t.amount,
@@ -584,7 +613,7 @@ async def finances_transactions(
         LEFT JOIN users u ON t.user_id = u.id
         LEFT JOIN accounts a ON t.account_id = a.id
         {where_sql}
-        ORDER BY t.date DESC, t.id DESC
+        ORDER BY {order_by}
         LIMIT ? OFFSET ?
         """,
         (*params, per_page, offset),
@@ -616,6 +645,8 @@ async def finances_transactions(
             "users": users,
             "accounts": accounts,
             "pagination": pagination,
+            "total_sum": float(total_sum),
+            "current_sort": sort_param,
             "show_sidebar": True,
         },
     )

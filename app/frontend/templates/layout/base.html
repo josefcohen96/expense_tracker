@@ -6,32 +6,51 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
     <title>{% block title %}המנביטים{% endblock %}</title>
 
-    <!-- Google Fonts -->
+    <!-- Google Fonts - Modern Typography with Hebrew Support -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&family=Heebo:wght@700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-    <!-- Tailwind CSS -->
+    <!-- Tailwind CSS - PERFORMANCE OPTIMIZED -->
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- HTMX -->
+    <!-- HTMX - PERFORMANCE OPTIMIZED -->
     <script src="/static/js/vendor/htmx.min.js" defer></script>
 
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="/static/css/main.css?v=20260315">
+    <!-- Custom CSS - PERFORMANCE OPTIMIZED -->
+    <link rel="stylesheet" href="/static/css/main.css?v=20260211">
 
-    <!-- Font Awesome -->
+    <!-- Font Awesome - PERFORMANCE OPTIMIZED -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
         media="print" onload="this.media='all'">
     <noscript>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     </noscript>
 
+    <!-- Custom CSS -->
     <style>
-        /* ===== CORE LAYOUT ===== */
-        [dir="rtl"] { direction: rtl; }
+        /* ===== Z-INDEX ARCHITECTURE ===== */
+        /* 
+        Z-Index Hierarchy (from lowest to highest):
+        1. Background elements: 0-10
+        2. Main content: 10-50
+        3. Sidebar: 100-150
+        4. Navigation: 200-250
+        5. Modals/Overlays: 300-400
+        6. Tooltips/Notifications: 500-600
+        7. Floating elements: 700-800
+        8. Loading/Spinners: 900-1000
+        */
 
-        /* ===== TOP NAV ===== */
+        [dir="rtl"] {
+            direction: rtl;
+        }
+
+        .sidebar-transition {
+            transition: transform 0.3s ease-in-out;
+        }
+
+        /* ===== NAVIGATION LAYER (z-index: 200-250) ===== */
         .nav-gradient {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             position: fixed;
@@ -39,681 +58,916 @@
             left: 0;
             right: 0;
             z-index: 200;
-            padding-top: env(safe-area-inset-top, 0px);
+            overflow: hidden;
+            padding-top: calc(0.5rem + env(safe-area-inset-top));
         }
 
-        .nav-gradient::after {
+        .nav-gradient::before {
             content: '';
             position: absolute;
-            inset: 0;
-            background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.06) 50%, transparent 70%);
-            animation: shimmer-nav 4s infinite;
-            pointer-events: none;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%);
+            animation: shimmer 3s infinite;
         }
 
-        @keyframes shimmer-nav {
-            0%   { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
+        @keyframes shimmer {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(100%);
+            }
         }
 
         .nav-link {
             position: relative;
-            transition: all 0.25s ease;
+            transition: all 0.3s ease;
             border-radius: 8px;
-            padding: 6px 12px;
+            margin: 0 4px;
         }
 
-        .nav-link:hover {
-            background: rgba(255,255,255,0.15);
-        }
-
-        /* ===== SIDEBAR (desktop only) ===== */
-        .sidebar {
-            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
-            position: fixed;
-            top: 0;
-            right: 0;
-            bottom: 0;
-            width: 256px;
-            z-index: 100;
-            display: flex;
-            flex-direction: column;
-            box-shadow: -2px 0 12px rgba(0,0,0,0.15);
-            transition: transform 0.3s ease, width 0.3s ease;
-            padding-top: calc(64px + env(safe-area-inset-top, 0px));
-            overflow-y: auto;
-            overflow-x: hidden;
-        }
-
-        .sidebar.collapsed {
-            width: 68px;
-        }
-
-        .sidebar .sidebar-label {
-            transition: opacity 0.2s ease, width 0.2s ease;
-            white-space: nowrap;
-            overflow: hidden;
-        }
-
-        .sidebar.collapsed .sidebar-label {
-            opacity: 0;
-            width: 0;
-        }
-
-        .sidebar.collapsed .sidebar-header-text {
-            display: none;
-        }
-
-        .sidebar-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 11px 16px;
-            margin: 3px 8px;
-            border-radius: 12px;
-            color: rgba(255,255,255,0.85);
-            text-decoration: none;
-            transition: background 0.2s ease, transform 0.2s ease;
-            font-size: 0.9rem;
-            font-weight: 500;
-        }
-
-        .sidebar-item:hover {
-            background: rgba(255,255,255,0.18);
-            color: white;
-            text-decoration: none;
-        }
-
-        .sidebar-item.active {
-            background: rgba(255,255,255,0.28);
-            color: white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        }
-
-        .sidebar-item i {
-            width: 20px;
-            text-align: center;
-            flex-shrink: 0;
-            font-size: 1rem;
-        }
-
-        .sidebar.collapsed .sidebar-item {
-            justify-content: center;
-            padding: 12px;
-            margin: 3px 4px;
-        }
-
-        /* ===== MAIN CONTENT ===== */
-        .main-content {
-            min-height: 100vh;
-            background: #f3f4f6;
-            transition: margin-right 0.3s ease;
-        }
-
-        /* Desktop with sidebar */
-        @media (min-width: 768px) {
-            .has-sidebar .main-content {
-                margin-right: 256px;
-            }
-
-            .has-sidebar.sidebar-collapsed .main-content {
-                margin-right: 68px;
-            }
-        }
-
-        /* ===== BOTTOM NAV (mobile only) ===== */
-        .bottom-nav {
-            display: none;
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: white;
-            border-top: 1px solid #e5e7eb;
-            z-index: 300;
-            padding-bottom: env(safe-area-inset-bottom, 0px);
-            box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
-        }
-
-        .bottom-nav-inner {
-            display: flex;
-            align-items: stretch;
-            height: 60px;
-        }
-
-        .bottom-nav-item {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 3px;
-            text-decoration: none;
-            color: #9ca3af;
-            font-size: 0.65rem;
-            font-weight: 500;
-            padding: 6px 2px;
-            transition: color 0.2s ease;
-            position: relative;
-        }
-
-        .bottom-nav-item i {
-            font-size: 1.2rem;
-            transition: transform 0.2s ease;
-        }
-
-        .bottom-nav-item.active {
-            color: #667eea;
-        }
-
-        .bottom-nav-item.active::before {
+        .nav-link::before {
             content: '';
             position: absolute;
             top: 0;
-            left: 20%;
-            right: 20%;
-            height: 2px;
-            background: linear-gradient(90deg, #667eea, #764ba2);
-            border-radius: 0 0 4px 4px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            transform: scale(0);
+            transition: transform 0.3s ease;
         }
 
-        .bottom-nav-item:active i {
-            transform: scale(0.9);
+        .nav-link:hover::before {
+            transform: scale(1);
         }
 
-        @media (max-width: 767px) {
-            .bottom-nav {
-                display: block;
-            }
-
-            /* Hide desktop sidebar on mobile */
-            .sidebar {
-                display: none !important;
-            }
-
-            /* Full width content on mobile */
-            .main-content {
-                margin-right: 0 !important;
-            }
-
-            /* Push content down from top nav and up from bottom nav */
-            .content-area {
-                padding-top: calc(56px + env(safe-area-inset-top, 0px));
-                padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
-            }
+        .nav-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
-        @media (min-width: 768px) {
-            .bottom-nav {
-                display: none !important;
-            }
-
-            .content-area {
-                padding-top: calc(64px + env(safe-area-inset-top, 0px));
-                padding-bottom: 0;
-            }
-        }
-
-        /* ===== MOBILE OVERLAY for sidebar ===== */
-        .sidebar-overlay {
-            display: none;
+        /* ===== FLOATING ACTION BUTTON (z-index: 700-800) ===== */
+        .fab {
             position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.4);
-            z-index: 150;
+            bottom: calc(30px + env(safe-area-inset-bottom));
+            right: calc(30px + env(safe-area-inset-right));
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s ease;
+            z-index: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
         }
 
-        /* ===== MODALS ===== */
+        .fab:hover {
+            transform: scale(1.1) rotate(180deg);
+            box-shadow: 0 6px 30px rgba(102, 126, 234, 0.6);
+        }
+
+        /* ===== SIDEBAR LAYER (z-index: 100-150) ===== */
+        .sidebar {
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            height: 100%;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+            border-right: 1px solid #e5e7eb;
+            overflow: hidden;
+            max-width: 100%;
+            box-sizing: border-box;
+            z-index: 100;
+            position: fixed;
+            top: calc(64px + env(safe-area-inset-top));
+            /* Space for navbar + notch */
+            right: 0;
+        }
+
+        /* Ensure sidebar is visible */
+        #sidebar,
+        #sidebar-collapsed {
+            min-height: 100vh;
+            position: fixed;
+            top: 0;
+            right: 0;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        /* Default state - show regular sidebar, hide collapsed */
+        #sidebar {
+            display: block !important;
+            visibility: visible !important;
+        }
+
+        #sidebar-collapsed {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* When collapsed state is active */
+        body.sidebar-collapsed #sidebar {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        body.sidebar-collapsed #sidebar-collapsed {
+            display: block !important;
+            visibility: visible !important;
+        }
+
+        /* ===== MAIN CONTENT LAYER (z-index: 10-50) ===== */
+        .main-content {
+            flex: 1;
+            min-height: 100vh;
+            background: white;
+            border-radius: 8px;
+            margin: 16px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-right: 272px;
+            margin-left: 16px;
+            margin-top: calc(80px + env(safe-area-inset-top));
+            /* Space for fixed navbar + notch */
+            z-index: 10;
+            position: relative;
+        }
+
+        /* Fix sidebar width and positioning */
+        #sidebar {
+            width: 256px !important;
+            max-width: 256px !important;
+            flex-shrink: 0;
+            min-width: 256px;
+        }
+
+        #sidebar-collapsed {
+            width: 64px !important;
+            max-width: 64px !important;
+            flex-shrink: 0;
+            min-width: 64px;
+        }
+
+        /* ===== RESPONSIVE DESIGN ===== */
+        @media (max-width: 768px) {
+
+            /* Mobile: Hide sidebar by default */
+            .sidebar {
+                transform: translateX(100%);
+            }
+
+            /* Mobile: Full width content */
+            .main-content {
+                margin-right: 0;
+                margin-left: 0;
+                width: 100%;
+                border-radius: 0;
+                margin-top: calc(64px + env(safe-area-inset-top));
+            }
+
+            /* Mobile: Adjust navbar */
+            .nav-gradient {
+                padding: 0.5rem 1rem;
+            }
+
+            /* Mobile: Smaller FAB */
+            .fab {
+                width: 50px;
+                height: 50px;
+                bottom: 20px;
+                right: 20px;
+            }
+        }
+
+        @media (min-width: 769px) and (max-width: 1024px) {
+
+            /* Tablet: Adjust sidebar width */
+            #sidebar {
+                width: 200px !important;
+                max-width: 200px !important;
+                min-width: 200px;
+            }
+
+            /* Tablet: Adjust main content margin */
+            .main-content {
+                margin-right: 216px;
+            }
+
+            body.sidebar-collapsed .main-content {
+                margin-right: 80px;
+            }
+        }
+
+        /* Sidebar item improvements */
+        .sidebar-item {
+            position: relative;
+            overflow: hidden;
+            border-radius: 12px;
+            margin: 8px 0;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: block;
+            color: white;
+            padding: 12px 16px;
+            box-sizing: border-box;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .sidebar-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white !important;
+            transform: translateX(5px);
+            text-decoration: none;
+            margin-right: 8px;
+        }
+
+        .sidebar-item:hover i {
+            color: white !important;
+        }
+
+        .sidebar-item.active {
+            background: rgba(255, 255, 255, 0.3);
+            color: white !important;
+            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+            text-decoration: none;
+            margin-right: 8px;
+        }
+
+        .sidebar-item.active i {
+            color: white !important;
+        }
+
+        /* Sidebar toggle button */
+        #sidebar-toggle,
+        #sidebar-expand {
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            background: none;
+            border: none;
+            outline: none;
+        }
+
+        #sidebar-toggle:hover,
+        #sidebar-expand:hover {
+            background: rgba(102, 126, 234, 0.1);
+            transform: scale(1.1);
+        }
+
+        .sidebar-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .sidebar-item:hover::before {
+            left: 100%;
+        }
+
+        /* ===== MODAL/OVERLAY LAYER (z-index: 300-400) ===== */
         .modal-overlay {
             position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.5);
-            backdrop-filter: blur(4px);
-            z-index: 400;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 300;
             display: none;
             align-items: center;
             justify-content: center;
         }
 
+        /* Show modal when active */
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        /* Ensure modal becomes visible when activated */
         .modal-overlay.active {
             display: flex;
         }
 
         .modal-content {
             background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            z-index: 350;
+            position: relative;
             max-width: 90vw;
             max-height: 90vh;
             overflow: auto;
-            width: 100%;
         }
 
-        @media (min-width: 768px) {
-            .modal-content {
-                max-width: 520px;
-            }
-        }
-
-        /* ===== TOAST ===== */
+        /* ===== TOAST/NOTIFICATION LAYER (z-index: 500-600) ===== */
         .toast {
             position: fixed;
-            top: 80px;
+            top: 20px;
             right: 20px;
             background: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            padding: 14px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            padding: 16px 20px;
             z-index: 500;
-            transform: translateX(110%);
+            transform: translateX(100%);
             transition: transform 0.3s ease;
-            max-width: calc(100vw - 40px);
         }
 
         .toast.show {
             transform: translateX(0);
         }
 
-        /* ===== FAB ===== */
-        .fab {
+        /* ===== LOADING/SPINNER LAYER (z-index: 900-1000) ===== */
+        .loading-overlay {
             position: fixed;
-            bottom: calc(76px + env(safe-area-inset-bottom, 0px));
-            left: 20px;
-            width: 52px;
-            height: 52px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 4px 16px rgba(102,126,234,0.5);
-            z-index: 250;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            z-index: 900;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 22px;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
-        .fab:active {
-            transform: scale(0.92);
+        /* Content Area */
+        .main-content {
+            background: white;
+            min-height: 100vh;
+            position: relative;
         }
 
-        @media (min-width: 768px) {
-            .fab {
-                bottom: calc(30px + env(safe-area-inset-bottom, 0px));
-                left: 30px;
-                width: 58px;
-                height: 58px;
-                font-size: 24px;
-            }
-
-            .fab:hover {
-                transform: scale(1.08) rotate(90deg);
-                box-shadow: 0 6px 24px rgba(102,126,234,0.6);
-            }
+        /* Footer Improvements */
+        .footer {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            position: relative;
+            overflow: hidden;
         }
 
-        /* ===== SIDEBAR TOGGLE BUTTON ===== */
-        .sidebar-toggle-btn {
-            background: rgba(255,255,255,0.15);
-            border: none;
-            color: white;
-            border-radius: 8px;
-            padding: 6px 10px;
-            cursor: pointer;
-            transition: background 0.2s;
-            font-size: 0.85rem;
+        .footer::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.05) 50%, transparent 70%);
+            animation: shimmer 4s infinite;
         }
 
-        .sidebar-toggle-btn:hover {
-            background: rgba(255,255,255,0.25);
-        }
-
-        /* ===== LOADING ===== */
+        /* Loading Animation */
         .loading-spinner {
-            width: 36px;
-            height: 36px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            animation: spin 1s linear infinite;
         }
 
         @keyframes spin {
-            0%   { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
-        /* ===== RESPONSIVE TABLE CARD VIEW (mobile) ===== */
-        @media (max-width: 640px) {
-            /* Make cards slightly smaller padding */
-            .card-body { padding: 1rem; }
-            .card-header { padding: 1rem; }
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .fab {
+                bottom: 20px;
+                right: 20px;
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
+            }
+
+            .nav-link {
+                margin: 2px;
+                padding: 8px 12px;
+            }
         }
     </style>
 
     {% block head %}{% endblock %}
 </head>
 
-<body class="bg-gray-100 min-h-screen {% if show_sidebar %}has-sidebar{% endif %}" id="app-body">
-
-    <!-- ===== TOP NAVIGATION ===== -->
-    <nav class="nav-gradient text-white shadow-lg">
-        <div class="px-3 sm:px-5 lg:px-8">
-            <div class="flex justify-between items-center h-14 md:h-16">
-
-                <!-- Logo -->
-                <div class="flex items-center gap-2 animate-sequence">
-                    <div class="w-8 h-8 bg-white rounded-lg flex items-center justify-center flex-shrink-0">
-                        <i class="fas fa-seedling text-purple-600 text-sm"></i>
+<body class="bg-gray-50 min-h-screen full-viewport-safe">
+    <!-- Main Navigation Bar -->
+    <nav class="nav-gradient text-white shadow-lg relative z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo/Brand -->
+                <div class="flex items-center animate-sequence">
+                    <div class="w-8 h-8 bg-white rounded-lg mr-3 flex items-center justify-center">
+                        <i class="fas fa-seedling text-purple-600"></i>
                     </div>
-                    <span class="text-lg font-bold">המנביטים</span>
+                    <h1 class="text-xl font-bold text-gradient">המנביטים</h1>
                 </div>
 
-                <!-- Desktop nav links (hidden on mobile) -->
-                <div class="hidden md:flex items-center gap-1">
-                    {% if show_sidebar %}
-                    <a href="/finances" class="nav-link text-sm font-medium">
-                        <i class="fas fa-gauge ml-1"></i> לוח בקרה
+                <!-- Main Categories Navigation -->
+                <div class="hidden md:flex space-x-8 space-x-reverse">
+                    <a href="/finances/transactions"
+                        class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors animate-sequence">
+                        <i class="fas fa-wallet mr-2"></i>
+                        פיננסים
                     </a>
-                    <a href="/finances/transactions" class="nav-link text-sm font-medium">
-                        <i class="fas fa-exchange-alt ml-1"></i> עסקאות
-                    </a>
-                    <a href="/finances/statistics" class="nav-link text-sm font-medium">
-                        <i class="fas fa-chart-line ml-1"></i> סטטיסטיקות
-                    </a>
-                    {% endif %}
                 </div>
 
-                <!-- Right side actions -->
-                <div class="flex items-center gap-2">
+                <div class="hidden md:flex items-center space-x-4 space-x-reverse">
                     {% if request.session.get('user') %}
-                    <span class="hidden sm:block text-xs opacity-80">{{ request.session.get('user', {}).get('username') }}</span>
-                    <a href="/logout" class="nav-link text-sm font-medium flex items-center gap-1">
-                        <i class="fas fa-sign-out-alt"></i>
-                        <span class="hidden sm:inline">יציאה</span>
+                    <span class="text-sm">מחובר כ-{{ request.session.get('user', {}).get('username') }}</span>
+                    <a href="/logout" class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700">
+                        <i class="fas fa-sign-out-alt mr-2"></i>
+                        יציאה
                     </a>
                     {% else %}
-                    <a href="/login" class="nav-link text-sm font-medium flex items-center gap-1">
-                        <i class="fas fa-sign-in-alt"></i>
-                        <span class="hidden sm:inline">התחברות</span>
+                    <a href="/login" class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700">
+                        <i class="fas fa-sign-in-alt mr-2"></i>
+                        התחברות
                     </a>
                     {% endif %}
+                </div>
 
-                    <!-- Desktop sidebar toggle -->
-                    {% if show_sidebar %}
-                    <button class="sidebar-toggle-btn hidden md:flex items-center gap-1" id="desktop-sidebar-toggle" title="הסתר/הצג ניווט">
-                        <i class="fas fa-bars text-sm"></i>
+                <!-- Mobile menu button -->
+                <div class="md:hidden">
+                    <button id="mobile-menu-button"
+                        class="text-white hover:text-gray-300 focus:outline-none transition-colors">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
                     </button>
-                    {% endif %}
                 </div>
             </div>
         </div>
-    </nav>
 
-    <!-- ===== LAYOUT WRAPPER ===== -->
-    <div class="flex min-h-screen">
-
-        <!-- ===== DESKTOP SIDEBAR ===== -->
-        {% if show_sidebar %}
-        <div id="desktop-sidebar" class="sidebar hidden md:flex flex-col">
-            <!-- Sidebar header -->
-            <div class="px-4 py-4 border-b border-white/10 flex items-center justify-between">
-                <span class="sidebar-header-text text-white font-semibold text-sm">
-                    <i class="fas fa-wallet ml-2"></i>פיננסים
-                </span>
-            </div>
-
-            <!-- Nav links -->
-            <nav class="flex-1 py-3 px-2 space-y-0.5">
+        <!-- Mobile menu -->
+        <div id="mobile-menu" class="hidden md:hidden bg-purple-700 animate-slide-in-right">
+            <div class="px-2 pt-2 pb-3 space-y-1">
                 <a href="/finances"
-                    class="sidebar-item {% if request.path == '/finances' %}active{% endif %}">
-                    <i class="fas fa-gauge"></i>
-                    <span class="sidebar-label">לוח בקרה</span>
+                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
+                    <i class="fas fa-gauge mr-2"></i>
+                    לוח בקרה
                 </a>
                 <a href="/finances/transactions"
-                    class="sidebar-item {% if 'transactions' in request.path %}active{% endif %}">
-                    <i class="fas fa-exchange-alt"></i>
-                    <span class="sidebar-label">עסקאות</span>
+                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
+                    <i class="fas fa-exchange-alt mr-2"></i>
+                    עסקאות
                 </a>
                 <a href="/finances/income"
-                    class="sidebar-item {% if 'income' in request.path %}active{% endif %}">
-                    <i class="fas fa-shekel-sign"></i>
-                    <span class="sidebar-label">הכנסות</span>
+                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
+                    <i class="fas fa-shekel-sign mr-2"></i>
+                    הכנסות
                 </a>
                 <a href="/finances/recurrences"
-                    class="sidebar-item {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}active{% endif %}">
-                    <i class="fas fa-repeat"></i>
-                    <span class="sidebar-label">הוצאות קבועות</span>
+                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
+                    <i class="fas fa-repeat mr-2"></i>
+                    הוצאות קבועות
                 </a>
                 <a href="/finances/recurrences/active"
-                    class="sidebar-item {% if 'recurrences/active' in request.path %}active{% endif %}">
-                    <i class="fas fa-toggle-on"></i>
-                    <span class="sidebar-label">ניהול קבועות</span>
+                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
+                    <i class="fas fa-toggle-on mr-2"></i>
+                    הוצאות קבועות פעילות
                 </a>
                 <a href="/finances/statistics"
-                    class="sidebar-item {% if 'statistics' in request.path %}active{% endif %}">
-                    <i class="fas fa-chart-line"></i>
-                    <span class="sidebar-label">סטטיסטיקות</span>
+                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
+                    <i class="fas fa-chart-line mr-2"></i>
+                    סטטיסטיקות
                 </a>
                 <a href="/finances/backup"
-                    class="sidebar-item {% if 'backup' in request.path %}active{% endif %}">
-                    <i class="fas fa-database"></i>
-                    <span class="sidebar-label">גיבוי</span>
+                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
+                    <i class="fas fa-database mr-2"></i>
+                    גיבוי
                 </a>
-            </nav>
-
-            <!-- Sidebar footer -->
-            <div class="px-3 py-4 border-t border-white/10">
                 {% if request.session.get('user') %}
-                <div class="sidebar-item text-xs opacity-70 gap-2 cursor-default">
-                    <i class="fas fa-user-circle text-base"></i>
-                    <span class="sidebar-label">{{ request.session.get('user', {}).get('username') }}</span>
-                </div>
-                <a href="/logout" class="sidebar-item text-xs">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span class="sidebar-label">יציאה</span>
+                <a href="/logout"
+                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
+                    <i class="fas fa-sign-out-alt mr-2"></i>
+                    יציאה
+                </a>
+                {% else %}
+                <a href="/login"
+                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
+                    <i class="fas fa-sign-in-alt mr-2"></i>
+                    התחברות
                 </a>
                 {% endif %}
             </div>
         </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <!-- Main Content Area -->
+    <div class="flex min-h-screen full-viewport-safe bg-gray-100 overflow-x-hidden w-full">
+        <!-- Sidebar (only for specific sections like finances) -->
+        {% if show_sidebar %}
+        <div id="sidebar" class="sidebar shadow-lg sidebar-transition">
+            <div class="p-6">
+                <!-- Sidebar Header with Toggle Button -->
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-gray-800 animate-sequence">
+                        <i class="fas fa-wallet mr-2"></i>
+                        פיננסים
+                    </h2>
+                    <button id="sidebar-toggle" class="text-gray-500 hover:text-gray-700 transition-colors"
+                        title="סגור/פתח סיידבר">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+
+                <!-- Finance Navigation -->
+                <nav class="space-y-2">
+                    <a href="/finances"
+                        class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if request.path == '/finances' %}active{% endif %}">
+                        <i class="fas fa-gauge mr-3 w-5 text-center"></i>
+                        <span>לוח בקרה</span>
+                    </a>
+                    <a href="/finances/transactions"
+                        class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'transactions' in request.path %}active{% endif %}">
+                        <i class="fas fa-exchange-alt mr-3 w-5 text-center"></i>
+                        <span>עסקאות</span>
+                    </a>
+                    <a href="/finances/income"
+                        class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'income' in request.path %}active{% endif %}">
+                        <i class="fas fa-shekel-sign mr-3 w-5 text-center"></i>
+                        <span>הכנסות</span>
+                    </a>
+                    <a href="/finances/recurrences"
+                        class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}active{% endif %}">
+                        <i class="fas fa-repeat mr-3 w-5 text-center"></i>
+                        <span>הוצאות קבועות</span>
+                    </a>
+                    <a href="/finances/recurrences/active"
+                        class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'recurrences/active' in request.path %}active{% endif %}">
+                        <i class="fas fa-toggle-on mr-3 w-5 text-center"></i>
+                        <span>ניהול הוצאות קבועות</span>
+                    </a>
+                    <a href="/finances/statistics"
+                        class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'statistics' in request.path %}active{% endif %}">
+                        <i class="fas fa-chart-line mr-3 w-5 text-center"></i>
+                        <span>סטטיסטיקות</span>
+                    </a>
+                    <a href="/finances/backup"
+                        class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'backup' in request.path %}active{% endif %}">
+                        <i class="fas fa-database mr-3 w-5 text-center"></i>
+                        <span>גיבוי</span>
+                    </a>
+                </nav>
+
+
+            </div>
+        </div>
+
+        <!-- Collapsed Sidebar (when toggled) -->
+        <div id="sidebar-collapsed" class="sidebar shadow-lg sidebar-transition hidden">
+            <div class="p-4">
+                <div class="flex justify-center mb-4">
+                    <button id="sidebar-expand" class="text-gray-500 hover:text-gray-700 transition-colors"
+                        title="פתח סיידבר">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                </div>
+
+                <nav class="space-y-2">
+                    <a href="/finances"
+                        class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if request.path == '/finances' %}active{% endif %}"
+                        title="לוח בקרה">
+                        <i class="fas fa-gauge"></i>
+                    </a>
+                    <a href="/finances/transactions"
+                        class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'transactions' in request.path %}active{% endif %}"
+                        title="עסקאות">
+                        <i class="fas fa-exchange-alt"></i>
+                    </a>
+                    <a href="/finances/income"
+                        class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'income' in request.path %}active{% endif %}"
+                        title="הכנסות">
+                        <i class="fas fa-shekel-sign"></i>
+                    </a>
+                    <a href="/finances/recurrences"
+                        class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}active{% endif %}"
+                        title="הוצאות קבועות">
+                        <i class="fas fa-repeat"></i>
+                    </a>
+                    <a href="/finances/recurrences/active"
+                        class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'recurrences/active' in request.path %}active{% endif %}"
+                        title="ניהול הוצאות קבועות">
+                        <i class="fas fa-toggle-on"></i>
+                    </a>
+                    <a href="/finances/statistics"
+                        class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'statistics' in request.path %}active{% endif %}"
+                        title="סטטיסטיקות">
+                        <i class="fas fa-chart-line"></i>
+                    </a>
+                    <a href="/finances/backup"
+                        class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'backup' in request.path %}active{% endif %}"
+                        title="גיבוי">
+                        <i class="fas fa-database"></i>
+                    </a>
+                </nav>
+            </div>
+        </div>
         {% endif %}
 
-        <!-- ===== MAIN CONTENT ===== -->
-        <div class="flex-1 main-content flex flex-col">
-            <div class="content-area flex-1">
-                <main class="p-3 sm:p-5 lg:p-6 w-full overflow-x-hidden">
-                    {% block content %}{% endblock %}
-                </main>
-            </div>
-
-            <!-- Footer (desktop only) -->
-            <footer class="hidden md:block bg-gradient-to-r from-gray-800 to-gray-900 text-white py-6 mt-auto">
-                <div class="max-w-7xl mx-auto px-4 text-center">
-                    <div class="grid grid-cols-3 gap-6 mb-4 text-sm">
-                        <div>
-                            <h3 class="font-semibold mb-2">המנביטים</h3>
-                            <p class="text-gray-400 text-xs">ניהול כספים חכם ופשוט</p>
-                        </div>
-                        <div>
-                            <h3 class="font-semibold mb-2">קישורים</h3>
-                            <a href="/finances/transactions" class="block text-gray-400 hover:text-white text-xs transition-colors">פיננסים</a>
-                        </div>
-                        <div>
-                            <h3 class="font-semibold mb-2">תמיכה</h3>
-                            <p class="text-gray-400 text-xs">support@hamanbitim.co.il</p>
-                        </div>
-                    </div>
-                    <div class="border-t border-gray-700 pt-4 text-xs text-gray-500">
-                        &copy; 2024 המנביטים. כל הזכויות שמורות.
-                    </div>
-                </div>
-            </footer>
+        <!-- Main Content -->
+        <div class="flex-1 main-content">
+            <main class="p-4 sm:p-6 relative z-10 w-full overflow-x-hidden">
+                {% block content %}{% endblock %}
+            </main>
         </div>
     </div>
 
-    <!-- ===== BOTTOM NAVIGATION (mobile only) ===== -->
-    {% if show_sidebar %}
-    <nav class="bottom-nav" id="bottom-nav">
-        <div class="bottom-nav-inner">
-            <a href="/finances"
-                class="bottom-nav-item {% if request.path == '/finances' %}active{% endif %}">
-                <i class="fas fa-gauge"></i>
-                <span>בקרה</span>
-            </a>
-            <a href="/finances/transactions"
-                class="bottom-nav-item {% if 'transactions' in request.path %}active{% endif %}">
-                <i class="fas fa-exchange-alt"></i>
-                <span>עסקאות</span>
-            </a>
-            <a href="/finances/income"
-                class="bottom-nav-item {% if 'income' in request.path %}active{% endif %}">
-                <i class="fas fa-shekel-sign"></i>
-                <span>הכנסות</span>
-            </a>
-            <a href="/finances/recurrences/active"
-                class="bottom-nav-item {% if 'recurrences' in request.path %}active{% endif %}">
-                <i class="fas fa-repeat"></i>
-                <span>קבועות</span>
-            </a>
-            <a href="/finances/statistics"
-                class="bottom-nav-item {% if 'statistics' in request.path %}active{% endif %}">
-                <i class="fas fa-chart-line"></i>
-                <span>סטטיסטיקות</span>
-            </a>
-        </div>
-    </nav>
-    {% endif %}
-
-    <!-- ===== FLOATING ACTION BUTTON ===== -->
-    {% if show_sidebar %}
-    <button class="fab" onclick="showQuickActions()" title="הוסף עסקה">
+    <!-- Floating Action Button -->
+    <button class="fab" onclick="showQuickActions()" title="פעולות מהירות">
         <i class="fas fa-plus"></i>
     </button>
-    {% endif %}
 
-    <!-- ===== QUICK ACTIONS MODAL ===== -->
-    <div id="quickActionsModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 400px; margin: 16px;">
-            <div class="card-header">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-base font-semibold text-gray-900">פעולות מהירות</h3>
-                    <button onclick="hideModal('quickActionsModal')" class="text-gray-400 hover:text-gray-600">
-                        <i class="fas fa-times"></i>
-                    </button>
+    <!-- Footer -->
+    <footer class="footer text-white py-8 mt-auto relative">
+        <div class="max-w-7xl mx-auto px-4 text-center relative z-10">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-6">
+                <div class="animate-sequence">
+                    <h3 class="text-lg font-semibold mb-3">המנביטים</h3>
+                    <p class="text-gray-300">פלטפורמה מתקדמת לניהול חיים מאוזנים ומאושרים</p>
+                </div>
+                <div class="animate-sequence">
+                    <h3 class="text-lg font-semibold mb-3">קישורים מהירים</h3>
+                    <div class="space-y-2">
+                        <a href="/finances/transactions"
+                            class="block text-gray-300 hover:text-white transition-colors">פיננסים</a>
+                    </div>
+                </div>
+                <div class="animate-sequence">
+                    <h3 class="text-lg font-semibold mb-3">צור קשר</h3>
+                    <div class="space-y-2">
+                        <p class="text-gray-300">support@hamanbitim.co.il</p>
+                        <div class="flex justify-center space-x-4 space-x-reverse">
+                            <a href="#" class="text-gray-300 hover:text-white transition-colors">
+                                <i class="fab fa-facebook text-xl"></i>
+                            </a>
+                            <a href="#" class="text-gray-300 hover:text-white transition-colors">
+                                <i class="fab fa-twitter text-xl"></i>
+                            </a>
+                            <a href="#" class="text-gray-300 hover:text-white transition-colors">
+                                <i class="fab fa-instagram text-xl"></i>
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
+            <div class="border-t border-gray-600 pt-6">
+                <p>&copy; 2024 המנביטים. כל הזכויות שמורות.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Quick Actions Modal -->
+    <div id="quickActionsModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="card-header">
+                <h3 class="text-lg font-semibold text-gray-900">פעולות מהירות</h3>
+            </div>
             <div class="card-body">
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-2 gap-4">
                     <button onclick="quickAction('add-transaction')" class="btn btn-primary w-full">
-                        <i class="fas fa-plus ml-2"></i> הוסף עסקה
+                        <i class="fas fa-plus mr-2"></i>
+                        הוסף עסקה
+                    </button>
+                    <button onclick="quickAction('add-goal')" class="btn btn-success w-full">
+                        <i class="fas fa-bullseye mr-2"></i>
+                        הוסף מטרה
+                    </button>
+                    <button onclick="quickAction('add-memory')" class="btn btn-secondary w-full">
+                        <i class="fas fa-heart mr-2"></i>
+                        הוסף זיכרון
                     </button>
                     <button onclick="quickAction('view-stats')" class="btn btn-warning w-full">
-                        <i class="fas fa-chart-bar ml-2"></i> סטטיסטיקות
+                        <i class="fas fa-chart-bar mr-2"></i>
+                        צפה בסטטיסטיקות
                     </button>
-                    <a href="/finances/backup" class="btn btn-outline w-full col-span-2 text-center">
-                        <i class="fas fa-database ml-2"></i> גיבוי
-                    </a>
                 </div>
             </div>
             <div class="card-footer">
-                <button onclick="hideModal('quickActionsModal')" class="btn btn-outline w-full">סגור</button>
+                <button onclick="hideModal('quickActionsModal')" class="btn btn-outline w-full">
+                    סגור
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- ===== SCRIPTS ===== -->
+    <!-- JavaScript -->
+    <!-- PERFORMANCE OPTIMIZED SCRIPTS -->
     <script src="/static/js/core/animations.js" defer></script>
     <script>
-        // ===== DESKTOP SIDEBAR TOGGLE =====
-        (function () {
-            const body = document.getElementById('app-body');
-            const sidebar = document.getElementById('desktop-sidebar');
-            const btn = document.getElementById('desktop-sidebar-toggle');
+        // PERFORMANCE OPTIMIZED JAVASCRIPT
 
-            function applySidebarState(collapsed) {
-                if (!sidebar) return;
-                if (collapsed) {
-                    sidebar.classList.add('collapsed');
-                    body.classList.add('sidebar-collapsed');
-                } else {
-                    sidebar.classList.remove('collapsed');
-                    body.classList.remove('sidebar-collapsed');
+        // Debounce utility for performance
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Throttle utility for performance
+        function throttle(func, limit) {
+            let inThrottle;
+            return function () {
+                const args = arguments;
+                const context = this;
+                if (!inThrottle) {
+                    func.apply(context, args);
+                    inThrottle = true;
+                    setTimeout(() => inThrottle = false, limit);
                 }
             }
-
-            // Restore saved state
-            const saved = localStorage.getItem('sidebarCollapsed') === 'true';
-            applySidebarState(saved);
-
-            if (btn) {
-                btn.addEventListener('click', function () {
-                    const isCollapsed = sidebar && sidebar.classList.contains('collapsed');
-                    applySidebarState(!isCollapsed);
-                    localStorage.setItem('sidebarCollapsed', String(!isCollapsed));
-                });
-            }
-        })();
-
-        // ===== MODAL HELPERS =====
-        function showModal(id) {
-            const el = document.getElementById(id);
-            if (el) el.classList.add('active');
         }
 
-        function hideModal(id) {
-            const el = document.getElementById(id);
-            if (el) el.classList.remove('active');
-        }
-
-        // Close modal on overlay click
-        document.querySelectorAll('.modal-overlay').forEach(function (overlay) {
-            overlay.addEventListener('click', function (e) {
-                if (e.target === overlay) overlay.classList.remove('active');
+        // Mobile menu toggle - PERFORMANCE OPTIMIZED
+        const mobileMenuButton = document.getElementById('mobile-menu-button');
+        if (mobileMenuButton) {
+            mobileMenuButton.addEventListener('click', function () {
+                const mobileMenu = document.getElementById('mobile-menu');
+                if (mobileMenu) {
+                    mobileMenu.classList.toggle('hidden');
+                }
             });
+        }
+
+        // Toggle sidebar function
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarCollapsed = document.getElementById('sidebar-collapsed');
+            const isCollapsed = sidebar.classList.contains('hidden');
+
+            if (isCollapsed) {
+                // Expand sidebar
+                sidebar.classList.remove('hidden');
+                sidebarCollapsed.classList.add('hidden');
+                document.body.classList.remove('sidebar-collapsed');
+                localStorage.setItem('sidebarCollapsed', 'false');
+            } else {
+                // Collapse sidebar
+                sidebar.classList.add('hidden');
+                sidebarCollapsed.classList.remove('hidden');
+                document.body.classList.add('sidebar-collapsed');
+                localStorage.setItem('sidebarCollapsed', 'true');
+            }
+        }
+
+        // Initialize sidebar state on page load - PERFORMANCE OPTIMIZED
+        document.addEventListener('DOMContentLoaded', function () {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarCollapsed = document.getElementById('sidebar-collapsed');
+            const sidebarToggle = document.getElementById('sidebar-toggle');
+            const sidebarExpand = document.getElementById('sidebar-expand');
+
+            if (sidebar && sidebarCollapsed) {
+                // Check localStorage for saved state
+                const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+
+                if (isCollapsed) {
+                    sidebar.classList.add('hidden');
+                    sidebarCollapsed.classList.remove('hidden');
+                    document.body.classList.add('sidebar-collapsed');
+                } else {
+                    sidebar.classList.remove('hidden');
+                    sidebarCollapsed.classList.add('hidden');
+                    document.body.classList.remove('sidebar-collapsed');
+                }
+
+                // Add event listeners with performance optimizations
+                if (sidebarToggle) {
+                    sidebarToggle.addEventListener('click', toggleSidebar);
+                }
+
+                if (sidebarExpand) {
+                    sidebarExpand.addEventListener('click', toggleSidebar);
+                }
+
+                // Debug: Log sidebar state
+                console.log('Sidebar initialized:', {
+                    sidebar: sidebar ? 'found' : 'not found',
+                    sidebarCollapsed: sidebarCollapsed ? 'found' : 'not found',
+                    sidebarToggle: sidebarToggle ? 'found' : 'not found',
+                    sidebarExpand: sidebarExpand ? 'found' : 'not found',
+                    isCollapsed: isCollapsed
+                });
+            } else {
+                console.log('Sidebar elements not found');
+            }
         });
 
-        // ===== QUICK ACTIONS =====
-        function showQuickActions() { showModal('quickActionsModal'); }
-
-        function quickAction(action) {
-            hideModal('quickActionsModal');
-            switch (action) {
-                case 'add-transaction': window.location.href = '/finances/transactions'; break;
-                case 'view-stats':      window.location.href = '/finances/statistics'; break;
+        // Quick actions - PERFORMANCE OPTIMIZED
+        function showQuickActions() {
+            if (typeof showModal === 'function') {
+                showModal('quickActionsModal');
             }
         }
 
-        // ===== PAGE LOAD ANIMATIONS =====
-        (function () {
-            function init() {
-                document.body.classList.add('loaded');
-                // Lazy images
-                document.querySelectorAll('img[data-src]').forEach(function (img) {
-                    const obs = new IntersectionObserver(function (entries, o) {
-                        entries.forEach(function (entry) {
-                            if (entry.isIntersecting) {
-                                img.src = img.dataset.src;
-                                img.classList.add('loaded');
-                                o.unobserve(img);
-                            }
-                        });
-                    });
-                    obs.observe(img);
-                });
+        function quickAction(action) {
+            if (typeof hideModal === 'function') {
+                hideModal('quickActionsModal');
             }
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', init);
-            } else {
-                init();
-            }
-        })();
 
-        // ===== SERVICE WORKER =====
+            switch (action) {
+                case 'add-transaction':
+                    window.location.href = '/finances/transactions';
+                    break;
+                case 'add-goal':
+                    window.location.href = '/goals';
+                    break;
+                case 'add-memory':
+                    window.location.href = '/memories';
+                    break;
+                case 'view-stats':
+                    window.location.href = '/finances/statistics';
+                    break;
+            }
+        }
+
+        // PERFORMANCE OPTIMIZATIONS
+        // Preload critical resources
+        function preloadCriticalResources() {
+            // Preload critical CSS
+            const criticalCSS = document.createElement('link');
+            criticalCSS.rel = 'preload';
+            criticalCSS.as = 'style';
+            criticalCSS.href = '/static/css/main.css?v=20251002';
+            document.head.appendChild(criticalCSS);
+        }
+
+        // Lazy load non-critical resources
+        function lazyLoadResources() {
+            // Lazy load images
+            const images = document.querySelectorAll('img[data-src]');
+            const imageObserver = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const img = entry.target;
+                        img.src = img.dataset.src;
+                        img.classList.remove('lazy-load');
+                        img.classList.add('loaded');
+                        observer.unobserve(img);
+                    }
+                });
+            });
+
+            images.forEach(img => imageObserver.observe(img));
+        }
+
+        // Initialize performance optimizations and animations
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function () {
+                preloadCriticalResources();
+                lazyLoadResources();
+                // Start page animations immediately
+                document.body.classList.add('loaded');
+            });
+        } else {
+            preloadCriticalResources();
+            lazyLoadResources();
+            // Start page animations immediately
+            document.body.classList.add('loaded');
+        }
+
+        // Service Worker registration for caching (if supported)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function () {
-                navigator.serviceWorker.register('/sw.js').catch(function () {});
+                navigator.serviceWorker.register('/sw.js')
+                    .then(function (registration) {
+                        console.log('SW registered: ', registration);
+                    })
+                    .catch(function (registrationError) {
+                        console.log('SW registration failed: ', registrationError);
+                    });
             });
         }
     </script>

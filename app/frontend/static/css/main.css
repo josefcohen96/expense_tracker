@@ -1042,3 +1042,186 @@ body {
 .icon-pulse {
   animation: iconPulse 2s ease-in-out infinite;
 }
+/* ===== MOBILE RESPONSIVE IMPROVEMENTS ===== */
+
+/* Button sizes */
+.btn-sm {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+}
+
+.btn-xs {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 4px;
+}
+
+/* ===== MOBILE TABLE: card-style layout ===== */
+@media (max-width: 640px) {
+  /* Disable transitions on mobile for perf */
+  .btn, .card, .sidebar-item {
+    transition: none !important;
+  }
+
+  /* Keep action buttons compact on mobile */
+  .table .btn-sm {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.75rem;
+  }
+
+  /* Smaller headings on mobile */
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1.1rem; }
+
+  /* Full-width form elements */
+  .form-group { margin-bottom: 1rem; }
+  .form-input, .form-select {
+    font-size: 16px; /* Prevents iOS zoom on focus */
+    padding: 0.6rem 0.875rem;
+  }
+
+  /* Cards: tighter padding */
+  .card-header, .card-body, .card-footer {
+    padding: 0.875rem 1rem;
+  }
+
+  /* Stat cards side by side on small screens */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .stats-grid .card .font-mono.text-3xl {
+    font-size: 1.4rem;
+  }
+
+  /* Modal: full-screen style on mobile */
+  .modal-content {
+    max-height: 95vh;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border-radius: 20px 20px 0 0;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  /* Reduce chart heights on mobile */
+  canvas {
+    max-height: 220px !important;
+  }
+}
+
+/* ===== DASHBOARD STATS: 2-column on mobile ===== */
+@media (max-width: 640px) {
+  /* Force 2-col stats grid */
+  .grid.grid-cols-1.md\:grid-cols-4 {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.75rem;
+  }
+
+  .grid.grid-cols-1.md\:grid-cols-4 .card .text-3xl {
+    font-size: 1.3rem;
+  }
+}
+
+/* ===== TRANSACTIONS TABLE: responsive columns ===== */
+/* Already handled in HTML with hidden sm/md/lg classes */
+
+/* Overflow table wrapper */
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+}
+
+/* ===== FORM IMPROVEMENTS ===== */
+/* Prevent iOS zoom on focus (requires font-size: 16px) */
+@media (max-width: 767px) {
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  input[type="email"],
+  input[type="password"],
+  input[type="month"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* ===== CARD HOVER: only on desktop ===== */
+@media (hover: none) {
+  .card:hover {
+    transform: none;
+    box-shadow: var(--shadow-sm);
+  }
+}
+
+/* ===== FILTER SECTION COLLAPSIBLE ON MOBILE ===== */
+.filter-toggle-btn {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .filter-toggle-btn {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: none;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    color: #374151;
+  }
+
+  .filter-body {
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+
+  .filter-body.collapsed {
+    max-height: 0;
+    padding: 0;
+  }
+}
+
+/* ===== PAGINATION: wrap on mobile ===== */
+@media (max-width: 640px) {
+  .pagination-wrapper {
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+  }
+
+  .pagination-numbers {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+  }
+}
+
+/* ===== TABLE ACTIONS COLUMN ===== */
+@media (max-width: 640px) {
+  .table td .flex.items-center.gap-2 {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+}
+
+/* ===== IMPROVE CHECKBOX AND TOGGLE TOUCH TARGETS ===== */
+input[type="checkbox"],
+input[type="radio"] {
+  min-width: 20px;
+  min-height: 20px;
+}

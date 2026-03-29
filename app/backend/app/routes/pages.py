@@ -1593,26 +1593,24 @@ async def wedding_dashboard(request: Request, db_conn: sqlite3.Connection = Depe
 
 @router.get("/wedding/vendors", response_class=HTMLResponse)
 async def wedding_vendors_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
-    category_filter = request.query_params.get("category", "")
-    status_filter   = request.query_params.get("status", "")
-
-    query  = "SELECT * FROM wedding_vendors WHERE 1=1"
-    params: list = []
-    if category_filter:
-        query += " AND category=?"
-        params.append(category_filter)
-    if status_filter:
-        query += " AND status=?"
-        params.append(status_filter)
-    query += " ORDER BY category, name"
-
-    vendors = [dict(v) for v in db_conn.execute(query, params).fetchall()]
-
+    vendors = [dict(v) for v in db_conn.execute(
+        "SELECT * FROM wedding_vendors ORDER BY category, name"
+    ).fetchall()]
     return templates.TemplateResponse("wedding/vendors.html", {
         "request": request,
         "vendors": vendors,
-        "category_filter": category_filter,
-        "status_filter": status_filter,
+    })
+
+
+@router.get("/wedding/vendors/{vendor_id}", response_class=HTMLResponse)
+async def wedding_vendor_detail_page(vendor_id: int, request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    vendor = db_conn.execute("SELECT * FROM wedding_vendors WHERE id=?", (vendor_id,)).fetchone()
+    if not vendor:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    return templates.TemplateResponse("wedding/vendor_detail.html", {
+        "request": request,
+        "vendor": dict(vendor),
     })
 
 

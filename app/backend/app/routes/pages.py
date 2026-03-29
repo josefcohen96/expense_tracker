@@ -1537,9 +1537,12 @@ async def finances_backup(request: Request) -> HTMLResponse:
 
 @router.get("/wedding", response_class=HTMLResponse)
 async def wedding_dashboard(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
-    total_guests = db_conn.execute(
-        "SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests"
-    ).fetchone()[0]
+    try:
+        total_guests = db_conn.execute(
+            "SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests"
+        ).fetchone()[0]
+    except Exception:
+        total_guests = db_conn.execute("SELECT COUNT(*) FROM wedding_guests").fetchone()[0]
     confirmed    = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='confirmed'").fetchone()[0]
     declined     = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='declined'").fetchone()[0]
     maybe        = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='maybe'").fetchone()[0]
@@ -1645,9 +1648,12 @@ async def wedding_guests_page(request: Request, db_conn: sqlite3.Connection = De
     plus_ones    = db_conn.execute(
         "SELECT COUNT(*) FROM wedding_guests WHERE plus_one=1"
     ).fetchone()[0]
-    children_total = db_conn.execute(
-        "SELECT COALESCE(SUM(children_count), 0) FROM wedding_guests"
-    ).fetchone()[0]
+    try:
+        children_total = db_conn.execute(
+            "SELECT COALESCE(SUM(children_count), 0) FROM wedding_guests"
+        ).fetchone()[0]
+    except Exception:
+        children_total = 0
 
     groups = [r[0] for r in db_conn.execute(
         "SELECT DISTINCT group_name FROM wedding_guests WHERE group_name IS NOT NULL AND group_name!='' ORDER BY group_name"

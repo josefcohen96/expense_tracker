@@ -116,13 +116,6 @@
                 </div>
 
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">הצעת מחיר (₪)</label>
-                    <input type="number" name="price_quoted" value="{{ vendor.price_quoted or '' }}" dir="ltr"
-                           class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
-                           placeholder="0">
-                </div>
-
-                <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">סטטוס</label>
                     <select name="status" class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
                         <option value="not_contacted"   {% if vendor.status == 'not_contacted' %}selected{% endif %}>לא נוצר קשר</option>
@@ -145,6 +138,68 @@
                     <input type="date" name="deposit_paid_date" value="{{ vendor.deposit_paid_date or '' }}"
                            class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
                 </div>
+
+                <!-- ─── Quote Items Section ──────────────────────────────────── -->
+                <div class="sm:col-span-2 border border-gray-200 rounded-xl p-4 bg-gray-50">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm font-semibold text-gray-700">פירוט הצעת מחיר</span>
+                        <button type="button" onclick="addItemRow()"
+                                class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 font-medium px-3 py-1 rounded-lg transition-colors">
+                            + הוסף מרכיב
+                        </button>
+                    </div>
+
+                    <!-- Column Headers -->
+                    <div class="grid gap-1 mb-1 px-1 text-xs text-gray-400 font-medium"
+                         style="grid-template-columns: 1fr 60px 90px 70px 28px">
+                        <span>תיאור</span>
+                        <span class="text-center">כמות</span>
+                        <span class="text-center">מחיר ליח' (₪)</span>
+                        <span class="text-center">+ מע"מ</span>
+                        <span></span>
+                    </div>
+
+                    <!-- Items Container -->
+                    <div id="items-list" class="space-y-1.5"></div>
+
+                    <!-- Totals -->
+                    <div id="quote-totals" class="mt-3 pt-3 border-t border-gray-200 space-y-1 text-sm hidden">
+                        <div class="flex justify-between text-gray-500">
+                            <span>סה"כ לפני מע"מ</span>
+                            <span id="tot-pre-vat" class="font-medium tabular-nums">₪0</span>
+                        </div>
+                        <div class="flex justify-between text-gray-500">
+                            <span>מע"מ (17%)</span>
+                            <span id="tot-vat" class="font-medium tabular-nums">₪0</span>
+                        </div>
+                        <div class="flex justify-between font-bold text-gray-800 border-t border-gray-300 pt-1">
+                            <span>סה"כ כולל מע"מ</span>
+                            <span id="tot-total" class="tabular-nums">₪0</span>
+                        </div>
+                    </div>
+
+                    <!-- Manual price (shown when no items) -->
+                    <div id="manual-price-wrap" class="mt-3">
+                        <label class="block text-xs font-medium text-gray-500 mb-1">
+                            הצעת מחיר (₪)
+                            <span id="manual-price-note" class="text-gray-400 hidden"> — מחושב אוטומטית מהמרכיבים</span>
+                        </label>
+                        <input type="number" id="price_quoted_input" name="price_quoted"
+                               value="{{ vendor.price_quoted or '' }}" dir="ltr"
+                               class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                               placeholder="0">
+                    </div>
+
+                    <!-- Save Items Button -->
+                    <div class="mt-3 flex items-center justify-between">
+                        <span id="items-save-msg" class="text-xs text-green-600 hidden">המרכיבים נשמרו</span>
+                        <button type="button" onclick="saveQuoteItems()"
+                                class="mr-auto text-xs bg-gray-700 hover:bg-gray-800 text-white px-4 py-1.5 rounded-lg transition-colors">
+                            שמור מרכיבים
+                        </button>
+                    </div>
+                </div>
+                <!-- ─────────────────────────────────────────────────────────── -->
 
                 <div class="sm:col-span-2">
                     <label class="block text-xs font-medium text-gray-500 mb-1">מה כולל ההצעה</label>
@@ -178,6 +233,7 @@
 
 <script>
 const VENDOR_ID = {{ vendor.id }};
+const VAT_RATE = 0.17;
 
 const STATUS_LABELS = {
     not_contacted:   'לא נוצר קשר',
@@ -194,21 +250,139 @@ const STATUS_COLORS = {
     fully_paid:      'bg-green-100 text-green-700'
 };
 
+// ─── Quote Items ─────────────────────────────────────────────────────────────
+
+// Seed from server-rendered data
+let quoteItems = {{ quote_items | tojson }};
+
+function fmt(n) {
+    return '₪' + n.toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function recalcTotals() {
+    const rows = document.querySelectorAll('#items-list .item-row');
+    let preVat = 0, vatAmount = 0;
+    rows.forEach(row => {
+        const qty   = parseFloat(row.querySelector('.item-qty').value) || 0;
+        const price = parseFloat(row.querySelector('.item-price').value) || 0;
+        const applyVat = row.querySelector('.item-vat').checked;
+        const lineTotal = qty * price;
+        preVat += lineTotal;
+        if (applyVat) vatAmount += lineTotal * VAT_RATE;
+    });
+    const total = preVat + vatAmount;
+
+    const hasTotals = rows.length > 0;
+    document.getElementById('quote-totals').classList.toggle('hidden', !hasTotals);
+    document.getElementById('tot-pre-vat').textContent  = fmt(preVat);
+    document.getElementById('tot-vat').textContent      = fmt(vatAmount);
+    document.getElementById('tot-total').textContent    = fmt(total);
+
+    // Sync manual price field
+    const priceInput = document.getElementById('price_quoted_input');
+    const manualNote = document.getElementById('manual-price-note');
+    if (hasTotals) {
+        priceInput.value    = Math.round(total * 100) / 100;
+        priceInput.readOnly = true;
+        priceInput.classList.add('bg-gray-100', 'text-gray-500');
+        manualNote.classList.remove('hidden');
+    } else {
+        priceInput.readOnly = false;
+        priceInput.classList.remove('bg-gray-100', 'text-gray-500');
+        manualNote.classList.add('hidden');
+    }
+}
+
+function makeItemRow(item) {
+    const div = document.createElement('div');
+    div.className = 'item-row grid gap-1 items-center';
+    div.style.gridTemplateColumns = '1fr 60px 90px 70px 28px';
+
+    const desc  = item.description || '';
+    const qty   = item.quantity    ?? 1;
+    const price = item.unit_price  ?? 0;
+    const vat   = item.apply_vat   ?? 1;
+
+    div.innerHTML = `
+        <input type="text"  value="${desc}"  placeholder="תיאור"
+               class="item-desc border rounded-lg px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-rose-300 bg-white">
+        <input type="number" value="${qty}"  min="0" step="any"
+               class="item-qty border rounded-lg px-2 py-1.5 text-sm w-full text-center focus:outline-none focus:ring-1 focus:ring-rose-300 bg-white" dir="ltr">
+        <input type="number" value="${price}" min="0" step="any" placeholder="0"
+               class="item-price border rounded-lg px-2 py-1.5 text-sm w-full text-center focus:outline-none focus:ring-1 focus:ring-rose-300 bg-white" dir="ltr">
+        <label class="flex items-center justify-center gap-1 cursor-pointer text-xs text-gray-600">
+            <input type="checkbox" ${vat ? 'checked' : ''} class="item-vat accent-rose-500 w-4 h-4">
+            כן
+        </label>
+        <button type="button" onclick="removeRow(this)"
+                class="text-gray-300 hover:text-red-400 transition-colors text-lg leading-none font-light">×</button>
+    `;
+    div.querySelectorAll('input').forEach(el => el.addEventListener('input', recalcTotals));
+    return div;
+}
+
+function renderItems() {
+    const list = document.getElementById('items-list');
+    list.innerHTML = '';
+    quoteItems.forEach(item => list.appendChild(makeItemRow(item)));
+    recalcTotals();
+}
+
+function addItemRow() {
+    const list = document.getElementById('items-list');
+    list.appendChild(makeItemRow({ description: '', quantity: 1, unit_price: 0, apply_vat: 1 }));
+    recalcTotals();
+    list.lastElementChild.querySelector('.item-desc').focus();
+}
+
+function removeRow(btn) {
+    btn.closest('.item-row').remove();
+    recalcTotals();
+}
+
+function collectItems() {
+    return Array.from(document.querySelectorAll('#items-list .item-row')).map(row => ({
+        description: row.querySelector('.item-desc').value.trim(),
+        quantity:    parseFloat(row.querySelector('.item-qty').value)   || 1,
+        unit_price:  parseFloat(row.querySelector('.item-price').value) || 0,
+        apply_vat:   row.querySelector('.item-vat').checked ? 1 : 0,
+    })).filter(item => item.description);
+}
+
+function saveQuoteItems() {
+    const items = collectItems();
+    fetch(`/api/wedding/vendors/${VENDOR_ID}/quote-items`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(items)
+    })
+    .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+    .then(data => {
+        quoteItems = data.items;
+        const msg = document.getElementById('items-save-msg');
+        msg.classList.remove('hidden');
+        setTimeout(() => msg.classList.add('hidden'), 3000);
+    })
+    .catch(() => alert('שגיאה בשמירת המרכיבים'));
+}
+
+// ─── Vendor Form ─────────────────────────────────────────────────────────────
+
 function saveVendor(e) {
     e.preventDefault();
     const form = document.getElementById('vendor-form');
     const data = new FormData(form);
     const payload = {
-        name:             data.get('name')?.trim() || null,
-        category:         data.get('category'),
-        contact_name:     data.get('contact_name')?.trim() || null,
-        phone:            data.get('phone')?.trim() || null,
-        price_quoted:     parseFloat(data.get('price_quoted')) || null,
-        status:           data.get('status'),
-        deposit_amount:   parseFloat(data.get('deposit_amount')) || null,
-        deposit_paid_date:data.get('deposit_paid_date') || null,
-        what_included:    data.get('what_included')?.trim() || null,
-        notes:            data.get('notes')?.trim() || null,
+        name:              data.get('name')?.trim() || null,
+        category:          data.get('category'),
+        contact_name:      data.get('contact_name')?.trim() || null,
+        phone:             data.get('phone')?.trim() || null,
+        price_quoted:      parseFloat(document.getElementById('price_quoted_input').value) || null,
+        status:            data.get('status'),
+        deposit_amount:    parseFloat(data.get('deposit_amount')) || null,
+        deposit_paid_date: data.get('deposit_paid_date') || null,
+        what_included:     data.get('what_included')?.trim() || null,
+        notes:             data.get('notes')?.trim() || null,
     };
 
     fetch(`/api/wedding/vendors/${VENDOR_ID}`, {
@@ -218,12 +392,10 @@ function saveVendor(e) {
     })
     .then(r => { if (!r.ok) throw new Error(); return r.json(); })
     .then(v => {
-        // Update display elements
         document.getElementById('display-name').textContent = v.name;
         const statusEl = document.getElementById('display-status');
         statusEl.textContent = STATUS_LABELS[v.status] || v.status;
         statusEl.className = `px-3 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[v.status] || 'bg-gray-100 text-gray-600'}`;
-
         const msg = document.getElementById('save-msg');
         msg.classList.remove('hidden');
         setTimeout(() => msg.classList.add('hidden'), 3000);
@@ -236,5 +408,8 @@ function deleteVendor() {
     fetch(`/api/wedding/vendors/${VENDOR_ID}`, { method: 'DELETE' })
         .then(() => window.location.href = '/wedding/vendors');
 }
+
+// Init
+renderItems();
 </script>
 {% endblock %}

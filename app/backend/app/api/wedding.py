@@ -95,6 +95,14 @@ class SettingUpsert(BaseModel):
     key: str
     value: str
 
+class QuoteItem(BaseModel):
+    id: Optional[int] = None
+    description: str
+    quantity: float = 1
+    unit_price: float = 0
+    apply_vat: int = 1
+    sort_order: int = 0
+
 
 # ─── Vendors ────────────────────────────────────────────────────────────────
 
@@ -139,8 +147,61 @@ async def update_vendor(vendor_id: int, body: VendorUpdate, db_conn: sqlite3.Con
 
 @router.delete("/vendors/{vendor_id}", status_code=204)
 async def delete_vendor(vendor_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    db_conn.execute("DELETE FROM vendor_quote_items WHERE vendor_id=?", (vendor_id,))
     db_conn.execute("DELETE FROM wedding_vendors WHERE id=?", (vendor_id,))
     db_conn.commit()
+
+
+# ─── Quote Items ─────────────────────────────────────────────────────────────
+
+VAT_RATE = 0.17
+
+def _recalculate_price_quoted(vendor_id: int, db_conn: sqlite3.Connection) -> float:
+    rows = db_conn.execute(
+        "SELECT quantity, unit_price, apply_vat FROM vendor_quote_items WHERE vendor_id=?",
+        (vendor_id,)
+    ).fetchall()
+    if not rows:
+        return 0.0
+    pre_vat = sum(r["quantity"] * r["unit_price"] for r in rows)
+    vat = sum(r["quantity"] * r["unit_price"] for r in rows if r["apply_vat"]) * VAT_RATE
+    total = round(pre_vat + vat, 2)
+    db_conn.execute("UPDATE wedding_vendors SET price_quoted=? WHERE id=?", (total, vendor_id))
+    return total
+
+
+@router.get("/vendors/{vendor_id}/quote-items")
+async def get_quote_items(vendor_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    rows = db_conn.execute(
+        "SELECT * FROM vendor_quote_items WHERE vendor_id=? ORDER BY sort_order, id",
+        (vendor_id,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+@router.put("/vendors/{vendor_id}/quote-items")
+async def replace_quote_items(
+    vendor_id: int,
+    items: list[QuoteItem],
+    db_conn: sqlite3.Connection = Depends(get_db_conn)
+):
+    if not db_conn.execute("SELECT 1 FROM wedding_vendors WHERE id=?", (vendor_id,)).fetchone():
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    db_conn.execute("DELETE FROM vendor_quote_items WHERE vendor_id=?", (vendor_id,))
+    for i, item in enumerate(items):
+        db_conn.execute(
+            """INSERT INTO vendor_quote_items
+               (vendor_id, description, quantity, unit_price, apply_vat, sort_order)
+               VALUES (?,?,?,?,?,?)""",
+            (vendor_id, item.description, item.quantity, item.unit_price, item.apply_vat, i),
+        )
+    total = _recalculate_price_quoted(vendor_id, db_conn)
+    db_conn.commit()
+    rows = db_conn.execute(
+        "SELECT * FROM vendor_quote_items WHERE vendor_id=? ORDER BY sort_order, id",
+        (vendor_id,)
+    ).fetchall()
+    return {"items": [dict(r) for r in rows], "total": total}
 
 
 # ─── Guests ─────────────────────────────────────────────────────────────────

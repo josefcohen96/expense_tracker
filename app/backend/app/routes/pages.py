@@ -1608,9 +1608,14 @@ async def wedding_vendor_detail_page(vendor_id: int, request: Request, db_conn: 
     if not vendor:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Vendor not found")
+    quote_items = [dict(r) for r in db_conn.execute(
+        "SELECT * FROM vendor_quote_items WHERE vendor_id=? ORDER BY sort_order, id",
+        (vendor_id,)
+    ).fetchall()]
     return templates.TemplateResponse("wedding/vendor_detail.html", {
         "request": request,
         "vendor": dict(vendor),
+        "quote_items": quote_items,
     })
 
 

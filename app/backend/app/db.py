@@ -325,6 +325,19 @@ def initialise_database() -> None:
     """)
 
     cur.execute("""
+        CREATE TABLE IF NOT EXISTS vendor_quote_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            vendor_id INTEGER NOT NULL,
+            description TEXT NOT NULL,
+            quantity REAL DEFAULT 1,
+            unit_price REAL NOT NULL DEFAULT 0,
+            apply_vat INTEGER DEFAULT 1,
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS wedding_guests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,

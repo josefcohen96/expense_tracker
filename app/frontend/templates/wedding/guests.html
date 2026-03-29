@@ -21,17 +21,18 @@
     <!-- Header -->
     <div class="flex flex-wrap items-center justify-between gap-3">
         <h1 class="text-2xl font-bold text-gray-900">רשימת מוזמנים 👥</h1>
-        <button onclick="openModal('add-guest-modal')"
+        <button onclick="openGuestModal()"
                 class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
             + הוסף מוזמן
         </button>
     </div>
 
     <!-- Stats -->
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div class="bg-white rounded-xl shadow p-4 text-center">
-            <div class="text-2xl font-bold text-gray-900">{{ total }}</div>
-            <div class="text-xs text-gray-500 mt-1">סה"כ</div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        <div class="bg-white rounded-xl shadow p-4 text-center col-span-2 sm:col-span-2 border-t-4 border-rose-500">
+            <div class="text-2xl font-bold text-rose-600">{{ total_people }}</div>
+            <div class="text-xs text-gray-500 mt-1">סה"כ אנשים</div>
+            <div class="text-xs text-gray-400">{{ total_invitations }} הזמנות</div>
         </div>
         <div class="bg-white rounded-xl shadow p-4 text-center border-t-4 border-green-500">
             <div class="text-2xl font-bold text-green-600">{{ confirmed }}</div>
@@ -49,9 +50,13 @@
             <div class="text-2xl font-bold text-red-500">{{ declined }}</div>
             <div class="text-xs text-gray-500 mt-1">לא מגיעים</div>
         </div>
+        <div class="bg-white rounded-xl shadow p-4 text-center border-t-4 border-indigo-400">
+            <div class="text-2xl font-bold text-indigo-600">{{ plus_ones }}</div>
+            <div class="text-xs text-gray-500 mt-1">+1</div>
+        </div>
         <div class="bg-white rounded-xl shadow p-4 text-center border-t-4 border-blue-400">
             <div class="text-2xl font-bold text-blue-600">{{ needs_transport }}</div>
-            <div class="text-xs text-gray-500 mt-1">צריכים הסעה</div>
+            <div class="text-xs text-gray-500 mt-1">הסעה</div>
         </div>
     </div>
 
@@ -93,6 +98,7 @@
                         <th class="px-4 py-3 text-right font-medium text-gray-600">קבוצה</th>
                         <th class="px-4 py-3 text-right font-medium text-gray-600">סטטוס</th>
                         <th class="px-4 py-3 text-right font-medium text-gray-600">+1</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">ילדים</th>
                         <th class="px-4 py-3 text-right font-medium text-gray-600">הסעה</th>
                         <th class="px-4 py-3 text-right font-medium text-gray-600">שולחן</th>
                         <th class="px-4 py-3 text-right font-medium text-gray-600">הערות</th>
@@ -120,6 +126,11 @@
                                 {% if g.plus_one_name %}<span class="text-xs text-gray-400 block">{{ g.plus_one_name }}</span>{% endif %}
                             {% else %}-{% endif %}
                         </td>
+                        <td class="px-4 py-3 text-gray-600 text-center">
+                            {% if g.children_count and g.children_count > 0 %}
+                            <span class="font-medium text-blue-600">{{ g.children_count }}</span>
+                            {% else %}-{% endif %}
+                        </td>
                         <td class="px-4 py-3">
                             {% if g.needs_transport %}
                             <span class="text-blue-600 font-medium text-xs">🚌 כן</span>
@@ -131,8 +142,10 @@
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap">
                             <div class="flex gap-2">
-                                <button onclick="editGuest({{ g | tojson }})"
-                                        class="text-blue-600 hover:text-blue-800 text-xs font-medium">ערוך</button>
+                                <button
+                                    data-guest="{{ g | tojson | e }}"
+                                    onclick="editGuestFromBtn(this)"
+                                    class="text-blue-600 hover:text-blue-800 text-xs font-medium">ערוך</button>
                                 <button onclick="deleteGuest({{ g.id }})"
                                         class="text-red-500 hover:text-red-700 text-xs font-medium">מחק</button>
                             </div>
@@ -189,7 +202,12 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">מספר שולחן</label>
                 <input type="number" id="g-table" class="border rounded px-3 py-2 w-full text-sm" placeholder="1" dir="ltr">
             </div>
-            <div class="flex flex-col gap-3 pt-1">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ילדים (מעל גיל 12)</label>
+                <input type="number" id="g-children" class="border rounded px-3 py-2 w-full text-sm"
+                       placeholder="0" min="0" dir="ltr">
+            </div>
+            <div class="sm:col-span-2 flex flex-wrap gap-4">
                 <label class="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" id="g-plus-one" class="w-4 h-4 accent-rose-500">
                     <span class="text-sm text-gray-700">מגיע עם +1</span>
@@ -210,7 +228,7 @@
         </div>
 
         <div class="flex gap-2 justify-end mt-5">
-            <button onclick="closeModal('add-guest-modal')"
+            <button onclick="closeGuestModal()"
                     class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm">ביטול</button>
             <button onclick="saveGuest()"
                     class="px-4 py-2 bg-rose-600 text-white rounded hover:bg-rose-700 text-sm font-medium">שמור</button>
@@ -219,12 +237,17 @@
 </div>
 
 <script>
-function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
-function closeModal(id) {
-    document.getElementById(id).classList.add('hidden');
+function openGuestModal() {
+    document.getElementById('add-guest-modal').classList.remove('hidden');
+}
+
+function closeGuestModal() {
+    document.getElementById('add-guest-modal').classList.add('hidden');
     document.getElementById('guest-id').value = '';
     document.getElementById('guest-modal-title').textContent = 'הוספת מוזמן';
-    ['g-name','g-phone','g-group','g-table','g-plus-one-name','g-notes'].forEach(f => document.getElementById(f).value = '');
+    ['g-name','g-phone','g-group','g-table','g-children','g-plus-one-name','g-notes'].forEach(function(f) {
+        document.getElementById(f).value = '';
+    });
     document.getElementById('g-status').value = 'pending';
     document.getElementById('g-plus-one').checked = false;
     document.getElementById('g-transport').checked = false;
@@ -235,7 +258,8 @@ document.getElementById('g-plus-one').addEventListener('change', function() {
     document.getElementById('plus-one-name-wrap').classList.toggle('hidden', !this.checked);
 });
 
-function editGuest(g) {
+function editGuestFromBtn(btn) {
+    var g = JSON.parse(btn.dataset.guest);
     document.getElementById('guest-modal-title').textContent = 'עריכת מוזמן';
     document.getElementById('guest-id').value = g.id;
     document.getElementById('g-name').value = g.name || '';
@@ -243,22 +267,24 @@ function editGuest(g) {
     document.getElementById('g-group').value = g.group_name || '';
     document.getElementById('g-status').value = g.status || 'pending';
     document.getElementById('g-table').value = g.table_number || '';
+    document.getElementById('g-children').value = g.children_count || 0;
     document.getElementById('g-plus-one').checked = !!g.plus_one;
     document.getElementById('g-transport').checked = !!g.needs_transport;
     document.getElementById('g-plus-one-name').value = g.plus_one_name || '';
     document.getElementById('plus-one-name-wrap').classList.toggle('hidden', !g.plus_one);
     document.getElementById('g-notes').value = g.notes || '';
-    openModal('add-guest-modal');
+    openGuestModal();
 }
 
 function saveGuest() {
-    const id = document.getElementById('guest-id').value;
-    const payload = {
+    var id = document.getElementById('guest-id').value;
+    var payload = {
         name: document.getElementById('g-name').value.trim(),
         phone: document.getElementById('g-phone').value.trim() || null,
         group_name: document.getElementById('g-group').value.trim() || null,
         status: document.getElementById('g-status').value,
         table_number: parseInt(document.getElementById('g-table').value) || null,
+        children_count: parseInt(document.getElementById('g-children').value) || 0,
         plus_one: document.getElementById('g-plus-one').checked ? 1 : 0,
         plus_one_name: document.getElementById('g-plus-one-name').value.trim() || null,
         needs_transport: document.getElementById('g-transport').checked ? 1 : 0,
@@ -266,17 +292,17 @@ function saveGuest() {
     };
     if (!payload.name) { alert('יש להזין שם'); return; }
 
-    const url = id ? `/api/wedding/guests/${id}` : '/api/wedding/guests';
-    const method = id ? 'PUT' : 'POST';
-    fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)})
-        .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-        .then(() => location.reload())
-        .catch(() => alert('שגיאה בשמירה'));
+    var url = id ? '/api/wedding/guests/' + id : '/api/wedding/guests';
+    var method = id ? 'PUT' : 'POST';
+    fetch(url, {method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)})
+        .then(function(r) { if (!r.ok) throw new Error(); return r.json(); })
+        .then(function() { location.reload(); })
+        .catch(function() { alert('שגיאה בשמירה'); });
 }
 
 function deleteGuest(id) {
     if (!confirm('למחוק את המוזמן?')) return;
-    fetch(`/api/wedding/guests/${id}`, {method:'DELETE'}).then(() => location.reload());
+    fetch('/api/wedding/guests/' + id, {method: 'DELETE'}).then(function() { location.reload(); });
 }
 </script>
 {% endblock %}

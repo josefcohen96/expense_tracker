@@ -1537,7 +1537,9 @@ async def finances_backup(request: Request) -> HTMLResponse:
 
 @router.get("/wedding", response_class=HTMLResponse)
 async def wedding_dashboard(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
-    total_guests = db_conn.execute("SELECT COUNT(*) FROM wedding_guests").fetchone()[0]
+    total_guests = db_conn.execute(
+        "SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests"
+    ).fetchone()[0]
     confirmed    = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='confirmed'").fetchone()[0]
     declined     = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='declined'").fetchone()[0]
     maybe        = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='maybe'").fetchone()[0]
@@ -1628,14 +1630,20 @@ async def wedding_guests_page(request: Request, db_conn: sqlite3.Connection = De
 
     guests = [dict(g) for g in db_conn.execute(query, params).fetchall()]
 
-    total        = db_conn.execute("SELECT COUNT(*) FROM wedding_guests").fetchone()[0]
+    total_invitations = db_conn.execute("SELECT COUNT(*) FROM wedding_guests").fetchone()[0]
+    total_people = db_conn.execute(
+        "SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests"
+    ).fetchone()[0]
     confirmed    = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='confirmed'").fetchone()[0]
     declined     = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='declined'").fetchone()[0]
     maybe_count  = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='maybe'").fetchone()[0]
     pending      = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='pending'").fetchone()[0]
     needs_transport = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE needs_transport=1").fetchone()[0]
     plus_ones    = db_conn.execute(
-        "SELECT COUNT(*) FROM wedding_guests WHERE plus_one=1 AND status IN ('confirmed','maybe')"
+        "SELECT COUNT(*) FROM wedding_guests WHERE plus_one=1"
+    ).fetchone()[0]
+    children_total = db_conn.execute(
+        "SELECT COALESCE(SUM(children_count), 0) FROM wedding_guests"
     ).fetchone()[0]
 
     groups = [r[0] for r in db_conn.execute(
@@ -1654,6 +1662,9 @@ async def wedding_guests_page(request: Request, db_conn: sqlite3.Connection = De
         "pending": pending,
         "needs_transport": needs_transport,
         "plus_ones": plus_ones,
+        "children_total": children_total,
+        "total_invitations": total_invitations,
+        "total_people": total_people,
         "groups": groups,
     })
 

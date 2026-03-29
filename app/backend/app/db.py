@@ -333,12 +333,20 @@ def initialise_database() -> None:
             status TEXT DEFAULT 'pending',
             plus_one INTEGER DEFAULT 0,
             plus_one_name TEXT,
+            children_count INTEGER DEFAULT 0,
             needs_transport INTEGER DEFAULT 0,
             table_number INTEGER,
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    # Migration: add children_count if missing (existing DBs)
+    try:
+        cols = [r[1] for r in cur.execute("PRAGMA table_info('wedding_guests')").fetchall()]
+        if "children_count" not in cols:
+            cur.execute("ALTER TABLE wedding_guests ADD COLUMN children_count INTEGER DEFAULT 0")
+    except Exception:
+        pass
 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS wedding_tasks (

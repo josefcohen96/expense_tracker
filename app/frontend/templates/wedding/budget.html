@@ -157,7 +157,8 @@
                         <td class="px-5 py-3 text-gray-400 text-xs">{{ item.notes or '' }}</td>
                         <td class="px-5 py-3 whitespace-nowrap">
                             <div class="flex gap-2">
-                                <button onclick="editItem({{ item | tojson }})"
+                                <button data-item='{{ item | tojson }}'
+                                        onclick="editItem(JSON.parse(this.dataset.item))"
                                         class="text-blue-600 hover:text-blue-800 text-xs">ערוך</button>
                                 <button onclick="deleteItem({{ item.id }})"
                                         class="text-red-500 hover:text-red-700 text-xs">מחק</button>

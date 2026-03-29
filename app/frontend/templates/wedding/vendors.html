@@ -164,7 +164,8 @@
                            class="flex-1 text-center py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-medium transition-colors">
                             פרטים מלאים
                         </a>
-                        <button onclick="openEditModal({{ v | tojson }})"
+                        <button data-vendor='{{ v | tojson }}'
+                                onclick="openEditModal(JSON.parse(this.dataset.vendor))"
                                 class="flex-1 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-medium transition-colors">
                             ערוך
                         </button>

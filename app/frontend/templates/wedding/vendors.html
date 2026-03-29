@@ -64,53 +64,82 @@
 
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
             <!-- Card Header -->
-            <div class="bg-rose-50 px-4 py-3 flex items-center gap-2 border-b border-rose-100">
-                <span class="text-xl leading-none">{{ cat_icon }}</span>
-                <h2 class="font-bold text-rose-900 text-sm">{{ cat_label }}</h2>
+            <div class="bg-rose-50 px-4 py-3 flex items-center justify-between gap-2 border-b border-rose-100">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl leading-none">{{ cat_icon }}</span>
+                    <h2 class="font-bold text-rose-900 text-sm">{{ cat_label }}</h2>
+                    {% if cat_vendors %}
+                    <span class="text-xs text-rose-400 font-normal">({{ cat_vendors | length }})</span>
+                    {% endif %}
+                </div>
+                {% if cat_vendors %}
+                <button onclick="openAddModal('{{ cat_key }}')"
+                        class="text-xs text-rose-500 hover:text-rose-700 font-medium shrink-0">+ הוסף</button>
+                {% endif %}
             </div>
 
             <!-- Card Body -->
-            <div class="p-4 flex-1 flex flex-col">
+            <div class="p-3 flex-1 flex flex-col gap-2">
                 {% if cat_vendors %}
-                    {% set v = cat_vendors[0] %}
-                    <div class="flex-1 space-y-2">
-                        <div class="font-semibold text-gray-900">{{ v.name }}</div>
+                    {% set prices = cat_vendors | selectattr('price_quoted') | map(attribute='price_quoted') | list %}
+                    {% set min_price = prices | min if prices else None %}
 
-                        {% if v.contact_name or v.phone %}
-                        <div class="text-sm text-gray-500">
-                            {% if v.contact_name %}{{ v.contact_name }}{% endif %}
-                            {% if v.phone %}<span class="mx-1 text-gray-300">·</span><span dir="ltr">{{ v.phone }}</span>{% endif %}
+                    {% for v in cat_vendors %}
+                    {% set is_chosen = v.status in ['contract_signed', 'deposit_paid', 'fully_paid'] %}
+                    <div class="border rounded-lg p-3 transition-colors
+                        {% if is_chosen %}border-rose-300 bg-rose-50/40{% else %}border-gray-100 bg-white hover:bg-gray-50/50{% endif %}">
+
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="font-semibold text-gray-900 text-sm truncate">{{ v.name }}</span>
+                                    {% if is_chosen %}
+                                    <span class="shrink-0 text-xs bg-rose-600 text-white px-1.5 py-0.5 rounded font-medium">נבחר</span>
+                                    {% endif %}
+                                </div>
+                                {% if v.contact_name or v.phone %}
+                                <div class="text-xs text-gray-400 mt-0.5 truncate">
+                                    {% if v.contact_name %}{{ v.contact_name }}{% endif %}
+                                    {% if v.contact_name and v.phone %} · {% endif %}
+                                    {% if v.phone %}<span dir="ltr">{{ v.phone }}</span>{% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="text-left shrink-0">
+                                {% if v.price_quoted %}
+                                <div class="text-sm font-bold {% if min_price and v.price_quoted == min_price and cat_vendors | length > 1 %}text-green-600{% else %}text-gray-800{% endif %}" dir="ltr">
+                                    ₪{{ "{:,.0f}".format(v.price_quoted) }}
+                                    {% if min_price and v.price_quoted == min_price and cat_vendors | length > 1 %}
+                                    <span class="text-xs">↓</span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                                <span class="inline-block px-1.5 py-0.5 rounded-full text-xs font-medium {{ STATUS_COLORS.get(v.status, 'bg-gray-100 text-gray-600') }}">
+                                    {{ STATUS_LABELS.get(v.status, v.status) }}
+                                </span>
+                            </div>
                         </div>
-                        {% endif %}
-
-                        {% if v.price_quoted %}
-                        <div class="text-sm font-medium text-gray-800" dir="ltr">₪{{ "{:,.0f}".format(v.price_quoted) }}</div>
-                        {% endif %}
-
-                        <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium {{ STATUS_COLORS.get(v.status, 'bg-gray-100 text-gray-600') }}">
-                            {{ STATUS_LABELS.get(v.status, v.status) }}
-                        </span>
 
                         {% if v.what_included %}
-                        <div class="text-xs text-gray-400 line-clamp-2" title="{{ v.what_included }}">{{ v.what_included }}</div>
+                        <div class="text-xs text-gray-400 mt-1.5 line-clamp-1" title="{{ v.what_included }}">{{ v.what_included }}</div>
                         {% endif %}
 
-                        {% if cat_vendors | length > 1 %}
-                        <div class="text-xs text-rose-400">+ {{ cat_vendors | length - 1 }} ספקים נוספים בקטגוריה זו</div>
-                        {% endif %}
+                        <div class="flex gap-3 mt-2">
+                            <a href="/wedding/vendors/{{ v.id }}"
+                               class="text-xs text-rose-600 hover:text-rose-800 font-medium">פרטים</a>
+                            <button data-vendor='{{ v | tojson }}'
+                                    onclick="openEditModal(JSON.parse(this.dataset.vendor))"
+                                    class="text-xs text-gray-500 hover:text-gray-700">ערוך</button>
+                            <button onclick="deleteVendor({{ v.id }}, '{{ v.name }}')"
+                                    class="text-xs text-red-400 hover:text-red-600 mr-auto">מחק</button>
+                        </div>
                     </div>
+                    {% endfor %}
 
-                    <div class="flex gap-2 mt-4 pt-3 border-t border-gray-100">
-                        <a href="/wedding/vendors/{{ v.id }}"
-                           class="flex-1 text-center py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-medium transition-colors">
-                            פרטים מלאים
-                        </a>
-                        <button data-vendor='{{ v | tojson }}'
-                                onclick="openEditModal(JSON.parse(this.dataset.vendor))"
-                                class="flex-1 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-medium transition-colors">
-                            ערוך מהיר
-                        </button>
-                    </div>
+                    <button onclick="openAddModal('{{ cat_key }}')"
+                            class="mt-1 w-full py-2 border border-dashed border-rose-200 hover:border-rose-400 hover:bg-rose-50/30 text-rose-500 hover:text-rose-700 rounded-lg text-xs font-medium transition-colors">
+                        + הוסף ספק נוסף
+                    </button>
                 {% else %}
                     <div class="flex-1 flex flex-col items-center justify-center py-6 text-center">
                         <div class="text-gray-300 text-3xl mb-2">{{ cat_icon }}</div>
@@ -140,36 +169,48 @@
         <h2 class="text-base font-bold text-gray-700 mb-3">ספקים נוספים</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {% for v in ns.others %}
+            {% set is_chosen = v.status in ['contract_signed', 'deposit_paid', 'fully_paid'] %}
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-                <div class="bg-gray-50 px-4 py-3 flex items-center gap-2 border-b border-gray-100">
+                <div class="bg-gray-50 px-4 py-3 flex items-center justify-between gap-2 border-b border-gray-100">
                     <h2 class="font-bold text-gray-700 text-sm">{{ CATEGORY_LABELS.get(v.category, v.category) }}</h2>
+                    <button onclick="openAddModal('{{ v.category }}')"
+                            class="text-xs text-rose-500 hover:text-rose-700 font-medium">+ הוסף</button>
                 </div>
-                <div class="p-4 flex-1 flex flex-col">
-                    <div class="flex-1 space-y-2">
-                        <div class="font-semibold text-gray-900">{{ v.name }}</div>
-                        {% if v.contact_name or v.phone %}
-                        <div class="text-sm text-gray-500">
-                            {% if v.contact_name %}{{ v.contact_name }}{% endif %}
-                            {% if v.phone %}<span class="mx-1 text-gray-300">·</span><span dir="ltr">{{ v.phone }}</span>{% endif %}
+                <div class="p-3">
+                    <div class="border rounded-lg p-3 {% if is_chosen %}border-rose-300 bg-rose-50/40{% else %}border-gray-100{% endif %}">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="font-semibold text-gray-900 text-sm truncate">{{ v.name }}</span>
+                                    {% if is_chosen %}
+                                    <span class="shrink-0 text-xs bg-rose-600 text-white px-1.5 py-0.5 rounded font-medium">נבחר</span>
+                                    {% endif %}
+                                </div>
+                                {% if v.contact_name or v.phone %}
+                                <div class="text-xs text-gray-400 mt-0.5">
+                                    {% if v.contact_name %}{{ v.contact_name }}{% endif %}
+                                    {% if v.contact_name and v.phone %} · {% endif %}
+                                    {% if v.phone %}<span dir="ltr">{{ v.phone }}</span>{% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="text-left shrink-0">
+                                {% if v.price_quoted %}
+                                <div class="text-sm font-bold text-gray-800" dir="ltr">₪{{ "{:,.0f}".format(v.price_quoted) }}</div>
+                                {% endif %}
+                                <span class="inline-block px-1.5 py-0.5 rounded-full text-xs font-medium {{ STATUS_COLORS.get(v.status, 'bg-gray-100 text-gray-600') }}">
+                                    {{ STATUS_LABELS.get(v.status, v.status) }}
+                                </span>
+                            </div>
                         </div>
-                        {% endif %}
-                        {% if v.price_quoted %}
-                        <div class="text-sm font-medium text-gray-800" dir="ltr">₪{{ "{:,.0f}".format(v.price_quoted) }}</div>
-                        {% endif %}
-                        <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium {{ STATUS_COLORS.get(v.status, 'bg-gray-100 text-gray-600') }}">
-                            {{ STATUS_LABELS.get(v.status, v.status) }}
-                        </span>
-                    </div>
-                    <div class="flex gap-2 mt-4 pt-3 border-t border-gray-100">
-                        <a href="/wedding/vendors/{{ v.id }}"
-                           class="flex-1 text-center py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-medium transition-colors">
-                            פרטים מלאים
-                        </a>
-                        <button data-vendor='{{ v | tojson }}'
-                                onclick="openEditModal(JSON.parse(this.dataset.vendor))"
-                                class="flex-1 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-medium transition-colors">
-                            ערוך
-                        </button>
+                        <div class="flex gap-3 mt-2">
+                            <a href="/wedding/vendors/{{ v.id }}" class="text-xs text-rose-600 hover:text-rose-800 font-medium">פרטים</a>
+                            <button data-vendor='{{ v | tojson }}'
+                                    onclick="openEditModal(JSON.parse(this.dataset.vendor))"
+                                    class="text-xs text-gray-500 hover:text-gray-700">ערוך</button>
+                            <button onclick="deleteVendor({{ v.id }}, '{{ v.name }}')"
+                                    class="text-xs text-red-400 hover:text-red-600 mr-auto">מחק</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -333,6 +374,13 @@ function saveVendor() {
         .then(r => { if (!r.ok) throw new Error(); return r.json(); })
         .then(() => location.reload())
         .catch(() => alert('שגיאה בשמירה'));
+}
+
+function deleteVendor(id, name) {
+    if (!confirm(`למחוק את הספק "${name}"?`)) return;
+    fetch(`/api/wedding/vendors/${id}`, { method: 'DELETE' })
+        .then(r => { if (!r.ok) throw new Error(); location.reload(); })
+        .catch(() => alert('שגיאה במחיקה'));
 }
 
 // Close on backdrop click

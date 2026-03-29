@@ -94,6 +94,16 @@
 .search-wrap input::-webkit-search-cancel-button { -webkit-appearance: none; }
 .search-wrap .clear-btn { display: none; }
 .search-wrap input:not(:placeholder-shown) ~ .clear-btn { display: flex; }
+
+/* Compact modal form on mobile (~10% smaller) */
+@media (max-width: 639px) {
+    #add-guest-modal .modal-sheet input,
+    #add-guest-modal .modal-sheet select,
+    #add-guest-modal .modal-sheet textarea {
+        padding-top: 0.55rem;
+        padding-bottom: 0.55rem;
+    }
+}
 </style>
 
 <div class="space-y-3 sm:space-y-4" dir="rtl">
@@ -446,7 +456,7 @@
         <!-- Top spacing (mobile) -->
         <div class="sm:hidden h-2 sticky top-0 bg-white z-10"></div>
         <div class="px-5 sm:p-6">
-            <div class="flex items-center justify-between mb-5">
+            <div class="flex items-center justify-between mb-4 sm:mb-5">
                 <h3 id="guest-modal-title" class="text-lg font-bold">הוספת מוזמן</h3>
                 <button onclick="closeGuestModal()" class="text-gray-400 hover:text-gray-600 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -456,7 +466,7 @@
             </div>
             <input type="hidden" id="guest-id" value="">
 
-            <div class="space-y-4">
+            <div class="space-y-3 sm:space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1.5">שם *</label>
                     <input type="text" id="g-name" autocomplete="name"
@@ -529,7 +539,7 @@
                 </div>
             </div>
 
-            <div class="flex gap-3 mt-5 mb-4 sm:mb-0">
+            <div class="flex gap-3 mt-4 mb-3 sm:mt-5 sm:mb-0">
                 <button onclick="closeGuestModal()"
                         class="flex-1 py-3.5 text-gray-600 bg-gray-100 rounded-xl text-sm font-medium min-h-[48px] active:bg-gray-200">ביטול</button>
                 <button onclick="saveGuest()"

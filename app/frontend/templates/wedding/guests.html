@@ -15,8 +15,68 @@
     'maybe':     'bg-yellow-100 text-yellow-700',
     'pending':   'bg-gray-100 text-gray-500'
 } %}
+{% set STATUS_DOTS = {
+    'confirmed': 'bg-green-500',
+    'declined':  'bg-red-500',
+    'maybe':     'bg-yellow-500',
+    'pending':   'bg-gray-400'
+} %}
+{% set STATUS_ORDER = ['pending', 'confirmed', 'maybe', 'declined'] %}
 
-<div class="space-y-4" dir="rtl">
+<style>
+/* iPhone-optimized guest page styles */
+@media (max-width: 639px) {
+    /* Bottom sheet animation */
+    .modal-sheet {
+        transform: translateY(100%);
+        transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .modal-sheet.open {
+        transform: translateY(0);
+    }
+    .modal-backdrop {
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    .modal-backdrop.open {
+        opacity: 1;
+    }
+
+    /* Status picker slide-up */
+    .status-picker {
+        transform: translateY(100%);
+        transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .status-picker.open {
+        transform: translateY(0);
+    }
+
+    /* Card press effect */
+    .guest-card:active {
+        transform: scale(0.98);
+        transition: transform 0.1s ease;
+    }
+
+    /* Smooth scroll */
+    .guest-list {
+        -webkit-overflow-scrolling: touch;
+        scroll-behavior: smooth;
+    }
+}
+
+/* Search input clear button */
+.search-wrap input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+}
+.search-wrap .clear-btn {
+    display: none;
+}
+.search-wrap input:not(:placeholder-shown) ~ .clear-btn {
+    display: flex;
+}
+</style>
+
+<div class="space-y-3 sm:space-y-4" dir="rtl">
 
     <!-- Header -->
     <div class="flex items-center justify-between">
@@ -28,9 +88,65 @@
         </button>
     </div>
 
-    <!-- Stats -->
-    <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-        <div class="bg-white rounded-xl shadow p-3 text-center col-span-3 sm:col-span-2 border-t-4 border-rose-500">
+    <!-- Mobile Search -->
+    <div class="sm:hidden search-wrap relative">
+        <input type="search" id="mobile-search" placeholder="חיפוש מוזמן..."
+               class="w-full border border-gray-200 rounded-xl px-4 py-3 pr-10 text-base bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
+               oninput="filterGuests(this.value)">
+        <svg class="w-5 h-5 text-gray-400 absolute top-3.5 right-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <button class="clear-btn absolute top-3 left-3 w-7 h-7 rounded-full bg-gray-200 items-center justify-center text-gray-500"
+                onclick="document.getElementById('mobile-search').value=''; filterGuests('');">
+            <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Stats (collapsible on mobile) -->
+    <div class="sm:hidden">
+        <button onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.chevron').classList.toggle('rotate-180')"
+                class="w-full bg-white rounded-xl shadow px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl font-bold text-rose-600">{{ total_people }}</span>
+                <span class="text-sm text-gray-500">מוזמנים</span>
+                <span class="text-xs text-gray-400">({{ total_invitations }} הזמנות)</span>
+            </div>
+            <svg class="chevron w-5 h-5 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+        </button>
+        <div class="hidden grid grid-cols-3 gap-2 mt-2">
+            <div class="bg-white rounded-lg shadow-sm p-2.5 text-center border-r-4 border-green-500">
+                <div class="text-lg font-bold text-green-600">{{ confirmed }}</div>
+                <div class="text-[11px] text-gray-500">מאושר</div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm p-2.5 text-center border-r-4 border-yellow-400">
+                <div class="text-lg font-bold text-yellow-600">{{ maybe_count }}</div>
+                <div class="text-[11px] text-gray-500">אולי</div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm p-2.5 text-center border-r-4 border-gray-300">
+                <div class="text-lg font-bold text-gray-500">{{ pending }}</div>
+                <div class="text-[11px] text-gray-500">ממתין</div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm p-2.5 text-center border-r-4 border-red-400">
+                <div class="text-lg font-bold text-red-500">{{ declined }}</div>
+                <div class="text-[11px] text-gray-500">לא מגיע</div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm p-2.5 text-center border-r-4 border-indigo-400">
+                <div class="text-lg font-bold text-indigo-600">{{ plus_ones }}</div>
+                <div class="text-[11px] text-gray-500">+1</div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm p-2.5 text-center border-r-4 border-blue-400">
+                <div class="text-lg font-bold text-blue-600">{{ needs_transport }}</div>
+                <div class="text-[11px] text-gray-500">הסעה</div>
+            </div>
+        </div>
+    </div>
+    <!-- Desktop stats -->
+    <div class="hidden sm:grid grid-cols-4 lg:grid-cols-7 gap-2">
+        <div class="bg-white rounded-xl shadow p-3 text-center col-span-2 border-t-4 border-rose-500">
             <div class="text-2xl font-bold text-rose-600">{{ total_people }}</div>
             <div class="text-xs text-gray-500 mt-0.5">סה"כ אנשים</div>
             <div class="text-xs text-gray-400">{{ total_invitations }} הזמנות</div>
@@ -61,7 +177,7 @@
     <form method="get" class="bg-white rounded-xl shadow p-3 flex flex-wrap gap-2 items-end">
         <div class="flex-1 min-w-[120px]">
             <label class="block text-xs font-medium text-gray-600 mb-1">קבוצה</label>
-            <select name="group" class="border rounded px-2 py-2 text-sm w-full">
+            <select name="group" class="border border-gray-200 rounded-lg px-3 py-2.5 text-base w-full bg-white">
                 <option value="">כל הקבוצות</option>
                 {% for g in groups %}
                 <option value="{{ g }}" {% if group_filter == g %}selected{% endif %}>{{ g }}</option>
@@ -70,7 +186,7 @@
         </div>
         <div class="flex-1 min-w-[100px]">
             <label class="block text-xs font-medium text-gray-600 mb-1">סטטוס</label>
-            <select name="status" class="border rounded px-2 py-2 text-sm w-full">
+            <select name="status" class="border border-gray-200 rounded-lg px-3 py-2.5 text-base w-full bg-white">
                 <option value="">הכל</option>
                 {% for k, v in STATUS_LABELS.items() %}
                 <option value="{{ k }}" {% if status_filter == k %}selected{% endif %}>{{ v }}</option>
@@ -78,59 +194,80 @@
             </select>
         </div>
         <div class="flex gap-2">
-            <button type="submit" class="px-4 py-2 bg-gray-700 text-white rounded text-sm">סנן</button>
+            <button type="submit" class="px-5 py-2.5 bg-gray-700 text-white rounded-lg text-sm font-medium min-h-[44px]">סנן</button>
             {% if group_filter or status_filter %}
-            <a href="/wedding/guests" class="px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded">איפוס</a>
+            <a href="/wedding/guests" class="px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-100 rounded-lg min-h-[44px] flex items-center">איפוס</a>
             {% endif %}
         </div>
     </form>
 
-    <!-- Guest Cards (mobile) / Table (desktop) -->
+    <!-- Guest List -->
     {% if guests %}
 
     <!-- Mobile Cards -->
-    <div class="sm:hidden space-y-2">
+    <div class="sm:hidden guest-list space-y-2" id="guest-list-mobile">
         {% for g in guests %}
-        <div class="bg-white rounded-xl shadow p-4">
-            <div class="flex items-start justify-between gap-2">
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <span class="font-semibold text-gray-900">{{ g.name }}</span>
-                        <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ STATUS_COLORS.get(g.status, 'bg-gray-100 text-gray-500') }}">
-                            {{ STATUS_LABELS.get(g.status, g.status) }}
-                        </span>
-                    </div>
-                    <div class="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-gray-500">
-                        {% if g.phone %}
-                        <a href="tel:{{ g.phone }}" class="text-blue-600" dir="ltr">{{ g.phone }}</a>
-                        {% endif %}
-                        {% if g.group_name %}
-                        <span class="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded-full">{{ g.group_name }}</span>
-                        {% endif %}
-                        {% if g.plus_one %}
-                        <span class="text-green-600">+1{% if g.plus_one_name %} ({{ g.plus_one_name }}){% endif %}</span>
-                        {% endif %}
-                        {% if g.children_count and g.children_count > 0 %}
-                        <span class="text-blue-600">{{ g.children_count }} ילדים</span>
-                        {% endif %}
-                        {% if g.needs_transport %}
-                        <span class="text-blue-500">🚌 הסעה</span>
-                        {% endif %}
-                        {% if g.table_number %}
-                        <span class="text-gray-600">שולחן {{ g.table_number }}</span>
-                        {% endif %}
-                    </div>
-                    {% if g.notes %}
-                    <div class="mt-1 text-xs text-gray-400 truncate">{{ g.notes }}</div>
+        <div class="guest-card bg-white rounded-xl shadow-sm overflow-hidden" data-name="{{ g.name }}" data-guest-id="{{ g.id }}">
+            <div class="p-4">
+                <!-- Row 1: Name + Status -->
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-semibold text-gray-900 text-base">{{ g.name }}</span>
+                    <button onclick="openStatusPicker({{ g.id }}, '{{ g.status }}')"
+                            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold min-h-[32px] active:opacity-70 {{ STATUS_COLORS.get(g.status, 'bg-gray-100 text-gray-500') }}">
+                        <span class="w-2 h-2 rounded-full {{ STATUS_DOTS.get(g.status, 'bg-gray-400') }}"></span>
+                        {{ STATUS_LABELS.get(g.status, g.status) }}
+                        <svg class="w-3 h-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                </div>
+
+                <!-- Row 2: Details tags -->
+                <div class="flex flex-wrap gap-1.5 mb-3">
+                    {% if g.group_name %}
+                    <span class="inline-flex items-center bg-indigo-50 text-indigo-700 px-2 py-1 rounded-lg text-xs">{{ g.group_name }}</span>
+                    {% endif %}
+                    {% if g.plus_one %}
+                    <span class="inline-flex items-center bg-pink-50 text-pink-600 px-2 py-1 rounded-lg text-xs">+1{% if g.plus_one_name %} {{ g.plus_one_name }}{% endif %}</span>
+                    {% endif %}
+                    {% if g.children_count and g.children_count > 0 %}
+                    <span class="inline-flex items-center bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-xs">{{ g.children_count }} ילדים</span>
+                    {% endif %}
+                    {% if g.needs_transport %}
+                    <span class="inline-flex items-center bg-sky-50 text-sky-600 px-2 py-1 rounded-lg text-xs">🚌 הסעה</span>
+                    {% endif %}
+                    {% if g.table_number %}
+                    <span class="inline-flex items-center bg-gray-100 text-gray-600 px-2 py-1 rounded-lg text-xs">שולחן {{ g.table_number }}</span>
                     {% endif %}
                 </div>
-                <div class="flex gap-3 flex-shrink-0">
-                    <button
-                        data-guest='{{ g | tojson }}'
-                        onclick="editGuestFromBtn(this)"
-                        class="text-blue-600 text-sm font-medium px-2 py-1 rounded hover:bg-blue-50">ערוך</button>
+
+                {% if g.notes %}
+                <div class="text-xs text-gray-400 mb-3 leading-relaxed">{{ g.notes }}</div>
+                {% endif %}
+
+                <!-- Row 3: Action buttons -->
+                <div class="flex items-center gap-2 border-t border-gray-100 pt-3 -mb-1">
+                    {% if g.phone %}
+                    <a href="tel:{{ g.phone }}" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-50 text-green-700 text-xs font-medium min-h-[40px]">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                        חייג
+                    </a>
+                    <a href="https://wa.me/972{{ g.phone|replace('-','')|replace(' ','') }}" target="_blank"
+                       class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-medium min-h-[40px]">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                        WA
+                    </a>
+                    {% endif %}
+                    <div class="flex-1"></div>
+                    <button data-guest='{{ g | tojson }}'
+                            onclick="editGuestFromBtn(this)"
+                            class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-50 text-blue-600 text-xs font-medium min-h-[40px]">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        ערוך
+                    </button>
                     <button onclick="deleteGuest({{ g.id }})"
-                            class="text-red-500 text-sm font-medium px-2 py-1 rounded hover:bg-red-50">מחק</button>
+                            class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-50 text-red-500 text-xs font-medium min-h-[40px]">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        מחק
+                    </button>
                 </div>
             </div>
         </div>
@@ -217,105 +354,227 @@
 
 <!-- Mobile FAB -->
 <button onclick="openGuestModal()"
-        class="sm:hidden fixed bottom-20 left-4 z-30 bg-rose-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-2xl font-light hover:bg-rose-700 active:scale-95 transition-transform">
+        class="sm:hidden fixed z-30 bg-rose-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-3xl font-light active:scale-90 transition-transform"
+        style="bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px)); left: 1rem;">
     +
 </button>
 
-<!-- Add/Edit Guest Modal (bottom sheet on mobile, centered on desktop) -->
-<div id="add-guest-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center" dir="rtl">
-    <div class="bg-white w-full sm:rounded-xl sm:shadow-xl sm:p-6 sm:max-w-xl rounded-t-2xl p-4 max-h-[92vh] overflow-y-auto">
-        <!-- Drag handle (mobile) -->
-        <div class="sm:hidden flex justify-center mb-3">
+<!-- Inline Status Picker (mobile bottom sheet) -->
+<div id="status-picker-overlay" class="hidden fixed inset-0 z-50" dir="rtl">
+    <div class="modal-backdrop absolute inset-0 bg-black/40" onclick="closeStatusPicker()"></div>
+    <div class="status-picker absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl" style="padding-bottom: env(safe-area-inset-bottom, 0px);">
+        <div class="flex justify-center pt-3 pb-2">
             <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
         </div>
-        <div class="flex items-center justify-between mb-4">
-            <h3 id="guest-modal-title" class="text-lg font-bold">הוספת מוזמן</h3>
-            <button onclick="closeGuestModal()" class="text-gray-400 hover:text-gray-600 p-1">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-            </button>
-        </div>
-        <input type="hidden" id="guest-id" value="">
-
-        <div class="grid grid-cols-2 gap-3">
-            <div class="col-span-2 sm:col-span-1">
-                <label class="block text-sm font-medium text-gray-700 mb-1">שם *</label>
-                <input type="text" id="g-name" class="border rounded-lg px-3 py-2.5 w-full text-base" placeholder="שם מלא">
-            </div>
-            <div class="col-span-2 sm:col-span-1">
-                <label class="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
-                <input type="tel" id="g-phone" class="border rounded-lg px-3 py-2.5 w-full text-base" placeholder="050-0000000" dir="ltr">
-            </div>
-            <div class="col-span-2 sm:col-span-1">
-                <label class="block text-sm font-medium text-gray-700 mb-1">קבוצה</label>
-                <input type="text" id="g-group" class="border rounded-lg px-3 py-2.5 w-full text-base"
-                       placeholder="לדוגמה: משפחת יוסף" list="groups-datalist">
-                <datalist id="groups-datalist">
-                    {% for g in groups %}
-                    <option value="{{ g }}">
-                    {% endfor %}
-                </datalist>
-            </div>
-            <div class="col-span-2 sm:col-span-1">
-                <label class="block text-sm font-medium text-gray-700 mb-1">סטטוס</label>
-                <select id="g-status" class="border rounded-lg px-3 py-2.5 w-full text-base">
-                    <option value="pending">ממתין</option>
-                    <option value="confirmed">מאושר</option>
-                    <option value="maybe">אולי</option>
-                    <option value="declined">לא מגיע</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">שולחן</label>
-                <input type="number" id="g-table" class="border rounded-lg px-3 py-2.5 w-full text-base" placeholder="1" dir="ltr">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">ילדים (מעל 12)</label>
-                <input type="number" id="g-children" class="border rounded-lg px-3 py-2.5 w-full text-base"
-                       placeholder="0" min="0" dir="ltr">
-            </div>
-            <div class="col-span-2 flex gap-6">
-                <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" id="g-plus-one" class="w-5 h-5 accent-rose-500">
-                    <span class="text-sm text-gray-700">מגיע עם +1</span>
-                </label>
-                <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" id="g-transport" class="w-5 h-5 accent-blue-500">
-                    <span class="text-sm text-gray-700">צריך הסעה</span>
-                </label>
-            </div>
-            <div id="plus-one-name-wrap" class="hidden col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-1">שם ה-+1</label>
-                <input type="text" id="g-plus-one-name" class="border rounded-lg px-3 py-2.5 w-full text-base" placeholder="שם בן/בת הזוג">
-            </div>
-            <div class="col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-1">הערות</label>
-                <textarea id="g-notes" class="border rounded-lg px-3 py-2.5 w-full text-base" rows="2" placeholder="הערות..."></textarea>
+        <div class="px-4 pb-2">
+            <h4 class="text-sm font-bold text-gray-700 mb-3">שנה סטטוס</h4>
+            <div class="grid grid-cols-2 gap-2 pb-4">
+                <button onclick="setGuestStatus('confirmed')"
+                        class="status-opt flex items-center gap-2 px-4 py-3.5 rounded-xl text-sm font-medium bg-green-50 text-green-700 active:bg-green-100 min-h-[48px]"
+                        data-status="confirmed">
+                    <span class="w-3 h-3 rounded-full bg-green-500"></span>
+                    מאושר
+                </button>
+                <button onclick="setGuestStatus('maybe')"
+                        class="status-opt flex items-center gap-2 px-4 py-3.5 rounded-xl text-sm font-medium bg-yellow-50 text-yellow-700 active:bg-yellow-100 min-h-[48px]"
+                        data-status="maybe">
+                    <span class="w-3 h-3 rounded-full bg-yellow-500"></span>
+                    אולי
+                </button>
+                <button onclick="setGuestStatus('pending')"
+                        class="status-opt flex items-center gap-2 px-4 py-3.5 rounded-xl text-sm font-medium bg-gray-50 text-gray-600 active:bg-gray-100 min-h-[48px]"
+                        data-status="pending">
+                    <span class="w-3 h-3 rounded-full bg-gray-400"></span>
+                    ממתין
+                </button>
+                <button onclick="setGuestStatus('declined')"
+                        class="status-opt flex items-center gap-2 px-4 py-3.5 rounded-xl text-sm font-medium bg-red-50 text-red-600 active:bg-red-100 min-h-[48px]"
+                        data-status="declined">
+                    <span class="w-3 h-3 rounded-full bg-red-500"></span>
+                    לא מגיע
+                </button>
             </div>
         </div>
+    </div>
+</div>
 
-        <div class="flex gap-2 mt-4">
-            <button onclick="closeGuestModal()"
-                    class="flex-1 py-3 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium">ביטול</button>
-            <button onclick="saveGuest()"
-                    class="flex-1 py-3 bg-rose-600 text-white rounded-lg hover:bg-rose-700 text-sm font-medium">שמור</button>
+<!-- Add/Edit Guest Modal -->
+<div id="add-guest-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center" dir="rtl">
+    <div class="modal-backdrop absolute inset-0 bg-black/40" onclick="closeGuestModal()"></div>
+    <div class="modal-sheet relative bg-white w-full sm:rounded-xl sm:shadow-xl sm:max-w-xl sm:mx-4 rounded-t-2xl max-h-[94vh] overflow-y-auto"
+         style="padding-bottom: env(safe-area-inset-bottom, 0px);">
+        <!-- Drag handle (mobile) -->
+        <div class="sm:hidden flex justify-center pt-3 pb-1 sticky top-0 bg-white z-10">
+            <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
+        </div>
+        <div class="px-5 sm:p-6">
+            <div class="flex items-center justify-between mb-5">
+                <h3 id="guest-modal-title" class="text-lg font-bold">הוספת מוזמן</h3>
+                <button onclick="closeGuestModal()" class="text-gray-400 hover:text-gray-600 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <input type="hidden" id="guest-id" value="">
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">שם *</label>
+                    <input type="text" id="g-name" autocomplete="name"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
+                           placeholder="שם מלא">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">טלפון</label>
+                    <input type="tel" id="g-phone" autocomplete="tel"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
+                           placeholder="050-0000000" dir="ltr">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">קבוצה</label>
+                        <input type="text" id="g-group"
+                               class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
+                               placeholder="משפחה / חברים" list="groups-datalist">
+                        <datalist id="groups-datalist">
+                            {% for g in groups %}
+                            <option value="{{ g }}">
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">סטטוס</label>
+                        <select id="g-status" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400">
+                            <option value="pending">ממתין</option>
+                            <option value="confirmed">מאושר</option>
+                            <option value="maybe">אולי</option>
+                            <option value="declined">לא מגיע</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">שולחן</label>
+                        <input type="number" id="g-table"
+                               class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
+                               placeholder="1" dir="ltr" inputmode="numeric">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">ילדים (מעל 12)</label>
+                        <input type="number" id="g-children"
+                               class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
+                               placeholder="0" min="0" dir="ltr" inputmode="numeric">
+                    </div>
+                </div>
+                <div class="flex gap-6 py-1">
+                    <label class="flex items-center gap-3 cursor-pointer min-h-[44px]">
+                        <input type="checkbox" id="g-plus-one" class="w-5 h-5 accent-rose-500 rounded">
+                        <span class="text-sm text-gray-700">מגיע עם +1</span>
+                    </label>
+                    <label class="flex items-center gap-3 cursor-pointer min-h-[44px]">
+                        <input type="checkbox" id="g-transport" class="w-5 h-5 accent-blue-500 rounded">
+                        <span class="text-sm text-gray-700">צריך הסעה</span>
+                    </label>
+                </div>
+                <div id="plus-one-name-wrap" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">שם ה-+1</label>
+                    <input type="text" id="g-plus-one-name"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
+                           placeholder="שם בן/בת הזוג">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">הערות</label>
+                    <textarea id="g-notes"
+                              class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
+                              rows="2" placeholder="הערות..."></textarea>
+                </div>
+            </div>
+
+            <div class="flex gap-3 mt-5 mb-4 sm:mb-0">
+                <button onclick="closeGuestModal()"
+                        class="flex-1 py-3.5 text-gray-600 bg-gray-100 rounded-xl text-sm font-medium min-h-[48px] active:bg-gray-200">ביטול</button>
+                <button onclick="saveGuest()"
+                        class="flex-1 py-3.5 bg-rose-600 text-white rounded-xl text-sm font-bold min-h-[48px] active:bg-rose-700">שמור</button>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
+// ===== Status Picker =====
+var _statusGuestId = null;
+
+function openStatusPicker(guestId, currentStatus) {
+    _statusGuestId = guestId;
+    var overlay = document.getElementById('status-picker-overlay');
+    overlay.classList.remove('hidden');
+    // Highlight current status
+    overlay.querySelectorAll('.status-opt').forEach(function(btn) {
+        btn.classList.toggle('ring-2', btn.dataset.status === currentStatus);
+        btn.classList.toggle('ring-offset-1', btn.dataset.status === currentStatus);
+    });
+    // Animate in
+    requestAnimationFrame(function() {
+        overlay.querySelector('.modal-backdrop').classList.add('open');
+        overlay.querySelector('.status-picker').classList.add('open');
+    });
+    document.body.style.overflow = 'hidden';
+}
+
+function closeStatusPicker() {
+    var overlay = document.getElementById('status-picker-overlay');
+    overlay.querySelector('.modal-backdrop').classList.remove('open');
+    overlay.querySelector('.status-picker').classList.remove('open');
+    setTimeout(function() {
+        overlay.classList.add('hidden');
+        document.body.style.overflow = '';
+    }, 300);
+    _statusGuestId = null;
+}
+
+function setGuestStatus(status) {
+    if (!_statusGuestId) return;
+    var id = _statusGuestId;
+    closeStatusPicker();
+    fetch('/api/wedding/guests/' + id, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status: status})
+    })
+    .then(function(r) { if (!r.ok) throw new Error(); return r.json(); })
+    .then(function() { location.reload(); })
+    .catch(function() { alert('שגיאה בעדכון סטטוס'); });
+}
+
+// ===== Search / Filter =====
+function filterGuests(query) {
+    query = query.trim().toLowerCase();
+    document.querySelectorAll('#guest-list-mobile .guest-card').forEach(function(card) {
+        var name = (card.dataset.name || '').toLowerCase();
+        card.style.display = (!query || name.indexOf(query) !== -1) ? '' : 'none';
+    });
+}
+
+// ===== Guest Modal =====
 function openGuestModal() {
     var modal = document.getElementById('add-guest-modal');
     modal.classList.remove('hidden');
-    // Prevent background scroll on mobile
+    requestAnimationFrame(function() {
+        modal.querySelector('.modal-backdrop').classList.add('open');
+        modal.querySelector('.modal-sheet').classList.add('open');
+    });
     document.body.style.overflow = 'hidden';
 }
 
 function closeGuestModal() {
     var modal = document.getElementById('add-guest-modal');
-    modal.classList.add('hidden');
-    document.body.style.overflow = '';
+    modal.querySelector('.modal-backdrop').classList.remove('open');
+    modal.querySelector('.modal-sheet').classList.remove('open');
+    setTimeout(function() {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+    }, 350);
     document.getElementById('guest-id').value = '';
     document.getElementById('guest-modal-title').textContent = 'הוספת מוזמן';
     ['g-name','g-phone','g-group','g-table','g-children','g-plus-one-name','g-notes'].forEach(function(f) {
@@ -326,11 +585,6 @@ function closeGuestModal() {
     document.getElementById('g-transport').checked = false;
     document.getElementById('plus-one-name-wrap').classList.add('hidden');
 }
-
-// Close modal on backdrop click
-document.getElementById('add-guest-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeGuestModal();
-});
 
 document.getElementById('g-plus-one').addEventListener('change', function() {
     document.getElementById('plus-one-name-wrap').classList.toggle('hidden', !this.checked);

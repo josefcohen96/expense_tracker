@@ -10,6 +10,7 @@
     ('sound',         'ספק סאונד',          '🔊'),
     ('tables_chairs', 'שולחנות וכסאות',     '🪑'),
     ('alcohol',       'אלכוהול',            '🥂'),
+    ('venue',         'מקום',               '🏛️'),
 ] %}
 
 {% set CATEGORY_LABELS = {
@@ -126,7 +127,7 @@
     </div>
 
     <!-- Other vendors (not in predefined categories) -->
-    {% set predefined = ['chuppah','catering','dj','sound','tables_chairs','alcohol'] %}
+    {% set predefined = ['chuppah','catering','dj','sound','tables_chairs','alcohol','venue'] %}
     {% set ns = namespace(others=[]) %}
     {% for v in vendors %}
         {% if v.category not in predefined %}
@@ -249,6 +250,18 @@
                 <textarea id="v-notes" class="border rounded-lg px-3 py-2 w-full text-sm" rows="2"
                           placeholder="הערות נוספות..."></textarea>
             </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">📍 מיקום</label>
+                <input type="text" id="v-location" class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="כתובת / שם המקום">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">📸 אינסטגרם</label>
+                <input type="url" id="v-instagram" class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="https://instagram.com/..." dir="ltr">
+            </div>
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">👍 פייסבוק</label>
+                <input type="url" id="v-facebook" class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="https://facebook.com/..." dir="ltr">
+            </div>
         </div>
 
         <div class="flex gap-2 justify-end mt-5">
@@ -264,7 +277,7 @@
 function openAddModal(category) {
     document.getElementById('modal-title').textContent = 'הוספת ספק';
     document.getElementById('vendor-id').value = '';
-    ['v-name','v-contact-name','v-phone','v-price-quoted','v-deposit-amount','v-deposit-date','v-what-included','v-notes'].forEach(id => {
+    ['v-name','v-contact-name','v-phone','v-price-quoted','v-deposit-amount','v-deposit-date','v-what-included','v-notes','v-location','v-instagram','v-facebook'].forEach(id => {
         document.getElementById(id).value = '';
     });
     document.getElementById('v-category').value = category || 'chuppah';
@@ -285,6 +298,9 @@ function openEditModal(v) {
     document.getElementById('v-deposit-date').value = v.deposit_paid_date || '';
     document.getElementById('v-what-included').value = v.what_included || '';
     document.getElementById('v-notes').value = v.notes || '';
+    document.getElementById('v-location').value = v.location || '';
+    document.getElementById('v-instagram').value = v.instagram_url || '';
+    document.getElementById('v-facebook').value = v.facebook_url || '';
     document.getElementById('vendor-modal').classList.remove('hidden');
 }
 
@@ -305,6 +321,9 @@ function saveVendor() {
         deposit_paid_date: document.getElementById('v-deposit-date').value || null,
         what_included: document.getElementById('v-what-included').value.trim() || null,
         notes: document.getElementById('v-notes').value.trim() || null,
+        location: document.getElementById('v-location').value.trim() || null,
+        instagram_url: document.getElementById('v-instagram').value.trim() || null,
+        facebook_url: document.getElementById('v-facebook').value.trim() || null,
     };
     if (!payload.name) { alert('יש להזין שם ספק'); return; }
 

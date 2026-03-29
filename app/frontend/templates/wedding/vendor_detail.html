@@ -215,6 +215,39 @@
                               placeholder="הערות נוספות, קישורים, מידע נוסף...">{{ vendor.notes or '' }}</textarea>
                 </div>
 
+                <div class="sm:col-span-2">
+                    <label class="block text-xs font-medium text-gray-500 mb-1">📍 מיקום</label>
+                    <input type="text" name="location" value="{{ vendor.location or '' }}"
+                           class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                           placeholder="כתובת / שם המקום">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">📸 אינסטגרם</label>
+                    <div class="flex gap-2 items-center">
+                        <input type="url" name="instagram_url" value="{{ vendor.instagram_url or '' }}" dir="ltr"
+                               class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                               placeholder="https://instagram.com/...">
+                        {% if vendor.instagram_url %}
+                        <a href="{{ vendor.instagram_url }}" target="_blank" rel="noopener"
+                           class="shrink-0 text-xs text-rose-600 hover:underline">פתח</a>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">👍 פייסבוק</label>
+                    <div class="flex gap-2 items-center">
+                        <input type="url" name="facebook_url" value="{{ vendor.facebook_url or '' }}" dir="ltr"
+                               class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                               placeholder="https://facebook.com/...">
+                        {% if vendor.facebook_url %}
+                        <a href="{{ vendor.facebook_url }}" target="_blank" rel="noopener"
+                           class="shrink-0 text-xs text-rose-600 hover:underline">פתח</a>
+                        {% endif %}
+                    </div>
+                </div>
+
             </div>
 
             <!-- Save Button -->
@@ -383,6 +416,9 @@ function saveVendor(e) {
         deposit_paid_date: data.get('deposit_paid_date') || null,
         what_included:     data.get('what_included')?.trim() || null,
         notes:             data.get('notes')?.trim() || null,
+        location:          data.get('location')?.trim() || null,
+        instagram_url:     data.get('instagram_url')?.trim() || null,
+        facebook_url:      data.get('facebook_url')?.trim() || null,
     };
 
     fetch(`/api/wedding/vendors/${VENDOR_ID}`, {

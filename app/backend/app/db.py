@@ -320,6 +320,9 @@ def initialise_database() -> None:
             deposit_amount REAL,
             deposit_paid_date TEXT,
             notes TEXT,
+            instagram_url TEXT,
+            facebook_url TEXT,
+            location TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -359,6 +362,16 @@ def initialise_database() -> None:
         if "children_count" not in cols:
             conn.execute("ALTER TABLE wedding_guests ADD COLUMN children_count INTEGER DEFAULT 0")
             conn.commit()
+    except Exception:
+        pass
+
+    # Migration: add venue/social fields to wedding_vendors if missing (existing DBs)
+    try:
+        vendor_cols = [r[1] for r in cur.execute("PRAGMA table_info('wedding_vendors')").fetchall()]
+        for col, typedef in [("instagram_url", "TEXT"), ("facebook_url", "TEXT"), ("location", "TEXT")]:
+            if col not in vendor_cols:
+                conn.execute(f"ALTER TABLE wedding_vendors ADD COLUMN {col} {typedef}")
+        conn.commit()
     except Exception:
         pass
 

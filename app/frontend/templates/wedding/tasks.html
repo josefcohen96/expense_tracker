@@ -101,7 +101,8 @@
 
             <!-- Actions -->
             <div class="flex gap-2 flex-shrink-0">
-                <button onclick="editTask({{ task | tojson }})"
+                <button data-task='{{ task | tojson }}'
+                        onclick="editTask(JSON.parse(this.dataset.task))"
                         class="text-blue-500 hover:text-blue-700 text-xs font-medium">ערוך</button>
                 <button onclick="deleteTask({{ task.id }})"
                         class="text-red-400 hover:text-red-600 text-xs font-medium">מחק</button>

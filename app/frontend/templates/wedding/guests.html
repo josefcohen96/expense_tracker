@@ -581,16 +581,24 @@ var _statusGuestId = null;
 function openStatusPicker(guestId, currentStatus) {
     _statusGuestId = guestId;
     var overlay = document.getElementById('status-picker-overlay');
+    var backdrop = overlay.querySelector('.modal-backdrop');
+    var picker = overlay.querySelector('.status-picker');
+
+    // Reset classes before showing
+    backdrop.classList.remove('open');
+    picker.classList.remove('open');
+
     overlay.classList.remove('hidden');
+    void overlay.offsetHeight; // Force reflow so Safari renders initial state
+
     overlay.querySelectorAll('.status-opt').forEach(function(btn) {
         var isCurrent = btn.dataset.status === currentStatus;
         btn.classList.toggle('ring-2', isCurrent);
         btn.classList.toggle('ring-offset-1', isCurrent);
     });
-    requestAnimationFrame(function() {
-        overlay.querySelector('.modal-backdrop').classList.add('open');
-        overlay.querySelector('.status-picker').classList.add('open');
-    });
+
+    backdrop.classList.add('open');
+    picker.classList.add('open');
     document.body.style.overflow = 'hidden';
 }
 

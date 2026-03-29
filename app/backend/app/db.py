@@ -344,7 +344,8 @@ def initialise_database() -> None:
     try:
         cols = [r[1] for r in cur.execute("PRAGMA table_info('wedding_guests')").fetchall()]
         if "children_count" not in cols:
-            cur.execute("ALTER TABLE wedding_guests ADD COLUMN children_count INTEGER DEFAULT 0")
+            conn.execute("ALTER TABLE wedding_guests ADD COLUMN children_count INTEGER DEFAULT 0")
+            conn.commit()
     except Exception:
         pass
 

@@ -1631,9 +1631,12 @@ async def wedding_guests_page(request: Request, db_conn: sqlite3.Connection = De
     guests = [dict(g) for g in db_conn.execute(query, params).fetchall()]
 
     total_invitations = db_conn.execute("SELECT COUNT(*) FROM wedding_guests").fetchone()[0]
-    total_people = db_conn.execute(
-        "SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests"
-    ).fetchone()[0]
+    try:
+        total_people = db_conn.execute(
+            "SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests"
+        ).fetchone()[0]
+    except Exception:
+        total_people = total_invitations
     confirmed    = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='confirmed'").fetchone()[0]
     declined     = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='declined'").fetchone()[0]
     maybe_count  = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='maybe'").fetchone()[0]

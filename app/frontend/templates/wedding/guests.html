@@ -16,79 +16,129 @@
     'pending':   'bg-gray-100 text-gray-500'
 } %}
 
-<div class="space-y-5" dir="rtl">
+<div class="space-y-4" dir="rtl">
 
     <!-- Header -->
-    <div class="flex flex-wrap items-center justify-between gap-3">
-        <h1 class="text-2xl font-bold text-gray-900">רשימת מוזמנים 👥</h1>
+    <div class="flex items-center justify-between">
+        <h1 class="text-xl sm:text-2xl font-bold text-gray-900">מוזמנים 👥</h1>
+        <!-- Desktop add button -->
         <button onclick="openGuestModal()"
-                class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                class="hidden sm:block bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
             + הוסף מוזמן
         </button>
     </div>
 
     <!-- Stats -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-        <div class="bg-white rounded-xl shadow p-4 text-center col-span-2 sm:col-span-2 border-t-4 border-rose-500">
+    <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+        <div class="bg-white rounded-xl shadow p-3 text-center col-span-3 sm:col-span-2 border-t-4 border-rose-500">
             <div class="text-2xl font-bold text-rose-600">{{ total_people }}</div>
-            <div class="text-xs text-gray-500 mt-1">סה"כ אנשים</div>
+            <div class="text-xs text-gray-500 mt-0.5">סה"כ אנשים</div>
             <div class="text-xs text-gray-400">{{ total_invitations }} הזמנות</div>
         </div>
-        <div class="bg-white rounded-xl shadow p-4 text-center border-t-4 border-green-500">
-            <div class="text-2xl font-bold text-green-600">{{ confirmed }}</div>
-            <div class="text-xs text-gray-500 mt-1">מאושרים</div>
+        <div class="bg-white rounded-xl shadow p-3 text-center border-t-4 border-green-500">
+            <div class="text-xl font-bold text-green-600">{{ confirmed }}</div>
+            <div class="text-xs text-gray-500 mt-0.5">מאושר</div>
         </div>
-        <div class="bg-white rounded-xl shadow p-4 text-center border-t-4 border-yellow-400">
-            <div class="text-2xl font-bold text-yellow-600">{{ maybe_count }}</div>
-            <div class="text-xs text-gray-500 mt-1">אולי</div>
+        <div class="bg-white rounded-xl shadow p-3 text-center border-t-4 border-yellow-400">
+            <div class="text-xl font-bold text-yellow-600">{{ maybe_count }}</div>
+            <div class="text-xs text-gray-500 mt-0.5">אולי</div>
         </div>
-        <div class="bg-white rounded-xl shadow p-4 text-center border-t-4 border-gray-300">
-            <div class="text-2xl font-bold text-gray-500">{{ pending }}</div>
-            <div class="text-xs text-gray-500 mt-1">ממתינים</div>
+        <div class="bg-white rounded-xl shadow p-3 text-center border-t-4 border-gray-300">
+            <div class="text-xl font-bold text-gray-500">{{ pending }}</div>
+            <div class="text-xs text-gray-500 mt-0.5">ממתין</div>
         </div>
-        <div class="bg-white rounded-xl shadow p-4 text-center border-t-4 border-red-400">
-            <div class="text-2xl font-bold text-red-500">{{ declined }}</div>
-            <div class="text-xs text-gray-500 mt-1">לא מגיעים</div>
+        <div class="bg-white rounded-xl shadow p-3 text-center border-t-4 border-red-400">
+            <div class="text-xl font-bold text-red-500">{{ declined }}</div>
+            <div class="text-xs text-gray-500 mt-0.5">לא מגיע</div>
         </div>
-        <div class="bg-white rounded-xl shadow p-4 text-center border-t-4 border-indigo-400">
-            <div class="text-2xl font-bold text-indigo-600">{{ plus_ones }}</div>
-            <div class="text-xs text-gray-500 mt-1">+1</div>
-        </div>
-        <div class="bg-white rounded-xl shadow p-4 text-center border-t-4 border-blue-400">
-            <div class="text-2xl font-bold text-blue-600">{{ needs_transport }}</div>
-            <div class="text-xs text-gray-500 mt-1">הסעה</div>
+        <div class="bg-white rounded-xl shadow p-3 text-center border-t-4 border-blue-400">
+            <div class="text-xl font-bold text-blue-600">{{ needs_transport }}</div>
+            <div class="text-xs text-gray-500 mt-0.5">הסעה</div>
         </div>
     </div>
 
     <!-- Filters -->
-    <form method="get" class="flex flex-wrap gap-3 items-end bg-white rounded-xl shadow p-4">
-        <div>
+    <form method="get" class="bg-white rounded-xl shadow p-3 flex flex-wrap gap-2 items-end">
+        <div class="flex-1 min-w-[120px]">
             <label class="block text-xs font-medium text-gray-600 mb-1">קבוצה</label>
-            <select name="group" class="border rounded px-3 py-2 text-sm">
+            <select name="group" class="border rounded px-2 py-2 text-sm w-full">
                 <option value="">כל הקבוצות</option>
                 {% for g in groups %}
                 <option value="{{ g }}" {% if group_filter == g %}selected{% endif %}>{{ g }}</option>
                 {% endfor %}
             </select>
         </div>
-        <div>
+        <div class="flex-1 min-w-[100px]">
             <label class="block text-xs font-medium text-gray-600 mb-1">סטטוס</label>
-            <select name="status" class="border rounded px-3 py-2 text-sm">
+            <select name="status" class="border rounded px-2 py-2 text-sm w-full">
                 <option value="">הכל</option>
                 {% for k, v in STATUS_LABELS.items() %}
                 <option value="{{ k }}" {% if status_filter == k %}selected{% endif %}>{{ v }}</option>
                 {% endfor %}
             </select>
         </div>
-        <button type="submit" class="px-4 py-2 bg-gray-700 text-white rounded text-sm">סנן</button>
-        {% if group_filter or status_filter %}
-        <a href="/wedding/guests" class="px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded">איפוס</a>
-        {% endif %}
+        <div class="flex gap-2">
+            <button type="submit" class="px-4 py-2 bg-gray-700 text-white rounded text-sm">סנן</button>
+            {% if group_filter or status_filter %}
+            <a href="/wedding/guests" class="px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded">איפוס</a>
+            {% endif %}
+        </div>
     </form>
 
-    <!-- Guest Table -->
+    <!-- Guest Cards (mobile) / Table (desktop) -->
     {% if guests %}
-    <div class="bg-white rounded-xl shadow overflow-hidden">
+
+    <!-- Mobile Cards -->
+    <div class="sm:hidden space-y-2">
+        {% for g in guests %}
+        <div class="bg-white rounded-xl shadow p-4">
+            <div class="flex items-start justify-between gap-2">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-semibold text-gray-900">{{ g.name }}</span>
+                        <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ STATUS_COLORS.get(g.status, 'bg-gray-100 text-gray-500') }}">
+                            {{ STATUS_LABELS.get(g.status, g.status) }}
+                        </span>
+                    </div>
+                    <div class="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-gray-500">
+                        {% if g.phone %}
+                        <a href="tel:{{ g.phone }}" class="text-blue-600" dir="ltr">{{ g.phone }}</a>
+                        {% endif %}
+                        {% if g.group_name %}
+                        <span class="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded-full">{{ g.group_name }}</span>
+                        {% endif %}
+                        {% if g.plus_one %}
+                        <span class="text-green-600">+1{% if g.plus_one_name %} ({{ g.plus_one_name }}){% endif %}</span>
+                        {% endif %}
+                        {% if g.children_count and g.children_count > 0 %}
+                        <span class="text-blue-600">{{ g.children_count }} ילדים</span>
+                        {% endif %}
+                        {% if g.needs_transport %}
+                        <span class="text-blue-500">🚌 הסעה</span>
+                        {% endif %}
+                        {% if g.table_number %}
+                        <span class="text-gray-600">שולחן {{ g.table_number }}</span>
+                        {% endif %}
+                    </div>
+                    {% if g.notes %}
+                    <div class="mt-1 text-xs text-gray-400 truncate">{{ g.notes }}</div>
+                    {% endif %}
+                </div>
+                <div class="flex gap-3 flex-shrink-0">
+                    <button
+                        data-guest='{{ g | tojson }}'
+                        onclick="editGuestFromBtn(this)"
+                        class="text-blue-600 text-sm font-medium px-2 py-1 rounded hover:bg-blue-50">ערוך</button>
+                    <button onclick="deleteGuest({{ g.id }})"
+                            class="text-red-500 text-sm font-medium px-2 py-1 rounded hover:bg-red-50">מחק</button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Desktop Table -->
+    <div class="hidden sm:block bg-white rounded-xl shadow overflow-hidden">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50">
@@ -156,6 +206,7 @@
             </table>
         </div>
     </div>
+
     {% else %}
     <div class="bg-white rounded-xl shadow p-10 text-center text-gray-400">
         <div class="text-4xl mb-3">👥</div>
@@ -164,34 +215,51 @@
     {% endif %}
 </div>
 
-<!-- Add/Edit Guest Modal -->
-<div id="add-guest-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl">
-    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-xl max-h-[90vh] overflow-y-auto">
-        <h3 id="guest-modal-title" class="text-lg font-bold mb-5">הוספת מוזמן</h3>
+<!-- Mobile FAB -->
+<button onclick="openGuestModal()"
+        class="sm:hidden fixed bottom-20 left-4 z-30 bg-rose-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-2xl font-light hover:bg-rose-700 active:scale-95 transition-transform">
+    +
+</button>
+
+<!-- Add/Edit Guest Modal (bottom sheet on mobile, centered on desktop) -->
+<div id="add-guest-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center" dir="rtl">
+    <div class="bg-white w-full sm:rounded-xl sm:shadow-xl sm:p-6 sm:max-w-xl rounded-t-2xl p-4 max-h-[92vh] overflow-y-auto">
+        <!-- Drag handle (mobile) -->
+        <div class="sm:hidden flex justify-center mb-3">
+            <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
+        </div>
+        <div class="flex items-center justify-between mb-4">
+            <h3 id="guest-modal-title" class="text-lg font-bold">הוספת מוזמן</h3>
+            <button onclick="closeGuestModal()" class="text-gray-400 hover:text-gray-600 p-1">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
         <input type="hidden" id="guest-id" value="">
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
+        <div class="grid grid-cols-2 gap-3">
+            <div class="col-span-2 sm:col-span-1">
                 <label class="block text-sm font-medium text-gray-700 mb-1">שם *</label>
-                <input type="text" id="g-name" class="border rounded px-3 py-2 w-full text-sm" placeholder="שם מלא">
+                <input type="text" id="g-name" class="border rounded-lg px-3 py-2.5 w-full text-base" placeholder="שם מלא">
             </div>
-            <div>
+            <div class="col-span-2 sm:col-span-1">
                 <label class="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
-                <input type="text" id="g-phone" class="border rounded px-3 py-2 w-full text-sm" placeholder="050-0000000" dir="ltr">
+                <input type="tel" id="g-phone" class="border rounded-lg px-3 py-2.5 w-full text-base" placeholder="050-0000000" dir="ltr">
             </div>
-            <div>
+            <div class="col-span-2 sm:col-span-1">
                 <label class="block text-sm font-medium text-gray-700 mb-1">קבוצה</label>
-                <input type="text" id="g-group" class="border rounded px-3 py-2 w-full text-sm"
-                       placeholder="לדוגמה: משפחת יוסף, חברים" list="groups-datalist">
+                <input type="text" id="g-group" class="border rounded-lg px-3 py-2.5 w-full text-base"
+                       placeholder="לדוגמה: משפחת יוסף" list="groups-datalist">
                 <datalist id="groups-datalist">
                     {% for g in groups %}
                     <option value="{{ g }}">
                     {% endfor %}
                 </datalist>
             </div>
-            <div>
+            <div class="col-span-2 sm:col-span-1">
                 <label class="block text-sm font-medium text-gray-700 mb-1">סטטוס</label>
-                <select id="g-status" class="border rounded px-3 py-2 w-full text-sm">
+                <select id="g-status" class="border rounded-lg px-3 py-2.5 w-full text-base">
                     <option value="pending">ממתין</option>
                     <option value="confirmed">מאושר</option>
                     <option value="maybe">אולי</option>
@@ -199,50 +267,55 @@
                 </select>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">מספר שולחן</label>
-                <input type="number" id="g-table" class="border rounded px-3 py-2 w-full text-sm" placeholder="1" dir="ltr">
+                <label class="block text-sm font-medium text-gray-700 mb-1">שולחן</label>
+                <input type="number" id="g-table" class="border rounded-lg px-3 py-2.5 w-full text-base" placeholder="1" dir="ltr">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">ילדים (מעל גיל 12)</label>
-                <input type="number" id="g-children" class="border rounded px-3 py-2 w-full text-sm"
+                <label class="block text-sm font-medium text-gray-700 mb-1">ילדים (מעל 12)</label>
+                <input type="number" id="g-children" class="border rounded-lg px-3 py-2.5 w-full text-base"
                        placeholder="0" min="0" dir="ltr">
             </div>
-            <div class="sm:col-span-2 flex flex-wrap gap-4">
+            <div class="col-span-2 flex gap-6">
                 <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" id="g-plus-one" class="w-4 h-4 accent-rose-500">
+                    <input type="checkbox" id="g-plus-one" class="w-5 h-5 accent-rose-500">
                     <span class="text-sm text-gray-700">מגיע עם +1</span>
                 </label>
                 <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" id="g-transport" class="w-4 h-4 accent-blue-500">
+                    <input type="checkbox" id="g-transport" class="w-5 h-5 accent-blue-500">
                     <span class="text-sm text-gray-700">צריך הסעה</span>
                 </label>
             </div>
-            <div id="plus-one-name-wrap" class="hidden sm:col-span-2">
+            <div id="plus-one-name-wrap" class="hidden col-span-2">
                 <label class="block text-sm font-medium text-gray-700 mb-1">שם ה-+1</label>
-                <input type="text" id="g-plus-one-name" class="border rounded px-3 py-2 w-full text-sm" placeholder="שם בן/בת הזוג">
+                <input type="text" id="g-plus-one-name" class="border rounded-lg px-3 py-2.5 w-full text-base" placeholder="שם בן/בת הזוג">
             </div>
-            <div class="sm:col-span-2">
+            <div class="col-span-2">
                 <label class="block text-sm font-medium text-gray-700 mb-1">הערות</label>
-                <textarea id="g-notes" class="border rounded px-3 py-2 w-full text-sm" rows="2" placeholder="הערות..."></textarea>
+                <textarea id="g-notes" class="border rounded-lg px-3 py-2.5 w-full text-base" rows="2" placeholder="הערות..."></textarea>
             </div>
         </div>
 
-        <div class="flex gap-2 justify-end mt-5">
+        <div class="flex gap-2 mt-4">
             <button onclick="closeGuestModal()"
-                    class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm">ביטול</button>
+                    class="flex-1 py-3 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium">ביטול</button>
             <button onclick="saveGuest()"
-                    class="px-4 py-2 bg-rose-600 text-white rounded hover:bg-rose-700 text-sm font-medium">שמור</button>
+                    class="flex-1 py-3 bg-rose-600 text-white rounded-lg hover:bg-rose-700 text-sm font-medium">שמור</button>
         </div>
     </div>
 </div>
 
 <script>
 function openGuestModal() {
-    document.getElementById('add-guest-modal').classList.remove('hidden');
+    var modal = document.getElementById('add-guest-modal');
+    modal.classList.remove('hidden');
+    // Prevent background scroll on mobile
+    document.body.style.overflow = 'hidden';
 }
 
 function closeGuestModal() {
-    document.getElementById('add-guest-modal').classList.add('hidden');
+    var modal = document.getElementById('add-guest-modal');
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
     document.getElementById('guest-id').value = '';
     document.getElementById('guest-modal-title').textContent = 'הוספת מוזמן';
     ['g-name','g-phone','g-group','g-table','g-children','g-plus-one-name','g-notes'].forEach(function(f) {
@@ -253,6 +326,11 @@ function closeGuestModal() {
     document.getElementById('g-transport').checked = false;
     document.getElementById('plus-one-name-wrap').classList.add('hidden');
 }
+
+// Close modal on backdrop click
+document.getElementById('add-guest-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeGuestModal();
+});
 
 document.getElementById('g-plus-one').addEventListener('change', function() {
     document.getElementById('plus-one-name-wrap').classList.toggle('hidden', !this.checked);

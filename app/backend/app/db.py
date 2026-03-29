@@ -306,5 +306,72 @@ def initialise_database() -> None:
 
     # (removed) default challenges seed
 
+    # --- Wedding Module Tables ---
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS wedding_vendors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            category TEXT NOT NULL,
+            contact_name TEXT,
+            phone TEXT,
+            price_quoted REAL,
+            what_included TEXT,
+            status TEXT DEFAULT 'not_contacted',
+            deposit_amount REAL,
+            deposit_paid_date TEXT,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS wedding_guests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone TEXT,
+            group_name TEXT,
+            status TEXT DEFAULT 'pending',
+            plus_one INTEGER DEFAULT 0,
+            plus_one_name TEXT,
+            needs_transport INTEGER DEFAULT 0,
+            table_number INTEGER,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS wedding_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            category TEXT DEFAULT 'general',
+            due_date TEXT,
+            completed INTEGER DEFAULT 0,
+            priority TEXT DEFAULT 'medium',
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS wedding_budget_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            category TEXT DEFAULT 'other',
+            budgeted_amount REAL DEFAULT 0,
+            actual_amount REAL DEFAULT 0,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS wedding_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     conn.close()

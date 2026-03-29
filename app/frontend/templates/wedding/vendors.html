@@ -1,0 +1,282 @@
+{% extends "wedding/base.html" %}
+{% block wedding_title %}ספקים{% endblock %}
+
+{% block wedding_content %}
+
+{% set CATEGORY_LABELS = {
+    'catering': 'קייטרינג',
+    'photographer': 'צלם',
+    'video': 'וידאו',
+    'dj': "דיג'יי",
+    'live_music': 'מוזיקה חיה',
+    'flowers': 'פרחים ועיצוב',
+    'venue': 'מקום',
+    'transport': 'הסעות',
+    'attire': 'לבוש',
+    'other': 'אחר'
+} %}
+
+{% set STATUS_LABELS = {
+    'not_contacted':   'לא נוצר קשר',
+    'quote_received':  'הצעת מחיר',
+    'contract_signed': 'חוזה נחתם',
+    'deposit_paid':    'מקדמה שולמה',
+    'fully_paid':      'שולם במלואו'
+} %}
+
+{% set STATUS_COLORS = {
+    'not_contacted':   'bg-gray-100 text-gray-600',
+    'quote_received':  'bg-blue-100 text-blue-700',
+    'contract_signed': 'bg-amber-100 text-amber-700',
+    'deposit_paid':    'bg-orange-100 text-orange-700',
+    'fully_paid':      'bg-green-100 text-green-700'
+} %}
+
+<div class="space-y-5" dir="rtl">
+
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <h1 class="text-2xl font-bold text-gray-900">ניהול ספקים 🏢</h1>
+        <button onclick="openModal('add-vendor-modal')"
+                class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+            + הוסף ספק
+        </button>
+    </div>
+
+    <!-- Filters -->
+    <form method="get" class="flex flex-wrap gap-3 items-end bg-white rounded-xl shadow p-4">
+        <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">קטגוריה</label>
+            <select name="category" class="border rounded px-3 py-2 text-sm">
+                <option value="">הכל</option>
+                {% for k, v in CATEGORY_LABELS.items() %}
+                <option value="{{ k }}" {% if category_filter == k %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">סטטוס</label>
+            <select name="status" class="border rounded px-3 py-2 text-sm">
+                <option value="">הכל</option>
+                {% for k, v in STATUS_LABELS.items() %}
+                <option value="{{ k }}" {% if status_filter == k %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-gray-700 text-white rounded text-sm">סנן</button>
+        {% if category_filter or status_filter %}
+        <a href="/wedding/vendors" class="px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded">איפוס</a>
+        {% endif %}
+    </form>
+
+    <!-- Vendor Table -->
+    {% if vendors %}
+    <div class="bg-white rounded-xl shadow overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">שם</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">קטגוריה</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">איש קשר / טלפון</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">הצעת מחיר</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">מה כולל</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">סטטוס</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">מקדמה</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">הערות</th>
+                        <th class="px-4 py-3"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for v in vendors %}
+                    <tr class="hover:bg-gray-50" id="vendor-row-{{ v.id }}">
+                        <td class="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{{ v.name }}</td>
+                        <td class="px-4 py-3 text-gray-600 whitespace-nowrap">
+                            {{ CATEGORY_LABELS.get(v.category, v.category) }}
+                        </td>
+                        <td class="px-4 py-3 text-gray-600">
+                            {% if v.contact_name %}<div>{{ v.contact_name }}</div>{% endif %}
+                            {% if v.phone %}<div class="text-xs text-gray-400" dir="ltr">{{ v.phone }}</div>{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-gray-900 whitespace-nowrap" dir="ltr">
+                            {% if v.price_quoted %}₪{{ "{:,.0f}".format(v.price_quoted) }}{% else %}-{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-gray-600 max-w-xs">
+                            <div class="truncate" title="{{ v.what_included or '' }}">{{ v.what_included or '-' }}</div>
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <span class="px-2 py-1 rounded-full text-xs font-medium {{ STATUS_COLORS.get(v.status, 'bg-gray-100 text-gray-600') }}">
+                                {{ STATUS_LABELS.get(v.status, v.status) }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-gray-600 whitespace-nowrap" dir="ltr">
+                            {% if v.deposit_amount %}
+                                ₪{{ "{:,.0f}".format(v.deposit_amount) }}
+                                {% if v.deposit_paid_date %}<div class="text-xs text-green-600">{{ v.deposit_paid_date }}</div>{% endif %}
+                            {% else %}-{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-gray-500 max-w-xs">
+                            <div class="truncate text-xs" title="{{ v.notes or '' }}">{{ v.notes or '' }}</div>
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <div class="flex gap-2">
+                                <button onclick="editVendor({{ v | tojson }})"
+                                        class="text-blue-600 hover:text-blue-800 text-xs font-medium">ערוך</button>
+                                <button onclick="deleteVendor({{ v.id }})"
+                                        class="text-red-500 hover:text-red-700 text-xs font-medium">מחק</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl shadow p-10 text-center text-gray-400">
+        <div class="text-4xl mb-3">🏢</div>
+        <p>עדיין אין ספקים. לחץ "הוסף ספק" להתחיל.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add/Edit Vendor Modal -->
+<div id="add-vendor-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl">
+    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h3 id="modal-title" class="text-lg font-bold mb-5">הוספת ספק</h3>
+        <input type="hidden" id="vendor-id" value="">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">שם הספק *</label>
+                <input type="text" id="v-name" class="border rounded px-3 py-2 w-full text-sm" placeholder="שם העסק">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">קטגוריה *</label>
+                <select id="v-category" class="border rounded px-3 py-2 w-full text-sm">
+                    <option value="catering">קייטרינג</option>
+                    <option value="photographer">צלם</option>
+                    <option value="video">וידאו</option>
+                    <option value="dj">דיג'יי</option>
+                    <option value="live_music">מוזיקה חיה</option>
+                    <option value="flowers">פרחים ועיצוב</option>
+                    <option value="venue">מקום</option>
+                    <option value="transport">הסעות</option>
+                    <option value="attire">לבוש</option>
+                    <option value="other">אחר</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">איש קשר</label>
+                <input type="text" id="v-contact-name" class="border rounded px-3 py-2 w-full text-sm" placeholder="שם איש קשר">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
+                <input type="text" id="v-phone" class="border rounded px-3 py-2 w-full text-sm" placeholder="050-0000000" dir="ltr">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">הצעת מחיר (₪)</label>
+                <input type="number" id="v-price-quoted" class="border rounded px-3 py-2 w-full text-sm" placeholder="0" dir="ltr">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">סטטוס</label>
+                <select id="v-status" class="border rounded px-3 py-2 w-full text-sm">
+                    <option value="not_contacted">לא נוצר קשר</option>
+                    <option value="quote_received">הצעת מחיר התקבלה</option>
+                    <option value="contract_signed">חוזה נחתם</option>
+                    <option value="deposit_paid">מקדמה שולמה</option>
+                    <option value="fully_paid">שולם במלואו</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">סכום מקדמה (₪)</label>
+                <input type="number" id="v-deposit-amount" class="border rounded px-3 py-2 w-full text-sm" placeholder="0" dir="ltr">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">תאריך תשלום מקדמה</label>
+                <input type="date" id="v-deposit-date" class="border rounded px-3 py-2 w-full text-sm">
+            </div>
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">מה כולל ההצעה</label>
+                <textarea id="v-what-included" class="border rounded px-3 py-2 w-full text-sm" rows="2"
+                          placeholder="פירוט השירות..."></textarea>
+            </div>
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">הערות</label>
+                <textarea id="v-notes" class="border rounded px-3 py-2 w-full text-sm" rows="2"
+                          placeholder="הערות נוספות..."></textarea>
+            </div>
+        </div>
+
+        <div class="flex gap-2 justify-end mt-5">
+            <button onclick="closeModal('add-vendor-modal')"
+                    class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm">ביטול</button>
+            <button onclick="saveVendor()"
+                    class="px-4 py-2 bg-rose-600 text-white rounded hover:bg-rose-700 text-sm font-medium">שמור</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openModal(id) {
+    document.getElementById(id).classList.remove('hidden');
+}
+function closeModal(id) {
+    document.getElementById(id).classList.add('hidden');
+    // reset form
+    document.getElementById('vendor-id').value = '';
+    document.getElementById('modal-title').textContent = 'הוספת ספק';
+    ['v-name','v-contact-name','v-phone','v-price-quoted','v-deposit-amount','v-deposit-date','v-what-included','v-notes'].forEach(id => {
+        document.getElementById(id).value = '';
+    });
+    document.getElementById('v-category').value = 'catering';
+    document.getElementById('v-status').value = 'not_contacted';
+}
+
+function editVendor(v) {
+    document.getElementById('modal-title').textContent = 'עריכת ספק';
+    document.getElementById('vendor-id').value = v.id;
+    document.getElementById('v-name').value = v.name || '';
+    document.getElementById('v-category').value = v.category || 'other';
+    document.getElementById('v-contact-name').value = v.contact_name || '';
+    document.getElementById('v-phone').value = v.phone || '';
+    document.getElementById('v-price-quoted').value = v.price_quoted || '';
+    document.getElementById('v-status').value = v.status || 'not_contacted';
+    document.getElementById('v-deposit-amount').value = v.deposit_amount || '';
+    document.getElementById('v-deposit-date').value = v.deposit_paid_date || '';
+    document.getElementById('v-what-included').value = v.what_included || '';
+    document.getElementById('v-notes').value = v.notes || '';
+    openModal('add-vendor-modal');
+}
+
+function saveVendor() {
+    const id = document.getElementById('vendor-id').value;
+    const payload = {
+        name: document.getElementById('v-name').value.trim(),
+        category: document.getElementById('v-category').value,
+        contact_name: document.getElementById('v-contact-name').value.trim() || null,
+        phone: document.getElementById('v-phone').value.trim() || null,
+        price_quoted: parseFloat(document.getElementById('v-price-quoted').value) || null,
+        status: document.getElementById('v-status').value,
+        deposit_amount: parseFloat(document.getElementById('v-deposit-amount').value) || null,
+        deposit_paid_date: document.getElementById('v-deposit-date').value || null,
+        what_included: document.getElementById('v-what-included').value.trim() || null,
+        notes: document.getElementById('v-notes').value.trim() || null,
+    };
+    if (!payload.name) { alert('יש להזין שם ספק'); return; }
+
+    const url = id ? `/api/wedding/vendors/${id}` : '/api/wedding/vendors';
+    const method = id ? 'PUT' : 'POST';
+    fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)})
+        .then(r => { if (!r.ok) throw new Error('שגיאה'); return r.json(); })
+        .then(() => location.reload())
+        .catch(() => alert('שגיאה בשמירה'));
+}
+
+function deleteVendor(id) {
+    if (!confirm('למחוק את הספק?')) return;
+    fetch(`/api/wedding/vendors/${id}`, {method:'DELETE'})
+        .then(() => location.reload());
+}
+</script>
+{% endblock %}

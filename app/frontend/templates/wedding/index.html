@@ -1,0 +1,176 @@
+{% extends "wedding/base.html" %}
+{% block wedding_title %}דשבורד חתונה{% endblock %}
+
+{% block wedding_content %}
+<div class="space-y-6" dir="rtl">
+
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <h1 class="text-2xl font-bold text-gray-900">תכנון החתונה שלנו 💍</h1>
+        {% if wedding_date %}
+        <div class="bg-rose-50 border border-rose-200 rounded-lg px-4 py-2 text-rose-700 font-medium text-sm">
+            📅 תאריך החתונה: {{ wedding_date }}
+        </div>
+        {% else %}
+        <a href="#" onclick="setWeddingDate()" class="bg-rose-50 border border-rose-200 rounded-lg px-4 py-2 text-rose-500 text-sm hover:bg-rose-100 cursor-pointer">
+            + הגדר תאריך חתונה
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Guest Stats -->
+    <div>
+        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">מוזמנים</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div class="bg-white rounded-xl shadow p-5 border-r-4 border-green-500">
+                <div class="text-3xl font-bold text-green-600">{{ confirmed }}</div>
+                <div class="text-sm text-gray-500 mt-1">מאושרים</div>
+            </div>
+            <div class="bg-white rounded-xl shadow p-5 border-r-4 border-yellow-400">
+                <div class="text-3xl font-bold text-yellow-600">{{ maybe }}</div>
+                <div class="text-sm text-gray-500 mt-1">אולי</div>
+            </div>
+            <div class="bg-white rounded-xl shadow p-5 border-r-4 border-gray-300">
+                <div class="text-3xl font-bold text-gray-500">{{ pending }}</div>
+                <div class="text-sm text-gray-500 mt-1">ממתינים</div>
+            </div>
+            <div class="bg-white rounded-xl shadow p-5 border-r-4 border-red-400">
+                <div class="text-3xl font-bold text-red-500">{{ declined }}</div>
+                <div class="text-sm text-gray-500 mt-1">לא מגיעים</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Other Stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white rounded-xl shadow p-5">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-gray-600 font-medium text-sm">ספקים</span>
+                <span class="text-xl">🏢</span>
+            </div>
+            <div class="text-3xl font-bold text-gray-900">{{ contracted_vendors }}<span class="text-lg text-gray-400">/{{ total_vendors }}</span></div>
+            <div class="text-xs text-gray-500 mt-1">חתמו חוזה / סה"כ</div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow p-5">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-gray-600 font-medium text-sm">תקציב</span>
+                <span class="text-xl">💰</span>
+            </div>
+            <div class="text-2xl font-bold text-gray-900" dir="ltr">₪{{ "{:,.0f}".format(grand_budget) }}</div>
+            <div class="text-xs text-gray-500 mt-1">שולם: ₪{{ "{:,.0f}".format(total_paid) }}</div>
+            {% if grand_budget > 0 %}
+            <div class="mt-2 bg-gray-100 rounded-full h-2">
+                <div class="bg-rose-500 h-2 rounded-full" style="width: {{ [((total_paid / grand_budget) * 100)|int, 100]|min }}%"></div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="bg-white rounded-xl shadow p-5">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-gray-600 font-medium text-sm">משימות פתוחות</span>
+                <span class="text-xl">✅</span>
+            </div>
+            <div class="text-3xl font-bold {% if urgent_tasks > 0 %}text-red-600{% else %}text-gray-900{% endif %}">{{ open_tasks }}</div>
+            <div class="text-xs text-gray-500 mt-1">
+                {% if urgent_tasks > 0 %}{{ urgent_tasks }} דחופות{% else %}הכל תחת שליטה{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent urgent tasks -->
+    {% if recent_tasks %}
+    <div class="bg-white rounded-xl shadow p-5">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-semibold text-gray-900">משימות קרובות</h2>
+            <a href="/wedding/tasks" class="text-rose-600 hover:text-rose-800 text-sm font-medium">כל המשימות ←</a>
+        </div>
+        <div class="space-y-2">
+            {% for task in recent_tasks %}
+            <div class="flex items-center justify-between p-3 rounded-lg
+                {% if task.priority == 'high' %}bg-red-50{% elif task.priority == 'medium' %}bg-yellow-50{% else %}bg-gray-50{% endif %}">
+                <div>
+                    <span class="font-medium text-gray-800 text-sm">{{ task.title }}</span>
+                    {% if task.due_date %}
+                    <span class="text-xs text-gray-400 mr-2">עד {{ task.due_date }}</span>
+                    {% endif %}
+                </div>
+                <span class="text-xs px-2 py-1 rounded-full flex-shrink-0
+                    {% if task.priority == 'high' %}bg-red-100 text-red-700
+                    {% elif task.priority == 'medium' %}bg-yellow-100 text-yellow-700
+                    {% else %}bg-gray-100 text-gray-500{% endif %}">
+                    {% if task.priority == 'high' %}דחוף{% elif task.priority == 'medium' %}בינוני{% else %}נמוך{% endif %}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Quick nav -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <a href="/wedding/vendors"
+           class="bg-white rounded-xl shadow p-5 hover:shadow-md transition-shadow flex items-center gap-3">
+            <div class="w-11 h-11 bg-blue-100 rounded-full flex items-center justify-center text-xl flex-shrink-0">🏢</div>
+            <div>
+                <div class="font-semibold text-gray-900 text-sm">ספקים</div>
+                <div class="text-xs text-gray-500">קייטרינג, צלם, מוזיקה...</div>
+            </div>
+        </a>
+        <a href="/wedding/guests"
+           class="bg-white rounded-xl shadow p-5 hover:shadow-md transition-shadow flex items-center gap-3">
+            <div class="w-11 h-11 bg-green-100 rounded-full flex items-center justify-center text-xl flex-shrink-0">👥</div>
+            <div>
+                <div class="font-semibold text-gray-900 text-sm">מוזמנים</div>
+                <div class="text-xs text-gray-500">{{ total_guests }} בסה"כ</div>
+            </div>
+        </a>
+        <a href="/wedding/budget"
+           class="bg-white rounded-xl shadow p-5 hover:shadow-md transition-shadow flex items-center gap-3">
+            <div class="w-11 h-11 bg-yellow-100 rounded-full flex items-center justify-center text-xl flex-shrink-0">💰</div>
+            <div>
+                <div class="font-semibold text-gray-900 text-sm">תקציב</div>
+                <div class="text-xs text-gray-500" dir="ltr">₪{{ "{:,.0f}".format(grand_budget) }}</div>
+            </div>
+        </a>
+        <a href="/wedding/tasks"
+           class="bg-white rounded-xl shadow p-5 hover:shadow-md transition-shadow flex items-center gap-3">
+            <div class="w-11 h-11 bg-purple-100 rounded-full flex items-center justify-center text-xl flex-shrink-0">📋</div>
+            <div>
+                <div class="font-semibold text-gray-900 text-sm">משימות</div>
+                <div class="text-xs text-gray-500">{{ open_tasks }} פתוחות</div>
+            </div>
+        </a>
+    </div>
+</div>
+
+<!-- Set wedding date modal -->
+<div id="date-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center" dir="rtl">
+    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+        <h3 class="text-lg font-bold mb-4">קביעת תאריך חתונה</h3>
+        <input type="date" id="wedding-date-input" class="border rounded px-3 py-2 w-full mb-4">
+        <div class="flex gap-2 justify-end">
+            <button onclick="closeDateModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">ביטול</button>
+            <button onclick="saveDateSetting()" class="px-4 py-2 bg-rose-600 text-white rounded hover:bg-rose-700">שמור</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function setWeddingDate() {
+    document.getElementById('date-modal').classList.remove('hidden');
+}
+function closeDateModal() {
+    document.getElementById('date-modal').classList.add('hidden');
+}
+function saveDateSetting() {
+    const val = document.getElementById('wedding-date-input').value;
+    if (!val) return;
+    fetch('/api/wedding/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({key: 'wedding_date', value: val})
+    }).then(() => location.reload());
+}
+</script>
+{% endblock %}

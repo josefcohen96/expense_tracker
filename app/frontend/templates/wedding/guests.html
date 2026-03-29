@@ -1,0 +1,282 @@
+{% extends "wedding/base.html" %}
+{% block wedding_title %}מוזמנים{% endblock %}
+
+{% block wedding_content %}
+
+{% set STATUS_LABELS = {
+    'confirmed': 'מאושר',
+    'declined':  'לא מגיע',
+    'maybe':     'אולי',
+    'pending':   'ממתין'
+} %}
+{% set STATUS_COLORS = {
+    'confirmed': 'bg-green-100 text-green-700',
+    'declined':  'bg-red-100 text-red-600',
+    'maybe':     'bg-yellow-100 text-yellow-700',
+    'pending':   'bg-gray-100 text-gray-500'
+} %}
+
+<div class="space-y-5" dir="rtl">
+
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <h1 class="text-2xl font-bold text-gray-900">רשימת מוזמנים 👥</h1>
+        <button onclick="openModal('add-guest-modal')"
+                class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+            + הוסף מוזמן
+        </button>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div class="bg-white rounded-xl shadow p-4 text-center">
+            <div class="text-2xl font-bold text-gray-900">{{ total }}</div>
+            <div class="text-xs text-gray-500 mt-1">סה"כ</div>
+        </div>
+        <div class="bg-white rounded-xl shadow p-4 text-center border-t-4 border-green-500">
+            <div class="text-2xl font-bold text-green-600">{{ confirmed }}</div>
+            <div class="text-xs text-gray-500 mt-1">מאושרים</div>
+        </div>
+        <div class="bg-white rounded-xl shadow p-4 text-center border-t-4 border-yellow-400">
+            <div class="text-2xl font-bold text-yellow-600">{{ maybe_count }}</div>
+            <div class="text-xs text-gray-500 mt-1">אולי</div>
+        </div>
+        <div class="bg-white rounded-xl shadow p-4 text-center border-t-4 border-gray-300">
+            <div class="text-2xl font-bold text-gray-500">{{ pending }}</div>
+            <div class="text-xs text-gray-500 mt-1">ממתינים</div>
+        </div>
+        <div class="bg-white rounded-xl shadow p-4 text-center border-t-4 border-red-400">
+            <div class="text-2xl font-bold text-red-500">{{ declined }}</div>
+            <div class="text-xs text-gray-500 mt-1">לא מגיעים</div>
+        </div>
+        <div class="bg-white rounded-xl shadow p-4 text-center border-t-4 border-blue-400">
+            <div class="text-2xl font-bold text-blue-600">{{ needs_transport }}</div>
+            <div class="text-xs text-gray-500 mt-1">צריכים הסעה</div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <form method="get" class="flex flex-wrap gap-3 items-end bg-white rounded-xl shadow p-4">
+        <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">קבוצה</label>
+            <select name="group" class="border rounded px-3 py-2 text-sm">
+                <option value="">כל הקבוצות</option>
+                {% for g in groups %}
+                <option value="{{ g }}" {% if group_filter == g %}selected{% endif %}>{{ g }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">סטטוס</label>
+            <select name="status" class="border rounded px-3 py-2 text-sm">
+                <option value="">הכל</option>
+                {% for k, v in STATUS_LABELS.items() %}
+                <option value="{{ k }}" {% if status_filter == k %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-gray-700 text-white rounded text-sm">סנן</button>
+        {% if group_filter or status_filter %}
+        <a href="/wedding/guests" class="px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded">איפוס</a>
+        {% endif %}
+    </form>
+
+    <!-- Guest Table -->
+    {% if guests %}
+    <div class="bg-white rounded-xl shadow overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">שם</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">טלפון</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">קבוצה</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">סטטוס</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">+1</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">הסעה</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">שולחן</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">הערות</th>
+                        <th class="px-4 py-3"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for g in guests %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{{ g.name }}</td>
+                        <td class="px-4 py-3 text-gray-500 whitespace-nowrap" dir="ltr">{{ g.phone or '-' }}</td>
+                        <td class="px-4 py-3 text-gray-600 whitespace-nowrap">
+                            {% if g.group_name %}
+                            <span class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full text-xs">{{ g.group_name }}</span>
+                            {% else %}-{% endif %}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <span class="px-2 py-1 rounded-full text-xs font-medium {{ STATUS_COLORS.get(g.status, 'bg-gray-100 text-gray-500') }}">
+                                {{ STATUS_LABELS.get(g.status, g.status) }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-gray-600">
+                            {% if g.plus_one %}
+                                <span class="text-green-600 font-medium">✓</span>
+                                {% if g.plus_one_name %}<span class="text-xs text-gray-400 block">{{ g.plus_one_name }}</span>{% endif %}
+                            {% else %}-{% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if g.needs_transport %}
+                            <span class="text-blue-600 font-medium text-xs">🚌 כן</span>
+                            {% else %}-{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-gray-600 text-center">{{ g.table_number or '-' }}</td>
+                        <td class="px-4 py-3 text-gray-500 max-w-xs">
+                            <div class="truncate text-xs" title="{{ g.notes or '' }}">{{ g.notes or '' }}</div>
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <div class="flex gap-2">
+                                <button onclick="editGuest({{ g | tojson }})"
+                                        class="text-blue-600 hover:text-blue-800 text-xs font-medium">ערוך</button>
+                                <button onclick="deleteGuest({{ g.id }})"
+                                        class="text-red-500 hover:text-red-700 text-xs font-medium">מחק</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl shadow p-10 text-center text-gray-400">
+        <div class="text-4xl mb-3">👥</div>
+        <p>עדיין אין מוזמנים. לחץ "הוסף מוזמן" להתחיל.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add/Edit Guest Modal -->
+<div id="add-guest-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl">
+    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-xl max-h-[90vh] overflow-y-auto">
+        <h3 id="guest-modal-title" class="text-lg font-bold mb-5">הוספת מוזמן</h3>
+        <input type="hidden" id="guest-id" value="">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">שם *</label>
+                <input type="text" id="g-name" class="border rounded px-3 py-2 w-full text-sm" placeholder="שם מלא">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
+                <input type="text" id="g-phone" class="border rounded px-3 py-2 w-full text-sm" placeholder="050-0000000" dir="ltr">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">קבוצה</label>
+                <input type="text" id="g-group" class="border rounded px-3 py-2 w-full text-sm"
+                       placeholder="לדוגמה: משפחת יוסף, חברים" list="groups-datalist">
+                <datalist id="groups-datalist">
+                    {% for g in groups %}
+                    <option value="{{ g }}">
+                    {% endfor %}
+                </datalist>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">סטטוס</label>
+                <select id="g-status" class="border rounded px-3 py-2 w-full text-sm">
+                    <option value="pending">ממתין</option>
+                    <option value="confirmed">מאושר</option>
+                    <option value="maybe">אולי</option>
+                    <option value="declined">לא מגיע</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">מספר שולחן</label>
+                <input type="number" id="g-table" class="border rounded px-3 py-2 w-full text-sm" placeholder="1" dir="ltr">
+            </div>
+            <div class="flex flex-col gap-3 pt-1">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="g-plus-one" class="w-4 h-4 accent-rose-500">
+                    <span class="text-sm text-gray-700">מגיע עם +1</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="g-transport" class="w-4 h-4 accent-blue-500">
+                    <span class="text-sm text-gray-700">צריך הסעה</span>
+                </label>
+            </div>
+            <div id="plus-one-name-wrap" class="hidden sm:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">שם ה-+1</label>
+                <input type="text" id="g-plus-one-name" class="border rounded px-3 py-2 w-full text-sm" placeholder="שם בן/בת הזוג">
+            </div>
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">הערות</label>
+                <textarea id="g-notes" class="border rounded px-3 py-2 w-full text-sm" rows="2" placeholder="הערות..."></textarea>
+            </div>
+        </div>
+
+        <div class="flex gap-2 justify-end mt-5">
+            <button onclick="closeModal('add-guest-modal')"
+                    class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm">ביטול</button>
+            <button onclick="saveGuest()"
+                    class="px-4 py-2 bg-rose-600 text-white rounded hover:bg-rose-700 text-sm font-medium">שמור</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) {
+    document.getElementById(id).classList.add('hidden');
+    document.getElementById('guest-id').value = '';
+    document.getElementById('guest-modal-title').textContent = 'הוספת מוזמן';
+    ['g-name','g-phone','g-group','g-table','g-plus-one-name','g-notes'].forEach(f => document.getElementById(f).value = '');
+    document.getElementById('g-status').value = 'pending';
+    document.getElementById('g-plus-one').checked = false;
+    document.getElementById('g-transport').checked = false;
+    document.getElementById('plus-one-name-wrap').classList.add('hidden');
+}
+
+document.getElementById('g-plus-one').addEventListener('change', function() {
+    document.getElementById('plus-one-name-wrap').classList.toggle('hidden', !this.checked);
+});
+
+function editGuest(g) {
+    document.getElementById('guest-modal-title').textContent = 'עריכת מוזמן';
+    document.getElementById('guest-id').value = g.id;
+    document.getElementById('g-name').value = g.name || '';
+    document.getElementById('g-phone').value = g.phone || '';
+    document.getElementById('g-group').value = g.group_name || '';
+    document.getElementById('g-status').value = g.status || 'pending';
+    document.getElementById('g-table').value = g.table_number || '';
+    document.getElementById('g-plus-one').checked = !!g.plus_one;
+    document.getElementById('g-transport').checked = !!g.needs_transport;
+    document.getElementById('g-plus-one-name').value = g.plus_one_name || '';
+    document.getElementById('plus-one-name-wrap').classList.toggle('hidden', !g.plus_one);
+    document.getElementById('g-notes').value = g.notes || '';
+    openModal('add-guest-modal');
+}
+
+function saveGuest() {
+    const id = document.getElementById('guest-id').value;
+    const payload = {
+        name: document.getElementById('g-name').value.trim(),
+        phone: document.getElementById('g-phone').value.trim() || null,
+        group_name: document.getElementById('g-group').value.trim() || null,
+        status: document.getElementById('g-status').value,
+        table_number: parseInt(document.getElementById('g-table').value) || null,
+        plus_one: document.getElementById('g-plus-one').checked ? 1 : 0,
+        plus_one_name: document.getElementById('g-plus-one-name').value.trim() || null,
+        needs_transport: document.getElementById('g-transport').checked ? 1 : 0,
+        notes: document.getElementById('g-notes').value.trim() || null,
+    };
+    if (!payload.name) { alert('יש להזין שם'); return; }
+
+    const url = id ? `/api/wedding/guests/${id}` : '/api/wedding/guests';
+    const method = id ? 'PUT' : 'POST';
+    fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)})
+        .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+        .then(() => location.reload())
+        .catch(() => alert('שגיאה בשמירה'));
+}
+
+function deleteGuest(id) {
+    if (!confirm('למחוק את המוזמן?')) return;
+    fetch(`/api/wedding/guests/${id}`, {method:'DELETE'}).then(() => location.reload());
+}
+</script>
+{% endblock %}

@@ -1529,3 +1529,206 @@ async def finances_backup(request: Request) -> HTMLResponse:
             "show_sidebar": True,
         },
     )
+
+
+# ==============================
+# Wedding Module
+# ==============================
+
+@router.get("/wedding", response_class=HTMLResponse)
+async def wedding_dashboard(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    total_guests = db_conn.execute("SELECT COUNT(*) FROM wedding_guests").fetchone()[0]
+    confirmed    = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='confirmed'").fetchone()[0]
+    declined     = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='declined'").fetchone()[0]
+    maybe        = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='maybe'").fetchone()[0]
+    pending      = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='pending'").fetchone()[0]
+
+    total_vendors      = db_conn.execute("SELECT COUNT(*) FROM wedding_vendors").fetchone()[0]
+    contracted_vendors = db_conn.execute(
+        "SELECT COUNT(*) FROM wedding_vendors WHERE status IN ('contract_signed','deposit_paid','fully_paid')"
+    ).fetchone()[0]
+
+    open_tasks   = db_conn.execute("SELECT COUNT(*) FROM wedding_tasks WHERE completed=0").fetchone()[0]
+    urgent_tasks = db_conn.execute("SELECT COUNT(*) FROM wedding_tasks WHERE completed=0 AND priority='high'").fetchone()[0]
+
+    total_vendors_quoted  = db_conn.execute("SELECT COALESCE(SUM(price_quoted),0) FROM wedding_vendors").fetchone()[0]
+    total_deposits_paid   = db_conn.execute(
+        "SELECT COALESCE(SUM(deposit_amount),0) FROM wedding_vendors WHERE deposit_paid_date IS NOT NULL AND deposit_paid_date != ''"
+    ).fetchone()[0]
+    total_manual_budgeted = db_conn.execute("SELECT COALESCE(SUM(budgeted_amount),0) FROM wedding_budget_items").fetchone()[0]
+    total_manual_actual   = db_conn.execute("SELECT COALESCE(SUM(actual_amount),0) FROM wedding_budget_items").fetchone()[0]
+
+    total_budget = (total_vendors_quoted or 0) + (total_manual_budgeted or 0)
+    total_paid   = (total_deposits_paid or 0) + (total_manual_actual or 0)
+
+    wedding_date_row = db_conn.execute("SELECT value FROM wedding_settings WHERE key='wedding_date'").fetchone()
+    wedding_date = wedding_date_row[0] if wedding_date_row else None
+
+    recent_tasks = [dict(t) for t in db_conn.execute(
+        "SELECT * FROM wedding_tasks WHERE completed=0 ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, due_date ASC LIMIT 5"
+    ).fetchall()]
+
+    return templates.TemplateResponse("wedding/index.html", {
+        "request": request,
+        "total_guests": total_guests,
+        "confirmed": confirmed,
+        "declined": declined,
+        "maybe": maybe,
+        "pending": pending,
+        "total_vendors": total_vendors,
+        "contracted_vendors": contracted_vendors,
+        "open_tasks": open_tasks,
+        "urgent_tasks": urgent_tasks,
+        "total_budget": total_budget,
+        "total_paid": total_paid,
+        "wedding_date": wedding_date,
+        "recent_tasks": recent_tasks,
+    })
+
+
+@router.get("/wedding/vendors", response_class=HTMLResponse)
+async def wedding_vendors_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    category_filter = request.query_params.get("category", "")
+    status_filter   = request.query_params.get("status", "")
+
+    query  = "SELECT * FROM wedding_vendors WHERE 1=1"
+    params: list = []
+    if category_filter:
+        query += " AND category=?"
+        params.append(category_filter)
+    if status_filter:
+        query += " AND status=?"
+        params.append(status_filter)
+    query += " ORDER BY category, name"
+
+    vendors = [dict(v) for v in db_conn.execute(query, params).fetchall()]
+
+    return templates.TemplateResponse("wedding/vendors.html", {
+        "request": request,
+        "vendors": vendors,
+        "category_filter": category_filter,
+        "status_filter": status_filter,
+    })
+
+
+@router.get("/wedding/guests", response_class=HTMLResponse)
+async def wedding_guests_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    group_filter  = request.query_params.get("group", "")
+    status_filter = request.query_params.get("status", "")
+
+    query  = "SELECT * FROM wedding_guests WHERE 1=1"
+    params: list = []
+    if group_filter:
+        query += " AND group_name=?"
+        params.append(group_filter)
+    if status_filter:
+        query += " AND status=?"
+        params.append(status_filter)
+    query += " ORDER BY group_name, name"
+
+    guests = [dict(g) for g in db_conn.execute(query, params).fetchall()]
+
+    total        = db_conn.execute("SELECT COUNT(*) FROM wedding_guests").fetchone()[0]
+    confirmed    = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='confirmed'").fetchone()[0]
+    declined     = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='declined'").fetchone()[0]
+    maybe_count  = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='maybe'").fetchone()[0]
+    pending      = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='pending'").fetchone()[0]
+    needs_transport = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE needs_transport=1").fetchone()[0]
+    plus_ones    = db_conn.execute(
+        "SELECT COUNT(*) FROM wedding_guests WHERE plus_one=1 AND status IN ('confirmed','maybe')"
+    ).fetchone()[0]
+
+    groups = [r[0] for r in db_conn.execute(
+        "SELECT DISTINCT group_name FROM wedding_guests WHERE group_name IS NOT NULL AND group_name!='' ORDER BY group_name"
+    ).fetchall()]
+
+    return templates.TemplateResponse("wedding/guests.html", {
+        "request": request,
+        "guests": guests,
+        "group_filter": group_filter,
+        "status_filter": status_filter,
+        "total": total,
+        "confirmed": confirmed,
+        "declined": declined,
+        "maybe_count": maybe_count,
+        "pending": pending,
+        "needs_transport": needs_transport,
+        "plus_ones": plus_ones,
+        "groups": groups,
+    })
+
+
+@router.get("/wedding/tasks", response_class=HTMLResponse)
+async def wedding_tasks_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    category_filter = request.query_params.get("category", "")
+    show_completed  = request.query_params.get("show_completed", "0")
+
+    query  = "SELECT * FROM wedding_tasks WHERE 1=1"
+    params: list = []
+    if category_filter:
+        query += " AND category=?"
+        params.append(category_filter)
+    if show_completed != "1":
+        query += " AND completed=0"
+    query += " ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, due_date ASC, created_at ASC"
+
+    tasks = [dict(t) for t in db_conn.execute(query, params).fetchall()]
+
+    total_open = db_conn.execute("SELECT COUNT(*) FROM wedding_tasks WHERE completed=0").fetchone()[0]
+    total_done = db_conn.execute("SELECT COUNT(*) FROM wedding_tasks WHERE completed=1").fetchone()[0]
+
+    return templates.TemplateResponse("wedding/tasks.html", {
+        "request": request,
+        "tasks": tasks,
+        "category_filter": category_filter,
+        "show_completed": show_completed,
+        "total_open": total_open,
+        "total_done": total_done,
+    })
+
+
+@router.get("/wedding/budget", response_class=HTMLResponse)
+async def wedding_budget_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    # Vendor-derived rows grouped by category
+    vendor_rows = db_conn.execute(
+        """
+        SELECT category,
+               COUNT(*) AS cnt,
+               COALESCE(SUM(price_quoted), 0) AS budgeted,
+               COALESCE(SUM(CASE WHEN status='fully_paid' THEN price_quoted
+                                 WHEN status='deposit_paid' THEN deposit_amount
+                                 ELSE 0 END), 0) AS paid
+        FROM wedding_vendors
+        GROUP BY category
+        ORDER BY category
+        """
+    ).fetchall()
+    vendor_rows = [dict(r) for r in vendor_rows]
+
+    # Manual budget items
+    manual_items = [dict(r) for r in db_conn.execute(
+        "SELECT * FROM wedding_budget_items ORDER BY category, name"
+    ).fetchall()]
+
+    # Totals
+    total_vendors_budgeted = sum(r["budgeted"] for r in vendor_rows)
+    total_vendors_paid     = sum(r["paid"] for r in vendor_rows)
+    total_manual_budgeted  = sum(i["budgeted_amount"] for i in manual_items)
+    total_manual_actual    = sum(i["actual_amount"] for i in manual_items)
+
+    grand_budget = total_vendors_budgeted + total_manual_budgeted
+    grand_paid   = total_vendors_paid + total_manual_actual
+    grand_left   = grand_budget - grand_paid
+
+    return templates.TemplateResponse("wedding/budget.html", {
+        "request": request,
+        "vendor_rows": vendor_rows,
+        "manual_items": manual_items,
+        "total_vendors_budgeted": total_vendors_budgeted,
+        "total_vendors_paid": total_vendors_paid,
+        "total_manual_budgeted": total_manual_budgeted,
+        "total_manual_actual": total_manual_actual,
+        "grand_budget": grand_budget,
+        "grand_paid": grand_paid,
+        "grand_left": grand_left,
+    })

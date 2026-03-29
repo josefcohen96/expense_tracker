@@ -1,0 +1,281 @@
+{% extends "wedding/base.html" %}
+{% block wedding_title %}תקציב{% endblock %}
+
+{% block wedding_content %}
+
+{% set CATEGORY_LABELS = {
+    'catering': 'קייטרינג',
+    'photographer': 'צלם',
+    'video': 'וידאו',
+    'dj': "דיג'יי",
+    'live_music': 'מוזיקה חיה',
+    'flowers': 'פרחים ועיצוב',
+    'venue': 'מקום',
+    'transport': 'הסעות',
+    'attire': 'לבוש',
+    'other': 'אחר',
+    'rings': 'טבעות',
+    'invitations': 'הזמנות',
+    'honeymoon': 'ירח דבש',
+    'makeup': 'איפור ושיער',
+    'misc': 'שונות'
+} %}
+
+<div class="space-y-6" dir="rtl">
+
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <h1 class="text-2xl font-bold text-gray-900">ניהול תקציב 💰</h1>
+        <button onclick="openModal('add-item-modal')"
+                class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+            + הוצאה ידנית
+        </button>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white rounded-xl shadow p-5 border-r-4 border-gray-400">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">סה"כ תקציב מתוכנן</div>
+            <div class="text-3xl font-bold text-gray-900" dir="ltr">₪{{ "{:,.0f}".format(grand_budget) }}</div>
+            <div class="text-xs text-gray-400 mt-1">ספקים + הוצאות ידניות</div>
+        </div>
+        <div class="bg-white rounded-xl shadow p-5 border-r-4 border-green-500">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">שולם בפועל</div>
+            <div class="text-3xl font-bold text-green-600" dir="ltr">₪{{ "{:,.0f}".format(grand_paid) }}</div>
+            {% if grand_budget > 0 %}
+            <div class="mt-2 bg-gray-100 rounded-full h-2">
+                <div class="bg-green-500 h-2 rounded-full transition-all"
+                     style="width: {{ [((grand_paid / grand_budget) * 100)|int, 100]|min }}%"></div>
+            </div>
+            <div class="text-xs text-gray-400 mt-1">{{ [((grand_paid / grand_budget) * 100)|int, 100]|min }}% שולם</div>
+            {% endif %}
+        </div>
+        <div class="bg-white rounded-xl shadow p-5 border-r-4 {% if grand_left > 0 %}border-orange-400{% else %}border-green-400{% endif %}">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">נותר לתשלום</div>
+            <div class="text-3xl font-bold {% if grand_left > 0 %}text-orange-600{% else %}text-green-600{% endif %}" dir="ltr">
+                ₪{{ "{:,.0f}".format(grand_left) }}
+            </div>
+            <div class="text-xs text-gray-400 mt-1">{% if grand_left <= 0 %}הכל שולם!{% else %}עוד לא שולם{% endif %}</div>
+        </div>
+    </div>
+
+    <!-- Vendors by Category -->
+    {% if vendor_rows %}
+    <div class="bg-white rounded-xl shadow overflow-hidden">
+        <div class="p-5 border-b border-gray-100">
+            <h2 class="text-base font-semibold text-gray-900">ספקים לפי קטגוריה</h2>
+            <p class="text-xs text-gray-400 mt-1">נגזר אוטומטית מהספקים שהוזנו</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-100 text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-5 py-3 text-right font-medium text-gray-600">קטגוריה</th>
+                        <th class="px-5 py-3 text-right font-medium text-gray-600">ספקים</th>
+                        <th class="px-5 py-3 text-right font-medium text-gray-600">תקציב</th>
+                        <th class="px-5 py-3 text-right font-medium text-gray-600">שולם</th>
+                        <th class="px-5 py-3 text-right font-medium text-gray-600">נותר</th>
+                        <th class="px-5 py-3 text-right font-medium text-gray-600">התקדמות</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    {% for row in vendor_rows %}
+                    {% set left = row.budgeted - row.paid %}
+                    {% set pct = ((row.paid / row.budgeted * 100)|int) if row.budgeted > 0 else 0 %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-5 py-3 font-medium text-gray-800">
+                            {{ CATEGORY_LABELS.get(row.category, row.category) }}
+                        </td>
+                        <td class="px-5 py-3 text-gray-500 text-center">{{ row.cnt }}</td>
+                        <td class="px-5 py-3 text-gray-900" dir="ltr">₪{{ "{:,.0f}".format(row.budgeted) }}</td>
+                        <td class="px-5 py-3 text-green-700" dir="ltr">₪{{ "{:,.0f}".format(row.paid) }}</td>
+                        <td class="px-5 py-3 {% if left > 0 %}text-orange-600{% else %}text-green-600{% endif %}" dir="ltr">
+                            ₪{{ "{:,.0f}".format(left) }}
+                        </td>
+                        <td class="px-5 py-3 w-28">
+                            <div class="bg-gray-100 rounded-full h-2">
+                                <div class="bg-rose-400 h-2 rounded-full" style="width: {{ [pct, 100]|min }}%"></div>
+                            </div>
+                            <div class="text-xs text-gray-400 mt-0.5">{{ [pct, 100]|min }}%</div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <!-- Subtotal -->
+                    <tr class="bg-gray-50 font-semibold">
+                        <td class="px-5 py-3 text-gray-700">סיכום ספקים</td>
+                        <td class="px-5 py-3"></td>
+                        <td class="px-5 py-3 text-gray-900" dir="ltr">₪{{ "{:,.0f}".format(total_vendors_budgeted) }}</td>
+                        <td class="px-5 py-3 text-green-700" dir="ltr">₪{{ "{:,.0f}".format(total_vendors_paid) }}</td>
+                        <td class="px-5 py-3 text-orange-600" dir="ltr">₪{{ "{:,.0f}".format(total_vendors_budgeted - total_vendors_paid) }}</td>
+                        <td class="px-5 py-3"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="p-3 text-xs text-gray-400 border-t">
+            * "שולם" כולל מקדמות ששולמו + הסכום המלא לספקים שסומנו "שולם במלואו"
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Manual Budget Items -->
+    <div class="bg-white rounded-xl shadow overflow-hidden">
+        <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+            <div>
+                <h2 class="text-base font-semibold text-gray-900">הוצאות ידניות</h2>
+                <p class="text-xs text-gray-400 mt-1">הוצאות שאין להן ספק – טבעות, הזמנות, תלבושות...</p>
+            </div>
+            <button onclick="openModal('add-item-modal')"
+                    class="text-rose-600 hover:text-rose-800 text-sm font-medium">+ הוסף</button>
+        </div>
+
+        {% if manual_items %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-100 text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-5 py-3 text-right font-medium text-gray-600">פריט</th>
+                        <th class="px-5 py-3 text-right font-medium text-gray-600">קטגוריה</th>
+                        <th class="px-5 py-3 text-right font-medium text-gray-600">תקציב</th>
+                        <th class="px-5 py-3 text-right font-medium text-gray-600">בפועל</th>
+                        <th class="px-5 py-3 text-right font-medium text-gray-600">הפרש</th>
+                        <th class="px-5 py-3 text-right font-medium text-gray-600">הערות</th>
+                        <th class="px-5 py-3"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    {% for item in manual_items %}
+                    {% set diff = item.actual_amount - item.budgeted_amount %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-5 py-3 font-medium text-gray-800">{{ item.name }}</td>
+                        <td class="px-5 py-3 text-gray-500">{{ CATEGORY_LABELS.get(item.category, item.category) }}</td>
+                        <td class="px-5 py-3 text-gray-900" dir="ltr">₪{{ "{:,.0f}".format(item.budgeted_amount) }}</td>
+                        <td class="px-5 py-3 text-gray-900" dir="ltr">₪{{ "{:,.0f}".format(item.actual_amount) }}</td>
+                        <td class="px-5 py-3 {% if diff > 0 %}text-red-600{% elif diff < 0 %}text-green-600{% else %}text-gray-400{% endif %}" dir="ltr">
+                            {% if diff > 0 %}+{% endif %}₪{{ "{:,.0f}".format(diff) }}
+                        </td>
+                        <td class="px-5 py-3 text-gray-400 text-xs">{{ item.notes or '' }}</td>
+                        <td class="px-5 py-3 whitespace-nowrap">
+                            <div class="flex gap-2">
+                                <button onclick="editItem({{ item | tojson }})"
+                                        class="text-blue-600 hover:text-blue-800 text-xs">ערוך</button>
+                                <button onclick="deleteItem({{ item.id }})"
+                                        class="text-red-500 hover:text-red-700 text-xs">מחק</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="bg-gray-50 font-semibold">
+                        <td class="px-5 py-3 text-gray-700">סיכום הוצאות ידניות</td>
+                        <td class="px-5 py-3"></td>
+                        <td class="px-5 py-3 text-gray-900" dir="ltr">₪{{ "{:,.0f}".format(total_manual_budgeted) }}</td>
+                        <td class="px-5 py-3 text-gray-900" dir="ltr">₪{{ "{:,.0f}".format(total_manual_actual) }}</td>
+                        <td class="px-5 py-3"></td>
+                        <td class="px-5 py-3"></td>
+                        <td class="px-5 py-3"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-8 text-center text-gray-400 text-sm">
+            אין הוצאות ידניות עדיין. לחץ "הוסף" להוסיף.
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- Add/Edit Manual Item Modal -->
+<div id="add-item-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl">
+    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg">
+        <h3 id="item-modal-title" class="text-lg font-bold mb-5">הוספת הוצאה ידנית</h3>
+        <input type="hidden" id="item-id" value="">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">שם הפריט *</label>
+                <input type="text" id="i-name" class="border rounded px-3 py-2 w-full text-sm" placeholder="לדוגמה: טבעות נישואין">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">קטגוריה</label>
+                <select id="i-category" class="border rounded px-3 py-2 w-full text-sm">
+                    <option value="rings">טבעות</option>
+                    <option value="invitations">הזמנות</option>
+                    <option value="honeymoon">ירח דבש</option>
+                    <option value="makeup">איפור ושיער</option>
+                    <option value="attire">לבוש</option>
+                    <option value="misc">שונות</option>
+                    <option value="other">אחר</option>
+                </select>
+            </div>
+            <div></div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">תקציב מתוכנן (₪)</label>
+                <input type="number" id="i-budgeted" class="border rounded px-3 py-2 w-full text-sm" placeholder="0" dir="ltr">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">שולם בפועל (₪)</label>
+                <input type="number" id="i-actual" class="border rounded px-3 py-2 w-full text-sm" placeholder="0" dir="ltr">
+            </div>
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">הערות</label>
+                <input type="text" id="i-notes" class="border rounded px-3 py-2 w-full text-sm" placeholder="הערה...">
+            </div>
+        </div>
+
+        <div class="flex gap-2 justify-end mt-5">
+            <button onclick="closeModal('add-item-modal')"
+                    class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm">ביטול</button>
+            <button onclick="saveItem()"
+                    class="px-4 py-2 bg-rose-600 text-white rounded hover:bg-rose-700 text-sm font-medium">שמור</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) {
+    document.getElementById(id).classList.add('hidden');
+    document.getElementById('item-id').value = '';
+    document.getElementById('item-modal-title').textContent = 'הוספת הוצאה ידנית';
+    ['i-name','i-budgeted','i-actual','i-notes'].forEach(f => document.getElementById(f).value = '');
+    document.getElementById('i-category').value = 'misc';
+}
+
+function editItem(item) {
+    document.getElementById('item-modal-title').textContent = 'עריכת הוצאה';
+    document.getElementById('item-id').value = item.id;
+    document.getElementById('i-name').value = item.name || '';
+    document.getElementById('i-category').value = item.category || 'misc';
+    document.getElementById('i-budgeted').value = item.budgeted_amount || 0;
+    document.getElementById('i-actual').value = item.actual_amount || 0;
+    document.getElementById('i-notes').value = item.notes || '';
+    openModal('add-item-modal');
+}
+
+function saveItem() {
+    const id = document.getElementById('item-id').value;
+    const payload = {
+        name: document.getElementById('i-name').value.trim(),
+        category: document.getElementById('i-category').value,
+        budgeted_amount: parseFloat(document.getElementById('i-budgeted').value) || 0,
+        actual_amount: parseFloat(document.getElementById('i-actual').value) || 0,
+        notes: document.getElementById('i-notes').value.trim() || null,
+    };
+    if (!payload.name) { alert('יש להזין שם'); return; }
+
+    const url = id ? `/api/wedding/budget-items/${id}` : '/api/wedding/budget-items';
+    const method = id ? 'PUT' : 'POST';
+    fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)})
+        .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+        .then(() => location.reload())
+        .catch(() => alert('שגיאה בשמירה'));
+}
+
+function deleteItem(id) {
+    if (!confirm('למחוק פריט זה?')) return;
+    fetch(`/api/wedding/budget-items/${id}`, {method:'DELETE'}).then(() => location.reload());
+}
+</script>
+{% endblock %}

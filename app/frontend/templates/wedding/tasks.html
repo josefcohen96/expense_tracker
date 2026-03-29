@@ -1,0 +1,222 @@
+{% extends "wedding/base.html" %}
+{% block wedding_title %}משימות{% endblock %}
+
+{% block wedding_content %}
+
+{% set CATEGORY_LABELS = {
+    'venue':      'מקום',
+    'vendors':    'ספקים',
+    'guests':     'מוזמנים',
+    'logistics':  'לוגיסטיקה',
+    'attire':     'לבוש',
+    'general':    'כללי'
+} %}
+
+{% set PRIORITY_LABELS = {'high': 'דחוף', 'medium': 'בינוני', 'low': 'נמוך'} %}
+{% set PRIORITY_COLORS = {
+    'high':   'bg-red-100 text-red-700',
+    'medium': 'bg-yellow-100 text-yellow-700',
+    'low':    'bg-gray-100 text-gray-500'
+} %}
+
+<div class="space-y-5" dir="rtl">
+
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">משימות ✅</h1>
+            <p class="text-sm text-gray-500 mt-1">{{ total_open }} פתוחות · {{ total_done }} הושלמו</p>
+        </div>
+        <button onclick="openModal('add-task-modal')"
+                class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+            + הוסף משימה
+        </button>
+    </div>
+
+    <!-- Filters -->
+    <form method="get" class="flex flex-wrap gap-3 items-end bg-white rounded-xl shadow p-4">
+        <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">קטגוריה</label>
+            <select name="category" class="border rounded px-3 py-2 text-sm">
+                <option value="">הכל</option>
+                {% for k, v in CATEGORY_LABELS.items() %}
+                <option value="{{ k }}" {% if category_filter == k %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="flex items-end gap-2">
+            <label class="flex items-center gap-2 cursor-pointer pb-2">
+                <input type="checkbox" name="show_completed" value="1" {% if show_completed == '1' %}checked{% endif %}
+                       class="w-4 h-4 accent-rose-500">
+                <span class="text-sm text-gray-600">הצג גם שהושלמו</span>
+            </label>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-gray-700 text-white rounded text-sm">סנן</button>
+        {% if category_filter or show_completed == '1' %}
+        <a href="/wedding/tasks" class="px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded">איפוס</a>
+        {% endif %}
+    </form>
+
+    <!-- Task List -->
+    {% if tasks %}
+    <div class="space-y-2">
+        {% for task in tasks %}
+        <div class="bg-white rounded-xl shadow px-4 py-3 flex items-start gap-3 {% if task.completed %}opacity-60{% endif %}"
+             id="task-{{ task.id }}">
+            <!-- Checkbox -->
+            <button onclick="toggleTask({{ task.id }}, {{ task.completed }})"
+                    class="mt-0.5 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors
+                           {% if task.completed %}bg-green-500 border-green-500 text-white{% else %}border-gray-300 hover:border-rose-400{% endif %}">
+                {% if task.completed %}<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                </svg>{% endif %}
+            </button>
+
+            <!-- Content -->
+            <div class="flex-1 min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="font-medium text-gray-900 {% if task.completed %}line-through text-gray-400{% endif %}">
+                        {{ task.title }}
+                    </span>
+                    <span class="text-xs px-2 py-0.5 rounded-full {{ PRIORITY_COLORS.get(task.priority, 'bg-gray-100 text-gray-500') }}">
+                        {{ PRIORITY_LABELS.get(task.priority, task.priority) }}
+                    </span>
+                    {% if task.category %}
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
+                        {{ CATEGORY_LABELS.get(task.category, task.category) }}
+                    </span>
+                    {% endif %}
+                </div>
+                {% if task.due_date or task.notes %}
+                <div class="flex flex-wrap gap-3 mt-1">
+                    {% if task.due_date %}
+                    <span class="text-xs text-gray-400">📅 עד {{ task.due_date }}</span>
+                    {% endif %}
+                    {% if task.notes %}
+                    <span class="text-xs text-gray-400">{{ task.notes }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-2 flex-shrink-0">
+                <button onclick="editTask({{ task | tojson }})"
+                        class="text-blue-500 hover:text-blue-700 text-xs font-medium">ערוך</button>
+                <button onclick="deleteTask({{ task.id }})"
+                        class="text-red-400 hover:text-red-600 text-xs font-medium">מחק</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl shadow p-10 text-center text-gray-400">
+        <div class="text-4xl mb-3">✅</div>
+        <p>{% if show_completed == '1' %}אין משימות{% else %}אין משימות פתוחות. לחץ "+ הוסף משימה"{% endif %}</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add/Edit Task Modal -->
+<div id="add-task-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl">
+    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg">
+        <h3 id="task-modal-title" class="text-lg font-bold mb-5">הוספת משימה</h3>
+        <input type="hidden" id="task-id" value="">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">כותרת *</label>
+                <input type="text" id="t-title" class="border rounded px-3 py-2 w-full text-sm"
+                       placeholder="מה צריך לעשות?">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">קטגוריה</label>
+                <select id="t-category" class="border rounded px-3 py-2 w-full text-sm">
+                    {% for k, v in CATEGORY_LABELS.items() %}
+                    <option value="{{ k }}">{{ v }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">עדיפות</label>
+                <select id="t-priority" class="border rounded px-3 py-2 w-full text-sm">
+                    <option value="high">דחוף</option>
+                    <option value="medium" selected>בינוני</option>
+                    <option value="low">נמוך</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">תאריך יעד</label>
+                <input type="date" id="t-due-date" class="border rounded px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">הערות</label>
+                <input type="text" id="t-notes" class="border rounded px-3 py-2 w-full text-sm" placeholder="הערה...">
+            </div>
+        </div>
+
+        <div class="flex gap-2 justify-end mt-5">
+            <button onclick="closeModal('add-task-modal')"
+                    class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm">ביטול</button>
+            <button onclick="saveTask()"
+                    class="px-4 py-2 bg-rose-600 text-white rounded hover:bg-rose-700 text-sm font-medium">שמור</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) {
+    document.getElementById(id).classList.add('hidden');
+    document.getElementById('task-id').value = '';
+    document.getElementById('task-modal-title').textContent = 'הוספת משימה';
+    ['t-title','t-due-date','t-notes'].forEach(f => document.getElementById(f).value = '');
+    document.getElementById('t-category').value = 'general';
+    document.getElementById('t-priority').value = 'medium';
+}
+
+function editTask(t) {
+    document.getElementById('task-modal-title').textContent = 'עריכת משימה';
+    document.getElementById('task-id').value = t.id;
+    document.getElementById('t-title').value = t.title || '';
+    document.getElementById('t-category').value = t.category || 'general';
+    document.getElementById('t-priority').value = t.priority || 'medium';
+    document.getElementById('t-due-date').value = t.due_date || '';
+    document.getElementById('t-notes').value = t.notes || '';
+    openModal('add-task-modal');
+}
+
+function saveTask() {
+    const id = document.getElementById('task-id').value;
+    const payload = {
+        title: document.getElementById('t-title').value.trim(),
+        category: document.getElementById('t-category').value,
+        priority: document.getElementById('t-priority').value,
+        due_date: document.getElementById('t-due-date').value || null,
+        notes: document.getElementById('t-notes').value.trim() || null,
+    };
+    if (!payload.title) { alert('יש להזין כותרת'); return; }
+
+    const url = id ? `/api/wedding/tasks/${id}` : '/api/wedding/tasks';
+    const method = id ? 'PUT' : 'POST';
+    fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)})
+        .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+        .then(() => location.reload())
+        .catch(() => alert('שגיאה'));
+}
+
+function toggleTask(id, currentCompleted) {
+    const newVal = currentCompleted ? 0 : 1;
+    fetch(`/api/wedding/tasks/${id}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({completed: newVal})
+    }).then(() => location.reload());
+}
+
+function deleteTask(id) {
+    if (!confirm('למחוק משימה זו?')) return;
+    fetch(`/api/wedding/tasks/${id}`, {method:'DELETE'}).then(() => location.reload());
+}
+</script>
+{% endblock %}

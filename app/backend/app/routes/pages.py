@@ -1664,7 +1664,7 @@ async def wedding_guests_page(request: Request, db_conn: sqlite3.Connection = De
         "guests": guests,
         "group_filter": group_filter,
         "status_filter": status_filter,
-        "total": total,
+        "total": total_invitations,
         "confirmed": confirmed,
         "declined": declined,
         "maybe_count": maybe_count,

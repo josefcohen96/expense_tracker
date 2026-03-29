@@ -1579,7 +1579,7 @@ async def wedding_dashboard(request: Request, db_conn: sqlite3.Connection = Depe
         "contracted_vendors": contracted_vendors,
         "open_tasks": open_tasks,
         "urgent_tasks": urgent_tasks,
-        "total_budget": total_budget,
+        "grand_budget": total_budget,
         "total_paid": total_paid,
         "wedding_date": wedding_date,
         "recent_tasks": recent_tasks,

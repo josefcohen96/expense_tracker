@@ -192,47 +192,17 @@
         .main-content {
             flex: 1;
             min-height: 100vh;
-            background: white;
-            border-radius: 8px;
-            margin: 16px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            margin-right: 272px;
-            margin-left: 16px;
-            margin-top: calc(80px + env(safe-area-inset-top));
-            /* Space for fixed navbar + notch */
+            margin-top: calc(64px + env(safe-area-inset-top));
             z-index: 10;
             position: relative;
-        }
-
-        /* Fix sidebar width and positioning */
-        #sidebar {
-            width: 256px !important;
-            max-width: 256px !important;
-            flex-shrink: 0;
-            min-width: 256px;
-        }
-
-        #sidebar-collapsed {
-            width: 64px !important;
-            max-width: 64px !important;
-            flex-shrink: 0;
-            min-width: 64px;
         }
 
         /* ===== RESPONSIVE DESIGN ===== */
         @media (max-width: 768px) {
 
-            /* Mobile: Hide sidebar by default */
-            .sidebar {
-                transform: translateX(100%);
-            }
-
             /* Mobile: Full width content */
             .main-content {
-                margin-right: 0;
-                margin-left: 0;
                 width: 100%;
-                border-radius: 0;
                 margin-top: calc(64px + env(safe-area-inset-top));
             }
 
@@ -247,25 +217,6 @@
                 height: 50px;
                 bottom: 20px;
                 right: 20px;
-            }
-        }
-
-        @media (min-width: 769px) and (max-width: 1024px) {
-
-            /* Tablet: Adjust sidebar width */
-            #sidebar {
-                width: 200px !important;
-                max-width: 200px !important;
-                min-width: 200px;
-            }
-
-            /* Tablet: Adjust main content margin */
-            .main-content {
-                margin-right: 216px;
-            }
-
-            body.sidebar-collapsed .main-content {
-                margin-right: 80px;
             }
         }
 
@@ -408,11 +359,38 @@
             justify-content: center;
         }
 
-        /* Content Area */
-        .main-content {
+        /* Right drawer for section navigation */
+        .section-drawer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            height: 100%;
+            width: 18rem;
+            max-width: 85vw;
             background: white;
-            min-height: 100vh;
-            position: relative;
+            box-shadow: -4px 0 20px rgba(0,0,0,0.15);
+            z-index: 450;
+            transform: translateX(100%);
+            transition: transform 0.3s ease-in-out;
+            overflow-y: auto;
+        }
+        .section-drawer.open {
+            transform: translateX(0);
+        }
+        .drawer-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 440;
+            display: none;
+        }
+        .drawer-overlay.open {
+            display: block;
+        }
+        .section-subheader {
+            position: sticky;
+            top: calc(64px + env(safe-area-inset-top, 0px));
+            z-index: 30;
         }
 
         /* Footer Improvements */
@@ -488,14 +466,15 @@
 
                 <!-- Main Categories Navigation -->
                 <div class="hidden md:flex space-x-8 space-x-reverse">
-                    <a href="/finances/transactions"
-                        class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors animate-sequence">
-                        <i class="fas fa-wallet mr-2"></i>
+                    <a href="/finances"
+                        class="nav-link px-4 py-2 rounded-xl text-sm font-semibold hover:bg-white/20 transition-colors animate-sequence flex items-center gap-2">
+                        <i class="fas fa-wallet"></i>
                         פיננסים
                     </a>
                     <a href="/wedding"
-                        class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors animate-sequence">
-                        💍 חתונה
+                        class="nav-link px-4 py-2 rounded-xl text-sm font-semibold hover:bg-white/20 transition-colors animate-sequence flex items-center gap-2">
+                        <span>💍</span>
+                        חתונה
                     </a>
                 </div>
 
@@ -528,58 +507,32 @@
         </div>
 
         <!-- Mobile menu -->
-        <div id="mobile-menu" class="hidden md:hidden bg-purple-700 animate-slide-in-right">
-            <div class="px-2 pt-2 pb-3 space-y-1">
-                <a href="/wedding"
-                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
-                    💍 חתונה
-                </a>
-                <div class="border-t border-purple-600 my-1"></div>
+        <div id="mobile-menu" class="hidden md:hidden bg-purple-800 border-t border-purple-600">
+            <div class="px-3 py-3 space-y-1">
                 <a href="/finances"
-                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
-                    <i class="fas fa-gauge mr-2"></i>
-                    לוח בקרה
+                    class="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium hover:bg-purple-700 transition-colors">
+                    <i class="fas fa-wallet text-purple-200"></i>
+                    פיננסים
                 </a>
-                <a href="/finances/transactions"
-                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
-                    <i class="fas fa-exchange-alt mr-2"></i>
-                    עסקאות
+                <a href="/wedding"
+                    class="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium hover:bg-purple-700 transition-colors">
+                    <span class="text-base">💍</span>
+                    חתונה
                 </a>
-                <a href="/finances/income"
-                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
-                    <i class="fas fa-shekel-sign mr-2"></i>
-                    הכנסות
-                </a>
-                <a href="/finances/recurrences"
-                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
-                    <i class="fas fa-repeat mr-2"></i>
-                    הוצאות קבועות
-                </a>
-                <a href="/finances/recurrences/active"
-                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
-                    <i class="fas fa-toggle-on mr-2"></i>
-                    הוצאות קבועות פעילות
-                </a>
-                <a href="/finances/statistics"
-                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
-                    <i class="fas fa-chart-line mr-2"></i>
-                    סטטיסטיקות
-                </a>
-                <a href="/finances/backup"
-                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
-                    <i class="fas fa-database mr-2"></i>
-                    גיבוי
-                </a>
+                <div class="border-t border-purple-600 my-2"></div>
                 {% if request.session.get('user') %}
+                <div class="px-4 py-2 text-sm text-purple-200">
+                    מחובר כ-{{ request.session.get('user', {}).get('username') }}
+                </div>
                 <a href="/logout"
-                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
-                    <i class="fas fa-sign-out-alt mr-2"></i>
+                    class="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium hover:bg-purple-700 transition-colors">
+                    <i class="fas fa-sign-out-alt text-purple-200"></i>
                     יציאה
                 </a>
                 {% else %}
                 <a href="/login"
-                    class="block px-3 py-2 rounded-md text-base font-medium hover:bg-purple-600 transition-colors">
-                    <i class="fas fa-sign-in-alt mr-2"></i>
+                    class="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium hover:bg-purple-700 transition-colors">
+                    <i class="fas fa-sign-in-alt text-purple-200"></i>
                     התחברות
                 </a>
                 {% endif %}
@@ -588,124 +541,8 @@
     </nav>
 
     <!-- Main Content Area -->
-    <!-- Main Content Area -->
-    <div class="flex min-h-screen full-viewport-safe bg-gray-100 overflow-x-hidden w-full">
-        <!-- Sidebar (only for specific sections like finances) -->
-        {% if show_sidebar %}
-        <div id="sidebar" class="sidebar shadow-lg sidebar-transition">
-            <div class="p-6">
-                <!-- Sidebar Header with Toggle Button -->
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-lg font-semibold text-gray-800 animate-sequence">
-                        <i class="fas fa-wallet mr-2"></i>
-                        פיננסים
-                    </h2>
-                    <button id="sidebar-toggle" class="text-gray-500 hover:text-gray-700 transition-colors"
-                        title="סגור/פתח סיידבר">
-                        <i class="fas fa-chevron-right"></i>
-                    </button>
-                </div>
-
-                <!-- Finance Navigation -->
-                <nav class="space-y-2">
-                    <a href="/finances"
-                        class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if request.path == '/finances' %}active{% endif %}">
-                        <i class="fas fa-gauge mr-3 w-5 text-center"></i>
-                        <span>לוח בקרה</span>
-                    </a>
-                    <a href="/finances/transactions"
-                        class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'transactions' in request.path %}active{% endif %}">
-                        <i class="fas fa-exchange-alt mr-3 w-5 text-center"></i>
-                        <span>עסקאות</span>
-                    </a>
-                    <a href="/finances/income"
-                        class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'income' in request.path %}active{% endif %}">
-                        <i class="fas fa-shekel-sign mr-3 w-5 text-center"></i>
-                        <span>הכנסות</span>
-                    </a>
-                    <a href="/finances/recurrences"
-                        class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}active{% endif %}">
-                        <i class="fas fa-repeat mr-3 w-5 text-center"></i>
-                        <span>הוצאות קבועות</span>
-                    </a>
-                    <a href="/finances/recurrences/active"
-                        class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'recurrences/active' in request.path %}active{% endif %}">
-                        <i class="fas fa-toggle-on mr-3 w-5 text-center"></i>
-                        <span>ניהול הוצאות קבועות</span>
-                    </a>
-                    <a href="/finances/statistics"
-                        class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'statistics' in request.path %}active{% endif %}">
-                        <i class="fas fa-chart-line mr-3 w-5 text-center"></i>
-                        <span>סטטיסטיקות</span>
-                    </a>
-                    <a href="/finances/backup"
-                        class="sidebar-item flex items-center px-3 py-2 transition-all duration-200 {% if 'backup' in request.path %}active{% endif %}">
-                        <i class="fas fa-database mr-3 w-5 text-center"></i>
-                        <span>גיבוי</span>
-                    </a>
-                </nav>
-
-
-            </div>
-        </div>
-
-        <!-- Collapsed Sidebar (when toggled) -->
-        <div id="sidebar-collapsed" class="sidebar shadow-lg sidebar-transition hidden">
-            <div class="p-4">
-                <div class="flex justify-center mb-4">
-                    <button id="sidebar-expand" class="text-gray-500 hover:text-gray-700 transition-colors"
-                        title="פתח סיידבר">
-                        <i class="fas fa-chevron-left"></i>
-                    </button>
-                </div>
-
-                <nav class="space-y-2">
-                    <a href="/finances"
-                        class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if request.path == '/finances' %}active{% endif %}"
-                        title="לוח בקרה">
-                        <i class="fas fa-gauge"></i>
-                    </a>
-                    <a href="/finances/transactions"
-                        class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'transactions' in request.path %}active{% endif %}"
-                        title="עסקאות">
-                        <i class="fas fa-exchange-alt"></i>
-                    </a>
-                    <a href="/finances/income"
-                        class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'income' in request.path %}active{% endif %}"
-                        title="הכנסות">
-                        <i class="fas fa-shekel-sign"></i>
-                    </a>
-                    <a href="/finances/recurrences"
-                        class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}active{% endif %}"
-                        title="הוצאות קבועות">
-                        <i class="fas fa-repeat"></i>
-                    </a>
-                    <a href="/finances/recurrences/active"
-                        class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'recurrences/active' in request.path %}active{% endif %}"
-                        title="ניהול הוצאות קבועות">
-                        <i class="fas fa-toggle-on"></i>
-                    </a>
-                    <a href="/finances/statistics"
-                        class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'statistics' in request.path %}active{% endif %}"
-                        title="סטטיסטיקות">
-                        <i class="fas fa-chart-line"></i>
-                    </a>
-                    <a href="/finances/backup"
-                        class="sidebar-item flex items-center justify-center px-2 py-3 transition-all duration-200 {% if 'backup' in request.path %}active{% endif %}"
-                        title="גיבוי">
-                        <i class="fas fa-database"></i>
-                    </a>
-                </nav>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Main Content -->
-        <div class="flex-1 main-content">
-            <main class="p-4 sm:p-6 relative z-10 w-full overflow-x-hidden">
-                {% block content %}{% endblock %}
-            </main>
-        </div>
+    <div class="main-content w-full overflow-x-hidden">
+        {% block content %}{% endblock %}
     </div>
 
     <!-- Floating Action Button -->

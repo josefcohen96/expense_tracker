@@ -3,87 +3,165 @@
 {% block title %}{% block finances_title %}פיננסים{% endblock %} - המנביטים{% endblock %}
 
 {% block content %}
-<div class="flex min-h-screen full-viewport-safe">
-    <!-- Sidebar -->
-    <div class="w-64 bg-white shadow-lg border-l">
-        <div class="p-6">
-            <h2 class="text-xl font-bold text-gray-900 mb-6">פיננסים</h2>
-            <nav class="space-y-2">
-                <a href="/finances"
-                    class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if request.path == '/finances' %}bg-blue-100 text-blue-700{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z"></path>
-                    </svg>
-                    דשבורד
-                </a>
+<!-- Finances Drawer Overlay -->
+<div id="fin-overlay" class="drawer-overlay" onclick="toggleFinDrawer()"></div>
 
-                <a href="/finances/transactions"
-                    class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'transactions' in request.path %}bg-blue-100 text-blue-700{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2">
-                        </path>
-                    </svg>
-                    עסקאות
-                </a>
+<!-- Finances Right Drawer -->
+<div id="fin-drawer" class="section-drawer" dir="rtl">
 
-                <a href="/finances/recurrences"
-                    class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}bg-blue-100 text-blue-700{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
-                        </path>
-                    </svg>
-                    הוצאות קבועות
-                </a>
-                <a href="/finances/recurrences/active"
-                    class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'recurrences/active' in request.path %}bg-blue-100 text-blue-700{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                    ניהול הוצאות קבועות
-                </a>
-
-                <a href="/finances/income"
-                    class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'income' in request.path %}bg-blue-100 text-blue-700{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1">
-                        </path>
-                    </svg>
-                    הכנסות
-                </a>
-
-                <a href="/finances/statistics"
-                    class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'statistics' in request.path %}bg-blue-100 text-blue-700{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
-                        </path>
-                    </svg>
-                    סטטיסטיקות
-                </a>
-
-                <a href="/finances/backup"
-                    class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'backup' in request.path %}bg-blue-100 text-blue-700{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-                    </svg>
-                    גיבוי
-                </a>
-
-
-            </nav>
+    <!-- Drawer Header -->
+    <div class="flex items-center justify-between p-5 bg-gradient-to-l from-blue-700 to-blue-900">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-wallet text-white text-lg"></i>
+            </div>
+            <div>
+                <h2 class="text-lg font-bold text-white leading-tight">פיננסים</h2>
+                <p class="text-blue-200 text-xs">ניהול כספים</p>
+            </div>
         </div>
+        <button onclick="toggleFinDrawer()"
+                class="p-2 rounded-full bg-white/10 hover:bg-white/25 transition-colors">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
     </div>
 
-    <!-- Main Content -->
-    <div class="flex-1 bg-gray-50 full-viewport-safe overflow-x-hidden w-full">
-        <div class="p-4 sm:p-6 mb-16 sm:mb-0">
-            {% block finances_content %}{% endblock %}
+    <!-- Navigation Links -->
+    <nav class="p-3 space-y-1">
+
+        <a href="/finances" onclick="toggleFinDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+                   {% if request.path == '/finances' %}bg-blue-50 text-blue-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+            <div class="w-8 h-8 rounded-lg {% if request.path == '/finances' %}bg-blue-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-gauge text-sm {% if request.path == '/finances' %}text-blue-600{% else %}text-gray-500{% endif %}"></i>
+            </div>
+            <span>דשבורד</span>
+            {% if request.path == '/finances' %}
+            <span class="mr-auto w-2 h-2 rounded-full bg-blue-500"></span>
+            {% endif %}
+        </a>
+
+        <a href="/finances/transactions" onclick="toggleFinDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+                   {% if 'transactions' in request.path %}bg-blue-50 text-blue-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+            <div class="w-8 h-8 rounded-lg {% if 'transactions' in request.path %}bg-blue-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-exchange-alt text-sm {% if 'transactions' in request.path %}text-blue-600{% else %}text-gray-500{% endif %}"></i>
+            </div>
+            <span>עסקאות</span>
+            {% if 'transactions' in request.path %}
+            <span class="mr-auto w-2 h-2 rounded-full bg-blue-500"></span>
+            {% endif %}
+        </a>
+
+        <a href="/finances/income" onclick="toggleFinDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+                   {% if 'income' in request.path %}bg-blue-50 text-blue-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+            <div class="w-8 h-8 rounded-lg {% if 'income' in request.path %}bg-blue-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-shekel-sign text-sm {% if 'income' in request.path %}text-blue-600{% else %}text-gray-500{% endif %}"></i>
+            </div>
+            <span>הכנסות</span>
+            {% if 'income' in request.path %}
+            <span class="mr-auto w-2 h-2 rounded-full bg-blue-500"></span>
+            {% endif %}
+        </a>
+
+        <a href="/finances/recurrences" onclick="toggleFinDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+                   {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}bg-blue-50 text-blue-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+            <div class="w-8 h-8 rounded-lg {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}bg-blue-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-repeat text-sm {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}text-blue-600{% else %}text-gray-500{% endif %}"></i>
+            </div>
+            <span>הוצאות קבועות</span>
+            {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}
+            <span class="mr-auto w-2 h-2 rounded-full bg-blue-500"></span>
+            {% endif %}
+        </a>
+
+        <a href="/finances/recurrences/active" onclick="toggleFinDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+                   {% if 'recurrences/active' in request.path %}bg-blue-50 text-blue-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+            <div class="w-8 h-8 rounded-lg {% if 'recurrences/active' in request.path %}bg-blue-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-toggle-on text-sm {% if 'recurrences/active' in request.path %}text-blue-600{% else %}text-gray-500{% endif %}"></i>
+            </div>
+            <span>ניהול הוצאות קבועות</span>
+            {% if 'recurrences/active' in request.path %}
+            <span class="mr-auto w-2 h-2 rounded-full bg-blue-500"></span>
+            {% endif %}
+        </a>
+
+        <a href="/finances/statistics" onclick="toggleFinDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+                   {% if 'statistics' in request.path %}bg-blue-50 text-blue-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+            <div class="w-8 h-8 rounded-lg {% if 'statistics' in request.path %}bg-blue-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-chart-line text-sm {% if 'statistics' in request.path %}text-blue-600{% else %}text-gray-500{% endif %}"></i>
+            </div>
+            <span>סטטיסטיקות</span>
+            {% if 'statistics' in request.path %}
+            <span class="mr-auto w-2 h-2 rounded-full bg-blue-500"></span>
+            {% endif %}
+        </a>
+
+        <a href="/finances/backup" onclick="toggleFinDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+                   {% if 'backup' in request.path %}bg-blue-50 text-blue-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+            <div class="w-8 h-8 rounded-lg {% if 'backup' in request.path %}bg-blue-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-database text-sm {% if 'backup' in request.path %}text-blue-600{% else %}text-gray-500{% endif %}"></i>
+            </div>
+            <span>גיבוי</span>
+            {% if 'backup' in request.path %}
+            <span class="mr-auto w-2 h-2 rounded-full bg-blue-500"></span>
+            {% endif %}
+        </a>
+
+    </nav>
+</div>
+
+<!-- Section Sub-header -->
+<div class="section-subheader bg-white border-b border-gray-200 shadow-sm" dir="rtl">
+    <div class="flex items-center justify-between px-4 py-3">
+        <div class="flex items-center gap-2 min-w-0">
+            <i class="fas fa-wallet text-blue-600 text-sm flex-shrink-0"></i>
+            <span class="font-semibold text-gray-800 text-sm truncate">{% block finances_breadcrumb %}פיננסים{% endblock %}</span>
         </div>
+        <button onclick="toggleFinDrawer()"
+            class="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white transition-colors text-sm font-medium shadow-sm flex-shrink-0 mr-3">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+            </svg>
+            <span>תפריט</span>
+        </button>
     </div>
 </div>
+
+<!-- Page Content -->
+<div class="bg-gray-50 min-h-screen p-4 sm:p-6 pb-10" dir="rtl">
+    {% block finances_content %}{% endblock %}
+</div>
+
+<script>
+function toggleFinDrawer() {
+    const drawer = document.getElementById('fin-drawer');
+    const overlay = document.getElementById('fin-overlay');
+    const isOpen = drawer.classList.contains('open');
+
+    if (isOpen) {
+        drawer.classList.remove('open');
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+    } else {
+        drawer.classList.add('open');
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const drawer = document.getElementById('fin-drawer');
+        if (drawer && drawer.classList.contains('open')) toggleFinDrawer();
+    }
+});
+</script>
 {% endblock %}

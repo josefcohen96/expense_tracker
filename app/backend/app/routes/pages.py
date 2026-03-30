@@ -1543,10 +1543,10 @@ async def wedding_dashboard(request: Request, db_conn: sqlite3.Connection = Depe
         ).fetchone()[0]
     except Exception:
         total_guests = db_conn.execute("SELECT COUNT(*) FROM wedding_guests").fetchone()[0]
-    confirmed    = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='confirmed'").fetchone()[0]
-    declined     = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='declined'").fetchone()[0]
-    maybe        = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='maybe'").fetchone()[0]
-    pending      = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status='pending'").fetchone()[0]
+    confirmed    = db_conn.execute("SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests WHERE status='confirmed'").fetchone()[0]
+    declined     = db_conn.execute("SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests WHERE status='declined'").fetchone()[0]
+    maybe        = db_conn.execute("SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests WHERE status='maybe'").fetchone()[0]
+    pending      = db_conn.execute("SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests WHERE status='pending'").fetchone()[0]
 
     total_vendors      = db_conn.execute("SELECT COUNT(*) FROM wedding_vendors").fetchone()[0]
     contracted_vendors = db_conn.execute(

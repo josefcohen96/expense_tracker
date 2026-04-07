@@ -6,7 +6,7 @@
 
     <!-- Header -->
     <div class="flex flex-wrap items-center justify-between gap-3">
-        <h1 class="text-2xl font-bold text-gray-900">תכנון החתונה שלנו 💍</h1>
+        <h1 class="text-xl sm:text-2xl font-bold text-gray-900">תכנון החתונה שלנו 💍</h1>
         {% if wedding_date %}
         <div class="bg-rose-50 border border-rose-200 rounded-lg px-4 py-2 text-rose-700 font-medium text-sm">
             📅 תאריך החתונה: {{ wedding_date }}
@@ -146,12 +146,12 @@
 
 <!-- Set wedding date modal -->
 <div id="date-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center" dir="rtl">
-    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+    <div class="bg-white rounded-xl shadow-xl p-5 sm:p-6 w-full max-w-sm mx-4">
         <h3 class="text-lg font-bold mb-4">קביעת תאריך חתונה</h3>
-        <input type="date" id="wedding-date-input" class="border rounded px-3 py-2 w-full mb-4">
-        <div class="flex gap-2 justify-end">
-            <button onclick="closeDateModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">ביטול</button>
-            <button onclick="saveDateSetting()" class="px-4 py-2 bg-rose-600 text-white rounded hover:bg-rose-700">שמור</button>
+        <input type="date" id="wedding-date-input" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base mb-4 focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400">
+        <div class="flex gap-3">
+            <button onclick="closeDateModal()" class="flex-1 py-3 text-gray-600 bg-gray-100 rounded-xl text-sm font-medium min-h-[48px] active:bg-gray-200">ביטול</button>
+            <button onclick="saveDateSetting()" class="flex-1 py-3 bg-rose-600 text-white rounded-xl text-sm font-bold min-h-[48px] active:bg-rose-700">שמור</button>
         </div>
     </div>
 </div>

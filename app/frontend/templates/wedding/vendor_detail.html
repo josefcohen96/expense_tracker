@@ -41,14 +41,14 @@
     <!-- Back + Actions Header -->
     <div class="flex items-center justify-between mb-6">
         <a href="/wedding/vendors"
-           class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 transition-colors">
+           class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 transition-colors min-h-[44px] py-2">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
             </svg>
             חזרה לספקים
         </a>
         <button onclick="deleteVendor()"
-                class="text-sm text-red-500 hover:text-red-700 font-medium transition-colors">
+                class="text-sm text-red-500 hover:text-red-700 font-medium transition-colors min-h-[44px] py-2 px-3">
             מחק ספק
         </button>
     </div>
@@ -57,7 +57,7 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
 
         <!-- Card Header -->
-        <div class="bg-rose-50 px-6 py-4 border-b border-rose-100 flex items-center justify-between">
+        <div class="bg-rose-50 px-4 sm:px-6 py-4 border-b border-rose-100 flex items-center justify-between">
             <div>
                 <div class="text-xs font-medium text-rose-500 mb-0.5">
                     {{ CATEGORY_LABELS.get(vendor.category, vendor.category) }}
@@ -71,19 +71,19 @@
         </div>
 
         <!-- Edit Form -->
-        <form id="vendor-form" class="p-6 space-y-5" onsubmit="saveVendor(event)">
+        <form id="vendor-form" class="p-4 sm:p-6 space-y-5" onsubmit="saveVendor(event)">
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">שם הספק</label>
                     <input type="text" name="name" value="{{ vendor.name }}"
-                           class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400">
                 </div>
 
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">קטגוריה</label>
-                    <select name="category" class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
+                    <select name="category" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400">
                         <option value="chuppah"       {% if vendor.category == 'chuppah' %}selected{% endif %}>ספק חופה</option>
                         <option value="catering"      {% if vendor.category == 'catering' %}selected{% endif %}>קייטרינג</option>
                         <option value="dj"            {% if vendor.category == 'dj' %}selected{% endif %}>דיג'יי</option>
@@ -104,20 +104,20 @@
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">איש קשר</label>
                     <input type="text" name="contact_name" value="{{ vendor.contact_name or '' }}"
-                           class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
                            placeholder="שם איש קשר">
                 </div>
 
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">טלפון</label>
                     <input type="text" name="phone" value="{{ vendor.phone or '' }}" dir="ltr"
-                           class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
                            placeholder="050-0000000">
                 </div>
 
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">סטטוס</label>
-                    <select name="status" class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
+                    <select name="status" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400">
                         <option value="not_contacted"   {% if vendor.status == 'not_contacted' %}selected{% endif %}>לא נוצר קשר</option>
                         <option value="quote_received"  {% if vendor.status == 'quote_received' %}selected{% endif %}>הצעת מחיר התקבלה</option>
                         <option value="contract_signed" {% if vendor.status == 'contract_signed' %}selected{% endif %}>חוזה נחתם</option>
@@ -129,14 +129,14 @@
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">סכום מקדמה (₪)</label>
                     <input type="number" name="deposit_amount" value="{{ vendor.deposit_amount or '' }}" dir="ltr"
-                           class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
                            placeholder="0">
                 </div>
 
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">תאריך תשלום מקדמה</label>
                     <input type="date" name="deposit_paid_date" value="{{ vendor.deposit_paid_date or '' }}"
-                           class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400">
                 </div>
 
                 <!-- ─── Quote Items Section ──────────────────────────────────── -->
@@ -144,13 +144,13 @@
                     <div class="flex items-center justify-between mb-3">
                         <span class="text-sm font-semibold text-gray-700">פירוט הצעת מחיר</span>
                         <button type="button" onclick="addItemRow()"
-                                class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 font-medium px-3 py-1 rounded-lg transition-colors">
+                                class="text-xs bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-600 font-medium px-3 py-2 rounded-lg transition-colors min-h-[40px]">
                             + הוסף מרכיב
                         </button>
                     </div>
 
-                    <!-- Column Headers -->
-                    <div class="grid gap-1 mb-1 px-1 text-xs text-gray-400 font-medium"
+                    <!-- Column Headers (desktop only) -->
+                    <div class="hidden sm:grid gap-1 mb-1 px-1 text-xs text-gray-400 font-medium"
                          style="grid-template-columns: 1fr 60px 90px 70px 28px">
                         <span>תיאור</span>
                         <span class="text-center">כמות</span>
@@ -186,7 +186,7 @@
                         </label>
                         <input type="number" id="price_quoted_input" name="price_quoted"
                                value="{{ vendor.price_quoted or '' }}" dir="ltr"
-                               class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                               class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
                                placeholder="0">
                     </div>
 
@@ -194,7 +194,7 @@
                     <div class="mt-3 flex items-center justify-between">
                         <span id="items-save-msg" class="text-xs text-green-600 hidden">המרכיבים נשמרו</span>
                         <button type="button" onclick="saveQuoteItems()"
-                                class="mr-auto text-xs bg-gray-700 hover:bg-gray-800 text-white px-4 py-1.5 rounded-lg transition-colors">
+                                class="mr-auto text-xs bg-gray-700 hover:bg-gray-800 active:bg-gray-900 text-white px-4 py-2.5 rounded-lg transition-colors min-h-[40px]">
                             שמור מרכיבים
                         </button>
                     </div>
@@ -204,21 +204,21 @@
                 <div class="sm:col-span-2">
                     <label class="block text-xs font-medium text-gray-500 mb-1">מה כולל ההצעה</label>
                     <textarea name="what_included" rows="3"
-                              class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                              class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
                               placeholder="פירוט השירות המוצע...">{{ vendor.what_included or '' }}</textarea>
                 </div>
 
                 <div class="sm:col-span-2">
                     <label class="block text-xs font-medium text-gray-500 mb-1">הערות</label>
                     <textarea name="notes" rows="3"
-                              class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                              class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
                               placeholder="הערות נוספות, קישורים, מידע נוסף...">{{ vendor.notes or '' }}</textarea>
                 </div>
 
                 <div class="sm:col-span-2">
                     <label class="block text-xs font-medium text-gray-500 mb-1">📍 מיקום</label>
                     <input type="text" name="location" value="{{ vendor.location or '' }}"
-                           class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
                            placeholder="כתובת / שם המקום">
                 </div>
 
@@ -226,7 +226,7 @@
                     <label class="block text-xs font-medium text-gray-500 mb-1">📸 אינסטגרם</label>
                     <div class="flex gap-2 items-center">
                         <input type="url" name="instagram_url" value="{{ vendor.instagram_url or '' }}" dir="ltr"
-                               class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                               class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
                                placeholder="https://instagram.com/...">
                         {% if vendor.instagram_url %}
                         <a href="{{ vendor.instagram_url }}" target="_blank" rel="noopener"
@@ -239,7 +239,7 @@
                     <label class="block text-xs font-medium text-gray-500 mb-1">👍 פייסבוק</label>
                     <div class="flex gap-2 items-center">
                         <input type="url" name="facebook_url" value="{{ vendor.facebook_url or '' }}" dir="ltr"
-                               class="border rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                               class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
                                placeholder="https://facebook.com/...">
                         {% if vendor.facebook_url %}
                         <a href="{{ vendor.facebook_url }}" target="_blank" rel="noopener"
@@ -251,10 +251,10 @@
             </div>
 
             <!-- Save Button -->
-            <div class="flex items-center justify-between pt-2 border-t border-gray-100">
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between pt-4 border-t border-gray-100 gap-3">
                 <div id="save-msg" class="text-sm text-green-600 hidden">הפרטים נשמרו בהצלחה</div>
                 <button type="submit"
-                        class="mr-auto px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-medium transition-colors">
+                        class="w-full sm:w-auto sm:mr-auto px-6 py-3.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-sm font-bold min-h-[48px] transition-colors">
                     שמור שינויים
                 </button>
             </div>
@@ -294,11 +294,16 @@ function fmt(n) {
 
 function recalcTotals() {
     const rows = document.querySelectorAll('#items-list .item-row');
+    const isMobile = window.innerWidth < 640;
     let preVat = 0, vatAmount = 0;
     rows.forEach(row => {
-        const qty   = parseFloat(row.querySelector('.item-qty').value) || 0;
-        const price = parseFloat(row.querySelector('.item-price').value) || 0;
-        const applyVat = row.querySelector('.item-vat').checked;
+        const qtys   = row.querySelectorAll('.item-qty');
+        const prices = row.querySelectorAll('.item-price');
+        const vats   = row.querySelectorAll('.item-vat');
+        const idx = (qtys.length > 1 && isMobile) ? 1 : 0;
+        const qty   = parseFloat(qtys[idx].value) || 0;
+        const price = parseFloat(prices[idx].value) || 0;
+        const applyVat = vats[idx].checked;
         const lineTotal = qty * price;
         preVat += lineTotal;
         if (applyVat) vatAmount += lineTotal * VAT_RATE;
@@ -328,27 +333,55 @@ function recalcTotals() {
 
 function makeItemRow(item) {
     const div = document.createElement('div');
-    div.className = 'item-row grid gap-1 items-center';
-    div.style.gridTemplateColumns = '1fr 60px 90px 70px 28px';
+    div.className = 'item-row';
 
     const desc  = item.description || '';
     const qty   = item.quantity    ?? 1;
     const price = item.unit_price  ?? 0;
     const vat   = item.apply_vat   ?? 1;
 
+    // Desktop: grid row, Mobile: stacked card
     div.innerHTML = `
-        <input type="text"  value="${desc}"  placeholder="תיאור"
-               class="item-desc border rounded-lg px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-rose-300 bg-white">
-        <input type="number" value="${qty}"  min="0" step="any"
-               class="item-qty border rounded-lg px-2 py-1.5 text-sm w-full text-center focus:outline-none focus:ring-1 focus:ring-rose-300 bg-white" dir="ltr">
-        <input type="number" value="${price}" min="0" step="any" placeholder="0"
-               class="item-price border rounded-lg px-2 py-1.5 text-sm w-full text-center focus:outline-none focus:ring-1 focus:ring-rose-300 bg-white" dir="ltr">
-        <label class="flex items-center justify-center gap-1 cursor-pointer text-xs text-gray-600">
-            <input type="checkbox" ${vat ? 'checked' : ''} class="item-vat accent-rose-500 w-4 h-4">
-            כן
-        </label>
-        <button type="button" onclick="removeRow(this)"
-                class="text-gray-300 hover:text-red-400 transition-colors text-lg leading-none font-light">×</button>
+        <div class="hidden sm:grid gap-1 items-center" style="grid-template-columns: 1fr 60px 90px 70px 28px">
+            <input type="text"  value="${desc}"  placeholder="תיאור"
+                   class="item-desc border rounded-lg px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-rose-300 bg-white">
+            <input type="number" value="${qty}"  min="0" step="any"
+                   class="item-qty border rounded-lg px-2 py-1.5 text-sm w-full text-center focus:outline-none focus:ring-1 focus:ring-rose-300 bg-white" dir="ltr">
+            <input type="number" value="${price}" min="0" step="any" placeholder="0"
+                   class="item-price border rounded-lg px-2 py-1.5 text-sm w-full text-center focus:outline-none focus:ring-1 focus:ring-rose-300 bg-white" dir="ltr">
+            <label class="flex items-center justify-center gap-1 cursor-pointer text-xs text-gray-600">
+                <input type="checkbox" ${vat ? 'checked' : ''} class="item-vat accent-rose-500 w-4 h-4">
+                כן
+            </label>
+            <button type="button" onclick="removeRow(this)"
+                    class="text-gray-300 hover:text-red-400 transition-colors text-lg leading-none font-light">×</button>
+        </div>
+        <div class="sm:hidden border border-gray-200 rounded-xl p-3 bg-white space-y-2">
+            <div class="flex items-center justify-between">
+                <input type="text" value="${desc}" placeholder="תיאור"
+                       class="item-desc border-0 border-b border-gray-200 px-0 py-1 text-base w-full focus:outline-none focus:ring-0 focus:border-rose-400 bg-transparent">
+                <button type="button" onclick="removeRow(this)"
+                        class="text-gray-300 hover:text-red-400 text-xl leading-none font-light p-2 -m-2 min-h-[44px] min-w-[44px] flex items-center justify-center">×</button>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+                <div>
+                    <span class="text-xs text-gray-400">כמות</span>
+                    <input type="number" value="${qty}" min="0" step="any"
+                           class="item-qty border border-gray-200 rounded-lg px-2 py-2 text-base w-full text-center focus:outline-none focus:ring-1 focus:ring-rose-300 bg-white" dir="ltr">
+                </div>
+                <div>
+                    <span class="text-xs text-gray-400">מחיר (₪)</span>
+                    <input type="number" value="${price}" min="0" step="any" placeholder="0"
+                           class="item-price border border-gray-200 rounded-lg px-2 py-2 text-base w-full text-center focus:outline-none focus:ring-1 focus:ring-rose-300 bg-white" dir="ltr">
+                </div>
+                <div class="flex items-end">
+                    <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600 py-2">
+                        <input type="checkbox" ${vat ? 'checked' : ''} class="item-vat accent-rose-500 w-5 h-5">
+                        + מע"מ
+                    </label>
+                </div>
+            </div>
+        </div>
     `;
     div.querySelectorAll('input').forEach(el => el.addEventListener('input', recalcTotals));
     return div;
@@ -374,12 +407,23 @@ function removeRow(btn) {
 }
 
 function collectItems() {
-    return Array.from(document.querySelectorAll('#items-list .item-row')).map(row => ({
-        description: row.querySelector('.item-desc').value.trim(),
-        quantity:    parseFloat(row.querySelector('.item-qty').value)   || 1,
-        unit_price:  parseFloat(row.querySelector('.item-price').value) || 0,
-        apply_vat:   row.querySelector('.item-vat').checked ? 1 : 0,
-    })).filter(item => item.description);
+    // On mobile, the visible inputs are in the sm:hidden div; on desktop, in the hidden sm:grid div
+    // We read from whichever is visible (check offsetParent or just read the first non-empty)
+    return Array.from(document.querySelectorAll('#items-list .item-row')).map(row => {
+        const descs = row.querySelectorAll('.item-desc');
+        const qtys  = row.querySelectorAll('.item-qty');
+        const prices = row.querySelectorAll('.item-price');
+        const vats  = row.querySelectorAll('.item-vat');
+        // Use the visible one (desktop first at index 0, mobile at index 1)
+        const isMobile = window.innerWidth < 640;
+        const idx = (descs.length > 1 && isMobile) ? 1 : 0;
+        return {
+            description: descs[idx].value.trim(),
+            quantity:    parseFloat(qtys[idx].value) || 1,
+            unit_price:  parseFloat(prices[idx].value) || 0,
+            apply_vat:   vats[idx].checked ? 1 : 0,
+        };
+    }).filter(item => item.description);
 }
 
 function saveQuoteItems() {

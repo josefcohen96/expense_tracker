@@ -3,6 +3,9 @@
 {% block title %}{% block wedding_title %}חתונה{% endblock %} - המנביטים{% endblock %}
 
 {% block content %}
+<!-- Hide the base layout FAB on wedding pages -->
+<style>.fab { display: none !important; }</style>
+
 <!-- Wedding Drawer Overlay -->
 <div id="wed-overlay" class="drawer-overlay" onclick="toggleWedDrawer()"></div>
 

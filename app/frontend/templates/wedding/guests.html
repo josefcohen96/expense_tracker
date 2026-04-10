@@ -403,14 +403,15 @@
 </div>
 
 <!-- Mobile FAB -->
-<button onclick="openGuestModal()"
+<button id="guest-fab"
+        onclick="openGuestModal()"
         class="sm:hidden fixed z-[800] bg-rose-600 text-white w-16 h-16 rounded-full shadow-xl flex items-center justify-center text-3xl font-light active:scale-90 transition-transform"
         style="bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)); right: 1.25rem;">
     +
 </button>
 
 <!-- Inline Status Picker (small bottom sheet) -->
-<div id="status-picker-overlay" class="hidden fixed inset-0 z-50" dir="rtl">
+<div id="status-picker-overlay" class="hidden fixed inset-0 z-[500]" dir="rtl">
     <div class="modal-backdrop absolute inset-0 bg-black/40" onclick="closeStatusPicker()"></div>
     <div class="status-picker absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl" style="padding-bottom: env(safe-area-inset-bottom, 0px);">
         <div class="flex justify-center pt-3 pb-2">
@@ -449,9 +450,9 @@
 </div>
 
 <!-- Add/Edit Guest Modal -->
-<div id="add-guest-modal" class="hidden fixed inset-0 z-50 flex items-start justify-center" dir="rtl">
+<div id="add-guest-modal" class="hidden fixed inset-0 z-[600] flex items-start justify-center" dir="rtl">
     <div class="modal-backdrop absolute inset-0 bg-black/40" onclick="closeGuestModal()"></div>
-    <div class="modal-sheet relative bg-white w-full sm:rounded-xl sm:shadow-xl sm:max-w-xl sm:mx-4 sm:mt-10 rounded-b-2xl max-h-[94vh] overflow-y-auto"
+    <div class="modal-sheet relative bg-white w-full sm:rounded-xl sm:shadow-xl sm:max-w-xl sm:mx-4 sm:mt-10 rounded-b-2xl max-h-[100dvh] sm:max-h-[94vh] overflow-y-auto"
          style="padding-bottom: env(safe-area-inset-bottom, 0px);">
         <!-- Top spacing (mobile) -->
         <div class="sm:hidden h-2 sticky top-0 bg-white z-10"></div>
@@ -686,6 +687,9 @@ function openGuestModal() {
     backdrop.classList.add('open');
     sheet.classList.add('open');
     document.body.style.overflow = 'hidden';
+
+    var fab = document.getElementById('guest-fab');
+    if (fab) fab.style.display = 'none';
 }
 
 function closeGuestModal() {
@@ -695,6 +699,8 @@ function closeGuestModal() {
     setTimeout(function() {
         modal.classList.add('hidden');
         document.body.style.overflow = '';
+        var fab = document.getElementById('guest-fab');
+        if (fab) fab.style.display = '';
     }, 350);
     document.getElementById('guest-id').value = '';
     document.getElementById('guest-modal-title').textContent = 'הוספת מוזמן';

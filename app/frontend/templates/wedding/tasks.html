@@ -238,15 +238,17 @@
 </div>
 
 <!-- Mobile FAB -->
-<button onclick="openModal('add-task-modal')"
+<button id="task-fab"
+        onclick="openModal('add-task-modal')"
         class="sm:hidden fixed z-[800] bg-rose-600 text-white w-16 h-16 rounded-full shadow-xl flex items-center justify-center text-3xl font-light active:scale-90 transition-transform"
         style="bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)); right: 1.25rem;">
     +
 </button>
 
 <!-- Add/Edit Task Modal -->
-<div id="add-task-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-start sm:items-center justify-center sm:p-4" dir="rtl">
-    <div class="bg-white w-full sm:rounded-xl shadow-xl sm:max-w-lg sm:mx-4 max-h-screen sm:max-h-[90vh] overflow-y-auto"
+<div id="add-task-modal" class="hidden fixed inset-0 z-[500] flex items-start sm:items-center justify-center sm:p-4" dir="rtl">
+    <div class="absolute inset-0 bg-black/50" onclick="closeModal('add-task-modal')"></div>
+    <div class="relative bg-white w-full sm:rounded-xl shadow-xl sm:max-w-lg sm:mx-4 max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto"
          style="padding-bottom: env(safe-area-inset-bottom, 0px);">
         <div class="sticky top-0 bg-white z-10 px-5 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between">
             <h3 id="task-modal-title" class="text-lg font-bold">הוספת משימה</h3>
@@ -302,9 +304,17 @@
 </div>
 
 <script>
-function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function openModal(id) {
+    document.getElementById(id).classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    var fab = document.getElementById('task-fab');
+    if (fab) fab.style.display = 'none';
+}
 function closeModal(id) {
     document.getElementById(id).classList.add('hidden');
+    document.body.style.overflow = '';
+    var fab = document.getElementById('task-fab');
+    if (fab) fab.style.display = '';
     document.getElementById('task-id').value = '';
     document.getElementById('task-modal-title').textContent = 'הוספת משימה';
     ['t-title','t-due-date','t-notes'].forEach(f => document.getElementById(f).value = '');

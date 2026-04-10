@@ -581,42 +581,13 @@ h6 {
 }
 
 /* Modal Styles - PERFORMANCE OPTIMIZED */
+/* Note: z-index and display/visibility are managed by inline styles in base.html */
+/* This section provides shared styling defaults */
 .modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(5px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  opacity: 0;
-  visibility: hidden;
   transition: all var(--transition-normal);
   /* Performance optimization */
   will-change: opacity, visibility;
-}
-
-.modal-overlay.active {
-  opacity: 1;
-  visibility: visible;
-}
-
-.modal-content {
-  background: white;
-  border-radius: var(--border-radius-xl);
-  box-shadow: var(--shadow-xl);
-  max-width: 500px;
-  width: 90%;
-  max-height: 90vh;
-  overflow-y: auto;
-  transform: scale(0.9);
-  transition: transform var(--transition-normal);
-  /* Performance optimization */
-  will-change: transform;
 }
 
 .modal-overlay.active .modal-content {
@@ -1043,7 +1014,7 @@ body {
   animation: iconPulse 2s ease-in-out infinite;
 }
 
-* Button sizes */
+/* Button sizes */
 .btn-sm {
   padding: 0.4rem 0.75rem;
   font-size: 0.8rem;
@@ -1214,7 +1185,14 @@ body {
 @media (max-width: 640px) {
   .table td .flex.items-center.gap-2 {
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 6px;
+  }
+
+  /* Ensure action buttons don't stretch full width inside table cards */
+  .table td .btn-xs,
+  .table td .btn-sm {
+    width: auto;
+    flex-shrink: 0;
   }
 }
 

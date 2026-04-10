@@ -27,12 +27,12 @@
                {% if request.query_params.get('only_active') in ['1','true','True','on'] %}checked{% endif %}>
         <label for="only_active" class="text-sm font-medium">רק פעילים</label>
       </div>
-      <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
-        החל סינון
+      <button type="submit" class="btn btn-primary btn-sm">
+        <i class="fas fa-filter mr-1"></i>החל סינון
       </button>
       {% if request.query_params.get('category_id') or request.query_params.get('only_active') or request.query_params.get('month') %}
-        <a href="/finances/recurrences" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
-          נקה סינון
+        <a href="/finances/recurrences" class="btn btn-outline btn-sm">
+          <i class="fas fa-times mr-1"></i>נקה סינון
         </a>
       {% endif %}
     </form>

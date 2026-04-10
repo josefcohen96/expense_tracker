@@ -228,6 +228,7 @@ class AnimationManager {
 
         modal.classList.add('active');
         document.body.style.overflow = 'hidden';
+        document.body.classList.add('modal-open');
 
         // Use requestAnimationFrame for smooth animation
         requestAnimationFrame(() => {
@@ -250,6 +251,7 @@ class AnimationManager {
         setTimeout(() => {
             modal.classList.remove('active');
             document.body.style.overflow = '';
+            document.body.classList.remove('modal-open');
         }, 300);
     }
 

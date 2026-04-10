@@ -63,7 +63,9 @@
       <input type="number" name="weekday" min="0" max="6" class="w-full border border-gray-300 rounded px-3 py-2" />
     </div>
     <div class="md:col-span-2 text-right">
-      <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">שמור</button>
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-save mr-2"></i>שמור
+      </button>
     </div>
   </form>
 </div>
@@ -89,12 +91,12 @@
           {% endfor %}
         </select>
       </div>
-      <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
-        החל סינון
+      <button type="submit" class="btn btn-primary btn-sm">
+        <i class="fas fa-filter mr-1"></i>החל סינון
       </button>
       {% if request.query_params.get('category_id') %}
-        <a href="/finances/recurrences/active" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
-          נקה סינון
+        <a href="/finances/recurrences/active" class="btn btn-outline btn-sm">
+          <i class="fas fa-times mr-1"></i>נקה סינון
         </a>
       {% endif %}
     </form>

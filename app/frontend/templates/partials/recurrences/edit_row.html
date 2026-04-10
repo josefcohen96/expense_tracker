@@ -59,27 +59,28 @@
       <option value="0" {% if not recurrence['active'] %}selected{% endif %}>לא</option>
     </select>
   </td>
-  <td class="space-x-2">
+  <td>
     <!-- הטופס עצמו -->
     <form id="edit-recurrence-{{ recurrence['id'] }}"
           hx-post="/recurrences/{{ recurrence['id'] }}/edit-inline"
           hx-target="#recurrence-row-{{ recurrence['id'] }}"
           hx-swap="outerHTML"
           hx-disabled-elt="this">
-
     </form>
 
-    <button type="submit" form="edit-recurrence-{{ recurrence['id'] }}"
-            class="px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700">
-      שמירה
-    </button>
+    <div class="flex items-center gap-2 flex-wrap">
+      <button type="submit" form="edit-recurrence-{{ recurrence['id'] }}"
+              class="btn btn-success btn-xs">
+        <i class="fas fa-save mr-1"></i>שמירה
+      </button>
 
-    <button type="button"
-            class="px-3 py-1 rounded border hover:bg-gray-50"
-            hx-get="/recurrences/{{ recurrence['id'] }}/row"
-            hx-target="#recurrence-row-{{ recurrence['id'] }}"
-            hx-swap="outerHTML">
-      ביטול
-    </button>
+      <button type="button"
+              class="btn btn-outline btn-xs"
+              hx-get="/recurrences/{{ recurrence['id'] }}/row"
+              hx-target="#recurrence-row-{{ recurrence['id'] }}"
+              hx-swap="outerHTML">
+        <i class="fas fa-times mr-1"></i>ביטול
+      </button>
+    </div>
   </td>
 </tr>

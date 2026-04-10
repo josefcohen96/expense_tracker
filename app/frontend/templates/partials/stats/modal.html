@@ -1,5 +1,5 @@
 <!-- Drilldown Modal -->
-<div id="drilldown-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden"
+<div id="drilldown-modal" class="fixed inset-0 z-[500] flex items-center justify-center bg-black bg-opacity-50 hidden"
     aria-labelledby="modal-title" role="dialog" aria-modal="true">
     <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col mx-4">
         <!-- Header -->
@@ -43,6 +43,7 @@
 <script>
     function closeDrilldownModal() {
         document.getElementById('drilldown-modal').classList.add('hidden');
+        document.body.style.overflow = '';
     }
 
     async function openDrilldownModal(params) {
@@ -51,6 +52,7 @@
         const title = document.getElementById('modal-title');
 
         modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
 
         // Reset to loading state
         content.innerHTML = `

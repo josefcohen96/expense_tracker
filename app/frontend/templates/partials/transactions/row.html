@@ -9,14 +9,16 @@
   <td>{{ tx['account_name'] or '-' }}</td>
   <td>{{ tx['notes'] or '' }}</td>
   <td>{{ tx['tags'] or '' }}</td>
-  <td class="space-x-2">
-    <button class="px-3 py-1 rounded bg-blue-600 text-white"
-            hx-get="/transactions/{{ tx['id'] }}/edit-inline"
-            hx-target="#txrow-{{ tx['id'] }}" hx-swap="outerHTML">עריכה</button>
-    <button class="px-3 py-1 rounded bg-red-600 text-white"
-            hx-post="/transactions/{{ tx['id'] }}/delete-inline"
-            hx-target="#txrow-{{ tx['id'] }}" hx-swap="outerHTML"
-            hx-confirm="למחוק את העסקה? הפעולה בלתי הפיכה.">מחיקה</button>
+  <td>
+    <div class="flex items-center gap-2 flex-wrap">
+      <button class="btn btn-outline btn-xs"
+              hx-get="/transactions/{{ tx['id'] }}/edit-inline"
+              hx-target="#txrow-{{ tx['id'] }}" hx-swap="outerHTML">עריכה</button>
+      <button class="btn btn-danger btn-xs"
+              hx-post="/transactions/{{ tx['id'] }}/delete-inline"
+              hx-target="#txrow-{{ tx['id'] }}" hx-swap="outerHTML"
+              hx-confirm="למחוק את העסקה? הפעולה בלתי הפיכה.">מחיקה</button>
+    </div>
   </td>
 </tr>
 {% else %}
@@ -72,7 +74,7 @@
            class="w-full border rounded px-2 py-1">
   </td>
 
-  <td class="space-x-2">
+  <td>
     <!-- הטופס עצמו: יושב בתא הפעולות -->
     <form id="edit-{{ tx['id'] }}"
           hx-post="/transactions/{{ tx['id'] }}/edit-inline"
@@ -81,18 +83,20 @@
           hx-disabled-elt="this">
     </form>
 
-    <button type="submit" form="edit-{{ tx['id'] }}"
-            class="px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700">
-      שמירה
-    </button>
+    <div class="flex items-center gap-2 flex-wrap">
+      <button type="submit" form="edit-{{ tx['id'] }}"
+              class="btn btn-success btn-xs">
+        <i class="fas fa-save mr-1"></i>שמירה
+      </button>
 
-    <button type="button"
-            class="px-3 py-1 rounded border hover:bg-gray-50"
-            hx-get="/transactions/{{ tx['id'] }}/row"
-            hx-target="#txrow-{{ tx['id'] }}"
-            hx-swap="outerHTML">
-      ביטול
-    </button>
+      <button type="button"
+              class="btn btn-outline btn-xs"
+              hx-get="/transactions/{{ tx['id'] }}/row"
+              hx-target="#txrow-{{ tx['id'] }}"
+              hx-swap="outerHTML">
+        <i class="fas fa-times mr-1"></i>ביטול
+      </button>
+    </div>
   </td>
 </tr>
 {% endif %}

@@ -88,16 +88,16 @@
                     value="{{ request.query_params.get('tags', '') }}" placeholder="הזן תגיות מופרדות בפסיקים">
             </div>
 
-            <div class="col-span-full flex gap-4">
-                <button type="submit" class="btn btn-primary">
+            <div class="col-span-full flex flex-wrap gap-3">
+                <button type="submit" class="btn btn-primary btn-sm">
                     <i class="fas fa-search mr-2"></i>
                     החל פילטר
                 </button>
-                <a href="/finances/transactions" class="btn btn-outline">
+                <a href="/finances/transactions" class="btn btn-outline btn-sm">
                     <i class="fas fa-times mr-2"></i>
                     נקה פילטר
                 </a>
-                <button type="button" onclick="exportTransactions()" class="btn btn-success">
+                <button type="button" onclick="exportTransactions()" class="btn btn-success btn-sm">
                     <i class="fas fa-download mr-2"></i>
                     ייצא לאקסל
                 </button>
@@ -316,26 +316,26 @@
                                 value="{{ transaction.tags or '' }}" />
                         </td>
                         <td data-label="פעולות">
-                            <div class="flex items-center gap-2">
+                            <div class="flex items-center gap-2 flex-wrap">
                                 <button onclick="editTransactionInline({{ transaction.id }})"
-                                    class="btn btn-outline btn-sm" title="עריכה">
+                                    class="btn btn-outline btn-xs" title="עריכה">
                                     <i class="fas fa-edit"></i>
                                 </button>
                                 <button onclick="saveTransactionInline({{ transaction.id }})"
-                                    class="btn btn-success btn-sm hidden" title="שמור"
+                                    class="btn btn-success btn-xs hidden" title="שמור"
                                     id="save-btn-{{ transaction.id }}">
                                     <i class="fas fa-save"></i>
                                 </button>
                                 <button onclick="cancelEditInline({{ transaction.id }})"
-                                    class="btn btn-warning btn-sm hidden" title="ביטול"
+                                    class="btn btn-warning btn-xs hidden" title="ביטול"
                                     id="cancel-btn-{{ transaction.id }}">
                                     <i class="fas fa-times"></i>
                                 </button>
                                 <button onclick="duplicateTransaction({{ transaction.id }})"
-                                    class="btn btn-outline btn-sm" title="שכפול">
+                                    class="btn btn-outline btn-xs" title="שכפול">
                                     <i class="fas fa-copy"></i>
                                 </button>
-                                <button onclick="deleteTransaction({{ transaction.id }})" class="btn btn-danger btn-sm"
+                                <button onclick="deleteTransaction({{ transaction.id }})" class="btn btn-danger btn-xs"
                                     title="מחיקה">
                                     <i class="fas fa-trash"></i>
                                 </button>
@@ -999,11 +999,6 @@
             opacity: 0;
             transform: translateX(-100%);
         }
-    }
-
-    .btn-sm {
-        padding: 0.5rem 1rem;
-        font-size: 0.875rem;
     }
 
     #transactions-table tbody tr {

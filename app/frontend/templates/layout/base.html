@@ -30,16 +30,17 @@
     <!-- Custom CSS -->
     <style>
         /* ===== Z-INDEX ARCHITECTURE ===== */
-        /* 
+        /*
         Z-Index Hierarchy (from lowest to highest):
         1. Background elements: 0-10
         2. Main content: 10-50
         3. Sidebar: 100-150
         4. Navigation: 200-250
-        5. Modals/Overlays: 300-400
-        6. Tooltips/Notifications: 500-600
-        7. Floating elements: 700-800
-        8. Loading/Spinners: 900-1000
+        5. Floating Action Button: 300-350
+        6. Drawer overlays: 400-450
+        7. Modals/Overlays: 500-600
+        8. Tooltips/Notifications: 700-800
+        9. Loading/Spinners: 900-1000
         */
 
         [dir="rtl"] {
@@ -58,7 +59,7 @@
             left: 0;
             right: 0;
             z-index: 200;
-            overflow: hidden;
+            overflow: visible;
             padding-top: calc(0.5rem + env(safe-area-inset-top));
         }
 
@@ -68,9 +69,11 @@
             top: 0;
             left: 0;
             right: 0;
-            bottom: 0;
+            height: 64px; /* Constrain shimmer to navbar header height only */
+            overflow: hidden;
             background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%);
             animation: shimmer 3s infinite;
+            pointer-events: none;
         }
 
         @keyframes shimmer {
@@ -112,7 +115,7 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
-        /* ===== FLOATING ACTION BUTTON (z-index: 700-800) ===== */
+        /* ===== FLOATING ACTION BUTTON (z-index: 300-350) ===== */
         .fab {
             position: fixed;
             bottom: calc(30px + env(safe-area-inset-bottom));
@@ -126,7 +129,7 @@
             cursor: pointer;
             box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
             transition: all 0.3s ease;
-            z-index: 700;
+            z-index: 300;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -292,7 +295,7 @@
             left: 100%;
         }
 
-        /* ===== MODAL/OVERLAY LAYER (z-index: 300-400) ===== */
+        /* ===== MODAL/OVERLAY LAYER (z-index: 500-600) ===== */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -300,7 +303,7 @@
             right: 0;
             bottom: 0;
             background: rgba(0, 0, 0, 0.5);
-            z-index: 300;
+            z-index: 500;
             display: none;
             align-items: center;
             justify-content: center;
@@ -320,14 +323,14 @@
             background: white;
             border-radius: 12px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            z-index: 350;
+            z-index: 550;
             position: relative;
             max-width: 90vw;
             max-height: 90vh;
             overflow: auto;
         }
 
-        /* ===== TOAST/NOTIFICATION LAYER (z-index: 500-600) ===== */
+        /* ===== TOAST/NOTIFICATION LAYER (z-index: 700-800) ===== */
         .toast {
             position: fixed;
             top: 20px;
@@ -336,13 +339,21 @@
             border-radius: 8px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
             padding: 16px 20px;
-            z-index: 500;
+            z-index: 700;
             transform: translateX(100%);
             transition: transform 0.3s ease;
         }
 
         .toast.show {
             transform: translateX(0);
+        }
+
+        /* Hide FAB when modal or drawer is open */
+        .modal-overlay.active ~ .fab,
+        body.modal-open .fab {
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.5);
         }
 
         /* ===== LOADING/SPINNER LAYER (z-index: 900-1000) ===== */
@@ -369,7 +380,7 @@
             max-width: 85vw;
             background: white;
             box-shadow: -4px 0 20px rgba(0,0,0,0.15);
-            z-index: 450;
+            z-index: 420;
             transform: translateX(100%);
             transition: transform 0.3s ease-in-out;
             overflow-y: auto;
@@ -381,7 +392,7 @@
             position: fixed;
             inset: 0;
             background: rgba(0,0,0,0.5);
-            z-index: 440;
+            z-index: 410;
             display: none;
         }
         .drawer-overlay.open {
@@ -453,7 +464,7 @@
 
 <body class="bg-gray-50 min-h-screen full-viewport-safe">
     <!-- Main Navigation Bar -->
-    <nav class="nav-gradient text-white shadow-lg relative z-50">
+    <nav class="nav-gradient text-white shadow-lg">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-16">
                 <!-- Logo/Brand -->

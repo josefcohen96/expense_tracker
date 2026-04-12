@@ -1,5 +1,13 @@
 {% extends "wedding/base.html" %}
 {% block wedding_title %}משימות{% endblock %}
+{% block wedding_breadcrumb %}משימות{% endblock %}
+
+{% block wedding_header_action %}
+<button onclick="openModal('add-task-modal')"
+        class="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-3 py-2 rounded-xl text-sm font-medium shadow-sm min-h-[36px]">
+    + הוסף משימה
+</button>
+{% endblock %}
 
 {% block wedding_content %}
 

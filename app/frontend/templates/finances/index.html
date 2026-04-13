@@ -12,10 +12,9 @@
       <input type="month" name="month" value="{{ selected_month }}" class="border rounded px-3 py-2 w-full sm:w-auto" />
     </div>
     <div class="flex gap-2 w-full sm:w-auto">
-      <button class="px-4 py-2 bg-blue-600 text-white rounded w-full sm:w-auto">סנן</button>
+      <button class="btn btn-primary btn-sm w-full sm:w-auto">סנן</button>
       {% if selected_month %}
-      <a href="/finances"
-        class="px-3 py-2 text-sm text-gray-600 bg-gray-100 rounded flex items-center justify-center w-full sm:w-auto">איפוס</a>
+      <a href="/finances" class="btn btn-outline btn-sm w-full sm:w-auto">איפוס</a>
       {% endif %}
     </div>
   </form>

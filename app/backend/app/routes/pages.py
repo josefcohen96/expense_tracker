@@ -1612,10 +1612,15 @@ async def wedding_vendor_detail_page(vendor_id: int, request: Request, db_conn: 
         "SELECT * FROM vendor_quote_items WHERE vendor_id=? ORDER BY sort_order, id",
         (vendor_id,)
     ).fetchall()]
+    vendor_files = [dict(r) for r in db_conn.execute(
+        "SELECT * FROM vendor_files WHERE vendor_id=? ORDER BY uploaded_at DESC",
+        (vendor_id,)
+    ).fetchall()]
     return templates.TemplateResponse("wedding/vendor_detail.html", {
         "request": request,
         "vendor": dict(vendor),
         "quote_items": quote_items,
+        "vendor_files": vendor_files,
     })
 
 

@@ -1,15 +1,25 @@
 """
 Wedding module API endpoints.
-CRUD for vendors, guests, tasks, budget items, and settings.
+CRUD for vendors, guests, tasks, budget items, settings, and file attachments.
 """
 from __future__ import annotations
 import sqlite3
+import uuid
+import os
+from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from ..db import get_db_conn
 
 router = APIRouter(prefix="/api/wedding", tags=["wedding"])
+
+# Directory for uploaded vendor files: app/uploads/vendor_files/
+_UPLOADS_DIR = Path(__file__).resolve().parents[3] / "uploads" / "vendor_files"
+_ALLOWED_MIME = {"application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"}
+_ALLOWED_EXT  = {".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp"}
+_MAX_SIZE_MB  = 15
 
 
 # ─── Schemas ────────────────────────────────────────────────────────────────
@@ -357,3 +367,88 @@ async def upsert_setting(body: SettingUpsert, db_conn: sqlite3.Connection = Depe
     )
     db_conn.commit()
     return {"key": body.key, "value": body.value}
+
+
+# ─── Vendor File Attachments ─────────────────────────────────────────────────
+
+@router.get("/vendors/{vendor_id}/files")
+async def list_vendor_files(vendor_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    rows = db_conn.execute(
+        "SELECT * FROM vendor_files WHERE vendor_id=? ORDER BY uploaded_at DESC",
+        (vendor_id,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+@router.post("/vendors/{vendor_id}/files", status_code=201)
+async def upload_vendor_file(
+    vendor_id: int,
+    file: UploadFile = File(...),
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+):
+    if not db_conn.execute("SELECT 1 FROM wedding_vendors WHERE id=?", (vendor_id,)).fetchone():
+        raise HTTPException(status_code=404, detail="Vendor not found")
+
+    # Validate extension
+    orig_name = file.filename or "file"
+    ext = Path(orig_name).suffix.lower()
+    if ext not in _ALLOWED_EXT:
+        raise HTTPException(status_code=400, detail=f"סוג קובץ לא נתמך. מותר: PDF, JPG, PNG, GIF")
+
+    # Read content and check size
+    content = await file.read()
+    size_mb = len(content) / (1024 * 1024)
+    if size_mb > _MAX_SIZE_MB:
+        raise HTTPException(status_code=400, detail=f"הקובץ גדול מדי (מקסימום {_MAX_SIZE_MB}MB)")
+
+    # Determine mime type from extension
+    mime_map = {
+        ".pdf": "application/pdf",
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+    }
+    mime_type = mime_map.get(ext, "application/octet-stream")
+
+    # Store file
+    stored_name = f"{uuid.uuid4().hex}{ext}"
+    vendor_dir = _UPLOADS_DIR / str(vendor_id)
+    vendor_dir.mkdir(parents=True, exist_ok=True)
+    (vendor_dir / stored_name).write_bytes(content)
+
+    # Save metadata
+    cur = db_conn.execute(
+        "INSERT INTO vendor_files (vendor_id, original_name, stored_name, file_size, mime_type) VALUES (?,?,?,?,?)",
+        (vendor_id, orig_name, stored_name, len(content), mime_type),
+    )
+    db_conn.commit()
+    row = db_conn.execute("SELECT * FROM vendor_files WHERE id=?", (cur.lastrowid,)).fetchone()
+    return dict(row)
+
+
+@router.get("/files/{file_id}")
+async def get_vendor_file(file_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    row = db_conn.execute("SELECT * FROM vendor_files WHERE id=?", (file_id,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="File not found")
+    file_path = _UPLOADS_DIR / str(row["vendor_id"]) / row["stored_name"]
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    return FileResponse(
+        path=str(file_path),
+        media_type=row["mime_type"],
+        filename=row["original_name"],
+    )
+
+
+@router.delete("/files/{file_id}", status_code=204)
+async def delete_vendor_file(file_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    row = db_conn.execute("SELECT * FROM vendor_files WHERE id=?", (file_id,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="File not found")
+    file_path = _UPLOADS_DIR / str(row["vendor_id"]) / row["stored_name"]
+    if file_path.exists():
+        file_path.unlink()
+    db_conn.execute("DELETE FROM vendor_files WHERE id=?", (file_id,))
+    db_conn.commit()

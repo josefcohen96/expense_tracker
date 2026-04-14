@@ -323,6 +323,7 @@ def initialise_database() -> None:
             instagram_url TEXT,
             facebook_url TEXT,
             location TEXT,
+            inclusions TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -368,7 +369,7 @@ def initialise_database() -> None:
     # Migration: add venue/social fields to wedding_vendors if missing (existing DBs)
     try:
         vendor_cols = [r[1] for r in cur.execute("PRAGMA table_info('wedding_vendors')").fetchall()]
-        for col, typedef in [("instagram_url", "TEXT"), ("facebook_url", "TEXT"), ("location", "TEXT")]:
+        for col, typedef in [("instagram_url", "TEXT"), ("facebook_url", "TEXT"), ("location", "TEXT"), ("inclusions", "TEXT")]:
             if col not in vendor_cols:
                 conn.execute(f"ALTER TABLE wedding_vendors ADD COLUMN {col} {typedef}")
         conn.commit()

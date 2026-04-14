@@ -38,6 +38,7 @@ class VendorCreate(BaseModel):
     instagram_url: Optional[str] = None
     facebook_url: Optional[str] = None
     location: Optional[str] = None
+    inclusions: Optional[str] = None
 
 class VendorUpdate(BaseModel):
     name: Optional[str] = None
@@ -53,6 +54,7 @@ class VendorUpdate(BaseModel):
     instagram_url: Optional[str] = None
     facebook_url: Optional[str] = None
     location: Optional[str] = None
+    inclusions: Optional[str] = None
 
 class GuestCreate(BaseModel):
     name: str
@@ -134,12 +136,12 @@ async def create_vendor(body: VendorCreate, db_conn: sqlite3.Connection = Depend
         """INSERT INTO wedding_vendors
            (name, category, contact_name, phone, price_quoted, what_included,
             status, deposit_amount, deposit_paid_date, notes,
-            instagram_url, facebook_url, location)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            instagram_url, facebook_url, location, inclusions)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (body.name, body.category, body.contact_name, body.phone,
          body.price_quoted, body.what_included, body.status,
          body.deposit_amount, body.deposit_paid_date, body.notes,
-         body.instagram_url, body.facebook_url, body.location),
+         body.instagram_url, body.facebook_url, body.location, body.inclusions),
     )
     db_conn.commit()
     row = db_conn.execute("SELECT * FROM wedding_vendors WHERE id=?", (cur.lastrowid,)).fetchone()

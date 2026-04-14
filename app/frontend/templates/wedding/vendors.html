@@ -4,13 +4,19 @@
 {% block wedding_content %}
 
 {% set CATEGORIES = [
-    ('chuppah',       'ספק חופה',         '⛪'),
+    ('venue',         'מקום',               '🏛️'),
     ('catering',      'קייטרינג',          '🍽️'),
+    ('chuppah',       'ספק חופה',         '⛪'),
     ('dj',            "דיג'יי",            '🎧'),
     ('sound',         'ספק סאונד',          '🔊'),
     ('tables_chairs', 'שולחנות וכסאות',     '🪑'),
     ('alcohol',       'אלכוהול',            '🥂'),
-    ('venue',         'מקום',               '🏛️'),
+    ('photographer',  'צלם',               '📷'),
+    ('video',         'וידאו',             '🎬'),
+    ('live_music',    'מוזיקה חיה',        '🎻'),
+    ('flowers',       'פרחים ועיצוב',      '💐'),
+    ('transport',     'הסעות',             '🚌'),
+    ('attire',        'לבוש',              '👗'),
 ] %}
 
 {% set CATEGORY_LABELS = {
@@ -40,7 +46,7 @@
 } %}
 
 {% set STATUS_COLORS = {
-    'not_contacted':   'bg-gray-100 text-gray-600',
+    'not_contacted':   'bg-gray-100 text-gray-500',
     'quote_received':  'bg-blue-100 text-blue-700',
     'contract_signed': 'bg-amber-100 text-amber-700',
     'deal_closed':     'bg-rose-100 text-rose-700',
@@ -48,19 +54,79 @@
     'fully_paid':      'bg-green-100 text-green-700'
 } %}
 
-<div class="space-y-6" dir="rtl">
+{% set predefined_cats = ['venue','catering','chuppah','dj','sound','tables_chairs','alcohol','photographer','video','live_music','flowers','transport','attire'] %}
+
+<!-- Stats calculations -->
+{% set ns = namespace(
+    total=0, chosen=0, quote_count=0,
+    committed=0, deposit_total=0
+) %}
+{% for v in vendors %}
+    {% set ns.total = ns.total + 1 %}
+    {% if v.status in ['deal_closed','deposit_paid','fully_paid'] %}
+        {% set ns.chosen = ns.chosen + 1 %}
+        {% if v.price_quoted %}
+            {% set ns.committed = ns.committed + v.price_quoted %}
+        {% endif %}
+    {% endif %}
+    {% if v.status == 'quote_received' %}
+        {% set ns.quote_count = ns.quote_count + 1 %}
+    {% endif %}
+    {% if v.deposit_amount and v.status in ['deposit_paid','fully_paid'] %}
+        {% set ns.deposit_total = ns.deposit_total + v.deposit_amount %}
+    {% endif %}
+{% endfor %}
+
+<div class="space-y-5" dir="rtl">
 
     <!-- Header -->
     <div class="flex flex-wrap items-center justify-between gap-3">
         <h1 class="text-xl sm:text-2xl font-bold text-gray-900">ספקים 🏢</h1>
         <button onclick="openAddModal(null)"
-                class="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium min-h-[44px]">
+                class="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-4 py-2.5 rounded-xl text-sm font-semibold min-h-[44px] shadow-sm">
             + הוסף ספק
         </button>
     </div>
 
-    <!-- Category Cards Grid -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <!-- Stats Bar -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
+            <div class="text-2xl font-bold text-gray-800">{{ ns.total }}</div>
+            <div class="text-xs text-gray-500 mt-0.5">ספקים בסה"כ</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
+            <div class="text-2xl font-bold text-rose-600">{{ ns.chosen }}</div>
+            <div class="text-xs text-gray-500 mt-0.5">נבחרו</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
+            <div class="text-2xl font-bold text-blue-600">{{ ns.quote_count }}</div>
+            <div class="text-xs text-gray-500 mt-0.5">הצעות פתוחות</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
+            {% if ns.committed > 0 %}
+            <div class="text-xl font-bold text-green-600" dir="ltr">₪{{ "{:,.0f}".format(ns.committed) }}</div>
+            {% else %}
+            <div class="text-xl font-bold text-gray-300">—</div>
+            {% endif %}
+            <div class="text-xs text-gray-500 mt-0.5">סה"כ מחויב</div>
+        </div>
+    </div>
+
+    <!-- View Toggle -->
+    <div class="flex gap-2 bg-gray-100 p-1 rounded-xl w-fit">
+        <button id="btn-cards" onclick="setView('cards')"
+                class="view-btn active-view px-4 py-2 rounded-lg text-sm font-medium transition-all">
+            כרטיסיות
+        </button>
+        <button id="btn-compare" onclick="setView('compare')"
+                class="view-btn px-4 py-2 rounded-lg text-sm font-medium transition-all text-gray-500 hover:text-gray-700">
+            השוואה
+        </button>
+    </div>
+
+    <!-- ═══════════════ CARDS VIEW ═══════════════ -->
+    <div id="view-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
         {% for cat_key, cat_label, cat_icon in CATEGORIES %}
         {% set cat_vendors = vendors | selectattr('category', 'equalto', cat_key) | list %}
 
@@ -68,15 +134,15 @@
             <!-- Card Header -->
             <div class="bg-rose-50 px-4 py-3 flex items-center justify-between gap-2 border-b border-rose-100">
                 <div class="flex items-center gap-2">
-                    <span class="text-xl leading-none">{{ cat_icon }}</span>
+                    <span class="text-lg leading-none">{{ cat_icon }}</span>
                     <h2 class="font-bold text-rose-900 text-sm">{{ cat_label }}</h2>
                     {% if cat_vendors %}
-                    <span class="text-xs text-rose-400 font-normal">({{ cat_vendors | length }})</span>
+                    <span class="text-xs text-rose-400">({{ cat_vendors | length }})</span>
                     {% endif %}
                 </div>
                 {% if cat_vendors %}
                 <button onclick="openAddModal('{{ cat_key }}')"
-                        class="text-xs text-rose-500 hover:text-rose-700 font-medium shrink-0">+ הוסף</button>
+                        class="text-xs text-rose-500 hover:text-rose-700 font-medium shrink-0 min-h-[36px] px-1">+ הוסף</button>
                 {% endif %}
             </div>
 
@@ -88,104 +154,15 @@
 
                     {% for v in cat_vendors %}
                     {% set is_chosen = v.status in ['deal_closed', 'deposit_paid', 'fully_paid'] %}
-                    <div class="border rounded-lg p-3 transition-colors
-                        {% if is_chosen %}border-rose-300 bg-rose-50/40{% else %}border-gray-100 bg-white hover:bg-gray-50/50{% endif %}">
+                    <div class="border rounded-xl p-3 transition-colors
+                        {% if is_chosen %}border-rose-300 bg-rose-50/50{% else %}border-gray-100 bg-gray-50/30 hover:bg-gray-50{% endif %}">
 
                         <div class="flex items-start justify-between gap-2">
                             <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-1.5">
-                                    <span class="font-semibold text-gray-900 text-sm truncate">{{ v.name }}</span>
+                                <div class="flex items-center gap-1.5 flex-wrap">
+                                    <span class="font-semibold text-gray-900 text-sm">{{ v.name }}</span>
                                     {% if is_chosen %}
-                                    <span class="shrink-0 text-xs bg-rose-600 text-white px-1.5 py-0.5 rounded font-medium">נבחר</span>
-                                    {% endif %}
-                                </div>
-                                {% if v.contact_name or v.phone %}
-                                <div class="text-xs text-gray-400 mt-0.5 truncate">
-                                    {% if v.contact_name %}{{ v.contact_name }}{% endif %}
-                                    {% if v.contact_name and v.phone %} · {% endif %}
-                                    {% if v.phone %}<span dir="ltr">{{ v.phone }}</span>{% endif %}
-                                </div>
-                                {% endif %}
-                            </div>
-                            <div class="text-left shrink-0">
-                                {% if v.price_quoted %}
-                                <div class="text-sm font-bold {% if min_price and v.price_quoted == min_price and cat_vendors | length > 1 %}text-green-600{% else %}text-gray-800{% endif %}" dir="ltr">
-                                    ₪{{ "{:,.0f}".format(v.price_quoted) }}
-                                    {% if min_price and v.price_quoted == min_price and cat_vendors | length > 1 %}
-                                    <span class="text-xs">↓</span>
-                                    {% endif %}
-                                </div>
-                                {% endif %}
-                                <span class="inline-block px-1.5 py-0.5 rounded-full text-xs font-medium {{ STATUS_COLORS.get(v.status, 'bg-gray-100 text-gray-600') }}">
-                                    {{ STATUS_LABELS.get(v.status, v.status) }}
-                                </span>
-                            </div>
-                        </div>
-
-                        {% if v.what_included %}
-                        <div class="text-xs text-gray-400 mt-1.5 line-clamp-1" title="{{ v.what_included }}">{{ v.what_included }}</div>
-                        {% endif %}
-
-                        <div class="flex gap-3 mt-2">
-                            <a href="/wedding/vendors/{{ v.id }}"
-                               class="text-xs text-rose-600 hover:text-rose-800 font-medium py-1.5 px-1 min-h-[36px] flex items-center">פרטים</a>
-                            <button data-vendor='{{ v | tojson }}'
-                                    onclick="openEditModal(JSON.parse(this.dataset.vendor))"
-                                    class="text-xs text-gray-500 hover:text-gray-700 py-1.5 px-1 min-h-[36px]">ערוך</button>
-                            <button onclick="deleteVendor({{ v.id }}, '{{ v.name }}')"
-                                    class="text-xs text-red-400 hover:text-red-600 mr-auto py-1.5 px-1 min-h-[36px]">מחק</button>
-                        </div>
-                    </div>
-                    {% endfor %}
-
-                    <button onclick="openAddModal('{{ cat_key }}')"
-                            class="mt-1 w-full py-3 border border-dashed border-rose-200 hover:border-rose-400 hover:bg-rose-50/30 text-rose-500 hover:text-rose-700 rounded-lg text-xs font-medium transition-colors min-h-[44px]">
-                        + הוסף ספק נוסף
-                    </button>
-                {% else %}
-                    <div class="flex-1 flex flex-col items-center justify-center py-6 text-center">
-                        <div class="text-gray-300 text-3xl mb-2">{{ cat_icon }}</div>
-                        <div class="text-gray-400 text-sm mb-4">עדיין לא נבחר ספק</div>
-                        <button onclick="openAddModal('{{ cat_key }}')"
-                                class="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-medium transition-colors">
-                            + הוסף ספק
-                        </button>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-
-    <!-- Other vendors (not in predefined categories) -->
-    {% set predefined = ['chuppah','catering','dj','sound','tables_chairs','alcohol','venue'] %}
-    {% set ns = namespace(others=[]) %}
-    {% for v in vendors %}
-        {% if v.category not in predefined %}
-            {% set ns.others = ns.others + [v] %}
-        {% endif %}
-    {% endfor %}
-
-    {% if ns.others %}
-    <div>
-        <h2 class="text-base font-bold text-gray-700 mb-3">ספקים נוספים</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {% for v in ns.others %}
-            {% set is_chosen = v.status in ['deal_closed', 'deposit_paid', 'fully_paid'] %}
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-                <div class="bg-gray-50 px-4 py-3 flex items-center justify-between gap-2 border-b border-gray-100">
-                    <h2 class="font-bold text-gray-700 text-sm">{{ CATEGORY_LABELS.get(v.category, v.category) }}</h2>
-                    <button onclick="openAddModal('{{ v.category }}')"
-                            class="text-xs text-rose-500 hover:text-rose-700 font-medium">+ הוסף</button>
-                </div>
-                <div class="p-3">
-                    <div class="border rounded-lg p-3 {% if is_chosen %}border-rose-300 bg-rose-50/40{% else %}border-gray-100{% endif %}">
-                        <div class="flex items-start justify-between gap-2">
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-1.5">
-                                    <span class="font-semibold text-gray-900 text-sm truncate">{{ v.name }}</span>
-                                    {% if is_chosen %}
-                                    <span class="shrink-0 text-xs bg-rose-600 text-white px-1.5 py-0.5 rounded font-medium">נבחר</span>
+                                    <span class="shrink-0 text-xs bg-rose-600 text-white px-1.5 py-0.5 rounded-full font-medium">✓ נבחר</span>
                                     {% endif %}
                                 </div>
                                 {% if v.contact_name or v.phone %}
@@ -198,42 +175,118 @@
                             </div>
                             <div class="text-left shrink-0">
                                 {% if v.price_quoted %}
-                                <div class="text-sm font-bold text-gray-800" dir="ltr">₪{{ "{:,.0f}".format(v.price_quoted) }}</div>
+                                <div class="text-sm font-bold {% if min_price and v.price_quoted == min_price and cat_vendors | length > 1 %}text-green-600{% else %}text-gray-800{% endif %}" dir="ltr">
+                                    ₪{{ "{:,.0f}".format(v.price_quoted) }}
+                                    {% if min_price and v.price_quoted == min_price and cat_vendors | length > 1 %}
+                                    <span class="text-xs text-green-500">↓</span>
+                                    {% endif %}
+                                </div>
                                 {% endif %}
-                                <span class="inline-block px-1.5 py-0.5 rounded-full text-xs font-medium {{ STATUS_COLORS.get(v.status, 'bg-gray-100 text-gray-600') }}">
+                                <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium {{ STATUS_COLORS.get(v.status, 'bg-gray-100 text-gray-500') }}">
                                     {{ STATUS_LABELS.get(v.status, v.status) }}
                                 </span>
                             </div>
                         </div>
-                        <div class="flex gap-3 mt-2">
-                            <a href="/wedding/vendors/{{ v.id }}" class="text-xs text-rose-600 hover:text-rose-800 font-medium">פרטים</a>
+
+                        <!-- Inclusions mini-grid (rendered by JS) -->
+                        <div class="inclusion-chips mt-2" data-vendor-id="{{ v.id }}" data-category="{{ v.category }}" data-inclusions="{{ v.inclusions or '{}' }}"></div>
+
+                        <!-- Actions -->
+                        <div class="flex gap-2 mt-2 pt-2 border-t border-gray-100">
+                            <a href="/wedding/vendors/{{ v.id }}"
+                               class="text-xs text-rose-600 hover:text-rose-800 font-medium py-1.5 px-2 min-h-[36px] flex items-center rounded-lg hover:bg-rose-50">
+                               פרטים
+                            </a>
                             <button data-vendor='{{ v | tojson }}'
                                     onclick="openEditModal(JSON.parse(this.dataset.vendor))"
-                                    class="text-xs text-gray-500 hover:text-gray-700">ערוך</button>
+                                    class="text-xs text-gray-500 hover:text-gray-700 py-1.5 px-2 min-h-[36px] rounded-lg hover:bg-gray-100">ערוך</button>
                             <button onclick="deleteVendor({{ v.id }}, '{{ v.name }}')"
-                                    class="text-xs text-red-400 hover:text-red-600 mr-auto">מחק</button>
+                                    class="text-xs text-red-400 hover:text-red-600 mr-auto py-1.5 px-2 min-h-[36px] rounded-lg hover:bg-red-50">מחק</button>
                         </div>
+                    </div>
+                    {% endfor %}
+
+                    <button onclick="openAddModal('{{ cat_key }}')"
+                            class="mt-1 w-full py-3 border border-dashed border-rose-200 hover:border-rose-400 hover:bg-rose-50/30 text-rose-400 hover:text-rose-600 rounded-xl text-xs font-medium transition-colors min-h-[44px]">
+                        + הוסף ספק נוסף
+                    </button>
+                {% else %}
+                    <div class="flex-1 flex flex-col items-center justify-center py-8 text-center">
+                        <div class="text-gray-200 text-4xl mb-2">{{ cat_icon }}</div>
+                        <div class="text-gray-400 text-sm mb-4">עדיין לא נבחר ספק</div>
+                        <button onclick="openAddModal('{{ cat_key }}')"
+                                class="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-medium transition-colors min-h-[44px]">
+                            + הוסף ספק
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- Other vendors -->
+        {% set ns2 = namespace(others=[]) %}
+        {% for v in vendors %}
+            {% if v.category not in predefined_cats %}
+                {% set ns2.others = ns2.others + [v] %}
+            {% endif %}
+        {% endfor %}
+        {% for v in ns2.others %}
+        {% set is_chosen = v.status in ['deal_closed', 'deposit_paid', 'fully_paid'] %}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
+            <div class="bg-gray-50 px-4 py-3 flex items-center justify-between gap-2 border-b border-gray-100">
+                <h2 class="font-bold text-gray-700 text-sm">{{ CATEGORY_LABELS.get(v.category, v.category) }}</h2>
+            </div>
+            <div class="p-3">
+                <div class="border rounded-xl p-3 {% if is_chosen %}border-rose-300 bg-rose-50/50{% else %}border-gray-100{% endif %}">
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="font-semibold text-gray-900 text-sm">{{ v.name }}</span>
+                                {% if is_chosen %}<span class="text-xs bg-rose-600 text-white px-1.5 py-0.5 rounded-full">✓ נבחר</span>{% endif %}
+                            </div>
+                            {% if v.contact_name or v.phone %}
+                            <div class="text-xs text-gray-400 mt-0.5">{{ v.contact_name }}{% if v.contact_name and v.phone %} · {% endif %}<span dir="ltr">{{ v.phone }}</span></div>
+                            {% endif %}
+                        </div>
+                        <div class="text-left shrink-0">
+                            {% if v.price_quoted %}<div class="text-sm font-bold text-gray-800" dir="ltr">₪{{ "{:,.0f}".format(v.price_quoted) }}</div>{% endif %}
+                            <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium {{ STATUS_COLORS.get(v.status, 'bg-gray-100 text-gray-500') }}">{{ STATUS_LABELS.get(v.status, v.status) }}</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mt-2 pt-2 border-t border-gray-100">
+                        <a href="/wedding/vendors/{{ v.id }}" class="text-xs text-rose-600 hover:text-rose-800 font-medium py-1.5 px-2 min-h-[36px] flex items-center">פרטים</a>
+                        <button data-vendor='{{ v | tojson }}' onclick="openEditModal(JSON.parse(this.dataset.vendor))" class="text-xs text-gray-500 hover:text-gray-700 py-1.5 px-2 min-h-[36px]">ערוך</button>
+                        <button onclick="deleteVendor({{ v.id }}, '{{ v.name }}')" class="text-xs text-red-400 hover:text-red-600 mr-auto py-1.5 px-2 min-h-[36px]">מחק</button>
                     </div>
                 </div>
             </div>
-            {% endfor %}
         </div>
+        {% endfor %}
+
+    </div><!-- /view-cards -->
+
+    <!-- ═══════════════ COMPARE VIEW ═══════════════ -->
+    <div id="view-compare" class="hidden space-y-8">
+        <!-- Rendered by JS -->
+        <div id="compare-content"></div>
     </div>
-    {% endif %}
 
-</div>
+</div><!-- /space-y-5 -->
 
-<!-- Mobile FAB - positioned above browser bottom bar -->
+<!-- Mobile FAB -->
 <button onclick="openAddModal(null)"
         class="sm:hidden fixed z-[800] bg-rose-600 text-white w-16 h-16 rounded-full shadow-xl flex items-center justify-center text-3xl font-light active:scale-90 transition-transform"
         style="bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); right: 1.25rem;">
     +
 </button>
 
-<!-- Add/Edit Vendor Modal -->
+<!-- ═══════════════ ADD / EDIT MODAL ═══════════════ -->
 <div id="vendor-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-start sm:items-center justify-center sm:p-4" dir="rtl">
-    <div class="bg-white w-full sm:rounded-xl shadow-xl sm:max-w-2xl sm:mx-4 max-h-screen sm:max-h-[90vh] overflow-y-auto"
+    <div class="bg-white w-full sm:rounded-2xl shadow-2xl sm:max-w-2xl sm:mx-4 max-h-screen sm:max-h-[90vh] overflow-y-auto"
          style="padding-bottom: env(safe-area-inset-bottom, 0px);">
+
+        <!-- Modal Header -->
         <div class="sticky top-0 bg-white z-10 px-5 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between">
             <h3 id="modal-title" class="text-lg font-bold">הוספת ספק</h3>
             <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100">
@@ -242,48 +295,60 @@
                 </svg>
             </button>
         </div>
-        <div class="px-5 py-4">
+
+        <div class="px-5 py-4 space-y-5">
             <input type="hidden" id="vendor-id" value="">
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <!-- Basic Info Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">שם הספק *</label>
-                    <input type="text" id="v-name" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400" placeholder="שם העסק">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">שם הספק *</label>
+                    <input type="text" id="v-name"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300"
+                           placeholder="שם העסק">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">קטגוריה *</label>
-                    <select id="v-category" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400">
-                        <option value="chuppah">ספק חופה</option>
-                        <option value="catering">קייטרינג</option>
-                        <option value="dj">דיג'יי</option>
-                        <option value="sound">ספק סאונד</option>
-                        <option value="tables_chairs">שולחנות וכסאות</option>
-                        <option value="alcohol">אלכוהול</option>
-                        <option value="photographer">צלם</option>
-                        <option value="video">וידאו</option>
-                        <option value="live_music">מוזיקה חיה</option>
-                        <option value="flowers">פרחים ועיצוב</option>
-                        <option value="venue">מקום</option>
-                        <option value="transport">הסעות</option>
-                        <option value="attire">לבוש</option>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">קטגוריה *</label>
+                    <select id="v-category" onchange="onCategoryChange()"
+                            class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base bg-white focus:outline-none focus:ring-2 focus:ring-rose-300">
+                        <option value="venue">מקום 🏛️</option>
+                        <option value="catering">קייטרינג 🍽️</option>
+                        <option value="chuppah">ספק חופה ⛪</option>
+                        <option value="dj">דיג'יי 🎧</option>
+                        <option value="sound">ספק סאונד 🔊</option>
+                        <option value="tables_chairs">שולחנות וכסאות 🪑</option>
+                        <option value="alcohol">אלכוהול 🥂</option>
+                        <option value="photographer">צלם 📷</option>
+                        <option value="video">וידאו 🎬</option>
+                        <option value="live_music">מוזיקה חיה 🎻</option>
+                        <option value="flowers">פרחים ועיצוב 💐</option>
+                        <option value="transport">הסעות 🚌</option>
+                        <option value="attire">לבוש 👗</option>
                         <option value="other">אחר</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">איש קשר</label>
-                    <input type="text" id="v-contact-name" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400" placeholder="שם איש קשר">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">איש קשר</label>
+                    <input type="text" id="v-contact-name"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300"
+                           placeholder="שם איש קשר">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">טלפון</label>
-                    <input type="text" id="v-phone" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400" placeholder="050-0000000" dir="ltr">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">טלפון</label>
+                    <input type="tel" id="v-phone"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300"
+                           placeholder="050-0000000" dir="ltr">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">הצעת מחיר (₪)</label>
-                    <input type="number" id="v-price-quoted" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400" placeholder="0" dir="ltr" inputmode="numeric">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">הצעת מחיר (₪)</label>
+                    <input type="number" id="v-price-quoted"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300"
+                           placeholder="0" dir="ltr" inputmode="numeric">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">סטטוס</label>
-                    <select id="v-status" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">סטטוס</label>
+                    <select id="v-status"
+                            class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base bg-white focus:outline-none focus:ring-2 focus:ring-rose-300">
                         <option value="not_contacted">לא נוצר קשר</option>
                         <option value="quote_received">הצעת מחיר התקבלה</option>
                         <option value="contract_signed">חוזה נחתם</option>
@@ -293,57 +358,475 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">סכום מקדמה (₪)</label>
-                    <input type="number" id="v-deposit-amount" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400" placeholder="0" dir="ltr" inputmode="numeric">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">סכום מקדמה (₪)</label>
+                    <input type="number" id="v-deposit-amount"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300"
+                           placeholder="0" dir="ltr" inputmode="numeric">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">תאריך תשלום מקדמה</label>
-                    <input type="date" id="v-deposit-date" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400">
-                </div>
-                <div class="sm:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">מה כולל ההצעה</label>
-                    <textarea id="v-what-included" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400" rows="2"
-                              placeholder="פירוט השירות..."></textarea>
-                </div>
-                <div class="sm:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">הערות</label>
-                    <textarea id="v-notes" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400" rows="2"
-                              placeholder="הערות נוספות..."></textarea>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">תאריך מקדמה</label>
+                    <input type="date" id="v-deposit-date"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">מיקום</label>
-                    <input type="text" id="v-location" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400" placeholder="כתובת / שם המקום">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">מיקום</label>
+                    <input type="text" id="v-location"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300"
+                           placeholder="כתובת / שם המקום">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">אינסטגרם</label>
-                    <input type="url" id="v-instagram" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400" placeholder="https://instagram.com/..." dir="ltr">
-                </div>
-                <div class="sm:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">פייסבוק</label>
-                    <input type="url" id="v-facebook" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400" placeholder="https://facebook.com/..." dir="ltr">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">אינסטגרם</label>
+                    <input type="url" id="v-instagram"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300"
+                           placeholder="https://instagram.com/..." dir="ltr">
                 </div>
             </div>
 
-            <div class="flex gap-3 mt-5 mb-3 sm:mb-0">
+            <!-- Inclusions Section -->
+            <div id="inclusions-section">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="h-px flex-1 bg-gray-100"></div>
+                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">מה כולל הספק</span>
+                    <div class="h-px flex-1 bg-gray-100"></div>
+                </div>
+                <div id="inclusions-checkboxes" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <!-- rendered by JS onCategoryChange -->
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">הערות</label>
+                <textarea id="v-notes"
+                          class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300"
+                          rows="2" placeholder="הערות נוספות..."></textarea>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-3 pb-1">
                 <button onclick="closeModal()"
-                        class="flex-1 py-3.5 text-gray-600 bg-gray-100 rounded-xl text-sm font-medium min-h-[48px] active:bg-gray-200">ביטול</button>
+                        class="flex-1 py-3.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm font-medium min-h-[48px] transition-colors">
+                    ביטול
+                </button>
                 <button onclick="saveVendor()"
-                        class="flex-1 py-3.5 bg-rose-600 text-white rounded-xl text-sm font-bold min-h-[48px] active:bg-rose-700">שמור</button>
+                        class="flex-1 py-3.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-bold min-h-[48px] shadow-sm transition-colors">
+                    שמור
+                </button>
             </div>
         </div>
     </div>
 </div>
 
+<style>
+.active-view { background: white; color: #111827; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.inclusion-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; padding: 2px 7px; border-radius: 999px; font-weight: 500; }
+.chip-yes  { background: #dcfce7; color: #15803d; }
+.chip-no   { background: #fee2e2; color: #b91c1c; }
+.chip-unknown { background: #f3f4f6; color: #9ca3af; }
+</style>
+
 <script>
+/* ─── Data ─────────────────────────────────────────────────────── */
+const ALL_VENDORS = {{ vendors | tojson }};
+
+ALL_VENDORS.forEach(v => {
+    try { v._inc = JSON.parse(v.inclusions || '{}'); }
+    catch { v._inc = {}; }
+});
+
+const CATEGORY_INCLUSIONS = {
+    venue: [
+        { key: 'infrastructure', label: 'תשתיות' },
+        { key: 'tables_chairs',  label: 'שולחנות וכסאות' },
+        { key: 'food',           label: 'אוכל' },
+        { key: 'alcohol',        label: 'אלכוהול' },
+        { key: 'dj',             label: "דיג'יי" },
+        { key: 'sound',          label: 'סאונד' },
+        { key: 'chuppah',        label: 'חופה' },
+        { key: 'cake',           label: 'עוגה' },
+        { key: 'parking',        label: 'חנייה' },
+        { key: 'ac',             label: 'מיזוג' },
+    ],
+    catering: [
+        { key: 'food',           label: 'אוכל' },
+        { key: 'service',        label: 'שירות' },
+        { key: 'dishes',         label: 'כלים' },
+        { key: 'chef',           label: 'שף' },
+        { key: 'cake',           label: 'עוגה' },
+        { key: 'alcohol',        label: 'אלכוהול' },
+        { key: 'setup',          label: 'הצבה' },
+        { key: 'cleanup',        label: 'פינוי' },
+    ],
+    chuppah: [
+        { key: 'structure',      label: 'מבנה החופה' },
+        { key: 'flowers',        label: 'פרחים' },
+        { key: 'installation',   label: 'התקנה' },
+        { key: 'removal',        label: 'פירוק' },
+        { key: 'lighting',       label: 'תאורה' },
+        { key: 'fabric',         label: 'בד/וילון' },
+    ],
+    dj: [
+        { key: 'sound_equipment',label: 'ציוד סאונד' },
+        { key: 'lighting',       label: 'תאורה' },
+        { key: 'mc',             label: 'MC' },
+        { key: 'fog',            label: 'עשן' },
+        { key: 'ceremony_music', label: 'מוזיקה לחופה' },
+        { key: 'setup',          label: 'הצבה ופירוק' },
+    ],
+    sound: [
+        { key: 'microphones',    label: 'מיקרופונים' },
+        { key: 'speakers',       label: 'רמקולים' },
+        { key: 'mixing',         label: 'ערבוב' },
+        { key: 'setup',          label: 'התקנה' },
+        { key: 'operator',       label: 'מפעיל' },
+        { key: 'monitoring',     label: 'מוניטורים' },
+    ],
+    tables_chairs: [
+        { key: 'round_tables',   label: 'שולחנות עגולים' },
+        { key: 'chairs',         label: 'כיסאות' },
+        { key: 'tablecloths',    label: 'מפות' },
+        { key: 'napkins',        label: 'מפיות' },
+        { key: 'delivery',       label: 'משלוח' },
+        { key: 'setup',          label: 'הצבה' },
+        { key: 'removal',        label: 'פינוי' },
+    ],
+    alcohol: [
+        { key: 'wine',           label: 'יין' },
+        { key: 'whiskey',        label: 'ויסקי' },
+        { key: 'beer',           label: 'ביירה' },
+        { key: 'soft_drinks',    label: 'שתיות קלות' },
+        { key: 'bartender',      label: 'ברמן' },
+        { key: 'glasses',        label: 'כוסות' },
+        { key: 'ice',            label: 'קרח' },
+    ],
+    photographer: [
+        { key: 'raw_photos',     label: 'תמונות גלם' },
+        { key: 'editing',        label: 'עריכה' },
+        { key: 'album',          label: 'אלבום' },
+        { key: 'prints',         label: 'הדפסות' },
+        { key: 'second_shooter', label: 'צלם שני' },
+        { key: 'ceremony',       label: 'חופה' },
+        { key: 'delivery_weeks', label: 'מסירה תוך 6 שבועות' },
+    ],
+    video: [
+        { key: 'full_video',     label: 'סרטון מלא' },
+        { key: 'reel',           label: 'ריל' },
+        { key: 'live_stream',    label: 'שידור חי' },
+        { key: 'drone',          label: 'רחפן' },
+        { key: 'ceremony',       label: 'חופה' },
+        { key: 'second_camera',  label: 'מצלמה שנייה' },
+    ],
+    live_music: [
+        { key: 'ceremony',       label: 'חופה' },
+        { key: 'reception',      label: 'קבלת פנים' },
+        { key: 'equipment',      label: 'ציוד' },
+        { key: 'rehearsals',     label: 'חזרות' },
+        { key: 'playlist',       label: 'רשימת שירים מותאמת' },
+    ],
+    flowers: [
+        { key: 'bridal_bouquet', label: 'זר כלה' },
+        { key: 'table_flowers',  label: 'פרחי שולחנות' },
+        { key: 'chuppah_flowers',label: 'פרחי חופה' },
+        { key: 'boutonniere',    label: 'תפרחת חתן' },
+        { key: 'delivery',       label: 'משלוח' },
+        { key: 'setup',          label: 'הצבה' },
+    ],
+    transport: [
+        { key: 'pickup',         label: 'איסוף' },
+        { key: 'dropoff',        label: 'הורדה' },
+        { key: 'driver',         label: 'נהג' },
+        { key: 'ac_bus',         label: 'אוטובוס ממוזג' },
+        { key: 'return',         label: 'החזרה' },
+    ],
+    attire: [
+        { key: 'dress',          label: 'שמלה' },
+        { key: 'alterations',    label: 'תיקונים' },
+        { key: 'accessories',    label: 'אקססוריז' },
+        { key: 'veil',           label: 'רעלה' },
+        { key: 'cleaning',       label: 'ניקוי אחרי' },
+    ],
+};
+
+const STATUS_LABELS = {
+    not_contacted:   'לא נוצר קשר',
+    quote_received:  'הצעת מחיר',
+    contract_signed: 'חוזה נחתם',
+    deal_closed:     'נסגרה עסקה',
+    deposit_paid:    'מקדמה שולמה',
+    fully_paid:      'שולם במלואו',
+};
+
+const STATUS_BADGE_CLASSES = {
+    not_contacted:   'bg-gray-100 text-gray-500',
+    quote_received:  'bg-blue-100 text-blue-700',
+    contract_signed: 'bg-amber-100 text-amber-700',
+    deal_closed:     'bg-rose-100 text-rose-700',
+    deposit_paid:    'bg-orange-100 text-orange-700',
+    fully_paid:      'bg-green-100 text-green-700',
+};
+
+/* ─── View toggle ──────────────────────────────────────────────── */
+function setView(view) {
+    const isCompare = view === 'compare';
+    document.getElementById('view-cards').classList.toggle('hidden', isCompare);
+    document.getElementById('view-compare').classList.toggle('hidden', !isCompare);
+    document.getElementById('btn-cards').classList.toggle('active-view', !isCompare);
+    document.getElementById('btn-compare').classList.toggle('active-view', isCompare);
+    document.getElementById('btn-cards').classList.toggle('text-gray-500', isCompare);
+    document.getElementById('btn-compare').classList.toggle('text-gray-500', !isCompare);
+    if (isCompare) renderCompareView();
+}
+
+/* ─── Inclusion chips (cards view) ────────────────────────────── */
+function renderInclusionChips(category, inclusions) {
+    const items = CATEGORY_INCLUSIONS[category];
+    if (!items || !items.length) return '';
+
+    // Show only items that have a value (yes or no), max 6
+    const withValue = items.filter(it => inclusions[it.key] !== undefined);
+    if (!withValue.length) return '<span class="text-xs text-gray-300 italic">לא הוזנו פרמטרים</span>';
+
+    const shown = withValue.slice(0, 6);
+    return shown.map(it => {
+        const val = inclusions[it.key];
+        if (val === true)  return `<span class="inclusion-chip chip-yes">✓ ${it.label}</span>`;
+        if (val === false) return `<span class="inclusion-chip chip-no">✗ ${it.label}</span>`;
+        return '';
+    }).filter(Boolean).join(' ');
+}
+
+document.querySelectorAll('.inclusion-chips').forEach(el => {
+    const cat = el.dataset.category;
+    let inc = {};
+    try { inc = JSON.parse(el.dataset.inclusions || '{}'); } catch {}
+    el.innerHTML = renderInclusionChips(cat, inc);
+});
+
+/* ─── Compare View ─────────────────────────────────────────────── */
+const COMPARE_CATEGORIES = [
+    ['venue',         'מקום',             '🏛️'],
+    ['catering',      'קייטרינג',          '🍽️'],
+    ['chuppah',       'ספק חופה',          '⛪'],
+    ['dj',            "דיג'יי",            '🎧'],
+    ['sound',         'ספק סאונד',         '🔊'],
+    ['tables_chairs', 'שולחנות וכסאות',    '🪑'],
+    ['alcohol',       'אלכוהול',           '🥂'],
+    ['photographer',  'צלם',               '📷'],
+    ['video',         'וידאו',             '🎬'],
+    ['live_music',    'מוזיקה חיה',        '🎻'],
+    ['flowers',       'פרחים ועיצוב',      '💐'],
+    ['transport',     'הסעות',             '🚌'],
+    ['attire',        'לבוש',              '👗'],
+];
+
+function renderCompareView() {
+    let html = '';
+    COMPARE_CATEGORIES.forEach(([catKey, catLabel, catIcon]) => {
+        const catVendors = ALL_VENDORS.filter(v => v.category === catKey);
+        if (!catVendors.length) return;
+
+        const incItems = CATEGORY_INCLUSIONS[catKey] || [];
+        const hasAnyInclusions = catVendors.some(v => Object.keys(v._inc).length > 0);
+        const prices = catVendors.map(v => v.price_quoted).filter(Boolean);
+        const minPrice = prices.length ? Math.min(...prices) : null;
+
+        html += `
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <!-- Section header -->
+            <div class="bg-rose-50 px-5 py-3 border-b border-rose-100 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">${catIcon}</span>
+                    <h2 class="font-bold text-rose-900">${catLabel}</h2>
+                    <span class="text-xs text-rose-400">(${catVendors.length} ספקים)</span>
+                </div>
+                <button onclick="openAddModal('${catKey}')" class="text-xs text-rose-500 hover:text-rose-700 font-medium">+ הוסף</button>
+            </div>
+
+            <!-- Comparison table -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm" dir="rtl">
+                    <thead>
+                        <tr class="border-b border-gray-100">
+                            <th class="text-right py-3 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide w-36 bg-gray-50/50">פרמטר</th>
+                            ${catVendors.map(v => {
+                                const isChosen = ['deal_closed','deposit_paid','fully_paid'].includes(v.status);
+                                return `
+                                <th class="py-3 px-4 text-center min-w-[140px] ${isChosen ? 'bg-rose-50/50' : ''}">
+                                    <div class="flex flex-col items-center gap-1">
+                                        <span class="font-bold text-gray-900 text-sm leading-tight">${v.name}</span>
+                                        ${isChosen ? '<span class="text-xs bg-rose-600 text-white px-2 py-0.5 rounded-full font-medium">✓ נבחר</span>' : ''}
+                                        ${v.price_quoted ? `<span class="font-bold text-sm ${minPrice && v.price_quoted === minPrice && catVendors.length > 1 ? 'text-green-600' : 'text-gray-700'}" dir="ltr">₪${v.price_quoted.toLocaleString()}</span>` : '<span class="text-gray-300 text-xs">ללא מחיר</span>'}
+                                        <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE_CLASSES[v.status] || 'bg-gray-100 text-gray-500'}">${STATUS_LABELS[v.status] || v.status}</span>
+                                    </div>
+                                </th>`;
+                            }).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+        if (incItems.length && hasAnyInclusions) {
+            incItems.forEach((item, idx) => {
+                const rowBg = idx % 2 === 0 ? '' : 'bg-gray-50/40';
+                html += `
+                <tr class="border-b border-gray-50 ${rowBg}">
+                    <td class="py-2.5 px-4 text-xs font-medium text-gray-600 bg-gray-50/50">${item.label}</td>
+                    ${catVendors.map(v => {
+                        const val = v._inc[item.key];
+                        let cell;
+                        if (val === true)       cell = '<span class="text-green-500 text-lg">✓</span>';
+                        else if (val === false)  cell = '<span class="text-red-400 text-lg">✗</span>';
+                        else                     cell = '<span class="text-gray-200 text-base">—</span>';
+                        const isChosen = ['deal_closed','deposit_paid','fully_paid'].includes(v.status);
+                        return `<td class="py-2.5 px-4 text-center ${isChosen ? 'bg-rose-50/30' : ''}">${cell}</td>`;
+                    }).join('')}
+                </tr>`;
+            });
+        } else if (incItems.length) {
+            html += `
+            <tr><td colspan="${catVendors.length + 1}" class="py-4 px-4 text-center text-xs text-gray-300 italic">
+                לא הוזנו פרמטרים — ערוך ספק כדי להוסיף
+            </td></tr>`;
+        }
+
+        // Notes row
+        const anyNotes = catVendors.some(v => v.notes);
+        if (anyNotes) {
+            html += `
+            <tr class="border-b border-gray-50 bg-blue-50/20">
+                <td class="py-2.5 px-4 text-xs font-medium text-gray-500 bg-gray-50/50">הערות</td>
+                ${catVendors.map(v => `<td class="py-2.5 px-4 text-xs text-gray-500 text-center">${v.notes || '—'}</td>`).join('')}
+            </tr>`;
+        }
+
+        // Actions row
+        html += `
+                    <tr class="bg-gray-50/30">
+                        <td class="py-3 px-4 bg-gray-50/50"></td>
+                        ${catVendors.map(v => `
+                        <td class="py-3 px-4 text-center">
+                            <div class="flex gap-2 justify-center flex-wrap">
+                                <a href="/wedding/vendors/${v.id}" class="text-xs text-rose-600 hover:text-rose-800 font-medium px-2 py-1.5 rounded-lg hover:bg-rose-50 min-h-[32px] flex items-center">פרטים</a>
+                                <button data-vendor='${JSON.stringify(v).replace(/'/g, "&#39;")}' onclick="openEditModal(JSON.parse(this.dataset.vendor))"
+                                        class="text-xs text-gray-500 hover:text-gray-700 px-2 py-1.5 rounded-lg hover:bg-gray-100 min-h-[32px]">ערוך</button>
+                                <button onclick="deleteVendor(${v.id}, '${v.name.replace(/'/g, "&#39;")}')"
+                                        class="text-xs text-red-400 hover:text-red-600 px-2 py-1.5 rounded-lg hover:bg-red-50 min-h-[32px]">מחק</button>
+                            </div>
+                        </td>`).join('')}
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>`;
+    });
+
+    // Other vendors (not in predefined categories)
+    const predefined = COMPARE_CATEGORIES.map(c => c[0]);
+    const others = ALL_VENDORS.filter(v => !predefined.includes(v.category));
+    if (others.length) {
+        html += `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="bg-gray-50 px-5 py-3 border-b border-gray-100">
+                <h2 class="font-bold text-gray-700">ספקים נוספים</h2>
+            </div>
+            <div class="divide-y divide-gray-50">
+            ${others.map(v => `
+                <div class="px-5 py-3 flex items-center justify-between gap-2">
+                    <div>
+                        <span class="font-semibold text-gray-800 text-sm">${v.name}</span>
+                        <span class="text-xs text-gray-400 mr-2">${v.category}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        ${v.price_quoted ? `<span class="text-sm font-bold text-gray-700" dir="ltr">₪${v.price_quoted.toLocaleString()}</span>` : ''}
+                        <span class="text-xs px-2 py-0.5 rounded-full ${STATUS_BADGE_CLASSES[v.status] || 'bg-gray-100 text-gray-500'}">${STATUS_LABELS[v.status] || ''}</span>
+                        <a href="/wedding/vendors/${v.id}" class="text-xs text-rose-600 font-medium">פרטים</a>
+                    </div>
+                </div>`).join('')}
+            </div>
+        </div>`;
+    }
+
+    if (!html) {
+        html = '<div class="text-center py-12 text-gray-400">אין ספקים עדיין — לחץ + הוסף ספק</div>';
+    }
+
+    document.getElementById('compare-content').innerHTML = html;
+}
+
+/* ─── Modal ────────────────────────────────────────────────────── */
+function onCategoryChange() {
+    const cat = document.getElementById('v-category').value;
+    renderInclusionCheckboxes(cat, {});
+}
+
+function renderInclusionCheckboxes(category, currentValues) {
+    const items = CATEGORY_INCLUSIONS[category] || [];
+    const container = document.getElementById('inclusions-checkboxes');
+    document.getElementById('inclusions-section').style.display = items.length ? '' : 'none';
+
+    if (!items.length) { container.innerHTML = ''; return; }
+
+    container.innerHTML = items.map(item => {
+        const val = currentValues[item.key];
+        const checkedYes   = val === true  ? 'checked' : '';
+        const checkedNo    = val === false ? 'checked' : '';
+        return `
+        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-100">
+            <span class="text-sm text-gray-700 font-medium">${item.label}</span>
+            <div class="flex gap-1" role="group">
+                <label class="cursor-pointer">
+                    <input type="radio" name="inc_${item.key}" value="yes" ${checkedYes} class="sr-only">
+                    <span class="inc-radio-btn text-xs px-2 py-1 rounded-lg border transition-all
+                        ${checkedYes ? 'bg-green-500 text-white border-green-500' : 'bg-white text-gray-400 border-gray-200 hover:border-green-300'}">✓</span>
+                </label>
+                <label class="cursor-pointer">
+                    <input type="radio" name="inc_${item.key}" value="no" ${checkedNo} class="sr-only">
+                    <span class="inc-radio-btn text-xs px-2 py-1 rounded-lg border transition-all
+                        ${checkedNo ? 'bg-red-400 text-white border-red-400' : 'bg-white text-gray-400 border-gray-200 hover:border-red-300'}">✗</span>
+                </label>
+            </div>
+        </div>`;
+    }).join('');
+
+    // Toggle styling on click
+    container.querySelectorAll('input[type="radio"]').forEach(input => {
+        input.addEventListener('change', () => {
+            const name = input.name;
+            document.querySelectorAll(`input[name="${name}"]`).forEach(r => {
+                const span = r.nextElementSibling;
+                const isYes = r.value === 'yes';
+                if (r.checked) {
+                    span.className = `inc-radio-btn text-xs px-2 py-1 rounded-lg border transition-all ${isYes ? 'bg-green-500 text-white border-green-500' : 'bg-red-400 text-white border-red-400'}`;
+                } else {
+                    span.className = `inc-radio-btn text-xs px-2 py-1 rounded-lg border transition-all ${isYes ? 'bg-white text-gray-400 border-gray-200 hover:border-green-300' : 'bg-white text-gray-400 border-gray-200 hover:border-red-300'}`;
+                }
+            });
+        });
+    });
+}
+
+function collectInclusions() {
+    const cat = document.getElementById('v-category').value;
+    const items = CATEGORY_INCLUSIONS[cat] || [];
+    const result = {};
+    items.forEach(item => {
+        const yesRadio = document.querySelector(`input[name="inc_${item.key}"][value="yes"]`);
+        const noRadio  = document.querySelector(`input[name="inc_${item.key}"][value="no"]`);
+        if (yesRadio && yesRadio.checked)     result[item.key] = true;
+        else if (noRadio && noRadio.checked)  result[item.key] = false;
+    });
+    return result;
+}
+
 function openAddModal(category) {
     document.getElementById('modal-title').textContent = 'הוספת ספק';
     document.getElementById('vendor-id').value = '';
-    ['v-name','v-contact-name','v-phone','v-price-quoted','v-deposit-amount','v-deposit-date','v-what-included','v-notes','v-location','v-instagram','v-facebook'].forEach(id => {
+    ['v-name','v-contact-name','v-phone','v-price-quoted','v-deposit-amount','v-deposit-date','v-notes','v-location','v-instagram'].forEach(id => {
         document.getElementById(id).value = '';
     });
-    document.getElementById('v-category').value = category || 'chuppah';
+    document.getElementById('v-category').value = category || 'venue';
     document.getElementById('v-status').value = 'not_contacted';
+    renderInclusionCheckboxes(category || 'venue', {});
     document.getElementById('vendor-modal').classList.remove('hidden');
+    document.getElementById('v-name').focus();
 }
 
 function openEditModal(v) {
@@ -357,11 +840,12 @@ function openEditModal(v) {
     document.getElementById('v-status').value = v.status || 'not_contacted';
     document.getElementById('v-deposit-amount').value = v.deposit_amount || '';
     document.getElementById('v-deposit-date').value = v.deposit_paid_date || '';
-    document.getElementById('v-what-included').value = v.what_included || '';
     document.getElementById('v-notes').value = v.notes || '';
     document.getElementById('v-location').value = v.location || '';
     document.getElementById('v-instagram').value = v.instagram_url || '';
-    document.getElementById('v-facebook').value = v.facebook_url || '';
+    let inc = {};
+    try { inc = JSON.parse(v.inclusions || '{}'); } catch {}
+    renderInclusionCheckboxes(v.category || 'other', inc);
     document.getElementById('vendor-modal').classList.remove('hidden');
 }
 
@@ -371,24 +855,24 @@ function closeModal() {
 
 function saveVendor() {
     const id = document.getElementById('vendor-id').value;
+    const inclusions = collectInclusions();
     const payload = {
-        name: document.getElementById('v-name').value.trim(),
-        category: document.getElementById('v-category').value,
-        contact_name: document.getElementById('v-contact-name').value.trim() || null,
-        phone: document.getElementById('v-phone').value.trim() || null,
-        price_quoted: parseFloat(document.getElementById('v-price-quoted').value) || null,
-        status: document.getElementById('v-status').value,
-        deposit_amount: parseFloat(document.getElementById('v-deposit-amount').value) || null,
+        name:              document.getElementById('v-name').value.trim(),
+        category:          document.getElementById('v-category').value,
+        contact_name:      document.getElementById('v-contact-name').value.trim() || null,
+        phone:             document.getElementById('v-phone').value.trim() || null,
+        price_quoted:      parseFloat(document.getElementById('v-price-quoted').value) || null,
+        status:            document.getElementById('v-status').value,
+        deposit_amount:    parseFloat(document.getElementById('v-deposit-amount').value) || null,
         deposit_paid_date: document.getElementById('v-deposit-date').value || null,
-        what_included: document.getElementById('v-what-included').value.trim() || null,
-        notes: document.getElementById('v-notes').value.trim() || null,
-        location: document.getElementById('v-location').value.trim() || null,
-        instagram_url: document.getElementById('v-instagram').value.trim() || null,
-        facebook_url: document.getElementById('v-facebook').value.trim() || null,
+        notes:             document.getElementById('v-notes').value.trim() || null,
+        location:          document.getElementById('v-location').value.trim() || null,
+        instagram_url:     document.getElementById('v-instagram').value.trim() || null,
+        inclusions:        JSON.stringify(inclusions),
     };
     if (!payload.name) { alert('יש להזין שם ספק'); return; }
 
-    const url = id ? `/api/wedding/vendors/${id}` : '/api/wedding/vendors';
+    const url    = id ? `/api/wedding/vendors/${id}` : '/api/wedding/vendors';
     const method = id ? 'PUT' : 'POST';
     fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         .then(r => { if (!r.ok) throw new Error(); return r.json(); })
@@ -403,7 +887,7 @@ function deleteVendor(id, name) {
         .catch(() => alert('שגיאה במחיקה'));
 }
 
-// Close on backdrop click
+// Close modal on backdrop click
 document.getElementById('vendor-modal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
 });

@@ -57,12 +57,15 @@
                 <span class="text-gray-600 font-medium text-sm">תקציב</span>
                 <span class="text-xl">💰</span>
             </div>
-            <div class="text-2xl font-bold text-gray-900" dir="ltr">₪{{ "{:,.0f}".format(grand_budget) }}</div>
-            <div class="text-xs text-gray-500 mt-1">שולם: ₪{{ "{:,.0f}".format(total_paid) }}</div>
-            {% if grand_budget > 0 %}
+            {% if total_budget > 0 %}
+            <div class="text-2xl font-bold text-gray-900" dir="ltr">₪{{ "{:,.0f}".format(total_budget) }}</div>
+            <div class="text-xs text-gray-500 mt-1">נוצל: ₪{{ "{:,.0f}".format(grand_committed) }} — נותר: ₪{{ "{:,.0f}".format(total_budget - grand_committed) }}</div>
             <div class="mt-2 bg-gray-100 rounded-full h-2">
-                <div class="bg-rose-500 h-2 rounded-full" style="width: {{ [((total_paid / grand_budget) * 100)|int, 100]|min }}%"></div>
+                <div class="bg-rose-500 h-2 rounded-full" style="width: {{ [((grand_committed / total_budget) * 100)|int, 100]|min }}%"></div>
             </div>
+            {% else %}
+            <div class="text-2xl font-bold text-gray-400">—</div>
+            <div class="text-xs text-gray-400 mt-1">לא הוגדר תקציב עדיין</div>
             {% endif %}
         </div>
 
@@ -130,7 +133,7 @@
             <div class="w-11 h-11 bg-yellow-100 rounded-full flex items-center justify-center text-xl flex-shrink-0">💰</div>
             <div>
                 <div class="font-semibold text-gray-900 text-sm">תקציב</div>
-                <div class="text-xs text-gray-500" dir="ltr">₪{{ "{:,.0f}".format(grand_budget) }}</div>
+                <div class="text-xs text-gray-500" dir="ltr">{% if total_budget > 0 %}₪{{ "{:,.0f}".format(total_budget) }}{% else %}לא הוגדר{% endif %}</div>
             </div>
         </a>
         <a href="/wedding/tasks"

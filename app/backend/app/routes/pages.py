@@ -1556,15 +1556,16 @@ async def wedding_dashboard(request: Request, db_conn: sqlite3.Connection = Depe
     open_tasks   = db_conn.execute("SELECT COUNT(*) FROM wedding_tasks WHERE completed=0").fetchone()[0]
     urgent_tasks = db_conn.execute("SELECT COUNT(*) FROM wedding_tasks WHERE completed=0 AND priority='high'").fetchone()[0]
 
-    total_vendors_quoted  = db_conn.execute("SELECT COALESCE(SUM(price_quoted),0) FROM wedding_vendors").fetchone()[0]
-    total_deposits_paid   = db_conn.execute(
-        "SELECT COALESCE(SUM(deposit_amount),0) FROM wedding_vendors WHERE deposit_paid_date IS NOT NULL AND deposit_paid_date != ''"
-    ).fetchone()[0]
-    total_manual_budgeted = db_conn.execute("SELECT COALESCE(SUM(budgeted_amount),0) FROM wedding_budget_items").fetchone()[0]
-    total_manual_actual   = db_conn.execute("SELECT COALESCE(SUM(actual_amount),0) FROM wedding_budget_items").fetchone()[0]
+    # Use manually-set total budget from settings
+    setting_row = db_conn.execute("SELECT value FROM wedding_settings WHERE key='total_budget'").fetchone()
+    total_budget = float(setting_row["value"]) if setting_row else 0.0
 
-    total_budget = (total_vendors_quoted or 0) + (total_manual_budgeted or 0)
-    total_paid   = (total_deposits_paid or 0) + (total_manual_actual or 0)
+    # Committed = only closed-deal vendors + manual actuals
+    closed_vendors_total = db_conn.execute(
+        "SELECT COALESCE(SUM(price_quoted),0) FROM wedding_vendors WHERE status IN ('deal_closed','deposit_paid','fully_paid')"
+    ).fetchone()[0]
+    manual_actual = db_conn.execute("SELECT COALESCE(SUM(actual_amount),0) FROM wedding_budget_items").fetchone()[0]
+    grand_committed = (closed_vendors_total or 0) + (manual_actual or 0)
 
     wedding_date_row = db_conn.execute("SELECT value FROM wedding_settings WHERE key='wedding_date'").fetchone()
     wedding_date = wedding_date_row[0] if wedding_date_row else None
@@ -1584,8 +1585,8 @@ async def wedding_dashboard(request: Request, db_conn: sqlite3.Connection = Depe
         "contracted_vendors": contracted_vendors,
         "open_tasks": open_tasks,
         "urgent_tasks": urgent_tasks,
-        "grand_budget": total_budget,
-        "total_paid": total_paid,
+        "total_budget": total_budget,
+        "grand_committed": grand_committed,
         "wedding_date": wedding_date,
         "recent_tasks": recent_tasks,
     })

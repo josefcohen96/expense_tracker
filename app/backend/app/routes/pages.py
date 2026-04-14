@@ -1712,7 +1712,13 @@ async def wedding_tasks_page(request: Request, db_conn: sqlite3.Connection = Dep
 
 @router.get("/wedding/budget", response_class=HTMLResponse)
 async def wedding_budget_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
-    # Vendor-derived rows grouped by category
+    # Load user-defined total budget
+    setting = db_conn.execute(
+        "SELECT value FROM wedding_settings WHERE key='total_budget'"
+    ).fetchone()
+    total_budget = float(setting["value"]) if setting else 0.0
+
+    # Vendor-derived rows — only vendors with a closed deal enter the budget
     vendor_rows = db_conn.execute(
         """
         SELECT category,
@@ -1722,6 +1728,7 @@ async def wedding_budget_page(request: Request, db_conn: sqlite3.Connection = De
                                  WHEN status='deposit_paid' THEN deposit_amount
                                  ELSE 0 END), 0) AS paid
         FROM wedding_vendors
+        WHERE status IN ('deal_closed', 'deposit_paid', 'fully_paid')
         GROUP BY category
         ORDER BY category
         """
@@ -1739,19 +1746,22 @@ async def wedding_budget_page(request: Request, db_conn: sqlite3.Connection = De
     total_manual_budgeted  = sum(i["budgeted_amount"] for i in manual_items)
     total_manual_actual    = sum(i["actual_amount"] for i in manual_items)
 
-    grand_budget = total_vendors_budgeted + total_manual_budgeted
-    grand_paid   = total_vendors_paid + total_manual_actual
-    grand_left   = grand_budget - grand_paid
+    # grand_committed = what's been committed from the total budget
+    # (closed-deal vendor prices + manual actuals)
+    grand_committed = total_vendors_budgeted + total_manual_actual
+    grand_paid      = total_vendors_paid + total_manual_actual
+    grand_left      = total_budget - grand_committed
 
     return templates.TemplateResponse("wedding/budget.html", {
         "request": request,
+        "total_budget": total_budget,
         "vendor_rows": vendor_rows,
         "manual_items": manual_items,
         "total_vendors_budgeted": total_vendors_budgeted,
         "total_vendors_paid": total_vendors_paid,
         "total_manual_budgeted": total_manual_budgeted,
         "total_manual_actual": total_manual_actual,
-        "grand_budget": grand_budget,
+        "grand_committed": grand_committed,
         "grand_paid": grand_paid,
         "grand_left": grand_left,
     })

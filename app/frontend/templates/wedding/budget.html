@@ -32,30 +32,70 @@
         </button>
     </div>
 
+    <!-- Total Budget Setting Card -->
+    <div class="bg-white rounded-xl shadow p-5 border border-gray-200">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm font-semibold text-gray-800">תקציב כולל לחתונה</div>
+                <div class="text-xs text-gray-400 mt-0.5">הסכום ההתחלתי שהגדרתם לחתונה</div>
+            </div>
+            <button onclick="openModal('budget-total-modal')"
+                    class="text-rose-600 hover:text-rose-800 text-sm font-medium px-3 py-2 min-h-[44px] flex items-center gap-1.5 rounded-lg hover:bg-rose-50 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                </svg>
+                {% if total_budget > 0 %}ערוך{% else %}הגדר{% endif %}
+            </button>
+        </div>
+        {% if total_budget > 0 %}
+        <div class="text-3xl font-bold text-gray-900 mt-3" dir="ltr">₪{{ "{:,.0f}".format(total_budget) }}</div>
+        {% else %}
+        <div class="text-gray-400 text-sm mt-3 italic">לא הוגדר תקציב עדיין — לחץ "הגדר" כדי להתחיל</div>
+        {% endif %}
+    </div>
+
     <!-- Summary Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div class="bg-white rounded-xl shadow p-5 border-r-4 border-gray-400">
-            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">סה"כ תקציב מתוכנן</div>
-            <div class="text-3xl font-bold text-gray-900" dir="ltr">₪{{ "{:,.0f}".format(grand_budget) }}</div>
-            <div class="text-xs text-gray-400 mt-1">ספקים + הוצאות ידניות</div>
+        <!-- Committed -->
+        <div class="bg-white rounded-xl shadow p-5 border-r-4 border-rose-400">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">הוצאות מחויבות</div>
+            <div class="text-3xl font-bold text-gray-900" dir="ltr">₪{{ "{:,.0f}".format(grand_committed) }}</div>
+            <div class="text-xs text-gray-400 mt-1">ספקים שנסגרה עסקה + הוצאות ידניות</div>
         </div>
+        <!-- Paid -->
         <div class="bg-white rounded-xl shadow p-5 border-r-4 border-green-500">
             <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">שולם בפועל</div>
             <div class="text-3xl font-bold text-green-600" dir="ltr">₪{{ "{:,.0f}".format(grand_paid) }}</div>
-            {% if grand_budget > 0 %}
+            {% if grand_committed > 0 %}
             <div class="mt-2 bg-gray-100 rounded-full h-2">
                 <div class="bg-green-500 h-2 rounded-full transition-all"
-                     style="width: {{ [((grand_paid / grand_budget) * 100)|int, 100]|min }}%"></div>
+                     style="width: {{ [((grand_paid / grand_committed) * 100)|int, 100]|min }}%"></div>
             </div>
-            <div class="text-xs text-gray-400 mt-1">{{ [((grand_paid / grand_budget) * 100)|int, 100]|min }}% שולם</div>
+            <div class="text-xs text-gray-400 mt-1">{{ [((grand_paid / grand_committed) * 100)|int, 100]|min }}% מהמחויב שולם</div>
             {% endif %}
         </div>
-        <div class="bg-white rounded-xl shadow p-5 border-r-4 {% if grand_left > 0 %}border-orange-400{% else %}border-green-400{% endif %}">
-            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">נותר לתשלום</div>
-            <div class="text-3xl font-bold {% if grand_left > 0 %}text-orange-600{% else %}text-green-600{% endif %}" dir="ltr">
-                ₪{{ "{:,.0f}".format(grand_left) }}
+        <!-- Remaining -->
+        {% set left_color = 'border-red-400' if grand_left < 0 else ('border-orange-400' if grand_left < total_budget * 0.1 else 'border-teal-400') %}
+        {% set left_text_color = 'text-red-600' if grand_left < 0 else ('text-orange-600' if total_budget > 0 and grand_left < total_budget * 0.1 else 'text-teal-700') %}
+        <div class="bg-white rounded-xl shadow p-5 border-r-4 {{ left_color }}">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">נותר בתקציב</div>
+            <div class="text-3xl font-bold {{ left_text_color }}" dir="ltr">
+                {% if total_budget > 0 %}
+                    ₪{{ "{:,.0f}".format(grand_left) }}
+                {% else %}
+                    —
+                {% endif %}
             </div>
-            <div class="text-xs text-gray-400 mt-1">{% if grand_left <= 0 %}הכל שולם!{% else %}עוד לא שולם{% endif %}</div>
+            <div class="text-xs text-gray-400 mt-1">
+                {% if total_budget <= 0 %}
+                    הגדר תקציב כולל לצפייה ביתרה
+                {% elif grand_left < 0 %}
+                    חרגת מהתקציב ב-₪{{ "{:,.0f}".format(grand_left | abs) }}
+                {% else %}
+                    {{ "{:.0f}".format((grand_left / total_budget * 100)) }}% מהתקציב נותר
+                {% endif %}
+            </div>
         </div>
     </div>
 
@@ -63,8 +103,8 @@
     {% if vendor_rows %}
     <div class="bg-white rounded-xl shadow overflow-hidden">
         <div class="p-4 sm:p-5 border-b border-gray-100">
-            <h2 class="text-base font-semibold text-gray-900">ספקים לפי קטגוריה</h2>
-            <p class="text-xs text-gray-400 mt-1">נגזר אוטומטית מהספקים שהוזנו</p>
+            <h2 class="text-base font-semibold text-gray-900">ספקים שנסגרה עסקה</h2>
+            <p class="text-xs text-gray-400 mt-1">רק ספקים עם סטטוס "נסגרה עסקה", "מקדמה שולמה" או "שולם במלואו"</p>
         </div>
 
         <!-- Mobile Cards -->
@@ -79,7 +119,7 @@
                 </div>
                 <div class="grid grid-cols-3 gap-2 text-center mb-2">
                     <div>
-                        <div class="text-xs text-gray-400">תקציב</div>
+                        <div class="text-xs text-gray-400">מחיר</div>
                         <div class="text-sm font-bold text-gray-900" dir="ltr">₪{{ "{:,.0f}".format(row.budgeted) }}</div>
                     </div>
                     <div>
@@ -102,7 +142,7 @@
                 <div class="font-semibold text-gray-700 text-sm mb-2">סיכום ספקים</div>
                 <div class="grid grid-cols-3 gap-2 text-center">
                     <div>
-                        <div class="text-xs text-gray-400">תקציב</div>
+                        <div class="text-xs text-gray-400">מחיר</div>
                         <div class="text-sm font-bold text-gray-900" dir="ltr">₪{{ "{:,.0f}".format(total_vendors_budgeted) }}</div>
                     </div>
                     <div>
@@ -124,9 +164,9 @@
                     <tr>
                         <th class="px-5 py-3 text-right font-medium text-gray-600">קטגוריה</th>
                         <th class="px-5 py-3 text-right font-medium text-gray-600">ספקים</th>
-                        <th class="px-5 py-3 text-right font-medium text-gray-600">תקציב</th>
+                        <th class="px-5 py-3 text-right font-medium text-gray-600">מחיר מחויב</th>
                         <th class="px-5 py-3 text-right font-medium text-gray-600">שולם</th>
-                        <th class="px-5 py-3 text-right font-medium text-gray-600">נותר</th>
+                        <th class="px-5 py-3 text-right font-medium text-gray-600">נותר לתשלום</th>
                         <th class="px-5 py-3 text-right font-medium text-gray-600">התקדמות</th>
                     </tr>
                 </thead>
@@ -166,6 +206,11 @@
         <div class="p-3 text-xs text-gray-400 border-t">
             * "שולם" כולל מקדמות ששולמו + הסכום המלא לספקים שסומנו "שולם במלואו"
         </div>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl shadow p-8 text-center text-gray-400 text-sm">
+        אין ספקים עם עסקה שנסגרה עדיין.<br>
+        <span class="text-xs mt-1 block">עדכן ספק לסטטוס "נסגרה עסקה" כדי שיופיע כאן.</span>
     </div>
     {% endif %}
 
@@ -298,6 +343,35 @@
     +
 </button>
 
+<!-- Set Total Budget Modal -->
+<div id="budget-total-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-start sm:items-center justify-center sm:p-4" dir="rtl">
+    <div class="bg-white w-full sm:rounded-xl shadow-xl sm:max-w-sm sm:mx-4"
+         style="padding-bottom: env(safe-area-inset-bottom, 0px);">
+        <div class="sticky top-0 bg-white z-10 px-5 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="text-lg font-bold">הגדרת תקציב כולל</h3>
+            <button onclick="closeModal('budget-total-modal')" class="text-gray-400 hover:text-gray-600 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="px-5 py-5">
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">סכום התקציב הכולל (₪)</label>
+            <input type="number" id="total-budget-input"
+                   value="{{ total_budget if total_budget > 0 else '' }}"
+                   class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
+                   placeholder="לדוגמה: 120000" dir="ltr" inputmode="numeric">
+            <p class="text-xs text-gray-400 mt-2">כל ספק שסטטוסו "נסגרה עסקה" ירד אוטומטית מהתקציב הזה.</p>
+            <div class="flex gap-3 mt-5">
+                <button onclick="closeModal('budget-total-modal')"
+                        class="flex-1 py-3.5 text-gray-600 bg-gray-100 rounded-xl text-sm font-medium min-h-[48px] active:bg-gray-200">ביטול</button>
+                <button onclick="saveTotalBudget()"
+                        class="flex-1 py-3.5 bg-rose-600 text-white rounded-xl text-sm font-bold min-h-[48px] active:bg-rose-700">שמור</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Add/Edit Manual Item Modal -->
 <div id="add-item-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-start sm:items-center justify-center sm:p-4" dir="rtl">
     <div class="bg-white w-full sm:rounded-xl shadow-xl sm:max-w-lg sm:mx-4 max-h-screen sm:max-h-[90vh] overflow-y-auto"
@@ -358,10 +432,25 @@
 function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
 function closeModal(id) {
     document.getElementById(id).classList.add('hidden');
-    document.getElementById('item-id').value = '';
-    document.getElementById('item-modal-title').textContent = 'הוספת הוצאה ידנית';
-    ['i-name','i-budgeted','i-actual','i-notes'].forEach(f => document.getElementById(f).value = '');
-    document.getElementById('i-category').value = 'misc';
+    if (id === 'add-item-modal') {
+        document.getElementById('item-id').value = '';
+        document.getElementById('item-modal-title').textContent = 'הוספת הוצאה ידנית';
+        ['i-name','i-budgeted','i-actual','i-notes'].forEach(f => document.getElementById(f).value = '');
+        document.getElementById('i-category').value = 'misc';
+    }
+}
+
+function saveTotalBudget() {
+    const val = parseFloat(document.getElementById('total-budget-input').value);
+    if (isNaN(val) || val < 0) { alert('יש להזין סכום תקין'); return; }
+    fetch('/api/wedding/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({key: 'total_budget', value: String(val)})
+    })
+    .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+    .then(() => location.reload())
+    .catch(() => alert('שגיאה בשמירה'));
 }
 
 function editItem(item) {

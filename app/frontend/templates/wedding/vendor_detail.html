@@ -24,6 +24,7 @@
     'not_contacted':   'לא נוצר קשר',
     'quote_received':  'הצעת מחיר',
     'contract_signed': 'חוזה נחתם',
+    'deal_closed':     'נסגרה עסקה',
     'deposit_paid':    'מקדמה שולמה',
     'fully_paid':      'שולם במלואו'
 } %}
@@ -32,6 +33,7 @@
     'not_contacted':   'bg-gray-100 text-gray-600',
     'quote_received':  'bg-blue-100 text-blue-700',
     'contract_signed': 'bg-amber-100 text-amber-700',
+    'deal_closed':     'bg-rose-100 text-rose-700',
     'deposit_paid':    'bg-orange-100 text-orange-700',
     'fully_paid':      'bg-green-100 text-green-700'
 } %}
@@ -121,6 +123,7 @@
                         <option value="not_contacted"   {% if vendor.status == 'not_contacted' %}selected{% endif %}>לא נוצר קשר</option>
                         <option value="quote_received"  {% if vendor.status == 'quote_received' %}selected{% endif %}>הצעת מחיר התקבלה</option>
                         <option value="contract_signed" {% if vendor.status == 'contract_signed' %}selected{% endif %}>חוזה נחתם</option>
+                        <option value="deal_closed"     {% if vendor.status == 'deal_closed' %}selected{% endif %}>נסגרה עסקה</option>
                         <option value="deposit_paid"    {% if vendor.status == 'deposit_paid' %}selected{% endif %}>מקדמה שולמה</option>
                         <option value="fully_paid"      {% if vendor.status == 'fully_paid' %}selected{% endif %}>שולם במלואו</option>
                     </select>

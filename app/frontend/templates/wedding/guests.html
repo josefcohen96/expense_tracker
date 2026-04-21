@@ -306,6 +306,18 @@
                         <div class="text-xs text-gray-400 mb-3 leading-relaxed">{{ g.notes }}</div>
                         {% endif %}
 
+                        <!-- Phone number (double-tap to edit) -->
+                        <div class="phone-cell text-xs text-gray-500 mb-2" dir="ltr"
+                             data-guest-id="{{ g.id }}" data-phone="{{ g.phone or '' }}"
+                             ondblclick="startPhoneEdit(this)"
+                             style="touch-action: manipulation;">
+                            {% if g.phone %}
+                            <span class="phone-display">{{ g.phone }}</span>
+                            {% else %}
+                            <span class="phone-display text-gray-300 italic">-</span>
+                            {% endif %}
+                        </div>
+
                         <!-- Row 3: Action buttons -->
                         <div class="flex items-center gap-2 border-t border-gray-100 pt-3 -mb-1">
                             {% if g.phone %}
@@ -359,7 +371,12 @@
                             {% for g in guests %}
                             <tr class="hover:bg-gray-50 guest-row" data-name="{{ g.name }}" data-plus-one="{{ g.plus_one_name or '' }}">
                                 <td class="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{{ g.name }}</td>
-                                <td class="px-4 py-3 text-gray-500 whitespace-nowrap" dir="ltr">{{ g.phone or '-' }}</td>
+                                <td class="px-4 py-3 text-gray-500 whitespace-nowrap phone-cell cursor-default group" dir="ltr"
+                                    data-guest-id="{{ g.id }}" data-phone="{{ g.phone or '' }}"
+                                    ondblclick="startPhoneEdit(this)"
+                                    title="לחץ פעמיים לעריכת מספר הטלפון">
+                                    <span class="phone-display group-hover:text-rose-500 transition-colors">{{ g.phone or '-' }}</span>
+                                </td>
                                 <td class="px-4 py-3 text-gray-600 whitespace-nowrap">
                                     {% if g.group_name %}
                                     <span class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full text-xs">{{ g.group_name }}</span>
@@ -785,6 +802,56 @@ function deleteGuest(id) {
     if (!confirm('למחוק את המוזמן?')) return;
     fetch('/api/wedding/guests/' + id, {method: 'DELETE'})
         .then(function() { reloadWithScroll(); });
+}
+
+// ===== Inline Phone Edit =====
+function startPhoneEdit(cell) {
+    if (cell.querySelector('input')) return;
+    var guestId = cell.dataset.guestId;
+    var currentPhone = cell.dataset.phone || '';
+    cell.innerHTML =
+        '<div class="flex items-center gap-1" dir="ltr">'
+        + '<input type="tel" id="phone-edit-' + guestId + '" '
+        + '       class="border border-rose-300 rounded-lg px-2 py-1 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-rose-300" '
+        + '       value="' + currentPhone.replace(/"/g, '&quot;') + '" placeholder="050-0000000" dir="ltr">'
+        + '<button onclick="savePhoneEdit(' + guestId + ')" '
+        + '        class="w-7 h-7 flex items-center justify-center rounded-lg bg-green-100 text-green-700 hover:bg-green-200 font-bold text-base" title="שמור">✓</button>'
+        + '<button onclick="cancelPhoneEdit(' + guestId + ')" '
+        + '        class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 text-base" title="בטל">✕</button>'
+        + '</div>';
+    var input = document.getElementById('phone-edit-' + guestId);
+    input.focus();
+    input.select();
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); savePhoneEdit(guestId); }
+        if (e.key === 'Escape') { cancelPhoneEdit(guestId); }
+    });
+}
+
+function savePhoneEdit(guestId) {
+    var input = document.getElementById('phone-edit-' + guestId);
+    if (!input) return;
+    var newPhone = input.value.trim() || null;
+    fetch('/api/wedding/guests/' + guestId, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({phone: newPhone})
+    })
+    .then(function(r) { if (!r.ok) throw new Error(); return r.json(); })
+    .then(function() { reloadWithScroll(); })
+    .catch(function() {
+        alert('שגיאה בשמירת מספר הטלפון');
+        cancelPhoneEdit(guestId);
+    });
+}
+
+function cancelPhoneEdit(guestId) {
+    document.querySelectorAll('.phone-cell[data-guest-id="' + guestId + '"]').forEach(function(cell) {
+        var phone = cell.dataset.phone;
+        cell.innerHTML = phone
+            ? '<span class="phone-display">' + phone + '</span>'
+            : '<span class="phone-display text-gray-300 italic">-</span>';
+    });
 }
 
 // ===== Restore scroll position after reload =====

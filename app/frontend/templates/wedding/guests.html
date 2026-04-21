@@ -125,16 +125,16 @@
         </button>
     </div>
 
-    <!-- Mobile Search -->
-    <div class="sm:hidden search-wrap relative">
-        <input type="search" id="mobile-search" placeholder="חיפוש מוזמן..."
+    <!-- Search -->
+    <div class="search-wrap relative">
+        <input type="search" id="guest-search" placeholder="חיפוש מוזמן..."
                class="w-full border border-gray-200 rounded-xl px-4 py-3 pr-10 text-base bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
                oninput="filterGuests(this.value)">
         <svg class="w-5 h-5 text-gray-400 absolute top-3.5 right-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
         </svg>
         <button class="clear-btn absolute top-3 left-3 w-7 h-7 rounded-full bg-gray-200 items-center justify-center text-gray-500"
-                onclick="document.getElementById('mobile-search').value=''; filterGuests('');">
+                onclick="document.getElementById('guest-search').value=''; filterGuests('');">
             <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -349,7 +349,7 @@
                         </thead>
                         <tbody class="divide-y divide-gray-100">
                             {% for g in guests %}
-                            <tr class="hover:bg-gray-50">
+                            <tr class="hover:bg-gray-50 guest-row" data-name="{{ g.name }}" data-plus-one="{{ g.plus_one_name or '' }}">
                                 <td class="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{{ g.name }}</td>
                                 <td class="px-4 py-3 text-gray-500 whitespace-nowrap" dir="ltr">{{ g.phone or '-' }}</td>
                                 <td class="px-4 py-3 text-gray-600 whitespace-nowrap">
@@ -668,6 +668,12 @@ function filterGuests(query) {
     document.querySelectorAll('#guest-list-mobile .guest-card').forEach(function(card) {
         var name = (card.dataset.name || '').toLowerCase();
         card.style.display = (!query || name.indexOf(query) !== -1) ? '' : 'none';
+    });
+    document.querySelectorAll('.guest-row').forEach(function(row) {
+        var name = (row.dataset.name || '').toLowerCase();
+        var plusOne = (row.dataset.plusOne || '').toLowerCase();
+        var match = !query || name.indexOf(query) !== -1 || plusOne.indexOf(query) !== -1;
+        row.style.display = match ? '' : 'none';
     });
 }
 

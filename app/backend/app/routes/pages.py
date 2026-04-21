@@ -1629,6 +1629,7 @@ async def wedding_vendor_detail_page(vendor_id: int, request: Request, db_conn: 
 async def wedding_guests_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     group_filter  = request.query_params.get("group", "")
     status_filter = request.query_params.get("status", "")
+    phone_filter  = request.query_params.get("phone", "")  # "has" or "none"
 
     query  = "SELECT * FROM wedding_guests WHERE 1=1"
     params: list = []
@@ -1638,6 +1639,10 @@ async def wedding_guests_page(request: Request, db_conn: sqlite3.Connection = De
     if status_filter:
         query += " AND status=?"
         params.append(status_filter)
+    if phone_filter == "has":
+        query += " AND phone IS NOT NULL AND phone != ''"
+    elif phone_filter == "none":
+        query += " AND (phone IS NULL OR phone = '')"
     query += " ORDER BY group_name, name"
 
     guests = [dict(g) for g in db_conn.execute(query, params).fetchall()]
@@ -1673,6 +1678,7 @@ async def wedding_guests_page(request: Request, db_conn: sqlite3.Connection = De
         "guests": guests,
         "group_filter": group_filter,
         "status_filter": status_filter,
+        "phone_filter": phone_filter,
         "total": total_invitations,
         "confirmed": confirmed,
         "declined": declined,

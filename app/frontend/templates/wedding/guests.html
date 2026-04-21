@@ -2,6 +2,12 @@
 {% block wedding_title %}מוזמנים{% endblock %}
 {% block wedding_breadcrumb %}מוזמנים{% endblock %}
 
+{% block wedding_header_action %}
+<button onclick="openGuestModal()"
+        class="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-3 py-2 rounded-xl text-sm font-medium shadow-sm min-h-[36px]">
+    + הוסף מוזמן
+</button>
+{% endblock %}
 
 {% block wedding_content %}
 
@@ -106,18 +112,48 @@
         padding-bottom: 0.55rem;
     }
 }
+
+/* ===== Inline Editing ===== */
+.inline-editable {
+    cursor: text;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+@media (min-width: 640px) {
+    .inline-editable:hover {
+        background: rgba(244, 63, 94, 0.05);
+        outline: 1px dashed rgba(244, 63, 94, 0.3);
+        outline-offset: 1px;
+    }
+}
+.inline-edit-input {
+    border: 1.5px solid #f43f5e !important;
+    border-radius: 6px !important;
+    padding: 2px 6px !important;
+    font-size: inherit;
+    font-family: inherit;
+    color: #111827;
+    width: 100%;
+    background: white;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.18) !important;
+    min-width: 60px;
+    display: block;
+}
+textarea.inline-edit-input {
+    resize: none;
+    min-height: 50px;
+    padding: 4px 6px !important;
+}
+@keyframes inlineSaveFlash {
+    0%   { background-color: rgba(134, 239, 172, 0.5); }
+    100% { background-color: transparent; }
+}
+.inline-save-flash { animation: inlineSaveFlash 0.8s ease-out; }
+.phone-placeholder { color: #9ca3af; font-style: italic; }
 </style>
 
 <div class="space-y-3 sm:space-y-4" dir="rtl">
-
-    <!-- Header -->
-    <div class="flex items-center justify-between">
-        <h1 class="text-xl sm:text-2xl font-bold text-gray-900">מוזמנים 👥</h1>
-        <button onclick="openGuestModal()"
-                class="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium min-h-[44px]">
-            + הוסף מוזמן
-        </button>
-    </div>
 
     <!-- Search -->
     <div class="search-wrap relative">
@@ -267,13 +303,22 @@
                     <div class="p-4">
                         <!-- Row 1: Name + Status -->
                         <div class="flex items-center justify-between mb-2">
-                            <span class="font-semibold text-gray-900 text-base">{{ g.name }}</span>
+                            <span class="font-semibold text-gray-900 text-base inline-editable"
+                                  data-field="name" data-guest-id="{{ g.id }}" data-value="{{ g.name }}"
+                                  ondblclick="event.stopPropagation();startInlineEdit(this)">{{ g.name }}</span>
                             <button onclick="openStatusPicker({{ g.id }}, '{{ g.status }}')"
                                     class="status-badge flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold min-h-[32px] active:opacity-70 {{ STATUS_COLORS.get(g.status, 'bg-gray-100 text-gray-500') }}">
                                 <span class="w-2 h-2 rounded-full {{ STATUS_DOTS.get(g.status, 'bg-gray-400') }}"></span>
                                 {{ STATUS_LABELS.get(g.status, g.status) }}
                                 <svg class="w-3 h-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                             </button>
+                        </div>
+
+                        <!-- Phone row (double-tap to edit) -->
+                        <div class="text-xs mb-2 inline-editable"
+                             data-field="phone" data-guest-id="{{ g.id }}" data-value="{{ g.phone or '' }}"
+                             ondblclick="event.stopPropagation();startInlineEdit(this)">
+                            <span dir="ltr">{% if g.phone %}{{ g.phone }}{% else %}<span class="phone-placeholder">הוסף טלפון...</span>{% endif %}</span>
                         </div>
 
                         <!-- Row 2: Details tags -->
@@ -350,10 +395,16 @@
                         </thead>
                         <tbody class="divide-y divide-gray-100">
                             {% for g in guests %}
-                            <tr class="hover:bg-gray-50 guest-row" data-name="{{ g.name }}" data-plus-one="{{ g.plus_one_name or '' }}">
-                                <td class="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{{ g.name }}</td>
-                                <td class="px-4 py-3 text-gray-500 whitespace-nowrap" dir="ltr">{{ g.phone or '-' }}</td>
-                                <td class="px-4 py-3 text-gray-600 whitespace-nowrap">
+                            <tr class="hover:bg-gray-50 guest-row" data-name="{{ g.name }}" data-plus-one="{{ g.plus_one_name or '' }}" data-guest-id="{{ g.id }}">
+                                <td class="px-4 py-3 font-medium text-gray-900 whitespace-nowrap inline-editable"
+                                    data-field="name" data-guest-id="{{ g.id }}" data-value="{{ g.name }}"
+                                    ondblclick="startInlineEdit(this)" title="לחץ פעמיים לעריכה">{{ g.name }}</td>
+                                <td class="px-4 py-3 text-gray-500 whitespace-nowrap inline-editable"
+                                    data-field="phone" data-guest-id="{{ g.id }}" data-value="{{ g.phone or '' }}"
+                                    ondblclick="startInlineEdit(this)" title="לחץ פעמיים לעריכה" dir="ltr">{{ g.phone or '-' }}</td>
+                                <td class="px-4 py-3 text-gray-600 whitespace-nowrap inline-editable"
+                                    data-field="group_name" data-guest-id="{{ g.id }}" data-value="{{ g.group_name or '' }}"
+                                    ondblclick="startInlineEdit(this)" title="לחץ פעמיים לעריכה">
                                     {% if g.group_name %}
                                     <span class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full text-xs">{{ g.group_name }}</span>
                                     {% else %}-{% endif %}
@@ -379,9 +430,13 @@
                                     <span class="text-blue-600 font-medium text-xs">🚌 כן</span>
                                     {% else %}-{% endif %}
                                 </td>
-                                <td class="px-4 py-3 text-gray-600 text-center">{{ g.table_number or '-' }}</td>
-                                <td class="px-4 py-3 text-gray-500 max-w-xs">
-                                    <div class="truncate text-xs" title="{{ g.notes or '' }}">{{ g.notes or '' }}</div>
+                                <td class="px-4 py-3 text-gray-600 text-center inline-editable"
+                                    data-field="table_number" data-guest-id="{{ g.id }}" data-value="{{ g.table_number or '' }}"
+                                    ondblclick="startInlineEdit(this)" title="לחץ פעמיים לעריכה">{{ g.table_number or '-' }}</td>
+                                <td class="px-4 py-3 text-gray-500 max-w-xs inline-editable"
+                                    data-field="notes" data-guest-id="{{ g.id }}" data-value="{{ g.notes or '' }}"
+                                    ondblclick="startInlineEdit(this)" title="לחץ פעמיים לעריכה">
+                                    <div class="truncate text-xs">{{ g.notes or '' }}</div>
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <div class="flex gap-3">
@@ -788,5 +843,99 @@ function deleteGuest(id) {
         window.scrollTo(0, parseInt(savedPos));
     }
 })();
+
+// ===== Inline Field Editing (double-click / double-tap) =====
+var INLINE_INPUT_TYPES = {
+    name: 'text', phone: 'tel', group_name: 'text',
+    table_number: 'number', notes: 'textarea'
+};
+var INLINE_LTR_FIELDS = { phone: true, table_number: true };
+
+function startInlineEdit(el) {
+    if (el.querySelector('input, textarea')) return;
+
+    var field = el.dataset.field;
+    var guestId = el.dataset.guestId;
+    var currentValue = el.dataset.value || '';
+    var inputType = INLINE_INPUT_TYPES[field] || 'text';
+    var originalHTML = el.innerHTML;
+
+    var input;
+    if (inputType === 'textarea') {
+        input = document.createElement('textarea');
+        input.rows = 2;
+        input.className = 'inline-edit-input';
+    } else {
+        input = document.createElement('input');
+        input.type = inputType;
+        input.className = 'inline-edit-input';
+    }
+    input.value = currentValue;
+    if (INLINE_LTR_FIELDS[field]) input.dir = 'ltr';
+    if (inputType === 'number') { input.min = '0'; input.inputMode = 'numeric'; }
+
+    el.innerHTML = '';
+    el.appendChild(input);
+    input.focus();
+    input.select();
+
+    var committed = false;
+
+    function commit() {
+        if (committed) return;
+        committed = true;
+
+        var rawVal = input.value.trim();
+
+        if (rawVal === currentValue) {
+            el.innerHTML = originalHTML;
+            return;
+        }
+
+        var payload = {};
+        if (field === 'table_number') {
+            payload[field] = parseInt(rawVal) || null;
+        } else if (field === 'children_count') {
+            payload[field] = parseInt(rawVal) || 0;
+        } else {
+            payload[field] = rawVal || null;
+        }
+
+        el.innerHTML = originalHTML;
+
+        fetch('/api/wedding/guests/' + guestId, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(function(r) {
+            if (!r.ok) throw new Error();
+            el.dataset.value = rawVal;
+            el.classList.add('inline-save-flash');
+            setTimeout(function() { el.classList.remove('inline-save-flash'); }, 800);
+            reloadWithScroll();
+        }).catch(function() {
+            alert('שגיאה בשמירה');
+        });
+    }
+
+    function abort() {
+        if (committed) return;
+        committed = true;
+        el.innerHTML = originalHTML;
+    }
+
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && inputType !== 'textarea') {
+            e.preventDefault();
+            input.removeEventListener('blur', commit);
+            commit();
+        }
+        if (e.key === 'Escape') {
+            input.removeEventListener('blur', commit);
+            abort();
+        }
+    });
+}
 </script>
 {% endblock %}

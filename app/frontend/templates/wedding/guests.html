@@ -384,13 +384,13 @@
                                     <div class="truncate text-xs" title="{{ g.notes or '' }}">{{ g.notes or '' }}</div>
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
-                                    <div class="flex gap-2">
+                                    <div class="flex gap-3">
                                         <button
                                             data-guest='{{ g | tojson }}'
                                             onclick="editGuestFromBtn(this)"
-                                            class="text-blue-600 hover:text-blue-800 text-xs font-medium">ערוך</button>
+                                            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-sm font-medium">ערוך</button>
                                         <button onclick="deleteGuest({{ g.id }})"
-                                                class="text-red-500 hover:text-red-700 text-xs font-medium">מחק</button>
+                                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 text-sm font-medium">מחק</button>
                                     </div>
                                 </td>
                             </tr>

@@ -214,7 +214,7 @@
     <form method="get" class="bg-white rounded-xl shadow p-3 flex flex-wrap gap-2 items-end">
         <div class="flex-1 min-w-[120px]">
             <label class="block text-xs font-medium text-gray-600 mb-1">קבוצה</label>
-            <select name="group" class="border border-gray-200 rounded-lg px-3 py-2.5 text-base w-full bg-white">
+            <select name="group" onchange="this.form.submit()" class="border border-gray-200 rounded-lg px-3 py-2.5 text-base w-full bg-white">
                 <option value="">כל הקבוצות</option>
                 {% for g in groups %}
                 <option value="{{ g }}" {% if group_filter == g %}selected{% endif %}>{{ g }}</option>
@@ -223,7 +223,7 @@
         </div>
         <div class="flex-1 min-w-[100px]">
             <label class="block text-xs font-medium text-gray-600 mb-1">סטטוס</label>
-            <select name="status" class="border border-gray-200 rounded-lg px-3 py-2.5 text-base w-full bg-white">
+            <select name="status" onchange="this.form.submit()" class="border border-gray-200 rounded-lg px-3 py-2.5 text-base w-full bg-white">
                 <option value="">הכל</option>
                 {% for k, v in STATUS_LABELS.items() %}
                 <option value="{{ k }}" {% if status_filter == k %}selected{% endif %}>{{ v }}</option>
@@ -232,18 +232,17 @@
         </div>
         <div class="flex-1 min-w-[120px]">
             <label class="block text-xs font-medium text-gray-600 mb-1">טלפון</label>
-            <select name="phone" class="border border-gray-200 rounded-lg px-3 py-2.5 text-base w-full bg-white">
+            <select name="phone" onchange="this.form.submit()" class="border border-gray-200 rounded-lg px-3 py-2.5 text-base w-full bg-white">
                 <option value="">הכל</option>
                 <option value="has" {% if phone_filter == "has" %}selected{% endif %}>יש טלפון</option>
                 <option value="none" {% if phone_filter == "none" %}selected{% endif %}>אין טלפון</option>
             </select>
         </div>
-        <div class="flex gap-2">
-            <button type="submit" class="px-5 py-2.5 bg-gray-700 text-white rounded-lg text-sm font-medium min-h-[44px]">סנן</button>
-            {% if group_filter or status_filter or phone_filter %}
+        {% if group_filter or status_filter or phone_filter %}
+        <div class="flex items-end">
             <a href="/wedding/guests" class="px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-100 rounded-lg min-h-[44px] flex items-center">איפוס</a>
-            {% endif %}
         </div>
+        {% endif %}
     </form>
 
     <!-- ===== Guest List Section (collapsible) ===== -->

@@ -23,24 +23,25 @@
             <div class="text-xs text-gray-500 mt-0.5">שובצו לחדר</div>
         </div>
         <div class="bg-white rounded-xl shadow p-3 text-center border-t-4 border-amber-400">
-            <div class="text-2xl font-bold text-amber-600">{{ unassigned_guests|length }}</div>
-            <div class="text-xs text-gray-500 mt-0.5">ממתינים לשיבוץ</div>
+            <div class="text-2xl font-bold text-amber-600">{{ total_overnight }}</div>
+            <div class="text-xs text-gray-500 mt-0.5">ישנים</div>
         </div>
     </div>
 
-    <!-- Unassigned guests waiting for room -->
-    {% if unassigned_guests %}
+    <!-- Overnight guests waiting for room assignment -->
+    {% if unassigned_overnight %}
     <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
         <h3 class="font-semibold text-amber-800 text-sm mb-3 flex items-center gap-2">
-            <span>⏳</span> ממתינים לשיבוץ חדר ({{ unassigned_guests|length }})
+            <span>⏳</span>
+            <span>ישנים בלי חדר ({{ unassigned_overnight|length }})</span>
         </h3>
         <div class="flex flex-wrap gap-2">
-            {% for g in unassigned_guests %}
-            <div class="flex items-center gap-2 bg-white border border-amber-200 rounded-lg px-3 py-2 text-sm">
-                <span class="text-gray-800 font-medium">{{ g.name }}</span>
+            {% for g in unassigned_overnight %}
+            <div class="flex items-center gap-2 bg-white border border-amber-200 rounded-lg px-3 py-2">
+                <span class="text-sm font-medium text-gray-800">{{ g.name }}</span>
                 {% if g.plus_one %}<span class="text-xs text-pink-500">+1</span>{% endif %}
-                <select onchange="assignGuest({{ g.id }}, this.value)"
-                        class="text-xs border border-gray-200 rounded px-1 py-0.5 bg-white text-gray-600 mr-1">
+                <select onchange="assignGuestFromTop({{ g.id }}, this)"
+                        class="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white text-gray-600">
                     <option value="">שבץ לחדר...</option>
                     {% for room in rooms %}
                     <option value="{{ room.id }}">{{ room.name }} ({{ room.occupancy }}/{{ room.max_capacity }})</option>
@@ -53,116 +54,148 @@
     {% endif %}
 
     <!-- Rooms Grid -->
+    {% if rooms %}
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {% for room in rooms %}
-        {% set pct = (room.occupancy / room.max_capacity * 100) if room.max_capacity > 0 else 0 %}
+        {% set pct = (room.occupancy / room.max_capacity * 100) | round if room.max_capacity > 0 else 0 %}
+        {% set bar_pct = [pct, 100] | min %}
         {% set is_full = room.occupancy >= room.max_capacity %}
-        <div class="bg-white rounded-xl shadow overflow-hidden">
+        <div class="bg-white rounded-xl shadow overflow-hidden flex flex-col">
+
             <!-- Room header -->
-            <div class="px-4 py-3 flex items-center justify-between
-                        {% if is_full %}bg-red-50 border-b border-red-100{% else %}bg-gray-50 border-b border-gray-100{% endif %}">
+            <div class="px-4 py-3 flex items-start justify-between border-b
+                        {% if is_full %}bg-red-50 border-red-100{% else %}bg-gray-50 border-gray-100{% endif %}">
                 <div class="min-w-0 flex-1">
-                    <h3 class="font-bold text-gray-900 text-sm truncate">{{ room.name }}</h3>
-                    <p class="text-xs text-gray-500">{{ room.room_type }}</p>
+                    <h3 class="font-bold text-gray-900 text-sm leading-tight">{{ room.name }}</h3>
+                    <p class="text-xs text-gray-500 mt-0.5">{{ room.room_type }}</p>
                 </div>
-                <div class="flex items-center gap-2 flex-shrink-0 mr-2">
-                    <span class="text-xs font-semibold px-2 py-1 rounded-full
-                                 {% if is_full %}bg-red-100 text-red-700{% elif room.occupancy > 0 %}bg-green-100 text-green-700{% else %}bg-gray-100 text-gray-500{% endif %}">
+                <div class="flex items-center gap-1.5 flex-shrink-0 mr-2 mt-0.5">
+                    <span class="text-xs font-bold px-2 py-1 rounded-full
+                                 {% if is_full %}bg-red-100 text-red-700
+                                 {% elif room.occupancy > 0 %}bg-green-100 text-green-700
+                                 {% else %}bg-gray-100 text-gray-500{% endif %}">
                         {{ room.occupancy }}/{{ room.max_capacity }}
                     </span>
-                    <button onclick="openEditRoom({{ room | tojson }})"
-                            class="text-gray-400 hover:text-gray-600 p-1 rounded">
+                    <!-- Edit button - data attribute avoids JSON quoting issues -->
+                    <button
+                        data-room-id="{{ room.id }}"
+                        data-room-name="{{ room.name }}"
+                        data-room-type="{{ room.room_type }}"
+                        data-room-capacity="{{ room.max_capacity }}"
+                        data-room-notes="{{ room.notes or '' }}"
+                        onclick="openEditRoomFromBtn(this)"
+                        class="p-1.5 rounded-lg hover:bg-gray-200 active:bg-gray-300 text-gray-400 hover:text-gray-700 transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                         </svg>
                     </button>
                 </div>
             </div>
 
             <!-- Progress bar -->
-            <div class="h-1 bg-gray-100">
-                <div class="h-1 transition-all {% if is_full %}bg-red-400{% else %}bg-green-400{% endif %}"
-                     style="width: {{ [pct, 100]|min }}%"></div>
+            <div class="h-1.5 bg-gray-100">
+                <div class="h-1.5 transition-all duration-300
+                            {% if is_full %}bg-red-400{% elif pct > 70 %}bg-amber-400{% else %}bg-green-400{% endif %}"
+                     style="width: {{ bar_pct }}%"></div>
             </div>
 
-            <!-- Assigned guests -->
-            <div class="p-3 space-y-2 min-h-[60px]">
+            <!-- Assigned guests list -->
+            <div class="p-3 space-y-1.5 flex-1">
                 {% if room.assigned %}
                     {% for a in room.assigned %}
-                    <div class="flex items-center justify-between bg-purple-50 rounded-lg px-3 py-2">
-                        <div class="min-w-0 flex-1">
-                            <span class="text-sm font-medium text-gray-800">{{ a.guest_name }}</span>
+                    <div class="flex items-center justify-between bg-purple-50 border border-purple-100 rounded-lg px-3 py-2">
+                        <div class="min-w-0 flex-1 text-sm">
+                            <span class="font-medium text-gray-800">{{ a.guest_name }}</span>
                             {% if a.plus_one %}
-                            <span class="text-xs text-pink-500 mr-1">+{% if a.plus_one_name %}{{ a.plus_one_name }}{% else %}1{% endif %}</span>
+                            <span class="text-xs text-pink-500 mr-1">
+                                +{% if a.plus_one_name %}{{ a.plus_one_name }}{% else %}1{% endif %}
+                            </span>
                             {% endif %}
                             {% if a.children_count and a.children_count > 0 %}
                             <span class="text-xs text-blue-500 mr-1">{{ a.children_count }} ילדים</span>
                             {% endif %}
                         </div>
                         <button onclick="unassignGuest({{ a.guest_id }})"
-                                class="text-red-400 hover:text-red-600 p-1 rounded flex-shrink-0 mr-1"
+                                class="flex-shrink-0 mr-1 p-1 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                                 title="הסר מחדר">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
                             </svg>
                         </button>
                     </div>
                     {% endfor %}
                 {% else %}
-                    <p class="text-xs text-gray-400 text-center py-3">אין אורחים משובצים</p>
+                    <p class="text-xs text-gray-400 text-center py-4 italic">החדר ריק</p>
                 {% endif %}
             </div>
 
-            <!-- Add guest to room -->
+            <!-- Add guest dropdown (only if room is not full) -->
             {% if not is_full %}
-            <div class="px-3 pb-3">
-                <select onchange="assignGuest(parseInt(this.value.split(':')[0]), {{ room.id }}, this)"
-                        class="w-full text-xs border border-dashed border-gray-300 rounded-lg px-2 py-2 bg-white text-gray-500">
-                    <option value="">+ הוסף אורח לחדר זה</option>
-                    {% for g in unassigned_guests %}
-                    <option value="{{ g.id }}">{{ g.name }}{% if g.plus_one %} +1{% endif %}</option>
+            <div class="px-3 pb-3 border-t border-gray-100 pt-2">
+                {% if all_unassigned %}
+                <select onchange="assignGuestFromRoom(this, {{ room.id }})"
+                        class="w-full text-xs border border-dashed border-rose-200 rounded-lg px-2 py-2 bg-rose-50 text-gray-600 cursor-pointer hover:border-rose-400 transition-colors">
+                    <option value="">+ שבץ אורח לחדר זה</option>
+                    {% for g in all_unassigned %}
+                    <option value="{{ g.id }}">{{ g.name }}{% if g.plus_one %} +{{ g.plus_one_name or '1' }}{% endif %}{% if g.staying_overnight %} 🛏{% endif %}</option>
                     {% endfor %}
                 </select>
+                {% else %}
+                <p class="text-xs text-gray-400 text-center py-1 italic">כל האורחים שובצו</p>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="px-3 pb-3 border-t border-red-100 pt-2">
+                <p class="text-xs text-red-400 text-center py-1 font-medium">החדר מלא</p>
             </div>
             {% endif %}
-        </div>
-        {% else %}
-        <div class="col-span-full bg-white rounded-xl shadow p-10 text-center text-gray-400">
-            <div class="text-4xl mb-3">🏠</div>
-            <p>עדיין אין חדרים. לחץ "הוסף חדר" להתחיל.</p>
+
         </div>
         {% endfor %}
     </div>
 
+    {% else %}
+    <div class="bg-white rounded-xl shadow p-10 text-center text-gray-400">
+        <div class="text-5xl mb-3">🏠</div>
+        <p class="text-base font-medium text-gray-500 mb-1">עדיין אין חדרים</p>
+        <p class="text-sm">לחץ "+ הוסף חדר" כדי להתחיל</p>
+    </div>
+    {% endif %}
+
 </div>
 
-<!-- Add/Edit Room Modal -->
-<div id="room-modal" class="hidden fixed inset-0 z-[600] flex items-center justify-center" dir="rtl">
+<!-- Add / Edit Room Modal -->
+<div id="room-modal" class="hidden fixed inset-0 z-[600] flex items-center justify-center p-4" dir="rtl">
     <div class="absolute inset-0 bg-black/40" onclick="closeRoomModal()"></div>
-    <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h3 id="room-modal-title" class="text-lg font-bold">הוספת חדר</h3>
-            <button onclick="closeRoomModal()" class="text-gray-400 hover:text-gray-600 w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100">
+    <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 z-10">
+
+        <div class="flex items-center justify-between mb-5">
+            <h3 id="room-modal-title" class="text-lg font-bold text-gray-900">הוספת חדר</h3>
+            <button onclick="closeRoomModal()"
+                    class="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </button>
         </div>
+
         <input type="hidden" id="room-id" value="">
-        <div class="space-y-3">
+
+        <div class="space-y-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1.5">שם החדר *</label>
-                <input type="text" id="r-name"
-                       class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300"
-                       placeholder="בית התה">
+                <input type="text" id="r-name" autocomplete="off"
+                       class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
+                       placeholder="לדוגמה: בית התה">
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1.5">סוג חדר</label>
-                <input type="text" id="r-type"
-                       class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300"
+                <input type="text" id="r-type" autocomplete="off"
+                       class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
                        placeholder="יחידים / זוגי / משפחתי..."
-                       list="room-types-datalist">
-                <datalist id="room-types-datalist">
+                       list="room-types-list">
+                <datalist id="room-types-list">
                     <option value="לינה משותפת">
                     <option value="זוגי-מיטה זוגית">
                     <option value="זוגי-מ. זוגית+1">
@@ -172,26 +205,40 @@
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1.5">תפוסה מירבית</label>
-                <input type="number" id="r-capacity" min="1"
-                       class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300"
+                <input type="number" id="r-capacity" min="1" max="100"
+                       class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
                        placeholder="2" dir="ltr" inputmode="numeric">
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1.5">הערות</label>
                 <textarea id="r-notes" rows="2"
-                          class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300"
+                          class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 resize-none"
                           placeholder="הערות..."></textarea>
             </div>
         </div>
+
         <div class="flex gap-3 mt-5">
-            <button id="room-delete-btn" onclick="deleteRoom()" class="hidden px-4 py-3 rounded-xl bg-red-50 text-red-500 text-sm font-medium hover:bg-red-100">מחק</button>
-            <button onclick="closeRoomModal()" class="flex-1 py-3 text-gray-600 bg-gray-100 rounded-xl text-sm font-medium hover:bg-gray-200">ביטול</button>
-            <button onclick="saveRoom()" class="flex-1 py-3 bg-rose-600 text-white rounded-xl text-sm font-bold hover:bg-rose-700">שמור</button>
+            <button id="room-delete-btn"
+                    onclick="deleteRoom()"
+                    class="hidden px-4 py-3 rounded-xl bg-red-50 text-red-500 text-sm font-medium hover:bg-red-100 active:bg-red-200 transition-colors">
+                מחק
+            </button>
+            <button onclick="closeRoomModal()"
+                    class="flex-1 py-3 text-gray-600 bg-gray-100 rounded-xl text-sm font-medium hover:bg-gray-200 active:bg-gray-300 transition-colors">
+                ביטול
+            </button>
+            <button onclick="saveRoom()"
+                    class="flex-1 py-3 bg-rose-600 text-white rounded-xl text-sm font-bold hover:bg-rose-700 active:bg-rose-800 transition-colors">
+                שמור
+            </button>
         </div>
+
     </div>
 </div>
 
 <script>
+// ─── Room Modal ──────────────────────────────────────────────────────────────
+
 function openAddRoomModal() {
     document.getElementById('room-modal-title').textContent = 'הוספת חדר';
     document.getElementById('room-id').value = '';
@@ -201,15 +248,16 @@ function openAddRoomModal() {
     document.getElementById('r-notes').value = '';
     document.getElementById('room-delete-btn').classList.add('hidden');
     document.getElementById('room-modal').classList.remove('hidden');
+    setTimeout(function() { document.getElementById('r-name').focus(); }, 50);
 }
 
-function openEditRoom(room) {
+function openEditRoomFromBtn(btn) {
     document.getElementById('room-modal-title').textContent = 'עריכת חדר';
-    document.getElementById('room-id').value = room.id;
-    document.getElementById('r-name').value = room.name || '';
-    document.getElementById('r-type').value = room.room_type || '';
-    document.getElementById('r-capacity').value = room.max_capacity || 2;
-    document.getElementById('r-notes').value = room.notes || '';
+    document.getElementById('room-id').value      = btn.dataset.roomId;
+    document.getElementById('r-name').value       = btn.dataset.roomName;
+    document.getElementById('r-type').value       = btn.dataset.roomType;
+    document.getElementById('r-capacity').value   = btn.dataset.roomCapacity;
+    document.getElementById('r-notes').value      = btn.dataset.roomNotes;
     document.getElementById('room-delete-btn').classList.remove('hidden');
     document.getElementById('room-modal').classList.remove('hidden');
 }
@@ -219,45 +267,85 @@ function closeRoomModal() {
 }
 
 function saveRoom() {
-    var id = document.getElementById('room-id').value;
-    var payload = {
-        name: document.getElementById('r-name').value.trim(),
-        room_type: document.getElementById('r-type').value.trim() || 'יחידים',
-        max_capacity: parseInt(document.getElementById('r-capacity').value) || 2,
-        notes: document.getElementById('r-notes').value.trim() || null,
-    };
-    if (!payload.name) { alert('יש להזין שם חדר'); return; }
-    var url = id ? '/api/wedding/rooms/' + id : '/api/wedding/rooms';
+    var id       = document.getElementById('room-id').value;
+    var name     = document.getElementById('r-name').value.trim();
+    var type     = document.getElementById('r-type').value.trim() || 'יחידים';
+    var capacity = parseInt(document.getElementById('r-capacity').value) || 2;
+    var notes    = document.getElementById('r-notes').value.trim() || null;
+
+    if (!name) { alert('יש להזין שם חדר'); return; }
+
+    var url    = id ? '/api/wedding/rooms/' + id : '/api/wedding/rooms';
     var method = id ? 'PUT' : 'POST';
-    fetch(url, {method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)})
-        .then(function(r) { if (!r.ok) throw new Error(); return r.json(); })
-        .then(function() { closeRoomModal(); location.reload(); })
-        .catch(function() { alert('שגיאה בשמירה'); });
+
+    fetch(url, {
+        method: method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: name, room_type: type, max_capacity: capacity, notes: notes})
+    })
+    .then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function() { closeRoomModal(); location.reload(); })
+    .catch(function(e) { alert('שגיאה בשמירה: ' + e.message); });
 }
 
 function deleteRoom() {
     var id = document.getElementById('room-id').value;
-    if (!id || !confirm('למחוק את החדר? כל השיבוצים יוסרו.')) return;
+    if (!id) return;
+    if (!confirm('למחוק את החדר? כל השיבוצים לחדר זה יוסרו.')) return;
+
     fetch('/api/wedding/rooms/' + id, {method: 'DELETE'})
-        .then(function() { closeRoomModal(); location.reload(); })
-        .catch(function() { alert('שגיאה במחיקה'); });
+    .then(function(r) {
+        if (!r.ok) throw new Error(r.status);
+        closeRoomModal();
+        location.reload();
+    })
+    .catch(function(e) { alert('שגיאה במחיקה: ' + e.message); });
 }
 
-function assignGuest(guestId, roomId, selectEl) {
-    if (!guestId || !roomId) return;
+// ─── Guest Assignment ────────────────────────────────────────────────────────
+
+// Called from the top "waiting" panel (guest picks a room)
+function assignGuestFromTop(guestId, selectEl) {
+    var roomId = selectEl.value;
+    if (!roomId) return;
+    selectEl.disabled = true;
+    doAssign(guestId, roomId, function() {
+        selectEl.disabled = false;
+        selectEl.value = '';
+    });
+}
+
+// Called from per-room dropdown (room picks a guest)
+function assignGuestFromRoom(selectEl, roomId) {
+    var guestId = parseInt(selectEl.value);
+    if (!guestId) return;
+    selectEl.disabled = true;
+    doAssign(guestId, roomId, function() {
+        selectEl.disabled = false;
+        selectEl.value = '';
+    });
+}
+
+function doAssign(guestId, roomId, onError) {
     fetch('/api/wedding/rooms/' + roomId + '/assign/' + guestId, {method: 'POST'})
-        .then(function(r) { if (!r.ok) throw new Error(); location.reload(); })
-        .catch(function() {
-            alert('שגיאה בשיבוץ');
-            if (selectEl) selectEl.value = '';
-        });
+    .then(function(r) {
+        if (!r.ok) throw new Error(r.status);
+        location.reload();
+    })
+    .catch(function(e) {
+        alert('שגיאה בשיבוץ: ' + e.message);
+        if (onError) onError();
+    });
 }
 
 function unassignGuest(guestId) {
     if (!confirm('להסיר את האורח מהחדר?')) return;
     fetch('/api/wedding/rooms/assignments/' + guestId, {method: 'DELETE'})
-        .then(function() { location.reload(); })
-        .catch(function() { alert('שגיאה בהסרה'); });
+    .then(function(r) {
+        if (!r.ok) throw new Error(r.status);
+        location.reload();
+    })
+    .catch(function(e) { alert('שגיאה בהסרה: ' + e.message); });
 }
 </script>
 {% endblock %}

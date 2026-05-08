@@ -262,10 +262,13 @@ async def wedding_lodging_page(request: Request, db_conn: sqlite3.Connection = D
             for a in room["assigned"]
         )
 
-    overnight_guests = [dict(g) for g in db_conn.execute(
-        "SELECT * FROM wedding_guests WHERE staying_overnight=1 ORDER BY group_name, name"
+    all_guests = [dict(g) for g in db_conn.execute(
+        "SELECT id, name, group_name, plus_one, plus_one_name, children_count, staying_overnight FROM wedding_guests ORDER BY group_name, name"
     ).fetchall()]
-    unassigned = [g for g in overnight_guests if g["id"] not in assigned_ids]
+
+    overnight_guests = [g for g in all_guests if g["staying_overnight"]]
+    unassigned_overnight = [g for g in overnight_guests if g["id"] not in assigned_ids]
+    all_unassigned = [g for g in all_guests if g["id"] not in assigned_ids]
 
     total_capacity = sum(r["max_capacity"] for r in rooms)
     total_assigned = len(assigned_ids)
@@ -275,9 +278,11 @@ async def wedding_lodging_page(request: Request, db_conn: sqlite3.Connection = D
         {
             "request": request,
             "rooms": rooms,
-            "unassigned_guests": unassigned,
+            "unassigned_overnight": unassigned_overnight,
+            "all_unassigned": all_unassigned,
             "total_capacity": total_capacity,
             "total_assigned": total_assigned,
+            "total_overnight": len(overnight_guests),
         }
     )
 @router.get("/logout")

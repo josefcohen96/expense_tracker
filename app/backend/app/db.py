@@ -446,5 +446,18 @@ def initialise_database() -> None:
         )
     """)
 
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS wedding_timeline_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            day TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            start_time TEXT NOT NULL,
+            end_time TEXT,
+            category TEXT DEFAULT 'general',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     conn.close()

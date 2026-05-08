@@ -1,0 +1,629 @@
+{% extends "wedding/base.html" %}
+{% block wedding_title %}לוח זמנים{% endblock %}
+{% block wedding_breadcrumb %}לוח זמנים{% endblock %}
+
+{% block wedding_header_action %}
+<button onclick="openAddModal(activeDay)"
+    class="flex items-center gap-1.5 px-3 py-2 bg-rose-600 text-white rounded-xl text-sm font-semibold shadow-sm active:bg-rose-700">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+    </svg>
+    הוסף
+</button>
+{% endblock %}
+
+{% block wedding_content %}
+<div dir="rtl">
+
+    <!-- Page Header -->
+    <div class="flex items-start justify-between mb-5">
+        <div>
+            <h1 class="text-xl sm:text-2xl font-bold text-gray-900">לוח זמנים - סוף שבוע 💍</h1>
+            <p class="text-sm text-gray-500 mt-1">לחץ על הציר כדי להוסיף אירוע בכל שעה</p>
+        </div>
+        <button onclick="openAddModal('friday')"
+            class="hidden lg:flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            הוסף אירוע
+        </button>
+    </div>
+
+    <!-- Category Legend -->
+    <div class="flex flex-wrap gap-2 mb-5">
+        <span class="flex items-center gap-1.5 px-3 py-1 bg-rose-100 text-rose-700 rounded-full text-xs font-medium border border-rose-200">💒 טקס / חופה</span>
+        <span class="flex items-center gap-1.5 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-medium border border-orange-200">🍽️ אוכל</span>
+        <span class="flex items-center gap-1.5 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium border border-purple-200">📸 ספקים</span>
+        <span class="flex items-center gap-1.5 px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium border border-teal-200">🌿 פנאי</span>
+        <span class="flex items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium border border-amber-200">🚛 לוגיסטיקה</span>
+        <span class="flex items-center gap-1.5 px-3 py-1 bg-pink-100 text-pink-700 rounded-full text-xs font-medium border border-pink-200">💕 אישי</span>
+        <span class="flex items-center gap-1.5 px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium border border-gray-200">📌 כללי</span>
+    </div>
+
+    <!-- Mobile Day Tabs -->
+    <div class="lg:hidden flex bg-gray-100 rounded-2xl p-1 mb-4">
+        <button id="tab-thursday" onclick="switchDay('thursday')"
+            class="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all bg-white text-rose-700 shadow-sm">
+            יום ה׳
+        </button>
+        <button id="tab-friday" onclick="switchDay('friday')"
+            class="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all text-gray-500">
+            יום ו׳
+        </button>
+        <button id="tab-saturday" onclick="switchDay('saturday')"
+            class="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all text-gray-500">
+            יום ש׳
+        </button>
+    </div>
+
+    <!-- Timeline Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4" id="timeline-grid" dir="ltr">
+
+        <!-- THURSDAY -->
+        <div class="timeline-day-col bg-white rounded-2xl shadow-md overflow-hidden" data-day="thursday">
+            <div class="bg-gradient-to-br from-amber-400 to-amber-600 p-4 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-xs font-semibold opacity-70 uppercase tracking-widest mb-1">Day 1</div>
+                        <h2 class="text-xl font-bold leading-tight" dir="rtl">יום חמישי</h2>
+                        <p class="text-amber-100 text-sm mt-0.5" dir="rtl">🚗 הגעה ומסיבה</p>
+                    </div>
+                    <button onclick="openAddModal('thursday')"
+                        class="w-10 h-10 bg-white/20 hover:bg-white/35 active:bg-white/50 rounded-xl flex items-center justify-center text-white transition-colors flex-shrink-0"
+                        title="הוסף אירוע ליום חמישי">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="relative" id="grid-thursday" style="height: 1520px; background: repeating-linear-gradient(to bottom, #ffffff 0px, #ffffff 79px, #f3f4f6 79px, #f3f4f6 80px);"></div>
+        </div>
+
+        <!-- FRIDAY -->
+        <div class="timeline-day-col lg:block hidden bg-white rounded-2xl shadow-md overflow-hidden" data-day="friday">
+            <div class="bg-gradient-to-br from-rose-500 to-rose-800 p-4 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-xs font-semibold opacity-70 uppercase tracking-widest mb-1">Day 2</div>
+                        <h2 class="text-xl font-bold leading-tight" dir="rtl">יום שישי</h2>
+                        <p class="text-rose-100 text-sm mt-0.5" dir="rtl">💒 יום החתונה</p>
+                    </div>
+                    <button onclick="openAddModal('friday')"
+                        class="w-10 h-10 bg-white/20 hover:bg-white/35 active:bg-white/50 rounded-xl flex items-center justify-center text-white transition-colors flex-shrink-0"
+                        title="הוסף אירוע ליום שישי">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="relative" id="grid-friday" style="height: 1520px; background: repeating-linear-gradient(to bottom, #ffffff 0px, #ffffff 79px, #f3f4f6 79px, #f3f4f6 80px);"></div>
+        </div>
+
+        <!-- SATURDAY -->
+        <div class="timeline-day-col lg:block hidden bg-white rounded-2xl shadow-md overflow-hidden" data-day="saturday">
+            <div class="bg-gradient-to-br from-violet-500 to-violet-700 p-4 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-xs font-semibold opacity-70 uppercase tracking-widest mb-1">Day 3</div>
+                        <h2 class="text-xl font-bold leading-tight" dir="rtl">יום שבת</h2>
+                        <p class="text-violet-100 text-sm mt-0.5" dir="rtl">☀️ בוקר זוגי</p>
+                    </div>
+                    <button onclick="openAddModal('saturday')"
+                        class="w-10 h-10 bg-white/20 hover:bg-white/35 active:bg-white/50 rounded-xl flex items-center justify-center text-white transition-colors flex-shrink-0"
+                        title="הוסף אירוע ליום שבת">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="relative" id="grid-saturday" style="height: 1520px; background: repeating-linear-gradient(to bottom, #ffffff 0px, #ffffff 79px, #f3f4f6 79px, #f3f4f6 80px);"></div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Add / Edit Modal -->
+<div id="event-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" dir="rtl">
+    <div class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md max-h-[92vh] overflow-y-auto">
+
+        <!-- Modal Header -->
+        <div class="sticky top-0 bg-white px-5 pt-5 pb-4 border-b border-gray-100 rounded-t-3xl sm:rounded-t-2xl z-10">
+            <div class="flex items-center justify-between">
+                <h3 id="modal-title" class="text-lg font-bold text-gray-900">אירוע חדש</h3>
+                <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="px-5 py-4 space-y-4">
+
+            <!-- Day Selector -->
+            <div>
+                <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">יום</label>
+                <div class="grid grid-cols-3 gap-2">
+                    <button type="button" onclick="setDay('thursday')" id="day-btn-thursday"
+                        class="day-btn py-3 rounded-xl text-sm font-semibold border-2 transition-all border-amber-400 bg-amber-50 text-amber-700">
+                        יום ה׳
+                    </button>
+                    <button type="button" onclick="setDay('friday')" id="day-btn-friday"
+                        class="day-btn py-3 rounded-xl text-sm font-semibold border-2 transition-all border-gray-200 text-gray-500 hover:border-rose-300">
+                        יום ו׳
+                    </button>
+                    <button type="button" onclick="setDay('saturday')" id="day-btn-saturday"
+                        class="day-btn py-3 rounded-xl text-sm font-semibold border-2 transition-all border-gray-200 text-gray-500 hover:border-violet-300">
+                        יום ש׳
+                    </button>
+                </div>
+            </div>
+
+            <!-- Title -->
+            <div>
+                <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">שם האירוע *</label>
+                <input type="text" id="event-title" placeholder="לדוגמה: קבלת פנים, חופה, ארוחת בוקר..."
+                    class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-all">
+            </div>
+
+            <!-- Category Picker -->
+            <div>
+                <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">קטגוריה</label>
+                <div class="grid grid-cols-4 gap-2">
+                    <button type="button" onclick="setCategory('ceremony')" id="cat-ceremony"
+                        class="cat-btn flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 border-transparent bg-rose-50 hover:border-rose-300 transition-all">
+                        <span class="text-xl">💒</span>
+                        <span class="text-xs text-rose-700 font-semibold">טקס</span>
+                    </button>
+                    <button type="button" onclick="setCategory('food')" id="cat-food"
+                        class="cat-btn flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 border-transparent bg-orange-50 hover:border-orange-300 transition-all">
+                        <span class="text-xl">🍽️</span>
+                        <span class="text-xs text-orange-700 font-semibold">אוכל</span>
+                    </button>
+                    <button type="button" onclick="setCategory('vendors')" id="cat-vendors"
+                        class="cat-btn flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 border-transparent bg-purple-50 hover:border-purple-300 transition-all">
+                        <span class="text-xl">📸</span>
+                        <span class="text-xs text-purple-700 font-semibold">ספקים</span>
+                    </button>
+                    <button type="button" onclick="setCategory('leisure')" id="cat-leisure"
+                        class="cat-btn flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 border-transparent bg-teal-50 hover:border-teal-300 transition-all">
+                        <span class="text-xl">🌿</span>
+                        <span class="text-xs text-teal-700 font-semibold">פנאי</span>
+                    </button>
+                    <button type="button" onclick="setCategory('logistics')" id="cat-logistics"
+                        class="cat-btn flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 border-transparent bg-amber-50 hover:border-amber-300 transition-all">
+                        <span class="text-xl">🚛</span>
+                        <span class="text-xs text-amber-700 font-semibold">לוגיסטיקה</span>
+                    </button>
+                    <button type="button" onclick="setCategory('personal')" id="cat-personal"
+                        class="cat-btn flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 border-transparent bg-pink-50 hover:border-pink-300 transition-all">
+                        <span class="text-xl">💕</span>
+                        <span class="text-xs text-pink-700 font-semibold">אישי</span>
+                    </button>
+                    <button type="button" onclick="setCategory('general')" id="cat-general"
+                        class="cat-btn flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 border-transparent bg-gray-50 hover:border-gray-300 transition-all">
+                        <span class="text-xl">📌</span>
+                        <span class="text-xs text-gray-600 font-semibold">כללי</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Times -->
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">שעת התחלה *</label>
+                    <input type="time" id="event-start-time"
+                        class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-all">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">שעת סיום</label>
+                    <input type="time" id="event-end-time"
+                        class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-all">
+                </div>
+            </div>
+
+            <!-- Description -->
+            <div>
+                <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">הערות</label>
+                <textarea id="event-description" rows="2" placeholder="פרטים נוספים, מי אחראי, מה צריך להכין..."
+                    class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-all resize-none"></textarea>
+            </div>
+
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="px-5 pb-6 pt-2 flex gap-3">
+            <button id="delete-btn" onclick="deleteCurrentEvent()"
+                class="hidden px-4 py-3 bg-red-50 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-100 active:bg-red-200 transition-colors">
+                מחק
+            </button>
+            <button onclick="closeModal()"
+                class="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-200 active:bg-gray-300 transition-colors">
+                ביטול
+            </button>
+            <button onclick="saveEvent()"
+                class="flex-1 py-3 bg-rose-600 text-white rounded-xl text-sm font-bold hover:bg-rose-700 active:bg-rose-800 transition-colors">
+                שמור
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Event cards */
+.event-card {
+    position: absolute;
+    left: 52px;
+    right: 4px;
+    border-radius: 10px;
+    padding: 5px 8px;
+    border-right: 4px solid;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    overflow: hidden;
+    z-index: 10;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    animation: eventFadeIn 0.2s ease;
+}
+.event-card:hover {
+    transform: translateX(2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.14);
+    z-index: 20;
+}
+@keyframes eventFadeIn {
+    from { opacity: 0; transform: translateX(6px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Category color schemes */
+.event-card.cat-ceremony  { background: #fff1f2; border-color: #fb7185; color: #9f1239; }
+.event-card.cat-food      { background: #fff7ed; border-color: #fb923c; color: #9a3412; }
+.event-card.cat-vendors   { background: #faf5ff; border-color: #c084fc; color: #6b21a8; }
+.event-card.cat-leisure   { background: #f0fdfa; border-color: #2dd4bf; color: #115e59; }
+.event-card.cat-logistics { background: #fffbeb; border-color: #fbbf24; color: #92400e; }
+.event-card.cat-personal  { background: #fdf2f8; border-color: #f472b6; color: #831843; }
+.event-card.cat-general   { background: #f9fafb; border-color: #9ca3af; color: #374151; }
+
+/* Hour labels + grid lines */
+.hour-label {
+    position: absolute;
+    left: 0;
+    width: 48px;
+    text-align: center;
+    font-size: 10px;
+    color: #9ca3af;
+    font-weight: 600;
+    transform: translateY(-50%);
+    letter-spacing: 0.02em;
+    pointer-events: none;
+}
+.hour-line {
+    position: absolute;
+    left: 52px;
+    right: 0;
+    height: 1px;
+    background: #e5e7eb;
+    pointer-events: none;
+}
+.half-line {
+    position: absolute;
+    left: 52px;
+    right: 0;
+    height: 1px;
+    border-top: 1px dashed #f0f0f0;
+    pointer-events: none;
+}
+
+/* Empty state */
+.day-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #d1d5db;
+    pointer-events: none;
+    top: 160px;
+}
+
+/* Mobile tab active state */
+.tab-active {
+    background: white;
+    color: #be123c;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+/* Category button active ring */
+.cat-btn.active {
+    transform: scale(1.08);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.14);
+}
+</style>
+
+<script>
+const HOUR_H   = 80;
+const START_H  = 8;
+const TOTAL_H  = 19; // 08:00–03:00 next day
+
+let allEvents = {{ events | tojson }};
+let editingId = null;
+let selDay = 'thursday';
+let selCat = 'general';
+let activeDay = 'thursday';
+
+const CAT_EMOJI = { ceremony:'💒', food:'🍽️', vendors:'📸', leisure:'🌿', logistics:'🚛', personal:'💕', general:'📌' };
+const CAT_BORDER = { ceremony:'#fb7185', food:'#fb923c', vendors:'#c084fc', leisure:'#2dd4bf', logistics:'#fbbf24', personal:'#f472b6', general:'#9ca3af' };
+const DAY_ACTIVE = {
+    thursday: 'border-amber-400 bg-amber-50 text-amber-700',
+    friday:   'border-rose-400 bg-rose-50 text-rose-700',
+    saturday: 'border-violet-400 bg-violet-50 text-violet-700'
+};
+const DAY_IDLE = 'border-gray-200 text-gray-500';
+
+/* ── Time helpers ─────────────────────────────── */
+function timeToTop(t) {
+    if (!t) return 0;
+    let [h, m] = t.split(':').map(Number);
+    if (h < START_H) h += 24;
+    return ((h - START_H) * 60 + m) / 60 * HOUR_H;
+}
+function durPx(start, end) {
+    if (!end) return HOUR_H;
+    let [sh, sm] = start.split(':').map(Number);
+    let [eh, em] = end.split(':').map(Number);
+    let sm2 = sh * 60 + sm, em2 = eh * 60 + em;
+    if (em2 <= sm2) em2 += 24 * 60;
+    return Math.max((em2 - sm2) / 60 * HOUR_H, 28);
+}
+function fmtTime(t) { return t ? t.slice(0,5) : ''; }
+
+/* ── Build hour grid ──────────────────────────── */
+function buildGrid(day) {
+    const el = document.getElementById('grid-' + day);
+    if (!el) return;
+    for (let i = 0; i <= TOTAL_H; i++) {
+        const top = i * HOUR_H;
+        const hour = (START_H + i) % 24;
+        // label
+        const lbl = document.createElement('div');
+        lbl.className = 'hour-label';
+        lbl.style.top = top + 'px';
+        lbl.textContent = String(hour).padStart(2,'0') + ':00';
+        el.appendChild(lbl);
+        if (i < TOTAL_H) {
+            // solid hour line
+            const line = document.createElement('div');
+            line.className = 'hour-line';
+            line.style.top = top + 'px';
+            el.appendChild(line);
+            // dashed half-hour line
+            const half = document.createElement('div');
+            half.className = 'half-line';
+            half.style.top = (top + HOUR_H / 2) + 'px';
+            el.appendChild(half);
+        }
+    }
+    el.addEventListener('click', e => onGridClick(e, day));
+}
+
+/* ── Render events ────────────────────────────── */
+function renderAll() {
+    ['thursday','friday','saturday'].forEach(day => {
+        const grid = document.getElementById('grid-' + day);
+        if (!grid) return;
+        grid.querySelectorAll('.event-card,.day-empty').forEach(el => el.remove());
+
+        const dayEvs = allEvents.filter(e => e.day === day)
+                                .sort((a,b) => a.start_time.localeCompare(b.start_time));
+
+        if (!dayEvs.length) {
+            const empty = document.createElement('div');
+            empty.className = 'day-empty';
+            empty.innerHTML = '<div style="font-size:2.5rem;margin-bottom:8px">🗓️</div><div style="font-size:13px;font-weight:500">לחץ + או על הציר להוסיף</div>';
+            grid.appendChild(empty);
+            return;
+        }
+
+        dayEvs.forEach(ev => grid.appendChild(makeCard(ev)));
+    });
+}
+
+function makeCard(ev) {
+    const cat   = ev.category || 'general';
+    const top   = timeToTop(ev.start_time);
+    const h     = durPx(ev.start_time, ev.end_time);
+    const emoji = CAT_EMOJI[cat] || '📌';
+
+    const card = document.createElement('div');
+    card.className = `event-card cat-${cat}`;
+    card.style.cssText = `top:${top}px; height:${h}px;`;
+
+    const showEnd  = ev.end_time && h > 44;
+    const showDesc = ev.description && h > 62;
+
+    card.innerHTML = `
+        <div style="display:flex;align-items:flex-start;gap:5px;">
+            <span style="font-size:13px;line-height:1;flex-shrink:0;margin-top:1px">${emoji}</span>
+            <div style="min-width:0;flex:1;">
+                <div style="font-size:11px;font-weight:700;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(ev.title)}</div>
+                <div style="font-size:10px;opacity:0.65;margin-top:2px;">${fmtTime(ev.start_time)}${showEnd ? ' – ' + fmtTime(ev.end_time) : ''}</div>
+                ${showDesc ? `<div style="font-size:10px;opacity:0.55;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(ev.description)}</div>` : ''}
+            </div>
+        </div>`;
+
+    card.addEventListener('click', e => { e.stopPropagation(); openEdit(ev); });
+    return card;
+}
+
+function esc(s) {
+    if (!s) return '';
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ── Grid click → add at that time ───────────── */
+function onGridClick(e, day) {
+    if (e.target.closest('.event-card')) return;
+    const rect = document.getElementById('grid-' + day).getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const hoursF = y / HOUR_H;
+    const absHour = START_H + Math.floor(hoursF);
+    const mins = Math.round((hoursF % 1) * 60 / 15) * 15;
+    const hour = absHour % 24;
+    const startStr = String(hour).padStart(2,'0') + ':' + String(mins).padStart(2,'0');
+    const endHour  = (hour + 1) % 24;
+    const endStr   = String(endHour).padStart(2,'0') + ':' + String(mins).padStart(2,'0');
+    openAdd(day, startStr, endStr);
+}
+
+/* ── Mobile tabs ──────────────────────────────── */
+function switchDay(day) {
+    activeDay = day;
+    document.querySelectorAll('.timeline-day-col').forEach(col => {
+        const isTarget = col.dataset.day === day;
+        if (window.innerWidth < 1024) {
+            col.classList.toggle('hidden', !isTarget);
+            col.classList.toggle('lg:block', isTarget);
+        }
+    });
+    ['thursday','friday','saturday'].forEach(d => {
+        const btn = document.getElementById('tab-' + d);
+        if (!btn) return;
+        btn.className = `flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${d === day ? 'tab-active' : 'text-gray-500'}`;
+    });
+}
+
+/* ── Modal ────────────────────────────────────── */
+function openAdd(day, startTime, endTime) {
+    editingId = null;
+    selDay = day || activeDay;
+    selCat = 'general';
+    document.getElementById('modal-title').textContent = 'אירוע חדש';
+    document.getElementById('event-title').value = '';
+    document.getElementById('event-start-time').value = startTime || '';
+    document.getElementById('event-end-time').value   = endTime   || '';
+    document.getElementById('event-description').value = '';
+    document.getElementById('delete-btn').classList.add('hidden');
+    setDay(selDay);
+    setCategory('general');
+    document.getElementById('event-modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('event-title').focus(), 120);
+}
+
+function openAddModal(day) { openAdd(day, '', ''); }
+
+function openEdit(ev) {
+    editingId = ev.id;
+    selDay = ev.day;
+    selCat = ev.category || 'general';
+    document.getElementById('modal-title').textContent = 'עריכת אירוע';
+    document.getElementById('event-title').value        = ev.title || '';
+    document.getElementById('event-start-time').value  = ev.start_time || '';
+    document.getElementById('event-end-time').value    = ev.end_time   || '';
+    document.getElementById('event-description').value = ev.description || '';
+    document.getElementById('delete-btn').classList.remove('hidden');
+    setDay(selDay);
+    setCategory(selCat);
+    document.getElementById('event-modal').classList.remove('hidden');
+}
+
+function closeModal() {
+    document.getElementById('event-modal').classList.add('hidden');
+    editingId = null;
+}
+
+function setDay(day) {
+    selDay = day;
+    ['thursday','friday','saturday'].forEach(d => {
+        const btn = document.getElementById('day-btn-' + d);
+        if (!btn) return;
+        btn.className = `day-btn py-3 rounded-xl text-sm font-semibold border-2 transition-all ${d === day ? DAY_ACTIVE[d] : DAY_IDLE + ' hover:border-gray-300'}`;
+    });
+}
+
+function setCategory(cat) {
+    selCat = cat;
+    document.querySelectorAll('.cat-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.style.borderColor = 'transparent';
+        btn.style.transform   = '';
+        btn.style.boxShadow   = '';
+    });
+    const active = document.getElementById('cat-' + cat);
+    if (active) {
+        active.classList.add('active');
+        active.style.borderColor = CAT_BORDER[cat] || '#9ca3af';
+    }
+}
+
+async function saveEvent() {
+    const title = document.getElementById('event-title').value.trim();
+    const start = document.getElementById('event-start-time').value;
+    if (!title) {
+        const inp = document.getElementById('event-title');
+        inp.classList.add('border-red-400','ring-2','ring-red-200');
+        inp.focus();
+        setTimeout(() => inp.classList.remove('border-red-400','ring-2','ring-red-200'), 2000);
+        return;
+    }
+    if (!start) { document.getElementById('event-start-time').focus(); return; }
+
+    const payload = {
+        day:         selDay,
+        title,
+        start_time:  start,
+        end_time:    document.getElementById('event-end-time').value || null,
+        description: document.getElementById('event-description').value.trim() || null,
+        category:    selCat,
+    };
+
+    try {
+        const url    = editingId ? `/api/wedding/timeline-events/${editingId}` : '/api/wedding/timeline-events';
+        const method = editingId ? 'PUT' : 'POST';
+        const res    = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        if (!res.ok) throw new Error();
+        const saved  = await res.json();
+        allEvents    = editingId
+            ? allEvents.map(e => e.id === editingId ? saved : e)
+            : [...allEvents, saved];
+        closeModal();
+        renderAll();
+    } catch {
+        alert('שגיאה בשמירה – נסה שוב');
+    }
+}
+
+async function deleteCurrentEvent() {
+    if (!editingId || !confirm('למחוק את האירוע?')) return;
+    try {
+        await fetch(`/api/wedding/timeline-events/${editingId}`, { method:'DELETE' });
+        allEvents = allEvents.filter(e => e.id !== editingId);
+        closeModal();
+        renderAll();
+    } catch {
+        alert('שגיאה במחיקה');
+    }
+}
+
+/* ── Backdrop click & Escape ──────────────────── */
+document.getElementById('event-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+/* ── Init ─────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+    ['thursday','friday','saturday'].forEach(buildGrid);
+    // Mobile: show only Thursday by default
+    if (window.innerWidth < 1024) {
+        switchDay('thursday');
+    }
+    renderAll();
+});
+</script>
+{% endblock %}

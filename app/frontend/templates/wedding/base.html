@@ -139,6 +139,21 @@
             {% endif %}
         </a>
 
+        <a href="/wedding/timeline" onclick="toggleWedDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+                   {% if 'timeline' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+            <div class="w-8 h-8 rounded-lg {% if 'timeline' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 {% if 'timeline' in request.path %}text-rose-600{% else %}text-gray-500{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+            </div>
+            <span>לוח זמנים</span>
+            {% if 'timeline' in request.path %}
+            <span class="mr-auto w-2 h-2 rounded-full bg-rose-500"></span>
+            {% endif %}
+        </a>
+
     </nav>
 </div>
 
@@ -262,6 +277,21 @@
             </div>
             <span>רעיונות</span>
             {% if 'ideas' in request.path %}
+            <span class="mr-auto w-2 h-2 rounded-full bg-rose-500"></span>
+            {% endif %}
+        </a>
+
+        <a href="/wedding/timeline"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+                   {% if 'timeline' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+            <div class="w-8 h-8 rounded-lg {% if 'timeline' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 {% if 'timeline' in request.path %}text-rose-600{% else %}text-gray-500{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+            </div>
+            <span>לוח זמנים</span>
+            {% if 'timeline' in request.path %}
             <span class="mr-auto w-2 h-2 rounded-full bg-rose-500"></span>
             {% endif %}
         </a>

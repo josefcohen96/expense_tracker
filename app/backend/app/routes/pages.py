@@ -1811,3 +1811,14 @@ async def wedding_ideas_page(request: Request, db_conn: sqlite3.Connection = Dep
         "status_filter": status_filter,
         "all_categories": all_categories,
     })
+
+
+@router.get("/wedding/timeline", response_class=HTMLResponse)
+async def wedding_timeline_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    events = db_conn.execute(
+        "SELECT * FROM wedding_timeline_events ORDER BY day, start_time"
+    ).fetchall()
+    return templates.TemplateResponse("wedding/timeline.html", {
+        "request": request,
+        "events": [dict(e) for e in events],
+    })

@@ -65,6 +65,7 @@ class GuestCreate(BaseModel):
     plus_one_name: Optional[str] = None
     children_count: int = 0
     needs_transport: int = 0
+    staying_overnight: int = 0
     table_number: Optional[int] = None
     notes: Optional[str] = None
 
@@ -77,7 +78,20 @@ class GuestUpdate(BaseModel):
     plus_one_name: Optional[str] = None
     children_count: Optional[int] = None
     needs_transport: Optional[int] = None
+    staying_overnight: Optional[int] = None
     table_number: Optional[int] = None
+    notes: Optional[str] = None
+
+class RoomCreate(BaseModel):
+    name: str
+    room_type: str = "יחידים"
+    max_capacity: int = 2
+    notes: Optional[str] = None
+
+class RoomUpdate(BaseModel):
+    name: Optional[str] = None
+    room_type: Optional[str] = None
+    max_capacity: Optional[int] = None
     notes: Optional[str] = None
 
 class TaskCreate(BaseModel):
@@ -252,11 +266,11 @@ async def list_guests(db_conn: sqlite3.Connection = Depends(get_db_conn)):
 async def create_guest(body: GuestCreate, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     cur = db_conn.execute(
         """INSERT INTO wedding_guests
-           (name, phone, group_name, status, plus_one, plus_one_name, children_count, needs_transport, table_number, notes)
-           VALUES (?,?,?,?,?,?,?,?,?,?)""",
+           (name, phone, group_name, status, plus_one, plus_one_name, children_count, needs_transport, staying_overnight, table_number, notes)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
         (body.name, body.phone, body.group_name, body.status,
          body.plus_one, body.plus_one_name, body.children_count,
-         body.needs_transport, body.table_number, body.notes),
+         body.needs_transport, body.staying_overnight, body.table_number, body.notes),
     )
     db_conn.commit()
     return dict(db_conn.execute("SELECT * FROM wedding_guests WHERE id=?", (cur.lastrowid,)).fetchone())
@@ -282,6 +296,80 @@ async def update_guest(guest_id: int, body: GuestUpdate, db_conn: sqlite3.Connec
 @router.delete("/guests/{guest_id}", status_code=204)
 async def delete_guest(guest_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     db_conn.execute("DELETE FROM wedding_guests WHERE id=?", (guest_id,))
+    db_conn.commit()
+
+
+# ─── Rooms ───────────────────────────────────────────────────────────────────
+
+@router.get("/rooms")
+async def list_rooms(db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    rooms = [dict(r) for r in db_conn.execute("SELECT * FROM wedding_rooms ORDER BY id").fetchall()]
+    assignments = db_conn.execute(
+        """SELECT ra.room_id, ra.guest_id, g.name AS guest_name,
+                  g.plus_one, g.plus_one_name, g.children_count
+           FROM wedding_room_assignments ra
+           JOIN wedding_guests g ON g.id = ra.guest_id"""
+    ).fetchall()
+    by_room = {}
+    for a in assignments:
+        by_room.setdefault(a["room_id"], []).append(dict(a))
+    for room in rooms:
+        room["assigned"] = by_room.get(room["id"], [])
+        room["occupancy"] = sum(
+            1 + (1 if a["plus_one"] else 0) + (a["children_count"] or 0)
+            for a in room["assigned"]
+        )
+    return rooms
+
+
+@router.post("/rooms", status_code=201)
+async def create_room(body: RoomCreate, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    cur = db_conn.execute(
+        "INSERT INTO wedding_rooms (name, room_type, max_capacity, notes) VALUES (?,?,?,?)",
+        (body.name, body.room_type, body.max_capacity, body.notes),
+    )
+    db_conn.commit()
+    return dict(db_conn.execute("SELECT * FROM wedding_rooms WHERE id=?", (cur.lastrowid,)).fetchone())
+
+
+@router.put("/rooms/{room_id}")
+async def update_room(room_id: int, body: RoomUpdate, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    existing = db_conn.execute("SELECT * FROM wedding_rooms WHERE id=?", (room_id,)).fetchone()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Room not found")
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not fields:
+        return dict(existing)
+    set_clause = ", ".join(f"{k}=?" for k in fields)
+    db_conn.execute(f"UPDATE wedding_rooms SET {set_clause} WHERE id=?", (*fields.values(), room_id))
+    db_conn.commit()
+    return dict(db_conn.execute("SELECT * FROM wedding_rooms WHERE id=?", (room_id,)).fetchone())
+
+
+@router.delete("/rooms/{room_id}", status_code=204)
+async def delete_room(room_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    db_conn.execute("DELETE FROM wedding_room_assignments WHERE room_id=?", (room_id,))
+    db_conn.execute("DELETE FROM wedding_rooms WHERE id=?", (room_id,))
+    db_conn.commit()
+
+
+@router.post("/rooms/{room_id}/assign/{guest_id}", status_code=201)
+async def assign_guest_to_room(room_id: int, guest_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    if not db_conn.execute("SELECT 1 FROM wedding_rooms WHERE id=?", (room_id,)).fetchone():
+        raise HTTPException(status_code=404, detail="Room not found")
+    if not db_conn.execute("SELECT 1 FROM wedding_guests WHERE id=?", (guest_id,)).fetchone():
+        raise HTTPException(status_code=404, detail="Guest not found")
+    db_conn.execute(
+        "INSERT INTO wedding_room_assignments (room_id, guest_id) VALUES (?,?) ON CONFLICT(guest_id) DO UPDATE SET room_id=excluded.room_id",
+        (room_id, guest_id),
+    )
+    db_conn.commit()
+    return {"room_id": room_id, "guest_id": guest_id}
+
+
+@router.delete("/rooms/assignments/{guest_id}", status_code=204)
+async def unassign_guest_from_room(guest_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    db_conn.execute("DELETE FROM wedding_room_assignments WHERE guest_id=?", (guest_id,))
     db_conn.commit()
 
 

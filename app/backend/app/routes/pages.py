@@ -242,7 +242,44 @@ async def login_post(request: Request):
         status_code=status.HTTP_401_UNAUTHORIZED,
     )
 
+@router.get("/wedding/lodging", response_class=HTMLResponse)
+async def wedding_lodging_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    rooms = [dict(r) for r in db_conn.execute(
+        "SELECT * FROM wedding_rooms ORDER BY id"
+    ).fetchall()]
 
+    assignments = [dict(r) for r in db_conn.execute(
+        """SELECT ra.room_id, ra.guest_id, g.name AS guest_name, g.plus_one, g.plus_one_name, g.children_count
+           FROM wedding_room_assignments ra
+           JOIN wedding_guests g ON g.id = ra.guest_id"""
+    ).fetchall()]
+
+    assigned_ids = {a["guest_id"] for a in assignments}
+    for room in rooms:
+        room["assigned"] = [a for a in assignments if a["room_id"] == room["id"]]
+        room["occupancy"] = sum(
+            1 + (1 if a["plus_one"] else 0) + (a["children_count"] or 0)
+            for a in room["assigned"]
+        )
+
+    overnight_guests = [dict(g) for g in db_conn.execute(
+        "SELECT * FROM wedding_guests WHERE staying_overnight=1 ORDER BY group_name, name"
+    ).fetchall()]
+    unassigned = [g for g in overnight_guests if g["id"] not in assigned_ids]
+
+    total_capacity = sum(r["max_capacity"] for r in rooms)
+    total_assigned = len(assigned_ids)
+
+    return templates.TemplateResponse(
+        "wedding/lodging.html",
+        {
+            "request": request,
+            "rooms": rooms,
+            "unassigned_guests": unassigned,
+            "total_capacity": total_capacity,
+            "total_assigned": total_assigned,
+        }
+    )
 @router.get("/logout")
 async def logout(request: Request) -> RedirectResponse:
     user_obj = request.session.get('user')

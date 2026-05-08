@@ -335,6 +335,9 @@ textarea.inline-edit-input {
                             {% if g.needs_transport %}
                             <span class="inline-flex items-center bg-sky-50 text-sky-600 px-2 py-1 rounded-lg text-xs">🚌 הסעה</span>
                             {% endif %}
+                            {% if g.staying_overnight %}
+                            <span class="inline-flex items-center bg-purple-50 text-purple-600 px-2 py-1 rounded-lg text-xs">🛏 לינה</span>
+                            {% endif %}
                             {% if g.table_number %}
                             <span class="inline-flex items-center bg-gray-100 text-gray-600 px-2 py-1 rounded-lg text-xs">שולחן {{ g.table_number }}</span>
                             {% endif %}
@@ -388,6 +391,7 @@ textarea.inline-edit-input {
                                 <th class="px-4 py-3 text-right font-medium text-gray-600">+1</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-600">ילדים</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-600">הסעה</th>
+                                <th class="px-4 py-3 text-right font-medium text-gray-600">לינה</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-600">שולחן</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-600">הערות</th>
                                 <th class="px-4 py-3"></th>
@@ -429,6 +433,14 @@ textarea.inline-edit-input {
                                     {% if g.needs_transport %}
                                     <span class="text-blue-600 font-medium text-xs">🚌 כן</span>
                                     {% else %}-{% endif %}
+                                </td>
+                                <td class="px-4 py-3 text-center">
+                                    <button onclick="toggleOvernight({{ g.id }}, {{ 1 if g.staying_overnight else 0 }})"
+                                            class="w-8 h-8 rounded-full flex items-center justify-center mx-auto transition-colors
+                                                   {% if g.staying_overnight %}bg-purple-100 text-purple-600{% else %}bg-gray-100 text-gray-400{% endif %}"
+                                            title="{{ 'נשאר לישון' if g.staying_overnight else 'לא נשאר לישון' }}">
+                                        🛏
+                                    </button>
                                 </td>
                                 <td class="px-4 py-3 text-gray-600 text-center inline-editable"
                                     data-field="table_number" data-guest-id="{{ g.id }}" data-value="{{ g.table_number or '' }}"
@@ -580,7 +592,7 @@ textarea.inline-edit-input {
                                placeholder="0" min="0" dir="ltr" inputmode="numeric">
                     </div>
                 </div>
-                <div class="flex gap-6 py-1">
+                <div class="flex flex-wrap gap-4 py-1">
                     <label class="flex items-center gap-3 cursor-pointer min-h-[44px]">
                         <input type="checkbox" id="g-plus-one" class="w-5 h-5 accent-rose-500 rounded">
                         <span class="text-sm text-gray-700">מגיע עם +1</span>
@@ -588,6 +600,10 @@ textarea.inline-edit-input {
                     <label class="flex items-center gap-3 cursor-pointer min-h-[44px]">
                         <input type="checkbox" id="g-transport" class="w-5 h-5 accent-blue-500 rounded">
                         <span class="text-sm text-gray-700">צריך הסעה</span>
+                    </label>
+                    <label class="flex items-center gap-3 cursor-pointer min-h-[44px]">
+                        <input type="checkbox" id="g-overnight" class="w-5 h-5 accent-purple-500 rounded">
+                        <span class="text-sm text-gray-700">🛏 נשאר לישון</span>
                     </label>
                 </div>
                 <div id="plus-one-name-wrap" class="hidden">
@@ -780,6 +796,7 @@ function closeGuestModal() {
     document.getElementById('g-status').value = 'pending';
     document.getElementById('g-plus-one').checked = false;
     document.getElementById('g-transport').checked = false;
+    document.getElementById('g-overnight').checked = false;
     document.getElementById('plus-one-name-wrap').classList.add('hidden');
 }
 
@@ -799,6 +816,7 @@ function editGuestFromBtn(btn) {
     document.getElementById('g-children').value = g.children_count || 0;
     document.getElementById('g-plus-one').checked = !!g.plus_one;
     document.getElementById('g-transport').checked = !!g.needs_transport;
+    document.getElementById('g-overnight').checked = !!g.staying_overnight;
     document.getElementById('g-plus-one-name').value = g.plus_one_name || '';
     document.getElementById('plus-one-name-wrap').classList.toggle('hidden', !g.plus_one);
     document.getElementById('g-notes').value = g.notes || '';
@@ -817,6 +835,7 @@ function saveGuest() {
         plus_one: document.getElementById('g-plus-one').checked ? 1 : 0,
         plus_one_name: document.getElementById('g-plus-one-name').value.trim() || null,
         needs_transport: document.getElementById('g-transport').checked ? 1 : 0,
+        staying_overnight: document.getElementById('g-overnight').checked ? 1 : 0,
         notes: document.getElementById('g-notes').value.trim() || null,
     };
     if (!payload.name) { alert('יש להזין שם'); return; }
@@ -833,6 +852,18 @@ function deleteGuest(id) {
     if (!confirm('למחוק את המוזמן?')) return;
     fetch('/api/wedding/guests/' + id, {method: 'DELETE'})
         .then(function() { reloadWithScroll(); });
+}
+
+function toggleOvernight(id, current) {
+    var newVal = current ? 0 : 1;
+    fetch('/api/wedding/guests/' + id, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({staying_overnight: newVal})
+    }).then(function(r) {
+        if (!r.ok) throw new Error();
+        reloadWithScroll();
+    }).catch(function() { alert('שגיאה בעדכון'); });
 }
 
 // ===== Restore scroll position after reload =====

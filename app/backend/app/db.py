@@ -485,5 +485,56 @@ def initialise_database() -> None:
         )
     """)
 
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS wedding_rooms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            room_type TEXT NOT NULL DEFAULT 'יחידים',
+            max_capacity INTEGER NOT NULL DEFAULT 2,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS wedding_room_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_id INTEGER NOT NULL REFERENCES wedding_rooms(id) ON DELETE CASCADE,
+            guest_id INTEGER NOT NULL REFERENCES wedding_guests(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(guest_id)
+        )
+    """)
+
+    # Migration: add staying_overnight to wedding_guests
+    try:
+        guest_cols = [r[1] for r in cur.execute("PRAGMA table_info('wedding_guests')").fetchall()]
+        if "staying_overnight" not in guest_cols:
+            conn.execute("ALTER TABLE wedding_guests ADD COLUMN staying_overnight INTEGER DEFAULT 0")
+            conn.commit()
+    except Exception:
+        pass
+
+    # Seed default rooms from venue if table is empty
+    try:
+        if not cur.execute("SELECT COUNT(*) FROM wedding_rooms").fetchone()[0]:
+            default_rooms = [
+                ("בית התה", "לינה משותפת", 30),
+                ("בית המטפל", "זוגי-מיטה זוגית", 2),
+                ("בית הסופר", "זוגי-מ. זוגית+1", 3),
+                ("בית הנווד", "זוגי-מיטה זוגית", 2),
+                ("בית אברהם", "יחידים", 7),
+                ("בית המרפא", "יחידים", 6),
+                ("בית שחרות", "משפחתי 3+2", 5),
+                ("בית השחר", "משפחתי 3+2", 5),
+            ]
+            for name, room_type, capacity in default_rooms:
+                cur.execute(
+                    "INSERT INTO wedding_rooms (name, room_type, max_capacity) VALUES (?,?,?)",
+                    (name, room_type, capacity)
+                )
+    except Exception:
+        pass
+
     conn.commit()
     conn.close()

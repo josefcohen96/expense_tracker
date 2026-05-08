@@ -249,7 +249,8 @@ async def wedding_lodging_page(request: Request, db_conn: sqlite3.Connection = D
     ).fetchall()]
 
     assignments = [dict(r) for r in db_conn.execute(
-        """SELECT ra.room_id, ra.guest_id, g.name AS guest_name, g.plus_one, g.plus_one_name, g.children_count
+        """SELECT ra.room_id, ra.guest_id, g.name AS guest_name,
+                  g.plus_one, g.plus_one_name, g.children_count, g.group_name
            FROM wedding_room_assignments ra
            JOIN wedding_guests g ON g.id = ra.guest_id"""
     ).fetchall()]
@@ -268,7 +269,7 @@ async def wedding_lodging_page(request: Request, db_conn: sqlite3.Connection = D
 
     overnight_guests = [g for g in all_guests if g["staying_overnight"]]
     unassigned_overnight = [g for g in overnight_guests if g["id"] not in assigned_ids]
-    all_unassigned = [g for g in all_guests if g["id"] not in assigned_ids]
+    all_unassigned = [g for g in all_guests if g["id"] not in assigned_ids and g["staying_overnight"]]
 
     total_capacity = sum(r["max_capacity"] for r in rooms)
     total_assigned = len(assigned_ids)

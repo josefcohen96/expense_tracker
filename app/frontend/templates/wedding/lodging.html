@@ -38,10 +38,13 @@
         <div class="flex flex-wrap gap-2">
             {% for g in unassigned_overnight %}
             <div class="flex items-center gap-2 bg-white border border-amber-200 rounded-lg px-3 py-2">
-                <span class="text-sm font-medium text-gray-800">{{ g.name }}</span>
-                {% if g.plus_one %}<span class="text-xs text-pink-500">+1</span>{% endif %}
+                <div class="min-w-0">
+                    <span class="text-sm font-medium text-gray-800">{{ g.name }}</span>
+                    {% if g.plus_one %}<span class="text-xs text-pink-500 mr-1">+1</span>{% endif %}
+                    {% if g.group_name %}<span class="block text-[10px] text-gray-400 leading-none mt-0.5">{{ g.group_name }}</span>{% endif %}
+                </div>
                 <select onchange="assignGuestFromTop({{ g.id }}, this)"
-                        class="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white text-gray-600">
+                        class="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white text-gray-600 mr-auto">
                     <option value="">שבץ לחדר...</option>
                     {% for room in rooms %}
                     <option value="{{ room.id }}">{{ room.name }} ({{ room.occupancy }}/{{ room.max_capacity }})</option>
@@ -107,6 +110,7 @@
                     <div class="flex items-center justify-between bg-purple-50 border border-purple-100 rounded-lg px-3 py-2">
                         <div class="min-w-0 flex-1 text-sm">
                             <span class="font-medium text-gray-800">{{ a.guest_name }}</span>
+                            {% if a.group_name %}<span class="block text-[10px] text-gray-400 leading-none mt-0.5">{{ a.group_name }}</span>{% endif %}
                             {% if a.plus_one %}
                             <span class="text-xs text-pink-500 mr-1">
                                 +{% if a.plus_one_name %}{{ a.plus_one_name }}{% else %}1{% endif %}
@@ -138,7 +142,7 @@
                         class="w-full text-xs border border-dashed border-rose-200 rounded-lg px-2 py-2 bg-rose-50 text-gray-600 cursor-pointer hover:border-rose-400 transition-colors">
                     <option value="">+ שבץ אורח לחדר זה</option>
                     {% for g in all_unassigned %}
-                    <option value="{{ g.id }}">{{ g.name }}{% if g.plus_one %} +{{ g.plus_one_name or '1' }}{% endif %}{% if g.staying_overnight %} 🛏{% endif %}</option>
+                    <option value="{{ g.id }}">{{ g.name }}{% if g.group_name %} · {{ g.group_name }}{% endif %}{% if g.plus_one %} +{{ g.plus_one_name or '1' }}{% endif %}</option>
                     {% endfor %}
                 </select>
                 {% else %}

@@ -117,6 +117,21 @@
 
 .panel-empty { text-align:center; padding:2rem 1rem; color:#9ca3af; font-size:.8rem; }
 
+/* ─── Plus-one display in panel ──────────────────────── */
+.g-extras { display:flex; flex-wrap:wrap; gap:.2rem; margin-top:.2rem; }
+.g-plus-tag { display:inline-block; font-size:.62rem; font-weight:600;
+              background:#fce7f3; color:#be123c; border-radius:.3rem;
+              padding:.05rem .3rem; line-height:1.4; }
+.g-child-tag { display:inline-block; font-size:.62rem; font-weight:600;
+               background:#eff6ff; color:#1d4ed8; border-radius:.3rem;
+               padding:.05rem .3rem; line-height:1.4; }
+.g-badge { float:left; background:#fce7f3; color:#9f1239; border-radius:9999px;
+           font-size:.58rem; font-weight:700; padding:.05rem .35rem;
+           margin-top:.1rem; margin-right:.3rem; }
+
+/* ─── Seat extra badge ───────────────────────────────── */
+.seat-extra { font-size:.42rem; vertical-align:super; font-weight:700; }
+
 /* ─── Modals ──────────────────────────────────────────── */
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:2000;
                  display:flex; align-items:center; justify-content:center; padding:1rem; }
@@ -154,7 +169,7 @@
 
 <!-- Stats bar -->
 <div class="stats-bar">
-    <div class="stat-chip">🪑 <span id="stat-seated">{{ seated_count }}</span> / {{ total_guests }} מוזמנים מוושבים</div>
+    <div class="stat-chip">🪑 <span id="stat-seated">{{ seated_count }}</span> / <span id="stat-total">{{ total_guests }}</span> אנשים מוושבים</div>
     <div class="stat-chip">🪑 <span id="stat-tables">{{ tables|length }}</span> שולחנות</div>
     <div class="stat-chip">📊 <span id="stat-capacity">{{ total_seats }}</span> מקומות</div>
     <div class="stat-chip" id="stat-unassigned-chip">⏳ <span id="stat-unassigned">{{ total_guests - seated_count }}</span> ממתינים</div>
@@ -278,11 +293,17 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
+function personCount(g) { return 1 + (g.plus_one||0) + (g.children_count||0); }
+
 function updateStats() {
-    const seatedCount = Object.keys(guestAssign).length;
-    const notDeclined = GUESTS.filter(g => g.status !== 'declined').length;
-    document.getElementById('stat-seated').textContent = seatedCount;
-    document.getElementById('stat-unassigned').textContent = Math.max(0, notDeclined - seatedCount);
+    const seatedPeople = Object.keys(guestAssign).reduce((s, gid) => {
+        const g = guestMap[parseInt(gid)];
+        return g ? s + personCount(g) : s;
+    }, 0);
+    const totalPeople = GUESTS.reduce((s, g) => s + personCount(g), 0);
+    document.getElementById('stat-seated').textContent = seatedPeople;
+    document.getElementById('stat-total').textContent = totalPeople;
+    document.getElementById('stat-unassigned').textContent = Math.max(0, totalPeople - seatedPeople);
     document.getElementById('stat-tables').textContent = Object.keys(tableMap).length;
     document.getElementById('stat-capacity').textContent = Object.values(tableMap).reduce((s, t) => s + t.capacity, 0);
 }
@@ -291,20 +312,28 @@ function updateStats() {
 function renderPanel(filter) {
     const body = document.getElementById('panel-body');
     const unseated = GUESTS.filter(g => g.status !== 'declined' && !guestAssign[g.id]);
-    const list = filter ? unseated.filter(g => g.name.includes(filter) || (g.group_name||'').includes(filter)) : unseated;
+    const list = filter
+        ? unseated.filter(g => g.name.includes(filter) || (g.group_name||'').includes(filter) || (g.plus_one_name||'').includes(filter))
+        : unseated;
     if (!list.length) {
         body.innerHTML = '<div class="panel-empty">כל המוזמנים מוושבים 🎉</div>';
         return;
     }
-    body.innerHTML = list.map(g => `
+    body.innerHTML = list.map(g => {
+        const n = personCount(g);
+        const plusTag  = g.plus_one ? `<span class="g-plus-tag">+${escHtml(g.plus_one_name || '1')}</span>` : '';
+        const childTag = g.children_count > 0 ? `<span class="g-child-tag">${g.children_count} ילד${g.children_count > 1 ? 'ים' : ''}</span>` : '';
+        const extrasHtml = (plusTag || childTag) ? `<div class="g-extras">${plusTag}${childTag}</div>` : '';
+        return `
         <div class="guest-card" draggable="true"
              data-guest-id="${g.id}"
              ondragstart="guestDragStart(event,${g.id})"
              ondragend="guestDragEnd(event)">
-            <div class="g-name">${escHtml(g.name)}</div>
+            <div class="g-name">${escHtml(g.name)}${n > 1 ? `<span class="g-badge">👤${n}</span>` : ''}</div>
+            ${extrasHtml}
             ${g.group_name ? `<div class="g-group">${escHtml(g.group_name)}</div>` : ''}
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 }
 
 function filterPanelGuests(val) { renderPanel(val || null); }
@@ -379,9 +408,9 @@ function buildRound(t, cap) {
                  ondragleave="seatDragLeave(event)"
                  ondrop="seatDrop(event)"
                  onclick="seatClick(event,${t.id},${i},${guestId || 0})"
-                 title="${g ? escHtml(g.name) : 'מושב ריק'}"
+                 title="${g ? escHtml(g.name) + (g.plus_one ? ' +' + escHtml(g.plus_one_name||'1') : '') : 'מושב ריק'}"
                  onmousedown="event.stopPropagation()">
-                ${g ? abbrev(g.name) : '+'}
+                ${seatContent(g)}
             </div>`;
     }
 
@@ -417,9 +446,9 @@ function buildRect(t, cap, wide) {
                         ondragleave="seatDragLeave(event)"
                         ondrop="seatDrop(event)"
                         onclick="seatClick(event,${t.id},${i},${guestId || 0})"
-                        title="${g ? escHtml(g.name) : 'מושב ריק'}"
+                        title="${g ? escHtml(g.name) + (g.plus_one ? ' +' + escHtml(g.plus_one_name||'1') : '') : 'מושב ריק'}"
                         onmousedown="event.stopPropagation()">
-                        ${g ? abbrev(g.name) : '+'}
+                        ${seatContent(g)}
                     </div>`;
         }).join('');
     }
@@ -561,17 +590,22 @@ function closeAssignModal() { document.getElementById('assign-modal').style.disp
 
 function renderAssignList(filter) {
     const unseated = GUESTS.filter(g => g.status !== 'declined' && (!guestAssign[g.id] || guestAssign[g.id].table_id === assignTarget.table_id));
-    const list = filter ? unseated.filter(g => g.name.includes(filter)||(g.group_name||'').includes(filter)) : unseated;
+    const list = filter ? unseated.filter(g => g.name.includes(filter)||(g.group_name||'').includes(filter)||(g.plus_one_name||'').includes(filter)) : unseated;
     const scroll = document.getElementById('guest-list-scroll');
     if (!list.length) { scroll.innerHTML = '<div style="text-align:center;color:#9ca3af;padding:1rem;font-size:.8rem">לא נמצאו מוזמנים</div>'; return; }
     scroll.innerHTML = list.map(g => {
         const isCurrentlyHere = guestAssign[g.id] && guestAssign[g.id].table_id === assignTarget.table_id && guestAssign[g.id].seat_number === assignTarget.seat_number;
+        const extras = [];
+        if (g.plus_one) extras.push(`<span style="color:#be123c;font-weight:600">+${escHtml(g.plus_one_name||'1')}</span>`);
+        if (g.children_count > 0) extras.push(`<span style="color:#1d4ed8">${g.children_count} ילד${g.children_count>1?'ים':''}</span>`);
+        const n = personCount(g);
+        const subLine = [...extras, g.group_name ? `<span>${escHtml(g.group_name)}</span>` : ''].filter(Boolean).join(' · ');
         return `<div class="guest-option ${isCurrentlyHere?'bg-rose-50':''}" onclick="pickGuest(${g.id})">
-            <div>
-                <div class="go-name">${escHtml(g.name)}</div>
-                ${g.group_name?`<div class="go-group">${escHtml(g.group_name)}</div>`:''}
+            <div style="flex:1;min-width:0">
+                <div class="go-name">${escHtml(g.name)}${n>1?` <span style="font-size:.65rem;color:#9ca3af;font-weight:400">👤${n}</span>`:''}</div>
+                ${subLine ? `<div class="go-group" style="margin-top:.1rem">${subLine}</div>` : ''}
             </div>
-            ${isCurrentlyHere ? '<span style="color:#be123c;font-size:.7rem">✓ כאן</span>' : ''}
+            ${isCurrentlyHere ? '<span style="color:#be123c;font-size:.7rem;flex-shrink:0">✓ כאן</span>' : ''}
         </div>`;
     }).join('');
 }
@@ -718,6 +752,13 @@ function abbrev(name) {
     const parts = name.trim().split(/\s+/);
     if (parts.length === 1) return parts[0].slice(0, 4);
     return parts[0].slice(0,3) + ' ' + parts[parts.length-1][0] + '.';
+}
+function seatContent(g) {
+    if (!g) return '+';
+    const extra = (g.plus_one||0) + (g.children_count||0);
+    return extra > 0
+        ? `${abbrev(g.name)}<sup class="seat-extra">+${extra}</sup>`
+        : abbrev(g.name);
 }
 function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');

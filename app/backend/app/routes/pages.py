@@ -1862,14 +1862,14 @@ async def wedding_seating_page(request: Request, db_conn: sqlite3.Connection = D
         "SELECT * FROM wedding_seating_tables ORDER BY created_at"
     ).fetchall()]
     all_guests = [dict(r) for r in db_conn.execute(
-        "SELECT id, name, group_name, status FROM wedding_guests WHERE status != 'declined' ORDER BY group_name, name"
+        "SELECT id, name, group_name, status, plus_one, plus_one_name, children_count FROM wedding_guests WHERE status != 'declined' ORDER BY group_name, name"
     ).fetchall()]
     assignments = [dict(r) for r in db_conn.execute(
         "SELECT table_id, seat_number, guest_id FROM wedding_seating_assignments"
     ).fetchall()]
     seated_ids = {a["guest_id"] for a in assignments}
-    total_guests = len(all_guests)
-    seated_count = len(seated_ids)
+    total_guests = sum(1 + (g["plus_one"] or 0) + (g["children_count"] or 0) for g in all_guests)
+    seated_count = sum(1 + (g["plus_one"] or 0) + (g["children_count"] or 0) for g in all_guests if g["id"] in seated_ids)
     total_seats = sum(t["capacity"] for t in tables)
     return templates.TemplateResponse("wedding/seating.html", {
         "request": request,

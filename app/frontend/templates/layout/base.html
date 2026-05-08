@@ -553,11 +553,6 @@
         {% block content %}{% endblock %}
     </div>
 
-    <!-- Floating Action Button -->
-    <button class="fab" onclick="showQuickActions()" title="פעולות מהירות">
-        <i class="fas fa-plus"></i>
-    </button>
-
     <!-- Footer -->
     <footer class="footer text-white py-8 mt-auto relative">
         <div class="max-w-7xl mx-auto px-4 text-center relative z-10">
@@ -597,39 +592,6 @@
         </div>
     </footer>
 
-    <!-- Quick Actions Modal -->
-    <div id="quickActionsModal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="card-header">
-                <h3 class="text-lg font-semibold text-gray-900">פעולות מהירות</h3>
-            </div>
-            <div class="card-body">
-                <div class="grid grid-cols-2 gap-4">
-                    <button onclick="quickAction('add-transaction')" class="btn btn-primary w-full">
-                        <i class="fas fa-plus mr-2"></i>
-                        הוסף עסקה
-                    </button>
-                    <button onclick="quickAction('add-goal')" class="btn btn-success w-full">
-                        <i class="fas fa-bullseye mr-2"></i>
-                        הוסף מטרה
-                    </button>
-                    <button onclick="quickAction('add-memory')" class="btn btn-secondary w-full">
-                        <i class="fas fa-heart mr-2"></i>
-                        הוסף זיכרון
-                    </button>
-                    <button onclick="quickAction('view-stats')" class="btn btn-warning w-full">
-                        <i class="fas fa-chart-bar mr-2"></i>
-                        צפה בסטטיסטיקות
-                    </button>
-                </div>
-            </div>
-            <div class="card-footer">
-                <button onclick="hideModal('quickActionsModal')" class="btn btn-outline w-full">
-                    סגור
-                </button>
-            </div>
-        </div>
-    </div>
 
     <!-- JavaScript -->
     <!-- PERFORMANCE OPTIMIZED SCRIPTS -->

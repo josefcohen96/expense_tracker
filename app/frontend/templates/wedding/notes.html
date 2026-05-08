@@ -1,0 +1,244 @@
+{% extends "wedding/base.html" %}
+
+{% block wedding_title %}לזכור{% endblock %}
+{% block wedding_breadcrumb %}דברים שחשוב לזכור{% endblock %}
+
+{% block wedding_header_action %}
+<button onclick="openNoteModal()"
+    class="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 transition-colors shadow-sm">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+    </svg>
+    <span>פתק חדש</span>
+</button>
+{% endblock %}
+
+{% block wedding_content %}
+
+{% if notes %}
+<div class="columns-1 sm:columns-2 lg:columns-3 gap-4">
+    {% for note in notes %}
+    {% set bg_cls = {
+        'white':  'bg-white border-gray-200',
+        'rose':   'bg-rose-50 border-rose-200',
+        'orange': 'bg-orange-50 border-orange-200',
+        'yellow': 'bg-amber-50 border-amber-200',
+        'green':  'bg-green-50 border-green-200',
+        'teal':   'bg-teal-50 border-teal-200',
+        'blue':   'bg-sky-50 border-sky-200',
+        'purple': 'bg-purple-50 border-purple-200',
+        'pink':   'bg-pink-50 border-pink-200',
+    } %}
+    <div class="mb-4 break-inside-avoid rounded-2xl border shadow-sm hover:shadow-md transition-all duration-200 group {{ bg_cls.get(note.color, 'bg-white border-gray-200') }}">
+        <div class="p-4">
+            <div class="flex items-start gap-2 mb-2">
+                <h3 class="font-semibold text-gray-800 text-sm leading-snug flex-1 min-w-0">{{ note.title }}</h3>
+                <button onclick="togglePin({{ note.id }}, {{ note.pinned }})"
+                        class="flex-shrink-0 p-1 rounded-lg hover:bg-black/10 transition-colors mt-0.5"
+                        title="{% if note.pinned %}שחרר נעיצה{% else %}נעץ{% endif %}">
+                    <svg class="w-4 h-4 transition-colors {% if note.pinned %}text-rose-500{% else %}text-gray-300 group-hover:text-gray-400{% endif %}"
+                         fill="{% if note.pinned %}currentColor{% else %}none{% endif %}"
+                         stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>
+                    </svg>
+                </button>
+            </div>
+
+            {% if note.content %}
+            <p class="text-gray-600 text-sm whitespace-pre-wrap leading-relaxed">{{ note.content }}</p>
+            {% endif %}
+
+            <div class="mt-3 pt-2 border-t border-black/5 flex items-center justify-between">
+                <span class="text-xs text-gray-400">{{ note.updated_at[:10] if note.updated_at else '' }}</span>
+                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button data-note='{{ note | tojson }}'
+                            onclick="openEditNoteModal(JSON.parse(this.dataset.note))"
+                            class="p-1.5 rounded-lg hover:bg-black/10 text-gray-500 hover:text-gray-700 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                    </button>
+                    <button onclick="deleteNote({{ note.id }})"
+                            class="p-1.5 rounded-lg hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="flex flex-col items-center justify-center py-24 text-center">
+    <div class="text-6xl mb-5">📝</div>
+    <h3 class="text-xl font-bold text-gray-700 mb-2">אין עדיין פתקים</h3>
+    <p class="text-gray-500 text-sm mb-6">שמור כאן דברים חשובים שאתה רוצה לזכור</p>
+    <button onclick="openNoteModal()"
+        class="px-5 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700 transition-colors shadow-sm">
+        הוסף פתק ראשון
+    </button>
+</div>
+{% endif %}
+
+
+<!-- Create/Edit Modal -->
+<div id="note-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeNoteModal()"></div>
+    <div id="note-modal-card"
+         class="relative w-full max-w-md rounded-2xl shadow-2xl p-6 bg-white transition-colors duration-200">
+
+        <h2 id="modal-title" class="text-lg font-bold text-gray-800 mb-4">פתק חדש</h2>
+
+        <div class="space-y-3">
+            <input id="note-title-input" type="text" placeholder="כותרת..."
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-transparent text-sm font-semibold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                dir="rtl"/>
+
+            <textarea id="note-content-input" rows="5" placeholder="תוכן הפתק..."
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-transparent text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-300 resize-none"
+                dir="rtl"></textarea>
+
+            <!-- Color Picker -->
+            <div>
+                <p class="text-xs text-gray-500 mb-2 font-medium">צבע הפתק</p>
+                <div class="flex gap-2 flex-wrap">
+                    <button type="button" data-color="white"   onclick="selectColor('white')"   class="color-swatch w-7 h-7 rounded-full bg-white border-2 border-gray-300 hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                    <button type="button" data-color="rose"    onclick="selectColor('rose')"    class="color-swatch w-7 h-7 rounded-full bg-rose-300   hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                    <button type="button" data-color="orange"  onclick="selectColor('orange')"  class="color-swatch w-7 h-7 rounded-full bg-orange-300 hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                    <button type="button" data-color="yellow"  onclick="selectColor('yellow')"  class="color-swatch w-7 h-7 rounded-full bg-amber-300  hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                    <button type="button" data-color="green"   onclick="selectColor('green')"   class="color-swatch w-7 h-7 rounded-full bg-green-300  hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                    <button type="button" data-color="teal"    onclick="selectColor('teal')"    class="color-swatch w-7 h-7 rounded-full bg-teal-300   hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                    <button type="button" data-color="blue"    onclick="selectColor('blue')"    class="color-swatch w-7 h-7 rounded-full bg-sky-300    hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                    <button type="button" data-color="purple"  onclick="selectColor('purple')"  class="color-swatch w-7 h-7 rounded-full bg-purple-300 hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                    <button type="button" data-color="pink"    onclick="selectColor('pink')"    class="color-swatch w-7 h-7 rounded-full bg-pink-300   hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                </div>
+            </div>
+
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+                <input id="note-pin-input" type="checkbox"
+                       class="w-4 h-4 rounded accent-rose-500"/>
+                <span class="text-sm text-gray-700">נעץ פתק זה בראש הרשימה</span>
+            </label>
+        </div>
+
+        <input type="hidden" id="note-color-input" value="white"/>
+        <input type="hidden" id="note-id-input" value=""/>
+
+        <div class="mt-5 flex gap-3 justify-end">
+            <button onclick="closeNoteModal()"
+                class="px-4 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+                ביטול
+            </button>
+            <button onclick="saveNote()"
+                class="px-5 py-2 rounded-xl bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 transition-colors shadow-sm">
+                שמור
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<script>
+const COLOR_CARD_BG = {
+    white:  ['bg-white'],
+    rose:   ['bg-rose-50'],
+    orange: ['bg-orange-50'],
+    yellow: ['bg-amber-50'],
+    green:  ['bg-green-50'],
+    teal:   ['bg-teal-50'],
+    blue:   ['bg-sky-50'],
+    purple: ['bg-purple-50'],
+    pink:   ['bg-pink-50'],
+};
+
+function selectColor(color) {
+    document.getElementById('note-color-input').value = color;
+    document.querySelectorAll('.color-swatch').forEach(s => {
+        const isSelected = s.dataset.color === color;
+        s.classList.toggle('ring-2', isSelected);
+        s.classList.toggle('ring-rose-500', isSelected);
+        s.classList.toggle('scale-110', isSelected);
+    });
+    const card = document.getElementById('note-modal-card');
+    Object.values(COLOR_CARD_BG).flat().forEach(c => card.classList.remove(c));
+    (COLOR_CARD_BG[color] || COLOR_CARD_BG.white).forEach(c => card.classList.add(c));
+}
+
+function openNoteModal() {
+    document.getElementById('note-id-input').value = '';
+    document.getElementById('note-title-input').value = '';
+    document.getElementById('note-content-input').value = '';
+    document.getElementById('note-pin-input').checked = false;
+    document.getElementById('modal-title').textContent = 'פתק חדש';
+    selectColor('white');
+    showNoteModal();
+    setTimeout(() => document.getElementById('note-title-input').focus(), 50);
+}
+
+function openEditNoteModal(note) {
+    document.getElementById('note-id-input').value = note.id;
+    document.getElementById('note-title-input').value = note.title;
+    document.getElementById('note-content-input').value = note.content || '';
+    document.getElementById('note-pin-input').checked = !!note.pinned;
+    document.getElementById('modal-title').textContent = 'עריכת פתק';
+    selectColor(note.color || 'white');
+    showNoteModal();
+}
+
+function showNoteModal() {
+    const modal = document.getElementById('note-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeNoteModal() {
+    const modal = document.getElementById('note-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+async function saveNote() {
+    const id    = document.getElementById('note-id-input').value;
+    const title = document.getElementById('note-title-input').value.trim();
+    if (!title) {
+        document.getElementById('note-title-input').focus();
+        return;
+    }
+    const body = {
+        title,
+        content: document.getElementById('note-content-input').value.trim(),
+        color:   document.getElementById('note-color-input').value,
+        pinned:  document.getElementById('note-pin-input').checked ? 1 : 0,
+    };
+    const url    = id ? `/api/wedding/notes/${id}` : '/api/wedding/notes';
+    const method = id ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    if (res.ok) { closeNoteModal(); location.reload(); }
+}
+
+async function deleteNote(id) {
+    if (!confirm('למחוק את הפתק?')) return;
+    const res = await fetch(`/api/wedding/notes/${id}`, { method: 'DELETE' });
+    if (res.ok) location.reload();
+}
+
+async function togglePin(id, currentPinned) {
+    await fetch(`/api/wedding/notes/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinned: currentPinned ? 0 : 1 }),
+    });
+    location.reload();
+}
+</script>
+
+{% endblock %}

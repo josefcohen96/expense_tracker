@@ -109,6 +109,36 @@
             {% endif %}
         </a>
 
+        <a href="/wedding/notes" onclick="toggleWedDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+                   {% if 'notes' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+            <div class="w-8 h-8 rounded-lg {% if 'notes' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 {% if 'notes' in request.path %}text-rose-600{% else %}text-gray-500{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+            </div>
+            <span>לזכור</span>
+            {% if 'notes' in request.path %}
+            <span class="mr-auto w-2 h-2 rounded-full bg-rose-500"></span>
+            {% endif %}
+        </a>
+
+        <a href="/wedding/ideas" onclick="toggleWedDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+                   {% if 'ideas' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+            <div class="w-8 h-8 rounded-lg {% if 'ideas' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 {% if 'ideas' in request.path %}text-rose-600{% else %}text-gray-500{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                </svg>
+            </div>
+            <span>רעיונות</span>
+            {% if 'ideas' in request.path %}
+            <span class="mr-auto w-2 h-2 rounded-full bg-rose-500"></span>
+            {% endif %}
+        </a>
+
     </nav>
 </div>
 
@@ -119,7 +149,7 @@
             <span class="text-sm flex-shrink-0">💍</span>
             <span class="font-semibold text-gray-800 text-sm truncate">{% block wedding_breadcrumb %}חתונה{% endblock %}</span>
         </div>
-        <div class="flex items-center gap-2 flex-shrink-0">
+        <div class="flex items-center gap-3 flex-shrink-0">
             {% block wedding_header_action %}{% endblock %}
             <button onclick="toggleWedDrawer()"
                 class="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 transition-colors text-sm font-medium shadow-sm flex-shrink-0">

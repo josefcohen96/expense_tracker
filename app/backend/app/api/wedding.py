@@ -454,3 +454,117 @@ async def delete_vendor_file(file_id: int, db_conn: sqlite3.Connection = Depends
         file_path.unlink()
     db_conn.execute("DELETE FROM vendor_files WHERE id=?", (file_id,))
     db_conn.commit()
+
+
+# ─── Notes ────────────────────────────────────────────────────────────────────
+
+class NoteCreate(BaseModel):
+    title: str
+    content: Optional[str] = None
+    color: str = "white"
+    pinned: int = 0
+
+class NoteUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    color: Optional[str] = None
+    pinned: Optional[int] = None
+
+
+@router.get("/notes")
+async def list_notes(db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    rows = db_conn.execute(
+        "SELECT * FROM wedding_notes ORDER BY pinned DESC, updated_at DESC"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+@router.post("/notes", status_code=201)
+async def create_note(body: NoteCreate, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    cur = db_conn.execute(
+        "INSERT INTO wedding_notes (title, content, color, pinned) VALUES (?,?,?,?)",
+        (body.title, body.content, body.color, body.pinned),
+    )
+    db_conn.commit()
+    return dict(db_conn.execute("SELECT * FROM wedding_notes WHERE id=?", (cur.lastrowid,)).fetchone())
+
+
+@router.put("/notes/{note_id}")
+async def update_note(note_id: int, body: NoteUpdate, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    existing = db_conn.execute("SELECT * FROM wedding_notes WHERE id=?", (note_id,)).fetchone()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Note not found")
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not fields:
+        return dict(existing)
+    set_clause = ", ".join(f"{k}=?" for k in fields) + ", updated_at=CURRENT_TIMESTAMP"
+    db_conn.execute(
+        f"UPDATE wedding_notes SET {set_clause} WHERE id=?",
+        (*fields.values(), note_id),
+    )
+    db_conn.commit()
+    return dict(db_conn.execute("SELECT * FROM wedding_notes WHERE id=?", (note_id,)).fetchone())
+
+
+@router.delete("/notes/{note_id}", status_code=204)
+async def delete_note(note_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    db_conn.execute("DELETE FROM wedding_notes WHERE id=?", (note_id,))
+    db_conn.commit()
+
+
+# ─── Ideas ────────────────────────────────────────────────────────────────────
+
+class IdeaCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    category: str = "כללי"
+    status: str = "new"
+    color: str = "white"
+
+class IdeaUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    status: Optional[str] = None
+    color: Optional[str] = None
+
+
+@router.get("/ideas")
+async def list_ideas(db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    rows = db_conn.execute(
+        "SELECT * FROM wedding_ideas ORDER BY CASE status WHEN 'approved' THEN 1 WHEN 'new' THEN 2 WHEN 'considering' THEN 3 ELSE 4 END, created_at DESC"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+@router.post("/ideas", status_code=201)
+async def create_idea(body: IdeaCreate, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    cur = db_conn.execute(
+        "INSERT INTO wedding_ideas (title, description, category, status, color) VALUES (?,?,?,?,?)",
+        (body.title, body.description, body.category, body.status, body.color),
+    )
+    db_conn.commit()
+    return dict(db_conn.execute("SELECT * FROM wedding_ideas WHERE id=?", (cur.lastrowid,)).fetchone())
+
+
+@router.put("/ideas/{idea_id}")
+async def update_idea(idea_id: int, body: IdeaUpdate, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    existing = db_conn.execute("SELECT * FROM wedding_ideas WHERE id=?", (idea_id,)).fetchone()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Idea not found")
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not fields:
+        return dict(existing)
+    set_clause = ", ".join(f"{k}=?" for k in fields) + ", updated_at=CURRENT_TIMESTAMP"
+    db_conn.execute(
+        f"UPDATE wedding_ideas SET {set_clause} WHERE id=?",
+        (*fields.values(), idea_id),
+    )
+    db_conn.commit()
+    return dict(db_conn.execute("SELECT * FROM wedding_ideas WHERE id=?", (idea_id,)).fetchone())
+
+
+@router.delete("/ideas/{idea_id}", status_code=204)
+async def delete_idea(idea_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    db_conn.execute("DELETE FROM wedding_ideas WHERE id=?", (idea_id,))
+    db_conn.commit()

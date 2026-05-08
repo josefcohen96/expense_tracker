@@ -1,0 +1,331 @@
+{% extends "wedding/base.html" %}
+
+{% block wedding_title %}רעיונות{% endblock %}
+{% block wedding_breadcrumb %}רעיונות לחתונה{% endblock %}
+
+{% block wedding_header_action %}
+<button onclick="openIdeaModal()"
+    class="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 transition-colors shadow-sm">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+    </svg>
+    <span>רעיון חדש</span>
+</button>
+{% endblock %}
+
+{% block wedding_content %}
+
+<!-- Filters -->
+<div class="mb-6 space-y-3">
+    <!-- Status Pills -->
+    <div class="flex gap-2 flex-wrap">
+        {% for s, label, active_cls in [
+            ('',            'הכל',   'bg-gray-800 text-white shadow-md'),
+            ('new',         '✨ חדש',        'bg-blue-500 text-white shadow-md'),
+            ('considering', '🤔 שוקל',       'bg-amber-500 text-white shadow-md'),
+            ('approved',    '✅ אושר',        'bg-green-500 text-white shadow-md'),
+            ('rejected',    '❌ נדחה',        'bg-gray-400 text-white shadow-md'),
+        ] %}
+        <a href="?status={{ s }}{% if category_filter %}&category={{ category_filter }}{% endif %}"
+           class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all
+                  {% if status_filter == s %}{{ active_cls }}{% else %}bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:shadow-sm{% endif %}">
+            {{ label }}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Category Pills -->
+    {% if all_categories %}
+    <div class="flex gap-2 flex-wrap">
+        <a href="?{% if status_filter %}status={{ status_filter }}&{% endif %}category="
+           class="px-3 py-1.5 rounded-full text-xs font-medium border transition-all
+                  {% if not category_filter %}bg-rose-600 text-white border-rose-600 shadow-sm{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-300{% endif %}">
+            כל הקטגוריות
+        </a>
+        {% for cat in all_categories %}
+        <a href="?{% if status_filter %}status={{ status_filter }}&{% endif %}category={{ cat }}"
+           class="px-3 py-1.5 rounded-full text-xs font-medium border transition-all
+                  {% if category_filter == cat %}bg-rose-600 text-white border-rose-600 shadow-sm{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-300{% endif %}">
+            {{ cat }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+
+{% if ideas %}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for idea in ideas %}
+    {% set status_cfg = {
+        'new':        ('bg-blue-100 text-blue-700',   '✨', 'חדש'),
+        'considering':('bg-amber-100 text-amber-700', '🤔', 'שוקל'),
+        'approved':   ('bg-green-100 text-green-700', '✅', 'אושר'),
+        'rejected':   ('bg-gray-100 text-gray-500',   '❌', 'נדחה'),
+    } %}
+    {% set bg_cls = {
+        'white':  'bg-white border-gray-200',
+        'rose':   'bg-rose-50 border-rose-200',
+        'orange': 'bg-orange-50 border-orange-200',
+        'yellow': 'bg-amber-50 border-amber-200',
+        'green':  'bg-green-50 border-green-200',
+        'teal':   'bg-teal-50 border-teal-200',
+        'blue':   'bg-sky-50 border-sky-200',
+        'purple': 'bg-purple-50 border-purple-200',
+        'pink':   'bg-pink-50 border-pink-200',
+    } %}
+    {% set sc = status_cfg.get(idea.status, status_cfg['new']) %}
+    <div class="rounded-2xl border shadow-sm hover:shadow-md transition-all duration-200 group {{ bg_cls.get(idea.color, 'bg-white border-gray-200') }}">
+        <div class="p-4 flex flex-col h-full">
+            <!-- Header row -->
+            <div class="flex items-start gap-2 mb-3">
+                <h3 class="font-semibold text-gray-800 text-sm leading-snug flex-1 min-w-0">{{ idea.title }}</h3>
+                <span class="flex-shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold {{ sc[0] }} whitespace-nowrap">
+                    {{ sc[1] }} {{ sc[2] }}
+                </span>
+            </div>
+
+            <!-- Description -->
+            {% if idea.description %}
+            <p class="text-gray-600 text-sm leading-relaxed mb-3 flex-1" style="display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;">{{ idea.description }}</p>
+            {% endif %}
+
+            <!-- Footer -->
+            <div class="mt-auto pt-2 border-t border-black/5 flex items-center justify-between">
+                <span class="text-xs px-2.5 py-1 bg-white/70 rounded-full text-gray-500 font-medium border border-black/5">
+                    {{ idea.category }}
+                </span>
+                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button data-idea='{{ idea | tojson }}'
+                            onclick="openEditIdeaModal(JSON.parse(this.dataset.idea))"
+                            class="p-1.5 rounded-lg hover:bg-black/10 text-gray-500 hover:text-gray-700 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                    </button>
+                    <button onclick="deleteIdea({{ idea.id }})"
+                            class="p-1.5 rounded-lg hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="flex flex-col items-center justify-center py-24 text-center">
+    <div class="text-6xl mb-5">💡</div>
+    <h3 class="text-xl font-bold text-gray-700 mb-2">אין עדיין רעיונות</h3>
+    <p class="text-gray-500 text-sm mb-6">הוסף רעיונות לחתונה — קישוט, אוכל, מוזיקה ועוד</p>
+    <button onclick="openIdeaModal()"
+        class="px-5 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700 transition-colors shadow-sm">
+        הוסף רעיון ראשון
+    </button>
+</div>
+{% endif %}
+
+
+<!-- Create/Edit Modal -->
+<div id="idea-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeIdeaModal()"></div>
+    <div id="idea-modal-card"
+         class="relative w-full max-w-md rounded-2xl shadow-2xl p-6 bg-white transition-colors duration-200 max-h-[92vh] overflow-y-auto">
+
+        <h2 id="idea-modal-title" class="text-lg font-bold text-gray-800 mb-4">רעיון חדש</h2>
+
+        <div class="space-y-4">
+            <input id="idea-title-input" type="text" placeholder="שם הרעיון..."
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-transparent text-sm font-semibold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                dir="rtl"/>
+
+            <textarea id="idea-desc-input" rows="3" placeholder="תיאור הרעיון (אופציונלי)..."
+                class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-transparent text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-300 resize-none"
+                dir="rtl"></textarea>
+
+            <!-- Category -->
+            <div>
+                <p class="text-xs text-gray-500 mb-2 font-medium">קטגוריה</p>
+                <div class="flex gap-2 flex-wrap">
+                    {% for cat in ['קישוט', 'אוכל', 'מוזיקה', 'מקום', 'לבוש', 'צילום', 'כללי', 'אחר'] %}
+                    <button type="button" data-cat="{{ cat }}" onclick="selectCategory('{{ cat }}')"
+                            class="cat-btn px-3 py-1.5 rounded-full text-xs font-medium border border-gray-200 bg-white text-gray-600 hover:border-rose-300 hover:text-rose-600 transition-colors">
+                        {{ cat }}
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Status -->
+            <div>
+                <p class="text-xs text-gray-500 mb-2 font-medium">סטטוס</p>
+                <div class="flex gap-2 flex-wrap">
+                    <button type="button" data-status="new"         onclick="selectIdeaStatus('new')"         class="status-btn px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors">✨ חדש</button>
+                    <button type="button" data-status="considering" onclick="selectIdeaStatus('considering')" class="status-btn px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors">🤔 שוקל</button>
+                    <button type="button" data-status="approved"    onclick="selectIdeaStatus('approved')"    class="status-btn px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors">✅ אושר</button>
+                    <button type="button" data-status="rejected"    onclick="selectIdeaStatus('rejected')"    class="status-btn px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors">❌ נדחה</button>
+                </div>
+            </div>
+
+            <!-- Color Picker -->
+            <div>
+                <p class="text-xs text-gray-500 mb-2 font-medium">צבע הכרטיס</p>
+                <div class="flex gap-2 flex-wrap">
+                    <button type="button" data-color="white"  onclick="selectIdeaColor('white')"  class="idea-color w-7 h-7 rounded-full bg-white border-2 border-gray-300 hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                    <button type="button" data-color="rose"   onclick="selectIdeaColor('rose')"   class="idea-color w-7 h-7 rounded-full bg-rose-300   hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                    <button type="button" data-color="orange" onclick="selectIdeaColor('orange')" class="idea-color w-7 h-7 rounded-full bg-orange-300 hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                    <button type="button" data-color="yellow" onclick="selectIdeaColor('yellow')" class="idea-color w-7 h-7 rounded-full bg-amber-300  hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                    <button type="button" data-color="green"  onclick="selectIdeaColor('green')"  class="idea-color w-7 h-7 rounded-full bg-green-300  hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                    <button type="button" data-color="teal"   onclick="selectIdeaColor('teal')"   class="idea-color w-7 h-7 rounded-full bg-teal-300   hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                    <button type="button" data-color="blue"   onclick="selectIdeaColor('blue')"   class="idea-color w-7 h-7 rounded-full bg-sky-300    hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                    <button type="button" data-color="purple" onclick="selectIdeaColor('purple')" class="idea-color w-7 h-7 rounded-full bg-purple-300 hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                    <button type="button" data-color="pink"   onclick="selectIdeaColor('pink')"   class="idea-color w-7 h-7 rounded-full bg-pink-300   hover:scale-110 transition-transform ring-offset-1 focus:outline-none"></button>
+                </div>
+            </div>
+        </div>
+
+        <input type="hidden" id="idea-color-input"    value="white"/>
+        <input type="hidden" id="idea-category-input" value="כללי"/>
+        <input type="hidden" id="idea-status-input"   value="new"/>
+        <input type="hidden" id="idea-id-input"       value=""/>
+
+        <div class="mt-5 flex gap-3 justify-end">
+            <button onclick="closeIdeaModal()"
+                class="px-4 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+                ביטול
+            </button>
+            <button onclick="saveIdea()"
+                class="px-5 py-2 rounded-xl bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 transition-colors shadow-sm">
+                שמור
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<script>
+const IDEA_BG = {
+    white:  ['bg-white'],
+    rose:   ['bg-rose-50'],
+    orange: ['bg-orange-50'],
+    yellow: ['bg-amber-50'],
+    green:  ['bg-green-50'],
+    teal:   ['bg-teal-50'],
+    blue:   ['bg-sky-50'],
+    purple: ['bg-purple-50'],
+    pink:   ['bg-pink-50'],
+};
+const STATUS_CLASSES = {
+    new:         'border-blue-300 bg-blue-50 text-blue-700',
+    considering: 'border-amber-300 bg-amber-50 text-amber-700',
+    approved:    'border-green-300 bg-green-50 text-green-700',
+    rejected:    'border-gray-300 bg-gray-100 text-gray-500',
+};
+
+function selectIdeaColor(color) {
+    document.getElementById('idea-color-input').value = color;
+    document.querySelectorAll('.idea-color').forEach(s => {
+        const sel = s.dataset.color === color;
+        s.classList.toggle('ring-2', sel);
+        s.classList.toggle('ring-rose-500', sel);
+        s.classList.toggle('scale-110', sel);
+    });
+    const card = document.getElementById('idea-modal-card');
+    Object.values(IDEA_BG).flat().forEach(c => card.classList.remove(c));
+    (IDEA_BG[color] || IDEA_BG.white).forEach(c => card.classList.add(c));
+}
+
+function selectCategory(cat) {
+    document.getElementById('idea-category-input').value = cat;
+    document.querySelectorAll('.cat-btn').forEach(b => {
+        const active = b.dataset.cat === cat;
+        b.classList.toggle('bg-rose-600',     active);
+        b.classList.toggle('text-white',      active);
+        b.classList.toggle('border-rose-600', active);
+        b.classList.toggle('bg-white',        !active);
+        b.classList.toggle('text-gray-600',   !active);
+        b.classList.toggle('border-gray-200', !active);
+    });
+}
+
+function selectIdeaStatus(status) {
+    document.getElementById('idea-status-input').value = status;
+    document.querySelectorAll('.status-btn').forEach(b => {
+        const active = b.dataset.status === status;
+        b.className = `status-btn px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+            active ? STATUS_CLASSES[status] : 'border-gray-200 bg-white text-gray-500'
+        }`;
+    });
+}
+
+function openIdeaModal() {
+    document.getElementById('idea-id-input').value = '';
+    document.getElementById('idea-title-input').value = '';
+    document.getElementById('idea-desc-input').value = '';
+    document.getElementById('idea-modal-title').textContent = 'רעיון חדש';
+    selectIdeaColor('white');
+    selectCategory('כללי');
+    selectIdeaStatus('new');
+    showIdeaModal();
+    setTimeout(() => document.getElementById('idea-title-input').focus(), 50);
+}
+
+function openEditIdeaModal(idea) {
+    document.getElementById('idea-id-input').value = idea.id;
+    document.getElementById('idea-title-input').value = idea.title;
+    document.getElementById('idea-desc-input').value = idea.description || '';
+    document.getElementById('idea-modal-title').textContent = 'עריכת רעיון';
+    selectIdeaColor(idea.color || 'white');
+    selectCategory(idea.category || 'כללי');
+    selectIdeaStatus(idea.status || 'new');
+    showIdeaModal();
+}
+
+function showIdeaModal() {
+    const modal = document.getElementById('idea-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeIdeaModal() {
+    const modal = document.getElementById('idea-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+async function saveIdea() {
+    const id    = document.getElementById('idea-id-input').value;
+    const title = document.getElementById('idea-title-input').value.trim();
+    if (!title) {
+        document.getElementById('idea-title-input').focus();
+        return;
+    }
+    const body = {
+        title,
+        description: document.getElementById('idea-desc-input').value.trim(),
+        category:    document.getElementById('idea-category-input').value,
+        status:      document.getElementById('idea-status-input').value,
+        color:       document.getElementById('idea-color-input').value,
+    };
+    const url    = id ? `/api/wedding/ideas/${id}` : '/api/wedding/ideas';
+    const method = id ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    if (res.ok) { closeIdeaModal(); location.reload(); }
+}
+
+async function deleteIdea(id) {
+    if (!confirm('למחוק את הרעיון?')) return;
+    const res = await fetch(`/api/wedding/ideas/${id}`, { method: 'DELETE' });
+    if (res.ok) location.reload();
+}
+</script>
+
+{% endblock %}

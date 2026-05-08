@@ -1777,3 +1777,37 @@ async def wedding_budget_page(request: Request, db_conn: sqlite3.Connection = De
         "grand_paid": grand_paid,
         "grand_left": grand_left,
     })
+
+
+@router.get("/wedding/notes", response_class=HTMLResponse)
+async def wedding_notes_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    notes = [dict(r) for r in db_conn.execute(
+        "SELECT * FROM wedding_notes ORDER BY pinned DESC, updated_at DESC"
+    ).fetchall()]
+    return templates.TemplateResponse("wedding/notes.html", {"request": request, "notes": notes})
+
+
+@router.get("/wedding/ideas", response_class=HTMLResponse)
+async def wedding_ideas_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    category_filter = request.query_params.get("category", "")
+    status_filter   = request.query_params.get("status", "")
+    query  = "SELECT * FROM wedding_ideas WHERE 1=1"
+    params: list = []
+    if category_filter:
+        query += " AND category=?"
+        params.append(category_filter)
+    if status_filter:
+        query += " AND status=?"
+        params.append(status_filter)
+    query += " ORDER BY CASE status WHEN 'approved' THEN 1 WHEN 'new' THEN 2 WHEN 'considering' THEN 3 ELSE 4 END, created_at DESC"
+    ideas = [dict(r) for r in db_conn.execute(query, params).fetchall()]
+    all_categories = [r[0] for r in db_conn.execute(
+        "SELECT DISTINCT category FROM wedding_ideas ORDER BY category"
+    ).fetchall()]
+    return templates.TemplateResponse("wedding/ideas.html", {
+        "request": request,
+        "ideas": ideas,
+        "category_filter": category_filter,
+        "status_filter": status_filter,
+        "all_categories": all_categories,
+    })

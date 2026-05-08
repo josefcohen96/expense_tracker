@@ -613,13 +613,15 @@ function renderAssignList(filter) {
 function filterAssignGuests(val) { if(assignTarget) renderAssignList(val); }
 
 async function pickGuest(guestId) {
+    const { table_id, seat_number } = assignTarget;
     closeAssignModal();
-    await doAssign(guestId, assignTarget.table_id, assignTarget.seat_number);
+    await doAssign(guestId, table_id, seat_number);
 }
 async function clearSeat() {
     if (!assignTarget || !assignTarget.current_guest_id) return;
+    const guestId = assignTarget.current_guest_id;
     closeAssignModal();
-    await doUnassign(assignTarget.current_guest_id);
+    await doUnassign(guestId);
 }
 
 // ─── Core assign/unassign ─────────────────────────────────────────────────────

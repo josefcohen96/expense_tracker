@@ -132,6 +132,23 @@
 /* ─── Seat extra badge ───────────────────────────────── */
 .seat-extra { font-size:.42rem; vertical-align:super; font-weight:700; }
 
+/* ─── Group member seats ─────────────────────────────── */
+.seat.group-member::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 5px;
+    right: 5px;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+    opacity: 0.35;
+    pointer-events: none;
+}
+.seat.group-extra { opacity: .82; }
+.seat.group-extra .sub-name { font-size:.48rem; font-weight:600; line-height:1.2; }
+.seat.group-extra .sub-icon { font-size:.6rem; line-height:1; }
+
 /* ─── Modals ──────────────────────────────────────────── */
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:2000;
                  display:flex; align-items:center; justify-content:center; padding:1rem; }
@@ -274,7 +291,11 @@ GUESTS.forEach(g => { guestMap[g.id] = g; });
 ASSIGNS.forEach(a => {
     assignMap[a.table_id] = assignMap[a.table_id] || {};
     assignMap[a.table_id][a.seat_number] = a.guest_id;
-    guestAssign[a.guest_id] = { table_id: a.table_id, seat_number: a.seat_number };
+    if (!guestAssign[a.guest_id]) {
+        guestAssign[a.guest_id] = { table_id: a.table_id, seat_number: a.seat_number, seats: [a.seat_number] };
+    } else {
+        guestAssign[a.guest_id].seats.push(a.seat_number);
+    }
 });
 TABLES.forEach(t => { tableMap[t.id] = t; });
 
@@ -396,8 +417,10 @@ function buildRound(t, cap) {
         const guestId = (assignMap[t.id] || {})[i];
         const g = guestId ? guestMap[guestId] : null;
         const occupied = !!g;
+        const slotIdx = guestId ? seatSlotIdx(guestId, i) : 0;
+        const groupCls = guestId ? seatGroupClasses(guestId, i) : '';
         seatsHtml += `
-            <div class="seat ${occupied ? 'occupied' : 'empty'}"
+            <div class="seat ${occupied ? 'occupied' : 'empty'}${groupCls}"
                  style="left:${cx}px;top:${cy}px;"
                  data-table-id="${t.id}" data-seat="${i}"
                  data-guest-id="${guestId || ''}"
@@ -408,9 +431,9 @@ function buildRound(t, cap) {
                  ondragleave="seatDragLeave(event)"
                  ondrop="seatDrop(event)"
                  onclick="seatClick(event,${t.id},${i},${guestId || 0})"
-                 title="${g ? escHtml(g.name) + (g.plus_one ? ' +' + escHtml(g.plus_one_name||'1') : '') : 'מושב ריק'}"
+                 title="${seatTitle(g, slotIdx)}"
                  onmousedown="event.stopPropagation()">
-                ${seatContent(g)}
+                ${seatContent(g, slotIdx)}
             </div>`;
     }
 
@@ -435,7 +458,9 @@ function buildRect(t, cap, wide) {
         return indices.map(i => {
             const guestId = (assignMap[t.id] || {})[i];
             const g = guestId ? guestMap[guestId] : null;
-            return `<div class="seat ${g ? 'occupied' : 'empty'}"
+            const slotIdx = guestId ? seatSlotIdx(guestId, i) : 0;
+            const groupCls = guestId ? seatGroupClasses(guestId, i) : '';
+            return `<div class="seat ${g ? 'occupied' : 'empty'}${groupCls}"
                         style="width:${seatW}px;height:${seatH}px;position:relative;border-radius:.4rem;"
                         data-table-id="${t.id}" data-seat="${i}"
                         data-guest-id="${guestId || ''}"
@@ -446,9 +471,9 @@ function buildRect(t, cap, wide) {
                         ondragleave="seatDragLeave(event)"
                         ondrop="seatDrop(event)"
                         onclick="seatClick(event,${t.id},${i},${guestId || 0})"
-                        title="${g ? escHtml(g.name) + (g.plus_one ? ' +' + escHtml(g.plus_one_name||'1') : '') : 'מושב ריק'}"
+                        title="${seatTitle(g, slotIdx)}"
                         onmousedown="event.stopPropagation()">
-                        ${seatContent(g)}
+                        ${seatContent(g, slotIdx)}
                     </div>`;
         }).join('');
     }
@@ -579,8 +604,12 @@ function seatClick(e, tableId, seatNum, guestId) {
 function openAssignModal(tableId, seatNum, currentGuestId) {
     assignTarget = {table_id: tableId, seat_number: seatNum, current_guest_id: currentGuestId};
     const t = tableMap[tableId];
+    const ga = currentGuestId ? guestAssign[currentGuestId] : null;
+    const isGroup = ga && ga.seats.length > 1;
     document.getElementById('assign-info').textContent = `שולחן: ${t.name} — מושב ${seatNum + 1}`;
-    document.getElementById('clear-seat-btn').style.display = currentGuestId ? '' : 'none';
+    const clearBtn = document.getElementById('clear-seat-btn');
+    clearBtn.style.display = currentGuestId ? '' : 'none';
+    clearBtn.textContent = isGroup ? 'הסר קבוצה' : 'הסר מהמושב';
     document.getElementById('guest-search-input').value = '';
     renderAssignList('');
     document.getElementById('assign-modal').style.display = 'flex';
@@ -593,18 +622,34 @@ function renderAssignList(filter) {
     const list = filter ? unseated.filter(g => g.name.includes(filter)||(g.group_name||'').includes(filter)||(g.plus_one_name||'').includes(filter)) : unseated;
     const scroll = document.getElementById('guest-list-scroll');
     if (!list.length) { scroll.innerHTML = '<div style="text-align:center;color:#9ca3af;padding:1rem;font-size:.8rem">לא נמצאו מוזמנים</div>'; return; }
+
+    // Calculate available seats at this table for each guest
+    const tableId = assignTarget.table_id;
+    const cap = tableMap[tableId].capacity;
+
     scroll.innerHTML = list.map(g => {
-        const isCurrentlyHere = guestAssign[g.id] && guestAssign[g.id].table_id === assignTarget.table_id && guestAssign[g.id].seat_number === assignTarget.seat_number;
+        const ga = guestAssign[g.id];
+        const isCurrentlyHere = ga && ga.table_id === tableId && ga.seats.includes(assignTarget.seat_number);
         const extras = [];
         if (g.plus_one) extras.push(`<span style="color:#be123c;font-weight:600">+${escHtml(g.plus_one_name||'1')}</span>`);
         if (g.children_count > 0) extras.push(`<span style="color:#1d4ed8">${g.children_count} ילד${g.children_count>1?'ים':''}</span>`);
         const n = personCount(g);
         const subLine = [...extras, g.group_name ? `<span>${escHtml(g.group_name)}</span>` : ''].filter(Boolean).join(' · ');
+
+        // Count seats available for this guest
+        const occupiedByOthers = Object.values(assignMap[tableId] || {}).filter(gid => gid !== g.id).length;
+        const available = cap - occupiedByOthers;
+        const notEnough = n > available;
+
+        const multiTag = n > 1
+            ? `<span style="color:${notEnough?'#dc2626':'#6b7280'};font-size:.65rem;flex-shrink:0;margin-right:.25rem">${notEnough?'⚠️ ':''}👥${n}</span>`
+            : '';
         return `<div class="guest-option ${isCurrentlyHere?'bg-rose-50':''}" onclick="pickGuest(${g.id})">
             <div style="flex:1;min-width:0">
-                <div class="go-name">${escHtml(g.name)}${n>1?` <span style="font-size:.65rem;color:#9ca3af;font-weight:400">👤${n}</span>`:''}</div>
+                <div class="go-name">${escHtml(g.name)}</div>
                 ${subLine ? `<div class="go-group" style="margin-top:.1rem">${subLine}</div>` : ''}
             </div>
+            ${multiTag}
             ${isCurrentlyHere ? '<span style="color:#be123c;font-size:.7rem;flex-shrink:0">✓ כאן</span>' : ''}
         </div>`;
     }).join('');
@@ -626,36 +671,87 @@ async function clearSeat() {
 
 // ─── Core assign/unassign ─────────────────────────────────────────────────────
 async function doAssign(guestId, tableId, seatNum) {
-    // optimistic update
+    const g = guestMap[guestId];
+    const cap = tableMap[tableId].capacity;
+    const needed = Math.min(g ? personCount(g) : 1, cap);
+
+    // Build consecutive seats list starting from seatNum (wrapping around for round tables)
+    const allSeats = [];
+    for (let i = 0; i < needed; i++) {
+        allSeats.push((seatNum + i) % cap);
+    }
+
+    // Remove previous assignment for this guest (all their seats, possibly another table)
     const prev = guestAssign[guestId];
     if (prev) {
-        delete assignMap[prev.table_id][prev.seat_number];
-        refreshTable(prev.table_id);
+        for (const s of prev.seats) {
+            if (assignMap[prev.table_id]) delete assignMap[prev.table_id][s];
+        }
+        if (prev.table_id !== tableId) refreshTable(prev.table_id);
     }
-    const prevOccupant = (assignMap[tableId] || {})[seatNum];
-    if (prevOccupant && prevOccupant !== guestId) {
-        delete guestAssign[prevOccupant];
-        delete assignMap[tableId][seatNum];
-        refreshTable(tableId);
+
+    // Displace any other guests occupying target seats (including their full groups)
+    const displaced = new Set();
+    for (const s of allSeats) {
+        const occ = (assignMap[tableId] || {})[s];
+        if (occ && occ !== guestId) displaced.add(occ);
     }
+    for (const dId of displaced) {
+        const dp = guestAssign[dId];
+        if (dp) {
+            for (const s of dp.seats) {
+                if (assignMap[dp.table_id]) delete assignMap[dp.table_id][s];
+            }
+            delete guestAssign[dId];
+        }
+    }
+
+    // Apply new assignments
     assignMap[tableId] = assignMap[tableId] || {};
-    assignMap[tableId][seatNum] = guestId;
-    guestAssign[guestId] = {table_id: tableId, seat_number: seatNum};
+    for (const s of allSeats) assignMap[tableId][s] = guestId;
+    guestAssign[guestId] = { table_id: tableId, seat_number: seatNum, seats: allSeats };
+
     refreshTable(tableId);
     renderPanel(document.getElementById('panel-search').value || null);
     updateStats();
-    await api('POST', '/api/wedding/seating/assign', {table_id: tableId, seat_number: seatNum, guest_id: guestId});
+
+    // Warn if we couldn't fit everyone (needed was capped at capacity)
+    if (g && personCount(g) > cap) {
+        const missing = personCount(g) - cap;
+        showToast(`⚠️ ${missing} מקומות חסרים בשולחן — הוקצו ${cap} מתוך ${personCount(g)}`);
+    }
+
+    await api('POST', '/api/wedding/seating/assign', {
+        table_id: tableId, seat_number: seatNum, guest_id: guestId,
+        extra_seats: allSeats.slice(1)
+    });
 }
 
 async function doUnassign(guestId) {
     const prev = guestAssign[guestId];
     if (!prev) return;
-    delete assignMap[prev.table_id][prev.seat_number];
+    for (const s of prev.seats) {
+        if (assignMap[prev.table_id]) delete assignMap[prev.table_id][s];
+    }
     delete guestAssign[guestId];
     refreshTable(prev.table_id);
     renderPanel(document.getElementById('panel-search').value || null);
     updateStats();
     await api('DELETE', `/api/wedding/seating/assign/${guestId}`);
+}
+
+function showToast(msg) {
+    let t = document.getElementById('seating-toast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'seating-toast';
+        t.style.cssText = 'position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:.6rem 1.2rem;border-radius:.75rem;font-size:.8rem;z-index:9999;opacity:0;transition:opacity .25s;pointer-events:none;max-width:320px;text-align:center';
+        document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => { t.style.opacity = '0'; }, 3500);
 }
 
 // ─── Table Add/Edit Modal ─────────────────────────────────────────────────────
@@ -755,12 +851,39 @@ function abbrev(name) {
     if (parts.length === 1) return parts[0].slice(0, 4);
     return parts[0].slice(0,3) + ' ' + parts[parts.length-1][0] + '.';
 }
-function seatContent(g) {
+
+// slotIdx: 0 = primary guest, 1 = plus-one, 2+ = children
+function seatContent(g, slotIdx) {
     if (!g) return '+';
-    const extra = (g.plus_one||0) + (g.children_count||0);
-    return extra > 0
-        ? `${abbrev(g.name)}<sup class="seat-extra">+${extra}</sup>`
-        : abbrev(g.name);
+    if (slotIdx <= 0) return abbrev(g.name);
+    if (slotIdx === 1 && g.plus_one) {
+        const n = g.plus_one_name ? abbrev(g.plus_one_name) : '+1';
+        return `<span class="sub-name">${escHtml(n)}</span>`;
+    }
+    const childNum = g.plus_one ? slotIdx - 1 : slotIdx;
+    return `<span class="sub-icon">👶${childNum > 1 ? childNum : ''}</span>`;
+}
+
+function seatGroupClasses(guestId, seatNum) {
+    const ga = guestAssign[guestId];
+    if (!ga || ga.seats.length <= 1) return '';
+    const slotIdx = ga.seats.indexOf(seatNum);
+    return ' group-member' + (slotIdx > 0 ? ' group-extra' : '');
+}
+
+function seatSlotIdx(guestId, seatNum) {
+    const ga = guestAssign[guestId];
+    if (!ga) return 0;
+    const idx = ga.seats.indexOf(seatNum);
+    return idx >= 0 ? idx : 0;
+}
+
+function seatTitle(g, slotIdx) {
+    if (!g) return 'מושב ריק';
+    if (slotIdx <= 0) return escHtml(g.name) + (g.plus_one ? ' +' + escHtml(g.plus_one_name||'1') : '');
+    if (slotIdx === 1 && g.plus_one) return escHtml(g.plus_one_name || '+1') + ` (${escHtml(g.name)})`;
+    const childNum = g.plus_one ? slotIdx - 1 : slotIdx;
+    return `ילד ${childNum} (${escHtml(g.name)})`;
 }
 function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');

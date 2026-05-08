@@ -744,6 +744,7 @@ class SeatingAssign(BaseModel):
     table_id: int
     seat_number: int
     guest_id: int
+    extra_seats: list[int] = []
 
 
 @router.get("/seating")
@@ -816,17 +817,21 @@ async def delete_seating_table(table_id: int, db_conn: sqlite3.Connection = Depe
 
 @router.post("/seating/assign", status_code=201)
 async def assign_guest(body: SeatingAssign, db_conn: sqlite3.Connection = Depends(get_db_conn)):
-    # Remove any existing assignment for this guest
+    all_seats = [body.seat_number] + body.extra_seats
+    # Remove all existing assignments for this guest
     db_conn.execute("DELETE FROM wedding_seating_assignments WHERE guest_id=?", (body.guest_id,))
-    # Remove any existing occupant of this seat
-    db_conn.execute(
-        "DELETE FROM wedding_seating_assignments WHERE table_id=? AND seat_number=?",
-        (body.table_id, body.seat_number),
-    )
-    db_conn.execute(
-        "INSERT INTO wedding_seating_assignments (table_id, seat_number, guest_id) VALUES (?,?,?)",
-        (body.table_id, body.seat_number, body.guest_id),
-    )
+    # Remove existing occupants of all target seats
+    for seat in all_seats:
+        db_conn.execute(
+            "DELETE FROM wedding_seating_assignments WHERE table_id=? AND seat_number=?",
+            (body.table_id, seat),
+        )
+    # Insert one row per seat
+    for seat in all_seats:
+        db_conn.execute(
+            "INSERT INTO wedding_seating_assignments (table_id, seat_number, guest_id) VALUES (?,?,?)",
+            (body.table_id, seat, body.guest_id),
+        )
     db_conn.commit()
     return {"ok": True}
 
@@ -834,5 +839,4 @@ async def assign_guest(body: SeatingAssign, db_conn: sqlite3.Connection = Depend
 @router.delete("/seating/assign/{guest_id}", status_code=204)
 async def unassign_guest(guest_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     db_conn.execute("DELETE FROM wedding_seating_assignments WHERE guest_id=?", (guest_id,))
-    db_conn.commit()
     db_conn.commit()

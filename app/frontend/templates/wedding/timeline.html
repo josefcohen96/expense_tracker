@@ -210,6 +210,18 @@
                         <span class="text-xl">📌</span>
                         <span class="text-xs text-gray-600 font-semibold">כללי</span>
                     </button>
+                    <button type="button" onclick="setCategory('custom')" id="cat-custom"
+                        class="cat-btn flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 border-transparent bg-indigo-50 hover:border-indigo-300 transition-all">
+                        <span class="text-xl">✏️</span>
+                        <span class="text-xs text-indigo-700 font-semibold">אחר</span>
+                    </button>
+                </div>
+                <!-- Custom category input — shown only when "אחר" is selected -->
+                <div id="custom-cat-wrap" class="hidden mt-2">
+                    <input type="text" id="custom-cat-input"
+                        placeholder="שם קטגוריה + אימוג׳י, לדוגמה: 🎤 הופעה"
+                        maxlength="40"
+                        class="w-full border border-indigo-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all bg-indigo-50 placeholder-indigo-300 text-indigo-800">
                 </div>
             </div>
 
@@ -288,6 +300,7 @@
 .event-card.cat-logistics { background: #fffbeb; border-color: #fbbf24; color: #92400e; }
 .event-card.cat-personal  { background: #fdf2f8; border-color: #f472b6; color: #831843; }
 .event-card.cat-general   { background: #f9fafb; border-color: #9ca3af; color: #374151; }
+.event-card.cat-custom    { background: #eef2ff; border-color: #818cf8; color: #3730a3; }
 
 /* Hour labels + grid lines */
 .hour-label {
@@ -357,8 +370,9 @@ let selDay = 'thursday';
 let selCat = 'general';
 let activeDay = 'thursday';
 
-const CAT_EMOJI = { ceremony:'💒', food:'🍽️', vendors:'📸', leisure:'🌿', logistics:'🚛', personal:'💕', general:'📌' };
-const CAT_BORDER = { ceremony:'#fb7185', food:'#fb923c', vendors:'#c084fc', leisure:'#2dd4bf', logistics:'#fbbf24', personal:'#f472b6', general:'#9ca3af' };
+const PRESET_CATS = { ceremony:'💒', food:'🍽️', vendors:'📸', leisure:'🌿', logistics:'🚛', personal:'💕', general:'📌' };
+const CAT_EMOJI  = PRESET_CATS; // alias kept for rendering
+const CAT_BORDER = { ceremony:'#fb7185', food:'#fb923c', vendors:'#c084fc', leisure:'#2dd4bf', logistics:'#fbbf24', personal:'#f472b6', general:'#9ca3af', custom:'#818cf8' };
 const DAY_ACTIVE = {
     thursday: 'border-amber-400 bg-amber-50 text-amber-700',
     friday:   'border-rose-400 bg-rose-50 text-rose-700',
@@ -435,24 +449,41 @@ function renderAll() {
 }
 
 function makeCard(ev) {
-    const cat   = ev.category || 'general';
-    const top   = timeToTop(ev.start_time);
-    const h     = durPx(ev.start_time, ev.end_time);
-    const emoji = CAT_EMOJI[cat] || '📌';
+    const cat     = ev.category || 'general';
+    const isPreset = cat in PRESET_CATS;
+    const top     = timeToTop(ev.start_time);
+    const h       = durPx(ev.start_time, ev.end_time);
+
+    // For custom categories: extract leading emoji if present, else show ✏️
+    let emoji, label;
+    if (isPreset) {
+        emoji = PRESET_CATS[cat];
+        label = null;
+    } else {
+        const firstChar = [...cat][0];
+        const isEmoji   = /\p{Emoji}/u.test(firstChar);
+        emoji = isEmoji ? firstChar : '✏️';
+        label = isEmoji ? cat.slice([...cat][0].length).trim() : cat;
+    }
 
     const card = document.createElement('div');
-    card.className = `event-card cat-${cat}`;
-    card.style.cssText = `top:${top}px; height:${h}px;`;
+    card.className = `event-card ${isPreset ? 'cat-' + cat : 'cat-custom'}`;
+    if (!isPreset) {
+        card.style.cssText = `top:${top}px; height:${h}px;`;
+    } else {
+        card.style.cssText = `top:${top}px; height:${h}px;`;
+    }
 
     const showEnd  = ev.end_time && h > 44;
     const showDesc = ev.description && h > 62;
+    const showLabel = !isPreset && label && h > 44;
 
     card.innerHTML = `
         <div style="display:flex;align-items:flex-start;gap:5px;">
             <span style="font-size:13px;line-height:1;flex-shrink:0;margin-top:1px">${emoji}</span>
             <div style="min-width:0;flex:1;">
                 <div style="font-size:11px;font-weight:700;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(ev.title)}</div>
-                <div style="font-size:10px;opacity:0.65;margin-top:2px;">${fmtTime(ev.start_time)}${showEnd ? ' – ' + fmtTime(ev.end_time) : ''}</div>
+                <div style="font-size:10px;opacity:0.65;margin-top:2px;">${fmtTime(ev.start_time)}${showEnd ? ' – ' + fmtTime(ev.end_time) : ''}${showLabel ? ' · ' + esc(label) : ''}</div>
                 ${showDesc ? `<div style="font-size:10px;opacity:0.55;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(ev.description)}</div>` : ''}
             </div>
         </div>`;
@@ -508,6 +539,8 @@ function openAdd(day, startTime, endTime) {
     document.getElementById('event-start-time').value = startTime || '';
     document.getElementById('event-end-time').value   = endTime   || '';
     document.getElementById('event-description').value = '';
+    document.getElementById('custom-cat-input').value = '';
+    document.getElementById('custom-cat-wrap').classList.add('hidden');
     document.getElementById('delete-btn').classList.add('hidden');
     setDay(selDay);
     setCategory('general');
@@ -520,15 +553,19 @@ function openAddModal(day) { openAdd(day, '', ''); }
 function openEdit(ev) {
     editingId = ev.id;
     selDay = ev.day;
-    selCat = ev.category || 'general';
+    const cat = ev.category || 'general';
+    selCat = cat;
     document.getElementById('modal-title').textContent = 'עריכת אירוע';
     document.getElementById('event-title').value        = ev.title || '';
     document.getElementById('event-start-time').value  = ev.start_time || '';
     document.getElementById('event-end-time').value    = ev.end_time   || '';
     document.getElementById('event-description').value = ev.description || '';
     document.getElementById('delete-btn').classList.remove('hidden');
+    // If custom category, pre-fill the text input
+    const isPreset = cat in PRESET_CATS;
+    document.getElementById('custom-cat-input').value = isPreset ? '' : cat;
     setDay(selDay);
-    setCategory(selCat);
+    setCategory(isPreset ? cat : 'custom');
     document.getElementById('event-modal').classList.remove('hidden');
 }
 
@@ -554,10 +591,20 @@ function setCategory(cat) {
         btn.style.transform   = '';
         btn.style.boxShadow   = '';
     });
-    const active = document.getElementById('cat-' + cat);
+    const isPreset = cat in PRESET_CATS || cat === 'custom';
+    const btnId    = isPreset ? cat : 'custom';
+    const active   = document.getElementById('cat-' + btnId);
     if (active) {
         active.classList.add('active');
-        active.style.borderColor = CAT_BORDER[cat] || '#9ca3af';
+        active.style.borderColor = CAT_BORDER[btnId] || '#818cf8';
+    }
+    // Show/hide custom text input
+    const wrap = document.getElementById('custom-cat-wrap');
+    if (cat === 'custom' || !(cat in PRESET_CATS)) {
+        wrap.classList.remove('hidden');
+        document.getElementById('custom-cat-input').focus();
+    } else {
+        wrap.classList.add('hidden');
     }
 }
 
@@ -573,13 +620,26 @@ async function saveEvent() {
     }
     if (!start) { document.getElementById('event-start-time').focus(); return; }
 
+    // Resolve final category: if "custom" selected, use the free-text value
+    let finalCat = selCat;
+    if (selCat === 'custom') {
+        const customText = document.getElementById('custom-cat-input').value.trim();
+        if (!customText) {
+            document.getElementById('custom-cat-input').focus();
+            document.getElementById('custom-cat-input').classList.add('border-red-400','ring-2','ring-red-200');
+            setTimeout(() => document.getElementById('custom-cat-input').classList.remove('border-red-400','ring-2','ring-red-200'), 2000);
+            return;
+        }
+        finalCat = customText;
+    }
+
     const payload = {
         day:         selDay,
         title,
         start_time:  start,
         end_time:    document.getElementById('event-end-time').value || null,
         description: document.getElementById('event-description').value.trim() || null,
-        category:    selCat,
+        category:    finalCat,
     };
 
     try {

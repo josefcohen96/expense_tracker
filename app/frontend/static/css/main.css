@@ -118,9 +118,6 @@ body {
   color: var(--gray-700);
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   min-height: 100vh;
-  /* Performance optimizations */
-  will-change: auto;
-  contain: paint;
 }
 
 /* Typography */
@@ -135,8 +132,6 @@ h6 {
   line-height: 1.2;
   margin-bottom: 1rem;
   color: var(--gray-900);
-  /* Performance optimization */
-  contain: layout style;
 }
 
 /* Monospace for numbers and data */
@@ -188,7 +183,6 @@ h6 {
   overflow: hidden;
   /* Performance optimizations */
   will-change: transform, box-shadow;
-  contain: layout style paint;
 }
 
 .btn::before {
@@ -282,7 +276,6 @@ h6 {
   overflow: hidden;
   /* Performance optimizations */
   will-change: transform, box-shadow;
-  contain: layout style paint;
 }
 
 .card:hover {
@@ -546,15 +539,11 @@ h6 {
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-md);
   overflow: hidden;
-  /* Performance optimization */
-  contain: layout style paint;
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
-  /* Performance optimization */
-  contain: layout style;
 }
 
 .table th {

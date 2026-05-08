@@ -191,6 +191,11 @@
             visibility: visible !important;
         }
 
+        /* Prevent horizontal scrollbar without breaking sticky positioning */
+        html {
+            overflow-x: clip;
+        }
+
         /* ===== MAIN CONTENT LAYER (z-index: 10-50) ===== */
         .main-content {
             flex: 1;
@@ -544,7 +549,7 @@
     </nav>
 
     <!-- Main Content Area -->
-    <div class="main-content w-full overflow-x-hidden">
+    <div class="main-content w-full">
         {% block content %}{% endblock %}
     </div>
 

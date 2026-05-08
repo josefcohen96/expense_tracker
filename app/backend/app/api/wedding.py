@@ -627,3 +627,124 @@ async def update_timeline_event(event_id: int, body: TimelineEventUpdate, db_con
 async def delete_timeline_event(event_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     db_conn.execute("DELETE FROM wedding_timeline_events WHERE id=?", (event_id,))
     db_conn.commit()
+
+
+# ─── Seating Chart ────────────────────────────────────────────────────────────
+
+class SeatingTableCreate(BaseModel):
+    name: str
+    shape: str = "round"
+    capacity: int = 8
+    x: float = 100
+    y: float = 100
+    color: str = "rose"
+    notes: Optional[str] = None
+
+class SeatingTableUpdate(BaseModel):
+    name: Optional[str] = None
+    shape: Optional[str] = None
+    capacity: Optional[int] = None
+    x: Optional[float] = None
+    y: Optional[float] = None
+    color: Optional[str] = None
+    notes: Optional[str] = None
+
+class SeatingTablePositions(BaseModel):
+    tables: list  # [{id, x, y}]
+
+class SeatingAssign(BaseModel):
+    table_id: int
+    seat_number: int
+    guest_id: int
+
+
+@router.get("/seating")
+async def get_seating(db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    tables = [dict(r) for r in db_conn.execute(
+        "SELECT * FROM wedding_seating_tables ORDER BY created_at"
+    ).fetchall()]
+    assignments = [dict(r) for r in db_conn.execute(
+        """SELECT a.*, g.name as guest_name, g.group_name, g.status as guest_status
+           FROM wedding_seating_assignments a
+           JOIN wedding_guests g ON g.id = a.guest_id"""
+    ).fetchall()]
+    unassigned = [dict(r) for r in db_conn.execute(
+        """SELECT g.id, g.name, g.group_name, g.status, g.plus_one, g.plus_one_name, g.children_count
+           FROM wedding_guests g
+           WHERE g.id NOT IN (SELECT guest_id FROM wedding_seating_assignments)
+           AND g.status != 'declined'
+           ORDER BY g.group_name, g.name"""
+    ).fetchall()]
+    # attach assignments to tables
+    assign_map: dict = {}
+    for a in assignments:
+        tid = a["table_id"]
+        assign_map.setdefault(tid, {})[a["seat_number"]] = a
+    for t in tables:
+        t["assignments"] = assign_map.get(t["id"], {})
+    return {"tables": tables, "unassigned": unassigned}
+
+
+@router.post("/seating/tables", status_code=201)
+async def create_seating_table(body: SeatingTableCreate, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    cur = db_conn.execute(
+        "INSERT INTO wedding_seating_tables (name, shape, capacity, x, y, color, notes) VALUES (?,?,?,?,?,?,?)",
+        (body.name, body.shape, body.capacity, body.x, body.y, body.color, body.notes),
+    )
+    db_conn.commit()
+    return dict(db_conn.execute("SELECT * FROM wedding_seating_tables WHERE id=?", (cur.lastrowid,)).fetchone())
+
+
+@router.put("/seating/tables/{table_id}")
+async def update_seating_table(table_id: int, body: SeatingTableUpdate, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    existing = db_conn.execute("SELECT * FROM wedding_seating_tables WHERE id=?", (table_id,)).fetchone()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Table not found")
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not fields:
+        return dict(existing)
+    set_clause = ", ".join(f"{k}=?" for k in fields)
+    db_conn.execute(f"UPDATE wedding_seating_tables SET {set_clause} WHERE id=?", (*fields.values(), table_id))
+    db_conn.commit()
+    return dict(db_conn.execute("SELECT * FROM wedding_seating_tables WHERE id=?", (table_id,)).fetchone())
+
+
+@router.post("/seating/tables/positions")
+async def update_table_positions(body: SeatingTablePositions, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    for item in body.tables:
+        db_conn.execute(
+            "UPDATE wedding_seating_tables SET x=?, y=? WHERE id=?",
+            (item["x"], item["y"], item["id"]),
+        )
+    db_conn.commit()
+    return {"ok": True}
+
+
+@router.delete("/seating/tables/{table_id}", status_code=204)
+async def delete_seating_table(table_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    db_conn.execute("DELETE FROM wedding_seating_tables WHERE id=?", (table_id,))
+    db_conn.commit()
+
+
+@router.post("/seating/assign", status_code=201)
+async def assign_guest(body: SeatingAssign, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    # Remove any existing assignment for this guest
+    db_conn.execute("DELETE FROM wedding_seating_assignments WHERE guest_id=?", (body.guest_id,))
+    # Remove any existing occupant of this seat
+    db_conn.execute(
+        "DELETE FROM wedding_seating_assignments WHERE table_id=? AND seat_number=?",
+        (body.table_id, body.seat_number),
+    )
+    db_conn.execute(
+        "INSERT INTO wedding_seating_assignments (table_id, seat_number, guest_id) VALUES (?,?,?)",
+        (body.table_id, body.seat_number, body.guest_id),
+    )
+    db_conn.commit()
+    return {"ok": True}
+
+
+@router.delete("/seating/assign/{guest_id}", status_code=204)
+async def unassign_guest(guest_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    db_conn.execute("DELETE FROM wedding_seating_assignments WHERE guest_id=?", (guest_id,))
+    db_conn.commit()
+    db_conn.commit()

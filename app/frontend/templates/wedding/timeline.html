@@ -41,10 +41,10 @@
         <span class="flex items-center gap-1.5 px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium border border-gray-200">📌 כללי</span>
     </div>
 
-    <!-- Mobile Day Tabs -->
-    <div class="lg:hidden flex bg-gray-100 rounded-2xl p-1 mb-4">
+    <!-- Mobile Day Tabs — RTL order: ה׳ right, ו׳ middle, ש׳ left -->
+    <div class="lg:hidden flex bg-gray-100 rounded-2xl p-1 mb-4" dir="rtl">
         <button id="tab-thursday" onclick="switchDay('thursday')"
-            class="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all bg-white text-rose-700 shadow-sm">
+            class="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all bg-white text-amber-700 shadow-sm">
             יום ה׳
         </button>
         <button id="tab-friday" onclick="switchDay('friday')"
@@ -57,17 +57,17 @@
         </button>
     </div>
 
-    <!-- Timeline Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4" id="timeline-grid" dir="ltr">
+    <!-- Timeline Grid — RTL: Thursday rightmost, Saturday leftmost -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4" id="timeline-grid" dir="rtl">
 
-        <!-- THURSDAY -->
+        <!-- THURSDAY (rightmost in RTL) -->
         <div class="timeline-day-col bg-white rounded-2xl shadow-md overflow-hidden" data-day="thursday">
             <div class="bg-gradient-to-br from-amber-400 to-amber-600 p-4 text-white">
                 <div class="flex items-center justify-between">
                     <div>
                         <div class="text-xs font-semibold opacity-70 uppercase tracking-widest mb-1">Day 1</div>
                         <h2 class="text-xl font-bold leading-tight" dir="rtl">יום חמישי</h2>
-                        <p class="text-amber-100 text-sm mt-0.5" dir="rtl">🚗 הגעה ומסיבה</p>
+                        <p class="text-amber-100 text-sm mt-0.5" dir="rtl">📦 לוגיסטיקה והכנות</p>
                     </div>
                     <button onclick="openAddModal('thursday')"
                         class="w-10 h-10 bg-white/20 hover:bg-white/35 active:bg-white/50 rounded-xl flex items-center justify-center text-white transition-colors flex-shrink-0"

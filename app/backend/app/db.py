@@ -459,5 +459,31 @@ def initialise_database() -> None:
         )
     """)
 
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS wedding_seating_tables (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            shape TEXT NOT NULL DEFAULT 'round',
+            capacity INTEGER NOT NULL DEFAULT 8,
+            x REAL NOT NULL DEFAULT 100,
+            y REAL NOT NULL DEFAULT 100,
+            color TEXT NOT NULL DEFAULT 'rose',
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS wedding_seating_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            table_id INTEGER NOT NULL REFERENCES wedding_seating_tables(id) ON DELETE CASCADE,
+            seat_number INTEGER NOT NULL,
+            guest_id INTEGER NOT NULL REFERENCES wedding_guests(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(table_id, seat_number),
+            UNIQUE(guest_id)
+        )
+    """)
+
     conn.commit()
     conn.close()

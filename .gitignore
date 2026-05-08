@@ -8,7 +8,7 @@ __pycache__/
 *.sqlite3
 *.db
 *.log
-
+*.pyc
 # Virtual environments
 venv/
 env/

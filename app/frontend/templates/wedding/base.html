@@ -139,6 +139,21 @@
             {% endif %}
         </a>
 
+        <a href="/wedding/seating" onclick="toggleWedDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+                   {% if 'seating' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+            <div class="w-8 h-8 rounded-lg {% if 'seating' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 {% if 'seating' in request.path %}text-rose-600{% else %}text-gray-500{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M4 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2z"/>
+                </svg>
+            </div>
+            <span>הושבות</span>
+            {% if 'seating' in request.path %}
+            <span class="mr-auto w-2 h-2 rounded-full bg-rose-500"></span>
+            {% endif %}
+        </a>
+
         <a href="/wedding/timeline" onclick="toggleWedDrawer()"
             class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
                    {% if 'timeline' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
@@ -277,6 +292,21 @@
             </div>
             <span>רעיונות</span>
             {% if 'ideas' in request.path %}
+            <span class="mr-auto w-2 h-2 rounded-full bg-rose-500"></span>
+            {% endif %}
+        </a>
+
+        <a href="/wedding/seating"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+                   {% if 'seating' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+            <div class="w-8 h-8 rounded-lg {% if 'seating' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 {% if 'seating' in request.path %}text-rose-600{% else %}text-gray-500{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M4 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2z"/>
+                </svg>
+            </div>
+            <span>הושבות</span>
+            {% if 'seating' in request.path %}
             <span class="mr-auto w-2 h-2 rounded-full bg-rose-500"></span>
             {% endif %}
         </a>

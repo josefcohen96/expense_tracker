@@ -1,0 +1,734 @@
+{% extends "wedding/base.html" %}
+{% block wedding_title %}הושבות{% endblock %}
+{% block wedding_breadcrumb %}הושבות{% endblock %}
+
+{% block wedding_header_action %}
+<div class="flex items-center gap-2">
+    <button onclick="openAddTableModal()"
+        class="flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold shadow transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        הוסף שולחן
+    </button>
+    <button onclick="toggleGuestsPanel()"
+        class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm font-medium shadow-sm transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        מוזמנים
+    </button>
+</div>
+{% endblock %}
+
+{% block wedding_content %}
+<style>
+/* ─── Stats Bar ─────────────────────────────────────── */
+.stats-bar { display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1rem; }
+.stat-chip { background:#fff; border:1px solid #e5e7eb; border-radius:.75rem; padding:.5rem 1rem;
+             font-size:.8rem; font-weight:600; color:#374151; display:flex; align-items:center; gap:.4rem; }
+.stat-chip span { color:#be123c; }
+
+/* ─── Main layout ────────────────────────────────────── */
+.seating-wrap { display:flex; gap:0; height:calc(100vh - 220px); min-height:520px; position:relative; }
+
+/* ─── Canvas ─────────────────────────────────────────── */
+#canvas-outer { flex:1; overflow:auto; background:#f8f5f0;
+                border-radius:1rem; border:1px solid #e5e7eb;
+                background-image: radial-gradient(circle, #d1d5db 1px, transparent 1px);
+                background-size: 32px 32px;
+                position:relative; }
+#canvas { position:relative; min-width:1400px; min-height:900px; }
+
+/* ─── Table widget ───────────────────────────────────── */
+.table-widget { position:absolute; cursor:grab; user-select:none; }
+.table-widget:active { cursor:grabbing; }
+.table-widget.dragging { opacity:.85; z-index:1000; }
+
+.table-label { text-align:center; font-size:.7rem; font-weight:700; color:#fff;
+               background:#be123c; border-radius:.5rem .5rem 0 0;
+               padding:.2rem .6rem; display:flex; align-items:center; justify-content:space-between; gap:.3rem; }
+.table-label .tbl-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.table-label .tbl-btns { display:flex; gap:.2rem; flex-shrink:0; }
+.table-label button { background:rgba(255,255,255,.2); border:none; cursor:pointer; border-radius:.3rem;
+                      padding:.1rem .3rem; color:#fff; font-size:.65rem; line-height:1; transition:background .15s; }
+.table-label button:hover { background:rgba(255,255,255,.4); }
+
+/* Color variants */
+.table-widget[data-color="rose"]   .table-label { background:#be123c; }
+.table-widget[data-color="purple"] .table-label { background:#7c3aed; }
+.table-widget[data-color="teal"]   .table-label { background:#0f766e; }
+.table-widget[data-color="amber"]  .table-label { background:#b45309; }
+.table-widget[data-color="blue"]   .table-label { background:#1d4ed8; }
+.table-widget[data-color="green"]  .table-label { background:#15803d; }
+
+/* ─── Round table ────────────────────────────────────── */
+.round-table-wrap { position:relative; }
+.round-table-circle { border-radius:50%; display:flex; align-items:center; justify-content:center;
+                       font-size:.65rem; font-weight:700; color:#6b7280; border:3px solid #d1d5db;
+                       background:#fff; flex-direction:column; gap:.1rem; }
+.round-table-circle .cnt { font-size:.55rem; color:#9ca3af; }
+
+.seat { position:absolute; border-radius:50%; width:36px; height:36px;
+        display:flex; align-items:center; justify-content:center;
+        font-size:.55rem; font-weight:600; cursor:pointer; transition:all .15s;
+        border:2px dashed #d1d5db; background:#f9fafb; color:#9ca3af; text-align:center;
+        overflow:hidden; line-height:1.1; }
+.seat.occupied { border:2px solid; background:#fff1f2; color:#9f1239; border-color:#fda4af; }
+.seat.occupied:hover { background:#ffe4e6; }
+.seat.empty:hover { background:#fff1f2; border-color:#fda4af; color:#be123c; border-style:solid; }
+.seat.drag-over { background:#fce7f3; border:2px solid #be123c; border-style:solid; }
+
+/* Color variants for occupied seats */
+.table-widget[data-color="purple"] .seat.occupied { background:#f5f3ff; color:#5b21b6; border-color:#c4b5fd; }
+.table-widget[data-color="teal"]   .seat.occupied { background:#f0fdfa; color:#134e4a; border-color:#99f6e4; }
+.table-widget[data-color="amber"]  .seat.occupied { background:#fffbeb; color:#92400e; border-color:#fcd34d; }
+.table-widget[data-color="blue"]   .seat.occupied { background:#eff6ff; color:#1e3a8a; border-color:#93c5fd; }
+.table-widget[data-color="green"]  .seat.occupied { background:#f0fdf4; color:#14532d; border-color:#86efac; }
+
+/* ─── Rectangular table ──────────────────────────────── */
+.rect-table-wrap { display:flex; flex-direction:column; align-items:center; gap:4px; }
+.rect-seats-row { display:flex; gap:4px; }
+.rect-body { border-radius:.5rem; border:3px solid #d1d5db; background:#fff;
+             display:flex; align-items:center; justify-content:center;
+             font-size:.65rem; font-weight:700; color:#6b7280; }
+
+/* ─── Guests Panel ───────────────────────────────────── */
+#guests-panel { width:240px; background:#fff; border-radius:1rem; border:1px solid #e5e7eb;
+                display:flex; flex-direction:column; overflow:hidden;
+                transition:width .25s, opacity .25s; flex-shrink:0; margin-right:.75rem; }
+#guests-panel.collapsed { width:0; opacity:0; pointer-events:none; overflow:hidden; margin:0; }
+
+.panel-header { padding:.75rem 1rem; background:#fff7f7; border-bottom:1px solid #fce7f3;
+                font-size:.8rem; font-weight:700; color:#be123c; flex-shrink:0; }
+.panel-search { padding:.5rem; border-bottom:1px solid #f3f4f6; flex-shrink:0; }
+.panel-search input { width:100%; padding:.35rem .6rem; border:1px solid #e5e7eb; border-radius:.5rem;
+                      font-size:.75rem; outline:none; }
+.panel-search input:focus { border-color:#fda4af; }
+
+.panel-body { flex:1; overflow-y:auto; padding:.5rem; }
+.guest-card { padding:.5rem .75rem; border-radius:.6rem; margin-bottom:.3rem; cursor:grab;
+              border:1px solid #f3f4f6; background:#fafafa; font-size:.75rem; transition:all .15s; }
+.guest-card:hover { background:#fff1f2; border-color:#fda4af; }
+.guest-card:active { cursor:grabbing; }
+.guest-card .g-name { font-weight:600; color:#374151; }
+.guest-card .g-group { color:#9ca3af; font-size:.65rem; }
+
+.panel-empty { text-align:center; padding:2rem 1rem; color:#9ca3af; font-size:.8rem; }
+
+/* ─── Modals ──────────────────────────────────────────── */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:2000;
+                 display:flex; align-items:center; justify-content:center; padding:1rem; }
+.modal-box { background:#fff; border-radius:1.25rem; padding:1.5rem; width:100%;
+             max-width:420px; max-height:90vh; overflow-y:auto; }
+.modal-title { font-size:1rem; font-weight:700; color:#111827; margin-bottom:1rem; }
+.form-label { font-size:.8rem; font-weight:600; color:#374151; display:block; margin-bottom:.25rem; margin-top:.75rem; }
+.form-input { width:100%; padding:.5rem .75rem; border:1px solid #d1d5db; border-radius:.6rem;
+              font-size:.85rem; outline:none; }
+.form-input:focus { border-color:#fda4af; box-shadow:0 0 0 3px rgba(253,164,175,.2); }
+.form-select { width:100%; padding:.5rem .75rem; border:1px solid #d1d5db; border-radius:.6rem;
+               font-size:.85rem; outline:none; background:#fff; }
+.btn-primary { background:#be123c; color:#fff; border:none; padding:.6rem 1.25rem; border-radius:.6rem;
+               font-size:.85rem; font-weight:600; cursor:pointer; transition:background .15s; }
+.btn-primary:hover { background:#9f1239; }
+.btn-secondary { background:#f3f4f6; color:#374151; border:none; padding:.6rem 1.25rem; border-radius:.6rem;
+                 font-size:.85rem; font-weight:600; cursor:pointer; }
+.color-picker { display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.25rem; }
+.color-dot { width:28px; height:28px; border-radius:50%; cursor:pointer; border:3px solid transparent;
+             transition:transform .15s; }
+.color-dot.selected { border-color:#111; transform:scale(1.15); }
+
+/* ─── Guest assign modal ─────────────────────────────── */
+.guest-option { padding:.5rem .75rem; border-radius:.6rem; cursor:pointer; display:flex;
+                align-items:center; justify-content:space-between; font-size:.8rem;
+                border:1px solid transparent; transition:all .1s; }
+.guest-option:hover { background:#fff1f2; border-color:#fda4af; }
+.guest-option .go-name { font-weight:600; color:#374151; }
+.guest-option .go-group { color:#9ca3af; font-size:.7rem; }
+.guest-search { width:100%; padding:.5rem .75rem; border:1px solid #d1d5db; border-radius:.6rem;
+                font-size:.85rem; outline:none; margin-bottom:.75rem; }
+.guest-search:focus { border-color:#fda4af; }
+.guest-list-scroll { max-height:320px; overflow-y:auto; }
+</style>
+
+<!-- Stats bar -->
+<div class="stats-bar">
+    <div class="stat-chip">🪑 <span id="stat-seated">{{ seated_count }}</span> / {{ total_guests }} מוזמנים מוושבים</div>
+    <div class="stat-chip">🪑 <span id="stat-tables">{{ tables|length }}</span> שולחנות</div>
+    <div class="stat-chip">📊 <span id="stat-capacity">{{ total_seats }}</span> מקומות</div>
+    <div class="stat-chip" id="stat-unassigned-chip">⏳ <span id="stat-unassigned">{{ total_guests - seated_count }}</span> ממתינים</div>
+</div>
+
+<!-- Main layout -->
+<div class="seating-wrap">
+    <!-- Guests panel -->
+    <div id="guests-panel">
+        <div class="panel-header">מוזמנים לא מוושבים</div>
+        <div class="panel-search">
+            <input type="text" id="panel-search" placeholder="חפש מוזמן..." oninput="filterPanelGuests(this.value)">
+        </div>
+        <div class="panel-body" id="panel-body"
+             ondragover="event.preventDefault(); event.currentTarget.classList.add('drag-over-panel')"
+             ondragleave="event.currentTarget.classList.remove('drag-over-panel')"
+             ondrop="dropOnPanel(event)">
+        </div>
+    </div>
+
+    <!-- Canvas -->
+    <div id="canvas-outer">
+        <div id="canvas"
+             ondragover="canvasDragOver(event)"
+             ondrop="canvasDrop(event)">
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Table Modal -->
+<div id="table-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this) closeTableModal()">
+    <div class="modal-box" dir="rtl">
+        <div class="modal-title" id="table-modal-title">הוסף שולחן</div>
+        <input type="hidden" id="edit-table-id">
+        <label class="form-label">שם השולחן</label>
+        <input class="form-input" id="tbl-name" placeholder="לדוגמה: שולחן 1 / משפחת כהן">
+
+        <label class="form-label">צורה</label>
+        <select class="form-select" id="tbl-shape" onchange="updateCapacityOptions()">
+            <option value="round">עגול 🔵</option>
+            <option value="rect">מלבני ▬</option>
+            <option value="sweetheart">זוג חתן/כלה 💑</option>
+            <option value="head">שולחן כבוד 👑</option>
+        </select>
+
+        <label class="form-label">כמות מקומות</label>
+        <select class="form-select" id="tbl-capacity">
+            <option value="4">4</option>
+            <option value="6">6</option>
+            <option value="8" selected>8</option>
+            <option value="10">10</option>
+            <option value="12">12</option>
+        </select>
+
+        <label class="form-label">צבע</label>
+        <div class="color-picker" id="color-picker">
+            <div class="color-dot selected" data-color="rose"   style="background:#be123c" onclick="selectColor('rose',this)"></div>
+            <div class="color-dot"          data-color="purple" style="background:#7c3aed" onclick="selectColor('purple',this)"></div>
+            <div class="color-dot"          data-color="teal"   style="background:#0f766e" onclick="selectColor('teal',this)"></div>
+            <div class="color-dot"          data-color="amber"  style="background:#b45309" onclick="selectColor('amber',this)"></div>
+            <div class="color-dot"          data-color="blue"   style="background:#1d4ed8" onclick="selectColor('blue',this)"></div>
+            <div class="color-dot"          data-color="green"  style="background:#15803d" onclick="selectColor('green',this)"></div>
+        </div>
+
+        <label class="form-label">הערות</label>
+        <input class="form-input" id="tbl-notes" placeholder="הערה אופציונלית">
+
+        <div class="flex gap-2 mt-5">
+            <button class="btn-primary flex-1" onclick="saveTable()">שמור</button>
+            <button class="btn-secondary" onclick="closeTableModal()">ביטול</button>
+        </div>
+    </div>
+</div>
+
+<!-- Assign Guest Modal -->
+<div id="assign-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this) closeAssignModal()">
+    <div class="modal-box" dir="rtl">
+        <div class="modal-title">בחר מוזמן למושב</div>
+        <p id="assign-info" class="text-xs text-gray-500 mb-3"></p>
+        <input class="guest-search" id="guest-search-input" placeholder="חפש לפי שם..." oninput="filterAssignGuests(this.value)">
+        <div class="guest-list-scroll" id="guest-list-scroll"></div>
+        <div class="flex justify-between mt-4">
+            <button class="btn-secondary text-sm" onclick="closeAssignModal()">ביטול</button>
+            <button class="btn-secondary text-sm text-red-600" onclick="clearSeat()" id="clear-seat-btn">הסר מהמושב</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+const TABLES   = {{ tables | tojson }};
+const GUESTS   = {{ all_guests | tojson }};
+const ASSIGNS  = {{ assignments | tojson }};
+
+// build quick lookup maps
+const tableMap   = {};   // id -> table obj
+const assignMap  = {};   // tableId -> { seatNum -> guestId }
+const guestAssign= {};   // guestId -> {table_id, seat_number}
+const guestMap   = {};   // guestId -> guest obj
+
+GUESTS.forEach(g => { guestMap[g.id] = g; });
+ASSIGNS.forEach(a => {
+    assignMap[a.table_id] = assignMap[a.table_id] || {};
+    assignMap[a.table_id][a.seat_number] = a.guest_id;
+    guestAssign[a.guest_id] = { table_id: a.table_id, seat_number: a.seat_number };
+});
+TABLES.forEach(t => { tableMap[t.id] = t; });
+
+let selectedColor = 'rose';
+let dragGuestId   = null;   // guest being dragged
+let dragTableId   = null;   // table being dragged (repositioning)
+let dragOffX = 0, dragOffY = 0;
+let panelOpen = true;
+let assignTarget = null;    // {table_id, seat_number}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    TABLES.forEach(t => renderTable(t));
+    renderPanel();
+    updateStats();
+});
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+function updateStats() {
+    const seatedCount = Object.keys(guestAssign).length;
+    const notDeclined = GUESTS.filter(g => g.status !== 'declined').length;
+    document.getElementById('stat-seated').textContent = seatedCount;
+    document.getElementById('stat-unassigned').textContent = Math.max(0, notDeclined - seatedCount);
+    document.getElementById('stat-tables').textContent = Object.keys(tableMap).length;
+    document.getElementById('stat-capacity').textContent = Object.values(tableMap).reduce((s, t) => s + t.capacity, 0);
+}
+
+// ─── Panel ────────────────────────────────────────────────────────────────────
+function renderPanel(filter) {
+    const body = document.getElementById('panel-body');
+    const unseated = GUESTS.filter(g => g.status !== 'declined' && !guestAssign[g.id]);
+    const list = filter ? unseated.filter(g => g.name.includes(filter) || (g.group_name||'').includes(filter)) : unseated;
+    if (!list.length) {
+        body.innerHTML = '<div class="panel-empty">כל המוזמנים מוושבים 🎉</div>';
+        return;
+    }
+    body.innerHTML = list.map(g => `
+        <div class="guest-card" draggable="true"
+             data-guest-id="${g.id}"
+             ondragstart="guestDragStart(event,${g.id})"
+             ondragend="guestDragEnd(event)">
+            <div class="g-name">${escHtml(g.name)}</div>
+            ${g.group_name ? `<div class="g-group">${escHtml(g.group_name)}</div>` : ''}
+        </div>
+    `).join('');
+}
+
+function filterPanelGuests(val) { renderPanel(val || null); }
+
+function toggleGuestsPanel() {
+    panelOpen = !panelOpen;
+    document.getElementById('guests-panel').classList.toggle('collapsed', !panelOpen);
+}
+
+// ─── Table rendering ──────────────────────────────────────────────────────────
+function renderTable(t) {
+    const existing = document.getElementById('tbl-' + t.id);
+    if (existing) existing.remove();
+
+    const div = document.createElement('div');
+    div.className = 'table-widget';
+    div.id = 'tbl-' + t.id;
+    div.dataset.tableId = t.id;
+    div.dataset.color = t.color || 'rose';
+    div.style.left = (t.x || 100) + 'px';
+    div.style.top  = (t.y || 100) + 'px';
+
+    div.innerHTML = `
+        <div class="table-label">
+            <span class="tbl-name">${escHtml(t.name)}</span>
+            <div class="tbl-btns">
+                <button title="ערוך" onclick="editTable(${t.id})" onmousedown="event.stopPropagation()">✏️</button>
+                <button title="מחק" onclick="deleteTable(${t.id})" onmousedown="event.stopPropagation()">🗑️</button>
+            </div>
+        </div>
+        ${buildTableBody(t)}
+    `;
+
+    // Drag-to-reposition
+    div.addEventListener('mousedown', tableMouseDown);
+
+    document.getElementById('canvas').appendChild(div);
+    tableMap[t.id] = t;
+}
+
+function buildTableBody(t) {
+    const cap = t.capacity;
+    if (t.shape === 'round' || t.shape === 'sweetheart') return buildRound(t, cap);
+    if (t.shape === 'head') return buildRect(t, cap, true);
+    return buildRect(t, cap, false);
+}
+
+function buildRound(t, cap) {
+    const R = cap <= 6 ? 58 : cap <= 8 ? 72 : cap <= 10 ? 86 : 98;
+    const circleD = cap <= 6 ? 64 : cap <= 8 ? 76 : cap <= 10 ? 88 : 100;
+    const wrapSize = (R + 22) * 2;
+    const center = wrapSize / 2;
+
+    let seatsHtml = '';
+    for (let i = 0; i < cap; i++) {
+        const angle = (360 / cap) * i - 90;
+        const rad = (angle * Math.PI) / 180;
+        const cx = center + R * Math.cos(rad) - 18;
+        const cy = center + R * Math.sin(rad) - 18;
+        const guestId = (assignMap[t.id] || {})[i];
+        const g = guestId ? guestMap[guestId] : null;
+        const occupied = !!g;
+        seatsHtml += `
+            <div class="seat ${occupied ? 'occupied' : 'empty'}"
+                 style="left:${cx}px;top:${cy}px;"
+                 data-table-id="${t.id}" data-seat="${i}"
+                 data-guest-id="${guestId || ''}"
+                 draggable="${occupied}"
+                 ondragstart="seatDragStart(event)"
+                 ondragend="guestDragEnd(event)"
+                 ondragover="seatDragOver(event)"
+                 ondragleave="seatDragLeave(event)"
+                 ondrop="seatDrop(event)"
+                 onclick="seatClick(event,${t.id},${i},${guestId || 0})"
+                 title="${g ? escHtml(g.name) : 'מושב ריק'}"
+                 onmousedown="event.stopPropagation()">
+                ${g ? abbrev(g.name) : '+'}
+            </div>`;
+    }
+
+    const seated = Object.keys(assignMap[t.id] || {}).length;
+    return `<div class="round-table-wrap" style="width:${wrapSize}px;height:${wrapSize}px;position:relative;">
+        <div class="round-table-circle" style="width:${circleD}px;height:${circleD}px;position:absolute;left:${center - circleD/2}px;top:${center - circleD/2}px;">
+            <span>${escHtml(t.name)}</span>
+            <span class="cnt">${seated}/${cap}</span>
+        </div>
+        ${seatsHtml}
+    </div>`;
+}
+
+function buildRect(t, cap, wide) {
+    const perSide = Math.floor(cap / 2);
+    const extra   = cap - perSide * 2;
+    const seatW = 40, seatH = 36, gap = 4;
+    const bodyW = wide ? Math.max(perSide * (seatW + gap) - gap, 140) : Math.max(perSide * (seatW + gap) - gap, 100);
+    const bodyH = wide ? 28 : 36;
+
+    function rowHtml(indices) {
+        return indices.map(i => {
+            const guestId = (assignMap[t.id] || {})[i];
+            const g = guestId ? guestMap[guestId] : null;
+            return `<div class="seat ${g ? 'occupied' : 'empty'}"
+                        style="width:${seatW}px;height:${seatH}px;position:relative;border-radius:.4rem;"
+                        data-table-id="${t.id}" data-seat="${i}"
+                        data-guest-id="${guestId || ''}"
+                        draggable="${!!g}"
+                        ondragstart="seatDragStart(event)"
+                        ondragend="guestDragEnd(event)"
+                        ondragover="seatDragOver(event)"
+                        ondragleave="seatDragLeave(event)"
+                        ondrop="seatDrop(event)"
+                        onclick="seatClick(event,${t.id},${i},${guestId || 0})"
+                        title="${g ? escHtml(g.name) : 'מושב ריק'}"
+                        onmousedown="event.stopPropagation()">
+                        ${g ? abbrev(g.name) : '+'}
+                    </div>`;
+        }).join('');
+    }
+
+    const topIdx    = Array.from({length: perSide + extra}, (_, k) => k);
+    const bottomIdx = Array.from({length: perSide}, (_, k) => perSide + extra + k);
+    const seated = Object.keys(assignMap[t.id] || {}).length;
+
+    return `<div class="rect-table-wrap">
+        <div class="rect-seats-row">${rowHtml(topIdx)}</div>
+        <div class="rect-body" style="width:${bodyW}px;height:${bodyH}px;font-size:.6rem;color:#6b7280;">${escHtml(t.name)}&nbsp;${seated}/${cap}</div>
+        <div class="rect-seats-row">${rowHtml(bottomIdx)}</div>
+    </div>`;
+}
+
+function refreshTable(tableId) {
+    const t = tableMap[tableId];
+    if (!t) return;
+    const div = document.getElementById('tbl-' + tableId);
+    if (!div) return;
+    // replace only body (keep label + position)
+    div.dataset.color = t.color || 'rose';
+    div.innerHTML = `
+        <div class="table-label">
+            <span class="tbl-name">${escHtml(t.name)}</span>
+            <div class="tbl-btns">
+                <button title="ערוך" onclick="editTable(${t.id})" onmousedown="event.stopPropagation()">✏️</button>
+                <button title="מחק" onclick="deleteTable(${t.id})" onmousedown="event.stopPropagation()">🗑️</button>
+            </div>
+        </div>
+        ${buildTableBody(t)}
+    `;
+    div.removeEventListener('mousedown', tableMouseDown);
+    div.addEventListener('mousedown', tableMouseDown);
+}
+
+// ─── Table drag-to-reposition ─────────────────────────────────────────────────
+function tableMouseDown(e) {
+    if (e.target.closest('button') || e.target.closest('.seat')) return;
+    dragTableId = parseInt(this.dataset.tableId);
+    const rect = this.getBoundingClientRect();
+    const canvasRect = document.getElementById('canvas-outer').getBoundingClientRect();
+    dragOffX = e.clientX - rect.left;
+    dragOffY = e.clientY - rect.top;
+    this.classList.add('dragging');
+    e.preventDefault();
+}
+document.addEventListener('mousemove', e => {
+    if (!dragTableId) return;
+    const outer = document.getElementById('canvas-outer');
+    const outerRect = outer.getBoundingClientRect();
+    const x = e.clientX - outerRect.left + outer.scrollLeft - dragOffX;
+    const y = e.clientY - outerRect.top  + outer.scrollTop  - dragOffY;
+    const el = document.getElementById('tbl-' + dragTableId);
+    if (el) { el.style.left = Math.max(0,x)+'px'; el.style.top = Math.max(0,y)+'px'; }
+});
+document.addEventListener('mouseup', async e => {
+    if (!dragTableId) return;
+    const el = document.getElementById('tbl-' + dragTableId);
+    if (el) {
+        el.classList.remove('dragging');
+        const nx = parseFloat(el.style.left), ny = parseFloat(el.style.top);
+        tableMap[dragTableId].x = nx;
+        tableMap[dragTableId].y = ny;
+        await api('POST', '/api/wedding/seating/tables/positions', {tables:[{id:dragTableId,x:nx,y:ny}]});
+    }
+    dragTableId = null;
+});
+
+// ─── Canvas drag-over / drop (for new table placement) ───────────────────────
+function canvasDragOver(e) { e.preventDefault(); }
+function canvasDrop(e) {
+    e.preventDefault();
+    if (dragGuestId) {
+        dropOnPanel(e);
+        dragGuestId = null;
+    }
+}
+
+// ─── Guest drag-and-drop ──────────────────────────────────────────────────────
+function guestDragStart(e, guestId) {
+    dragGuestId = guestId;
+    e.dataTransfer.setData('text/plain', guestId);
+    e.dataTransfer.effectAllowed = 'move';
+}
+function seatDragStart(e) {
+    const guestId = parseInt(e.currentTarget.dataset.guestId);
+    if (!guestId) { e.preventDefault(); return; }
+    dragGuestId = guestId;
+    e.dataTransfer.setData('text/plain', guestId);
+    e.dataTransfer.effectAllowed = 'move';
+}
+function guestDragEnd(e) { dragGuestId = null; }
+
+function seatDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.classList.add('drag-over');
+}
+function seatDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+
+async function seatDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.classList.remove('drag-over');
+    const guestId = parseInt(e.dataTransfer.getData('text/plain'));
+    const seatEl = e.currentTarget;
+    const tableId = parseInt(seatEl.dataset.tableId);
+    const seatNum = parseInt(seatEl.dataset.seat);
+    if (!guestId) return;
+    await doAssign(guestId, tableId, seatNum);
+}
+
+async function dropOnPanel(e) {
+    if (!dragGuestId) return;
+    const guestId = dragGuestId;
+    dragGuestId = null;
+    if (!guestAssign[guestId]) return;
+    await doUnassign(guestId);
+}
+
+// ─── Seat click (assign modal) ────────────────────────────────────────────────
+function seatClick(e, tableId, seatNum, guestId) {
+    e.stopPropagation();
+    openAssignModal(tableId, seatNum, guestId || 0);
+}
+
+function openAssignModal(tableId, seatNum, currentGuestId) {
+    assignTarget = {table_id: tableId, seat_number: seatNum, current_guest_id: currentGuestId};
+    const t = tableMap[tableId];
+    document.getElementById('assign-info').textContent = `שולחן: ${t.name} — מושב ${seatNum + 1}`;
+    document.getElementById('clear-seat-btn').style.display = currentGuestId ? '' : 'none';
+    document.getElementById('guest-search-input').value = '';
+    renderAssignList('');
+    document.getElementById('assign-modal').style.display = 'flex';
+    document.getElementById('guest-search-input').focus();
+}
+function closeAssignModal() { document.getElementById('assign-modal').style.display='none'; assignTarget=null; }
+
+function renderAssignList(filter) {
+    const unseated = GUESTS.filter(g => g.status !== 'declined' && (!guestAssign[g.id] || guestAssign[g.id].table_id === assignTarget.table_id));
+    const list = filter ? unseated.filter(g => g.name.includes(filter)||(g.group_name||'').includes(filter)) : unseated;
+    const scroll = document.getElementById('guest-list-scroll');
+    if (!list.length) { scroll.innerHTML = '<div style="text-align:center;color:#9ca3af;padding:1rem;font-size:.8rem">לא נמצאו מוזמנים</div>'; return; }
+    scroll.innerHTML = list.map(g => {
+        const isCurrentlyHere = guestAssign[g.id] && guestAssign[g.id].table_id === assignTarget.table_id && guestAssign[g.id].seat_number === assignTarget.seat_number;
+        return `<div class="guest-option ${isCurrentlyHere?'bg-rose-50':''}" onclick="pickGuest(${g.id})">
+            <div>
+                <div class="go-name">${escHtml(g.name)}</div>
+                ${g.group_name?`<div class="go-group">${escHtml(g.group_name)}</div>`:''}
+            </div>
+            ${isCurrentlyHere ? '<span style="color:#be123c;font-size:.7rem">✓ כאן</span>' : ''}
+        </div>`;
+    }).join('');
+}
+
+function filterAssignGuests(val) { if(assignTarget) renderAssignList(val); }
+
+async function pickGuest(guestId) {
+    closeAssignModal();
+    await doAssign(guestId, assignTarget.table_id, assignTarget.seat_number);
+}
+async function clearSeat() {
+    if (!assignTarget || !assignTarget.current_guest_id) return;
+    closeAssignModal();
+    await doUnassign(assignTarget.current_guest_id);
+}
+
+// ─── Core assign/unassign ─────────────────────────────────────────────────────
+async function doAssign(guestId, tableId, seatNum) {
+    // optimistic update
+    const prev = guestAssign[guestId];
+    if (prev) {
+        delete assignMap[prev.table_id][prev.seat_number];
+        refreshTable(prev.table_id);
+    }
+    const prevOccupant = (assignMap[tableId] || {})[seatNum];
+    if (prevOccupant && prevOccupant !== guestId) {
+        delete guestAssign[prevOccupant];
+        delete assignMap[tableId][seatNum];
+        refreshTable(tableId);
+    }
+    assignMap[tableId] = assignMap[tableId] || {};
+    assignMap[tableId][seatNum] = guestId;
+    guestAssign[guestId] = {table_id: tableId, seat_number: seatNum};
+    refreshTable(tableId);
+    renderPanel(document.getElementById('panel-search').value || null);
+    updateStats();
+    await api('POST', '/api/wedding/seating/assign', {table_id: tableId, seat_number: seatNum, guest_id: guestId});
+}
+
+async function doUnassign(guestId) {
+    const prev = guestAssign[guestId];
+    if (!prev) return;
+    delete assignMap[prev.table_id][prev.seat_number];
+    delete guestAssign[guestId];
+    refreshTable(prev.table_id);
+    renderPanel(document.getElementById('panel-search').value || null);
+    updateStats();
+    await api('DELETE', `/api/wedding/seating/assign/${guestId}`);
+}
+
+// ─── Table Add/Edit Modal ─────────────────────────────────────────────────────
+function openAddTableModal() {
+    document.getElementById('table-modal-title').textContent = 'הוסף שולחן';
+    document.getElementById('edit-table-id').value = '';
+    document.getElementById('tbl-name').value = 'שולחן ' + (Object.keys(tableMap).length + 1);
+    document.getElementById('tbl-shape').value = 'round';
+    document.getElementById('tbl-capacity').value = '8';
+    document.getElementById('tbl-notes').value = '';
+    selectColor('rose', document.querySelector('.color-dot[data-color="rose"]'));
+    document.getElementById('table-modal').style.display = 'flex';
+    document.getElementById('tbl-name').focus();
+    document.getElementById('tbl-name').select();
+}
+
+function editTable(tableId) {
+    const t = tableMap[tableId];
+    document.getElementById('table-modal-title').textContent = 'ערוך שולחן';
+    document.getElementById('edit-table-id').value = tableId;
+    document.getElementById('tbl-name').value = t.name;
+    document.getElementById('tbl-shape').value = t.shape;
+    document.getElementById('tbl-capacity').value = t.capacity;
+    document.getElementById('tbl-notes').value = t.notes || '';
+    selectColor(t.color || 'rose', document.querySelector(`.color-dot[data-color="${t.color||'rose'}"]`));
+    document.getElementById('table-modal').style.display = 'flex';
+}
+
+function closeTableModal() { document.getElementById('table-modal').style.display='none'; }
+
+function selectColor(color, el) {
+    selectedColor = color;
+    document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
+    if (el) el.classList.add('selected');
+}
+
+function updateCapacityOptions() {
+    const shape = document.getElementById('tbl-shape').value;
+    const sel = document.getElementById('tbl-capacity');
+    if (shape === 'sweetheart') {
+        sel.innerHTML = '<option value="2">2</option>';
+    } else if (shape === 'head') {
+        sel.innerHTML = [10,12,14,16,18,20].map(v=>`<option value="${v}">${v}</option>`).join('');
+        sel.value = '14';
+    } else {
+        sel.innerHTML = [4,6,8,10,12].map(v=>`<option value="${v}" ${v===8?'selected':''}>${v}</option>`).join('');
+        sel.value = '8';
+    }
+}
+
+async function saveTable() {
+    const name     = document.getElementById('tbl-name').value.trim();
+    const shape    = document.getElementById('tbl-shape').value;
+    const capacity = parseInt(document.getElementById('tbl-capacity').value);
+    const notes    = document.getElementById('tbl-notes').value.trim();
+    const editId   = document.getElementById('edit-table-id').value;
+    if (!name) { alert('נא להזין שם לשולחן'); return; }
+
+    closeTableModal();
+
+    if (editId) {
+        const updated = await api('PUT', `/api/wedding/seating/tables/${editId}`,
+            {name, shape, capacity, color: selectedColor, notes: notes || null});
+        Object.assign(tableMap[parseInt(editId)], updated);
+        refreshTable(parseInt(editId));
+    } else {
+        // pick a free spot on canvas
+        const outer = document.getElementById('canvas-outer');
+        const x = outer.scrollLeft + 80 + Object.keys(tableMap).length * 30 % 600;
+        const y = outer.scrollTop  + 80 + Object.keys(tableMap).length * 20 % 400;
+        const created = await api('POST', '/api/wedding/seating/tables',
+            {name, shape, capacity, color: selectedColor, notes: notes || null, x, y});
+        tableMap[created.id] = created;
+        assignMap[created.id] = {};
+        renderTable(created);
+    }
+    updateStats();
+}
+
+async function deleteTable(tableId) {
+    if (!confirm(`מחק את השולחן "${tableMap[tableId]?.name}"?\n כל ההושבות של שולחן זה יימחקו.`)) return;
+    // remove assignments from local state
+    for (const [guestId, info] of Object.entries(guestAssign)) {
+        if (info.table_id === tableId) delete guestAssign[guestId];
+    }
+    delete assignMap[tableId];
+    delete tableMap[tableId];
+    document.getElementById('tbl-' + tableId)?.remove();
+    renderPanel(document.getElementById('panel-search').value || null);
+    updateStats();
+    await api('DELETE', `/api/wedding/seating/tables/${tableId}`);
+}
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+function abbrev(name) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 4);
+    return parts[0].slice(0,3) + ' ' + parts[parts.length-1][0] + '.';
+}
+function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function api(method, url, body) {
+    const opts = { method, headers: {'Content-Type':'application/json'} };
+    if (body) opts.body = JSON.stringify(body);
+    const r = await fetch(url, opts);
+    if (r.status === 204) return null;
+    return r.json();
+}
+</script>
+{% endblock %}

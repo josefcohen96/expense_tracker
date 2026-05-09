@@ -30,15 +30,9 @@
 <div dir="rtl">
 
     <!-- Header -->
-    <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <div>
-            <h1 class="text-xl sm:text-2xl font-bold text-gray-900">משימות</h1>
-            <p class="text-sm text-gray-500 mt-0.5">{{ total_open }} פתוחות · {{ total_done }} הושלמו</p>
-        </div>
-        <button onclick="openModal('add-task-modal')"
-                class="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium shadow-sm min-h-[44px]">
-            + הוסף משימה
-        </button>
+    <div class="mb-6">
+        <h1 class="text-xl sm:text-2xl font-bold text-gray-900">משימות</h1>
+        <p class="text-sm text-gray-500 mt-0.5">{{ total_open }} פתוחות · {{ total_done }} הושלמו</p>
     </div>
 
     <!-- Two-column layout from md (768px+) -->

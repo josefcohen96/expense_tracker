@@ -59,6 +59,12 @@ def _get_main_user_ids(db_conn: sqlite3.Connection) -> str:
     return ",".join(str(row["id"]) for row in all_users[:2]) if all_users else "1,2"
 
 
+@router.get("/rsvp/{token}", response_class=HTMLResponse)
+@public
+async def rsvp_page(request: Request, token: str) -> HTMLResponse:
+    return templates.TemplateResponse("wedding/rsvp.html", {"request": request, "token": token})
+
+
 @router.get("/login", response_class=HTMLResponse)
 @public
 async def login_page(request: Request) -> HTMLResponse:

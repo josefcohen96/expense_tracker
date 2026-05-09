@@ -368,6 +368,7 @@ textarea.inline-edit-input {
                             <a href="#"
                                data-phone="972{{ g.phone|replace('-','')|replace(' ','') }}"
                                data-name="{{ g.name | e }}"
+                               data-token="{{ g.rsvp_token or '' }}"
                                onclick="openWhatsAppRSVP(this); return false;"
                                target="_blank"
                                class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-medium min-h-[40px]">
@@ -680,12 +681,18 @@ textarea.inline-edit-input {
 function openWhatsAppRSVP(el) {
     var phone = el.dataset.phone;
     var name = el.dataset.name;
-    var msg = 'היי ' + name + '!\n' +
-              'שלחנו לך הזמנה לחתונה שלנו 🎉\n' +
-              'נשמח לדעת - האם תוכל/י להגיע?\n\n' +
-              '✅ מגיע/ה\n' +
-              '❌ לא מגיע/ה\n' +
-              '🤔 עוד לא יודע/ת';
+    var token = el.dataset.token;
+    var rsvpLink = token ? (window.location.origin + '/rsvp/' + token) : '';
+    var msg = 'היי ' + name + '! 👋\n' +
+              'יוסף וקארינה מתחתנים! 💍🎉\n' +
+              'נשמח מאוד לראותך בחתונה שלנו.\n\n';
+    if (rsvpLink) {
+        msg += '👇 לחץ/י כאן לאישור הגעה ובחירת העדפות:\n' + rsvpLink;
+    } else {
+        msg += '✅ מגיע/ה\n' +
+               '❌ לא מגיע/ה\n' +
+               '🤔 עדיין לא יודע/ת';
+    }
     window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
 }
 

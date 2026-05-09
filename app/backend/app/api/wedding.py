@@ -6,14 +6,17 @@ from __future__ import annotations
 import sqlite3
 import uuid
 import os
+import secrets
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from ..db import get_db_conn
+from ..auth import public
 
 router = APIRouter(prefix="/api/wedding", tags=["wedding"])
+rsvp_router = APIRouter(prefix="/api/rsvp", tags=["rsvp"])
 
 # Directory for uploaded vendor files: app/uploads/vendor_files/
 _UPLOADS_DIR = Path(__file__).resolve().parents[3] / "uploads" / "vendor_files"
@@ -270,14 +273,15 @@ async def list_guests(db_conn: sqlite3.Connection = Depends(get_db_conn)):
 
 @router.post("/guests", status_code=201)
 async def create_guest(body: GuestCreate, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    token = secrets.token_urlsafe(16)
     cur = db_conn.execute(
         """INSERT INTO wedding_guests
-           (name, phone, group_name, status, plus_one, plus_one_name, children_count, needs_transport, staying_overnight, table_number, notes, meal_type, food_notes, plus_one_meal_type)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           (name, phone, group_name, status, plus_one, plus_one_name, children_count, needs_transport, staying_overnight, table_number, notes, meal_type, food_notes, plus_one_meal_type, rsvp_token)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (body.name, body.phone, body.group_name, body.status,
          body.plus_one, body.plus_one_name, body.children_count,
          body.needs_transport, body.staying_overnight, body.table_number, body.notes,
-         body.meal_type, body.food_notes, body.plus_one_meal_type),
+         body.meal_type, body.food_notes, body.plus_one_meal_type, token),
     )
     db_conn.commit()
     return dict(db_conn.execute("SELECT * FROM wedding_guests WHERE id=?", (cur.lastrowid,)).fetchone())
@@ -847,3 +851,47 @@ async def assign_guest(body: SeatingAssign, db_conn: sqlite3.Connection = Depend
 async def unassign_guest(guest_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     db_conn.execute("DELETE FROM wedding_seating_assignments WHERE guest_id=?", (guest_id,))
     db_conn.commit()
+
+
+# ─── Public RSVP endpoints (no auth) ────────────────────────────────────────
+
+class RSVPSubmit(BaseModel):
+    status: str
+    plus_one: Optional[int] = None
+    children_count: Optional[int] = None
+    staying_overnight: Optional[int] = None
+    meal_type: Optional[str] = None
+    food_notes: Optional[str] = None
+    plus_one_meal_type: Optional[str] = None
+
+
+@rsvp_router.get("/{token}")
+@public
+async def get_rsvp(token: str, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    row = db_conn.execute(
+        "SELECT name, status, plus_one, children_count, staying_overnight, meal_type, food_notes, plus_one_meal_type FROM wedding_guests WHERE rsvp_token=?",
+        (token,),
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="לא נמצא")
+    return dict(row)
+
+
+@rsvp_router.post("/{token}")
+@public
+async def submit_rsvp(token: str, body: RSVPSubmit, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    row = db_conn.execute(
+        "SELECT id FROM wedding_guests WHERE rsvp_token=?", (token,)
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="לא נמצא")
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not fields:
+        return {"ok": True}
+    set_clause = ", ".join(f"{k}=?" for k in fields)
+    db_conn.execute(
+        f"UPDATE wedding_guests SET {set_clause} WHERE id=?",
+        (*fields.values(), row["id"]),
+    )
+    db_conn.commit()
+    return {"ok": True}

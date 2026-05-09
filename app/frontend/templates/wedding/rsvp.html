@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>אישור הגעה לחתונה 💍</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      background-image: url('/static/images/wedding-bg.jpg');
+      background-size: cover;
+      background-position: center center;
+      background-attachment: fixed;
+      background-repeat: no-repeat;
+      position: relative;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(
+        to bottom,
+        rgba(0,0,0,0.35) 0%,
+        rgba(0,0,0,0.15) 40%,
+        rgba(0,0,0,0.40) 100%
+      );
+      z-index: 0;
+    }
+    .content-wrap {
+      position: relative;
+      z-index: 1;
+    }
+    .step { display: none; }
+    .step.active { display: block; }
+    .btn-choice {
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+      width: 100%; padding: 1rem 1.5rem; border-radius: 1rem; font-size: 1.1rem;
+      font-weight: 600; border: 2px solid transparent; cursor: pointer;
+      transition: all 0.15s; text-align: center;
+    }
+    .btn-choice:active { transform: scale(0.97); }
+    .btn-choice.selected { border-color: currentColor; box-shadow: 0 0 0 3px rgba(0,0,0,0.08); }
+    .card {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.6);
+    }
+  </style>
+</head>
+<body class="flex items-center justify-center p-4 min-h-screen">
+
+<div class="content-wrap w-full max-w-md mx-auto py-6">
+
+  <!-- Header -->
+  <div class="text-center mb-6">
+    <div class="text-5xl mb-2 drop-shadow-lg">💍</div>
+    <h1 class="text-3xl font-bold text-white drop-shadow-lg" style="text-shadow: 0 2px 8px rgba(0,0,0,0.6)">יוסף וקארינה</h1>
+    <p class="text-white/80 text-sm mt-1 drop-shadow" style="text-shadow: 0 1px 4px rgba(0,0,0,0.5)">מתחתנים! אנא אשרו הגעתכם</p>
+  </div>
+
+  <!-- Card -->
+  <div class="card rounded-3xl shadow-2xl p-6">
+
+    <!-- Step 0: Loading -->
+    <div id="step-loading" class="step active text-center py-8 text-gray-400">
+      <div class="text-3xl mb-3">⏳</div>
+      <p>טוען...</p>
+    </div>
+
+    <!-- Step 1: Attendance -->
+    <div id="step-1" class="step">
+      <h2 class="text-xl font-bold text-gray-800 mb-1">היי <span id="guest-name">אורח יקר</span>! 👋</h2>
+      <p class="text-gray-500 mb-6 text-sm">האם תוכל/י להגיע לחתונה שלנו?</p>
+      <div class="flex flex-col gap-3">
+        <button class="btn-choice bg-green-50 text-green-700 hover:bg-green-100" onclick="setStatus('confirmed')">
+          ✅ מגיע/ה בשמחה!
+        </button>
+        <button class="btn-choice bg-red-50 text-red-600 hover:bg-red-100" onclick="setStatus('declined')">
+          ❌ לא אוכל/ה להגיע
+        </button>
+        <button class="btn-choice bg-yellow-50 text-yellow-700 hover:bg-yellow-100" onclick="setStatus('maybe')">
+          🤔 עדיין לא יודע/ת
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 2: Guest details (confirmed/maybe) -->
+    <div id="step-2" class="step">
+      <h2 class="text-xl font-bold text-gray-800 mb-1">מעולה! 🎉</h2>
+      <p class="text-gray-500 mb-5 text-sm">קצת פרטים נוספים</p>
+
+      <div class="mb-4">
+        <p class="font-semibold text-gray-700 mb-2">מגיע/ה עם בן/בת זוג?</p>
+        <div class="flex gap-3">
+          <button id="plus-one-yes" class="btn-choice bg-gray-50 text-gray-700 hover:bg-gray-100 flex-1 py-3 text-base" onclick="setPlusOne(1)">כן</button>
+          <button id="plus-one-no"  class="btn-choice bg-gray-50 text-gray-700 hover:bg-gray-100 flex-1 py-3 text-base selected" onclick="setPlusOne(0)">לא</button>
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <p class="font-semibold text-gray-700 mb-2">מספר ילדים שמגיעים</p>
+        <div class="flex items-center gap-4 justify-center">
+          <button onclick="changeChildren(-1)" class="w-10 h-10 rounded-full bg-gray-100 text-gray-600 text-xl font-bold hover:bg-gray-200">−</button>
+          <span id="children-display" class="text-2xl font-bold w-8 text-center text-gray-800">0</span>
+          <button onclick="changeChildren(1)"  class="w-10 h-10 rounded-full bg-gray-100 text-gray-600 text-xl font-bold hover:bg-gray-200">+</button>
+        </div>
+      </div>
+
+      <div class="mb-6">
+        <p class="font-semibold text-gray-700 mb-2">נשאר/ת לישון?</p>
+        <div class="flex gap-3">
+          <button id="overnight-yes" class="btn-choice bg-gray-50 text-gray-700 hover:bg-gray-100 flex-1 py-3 text-base" onclick="setOvernight(1)">כן 🌙</button>
+          <button id="overnight-no"  class="btn-choice bg-gray-50 text-gray-700 hover:bg-gray-100 flex-1 py-3 text-base selected" onclick="setOvernight(0)">לא</button>
+        </div>
+      </div>
+
+      <button onclick="goStep(3)" class="w-full py-3 rounded-xl bg-rose-500 text-white font-semibold text-base hover:bg-rose-600 transition">
+        המשך →
+      </button>
+    </div>
+
+    <!-- Step 3: Food -->
+    <div id="step-3" class="step">
+      <h2 class="text-xl font-bold text-gray-800 mb-1">העדפות אוכל 🍽</h2>
+      <p class="text-gray-500 mb-4 text-sm">בשבילך</p>
+
+      <div class="flex flex-col gap-2 mb-5" id="meal-buttons">
+        <button class="btn-choice bg-gray-50 text-gray-700 hover:bg-gray-100 selected" onclick="setMeal('regular', this)">🍗 רגיל</button>
+        <button class="btn-choice bg-green-50 text-green-700 hover:bg-green-100" onclick="setMeal('vegetarian', this)">🥗 צמחוני</button>
+        <button class="btn-choice bg-emerald-50 text-emerald-700 hover:bg-emerald-100" onclick="setMeal('vegan', this)">🌱 טבעוני</button>
+        <button class="btn-choice bg-amber-50 text-amber-700 hover:bg-amber-100" onclick="setMeal('gluten_free', this)">🌾 ללא גלוטן</button>
+      </div>
+
+      <div id="plus-one-meal-section" class="hidden">
+        <p class="font-semibold text-gray-700 mb-2 text-sm">בשביל בן/בת הזוג</p>
+        <div class="flex flex-col gap-2 mb-5" id="plus-one-meal-buttons">
+          <button class="btn-choice bg-gray-50 text-gray-700 hover:bg-gray-100 selected" onclick="setPlusOneMeal('regular', this)">🍗 רגיל</button>
+          <button class="btn-choice bg-green-50 text-green-700 hover:bg-green-100" onclick="setPlusOneMeal('vegetarian', this)">🥗 צמחוני</button>
+          <button class="btn-choice bg-emerald-50 text-emerald-700 hover:bg-emerald-100" onclick="setPlusOneMeal('vegan', this)">🌱 טבעוני</button>
+          <button class="btn-choice bg-amber-50 text-amber-700 hover:bg-amber-100" onclick="setPlusOneMeal('gluten_free', this)">🌾 ללא גלוטן</button>
+        </div>
+      </div>
+
+      <textarea id="food-notes" rows="2" placeholder="הערות מיוחדות לגבי אוכל (אלרגיות וכו׳)..."
+        class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 resize-none focus:outline-none focus:ring-2 focus:ring-rose-300 mb-5"></textarea>
+
+      <button onclick="submitRSVP()" class="w-full py-3 rounded-xl bg-rose-500 text-white font-semibold text-base hover:bg-rose-600 transition">
+        שלח אישור ✅
+      </button>
+    </div>
+
+    <!-- Step 4: Declined -->
+    <div id="step-declined" class="step text-center py-6">
+      <div class="text-5xl mb-4">💌</div>
+      <h2 class="text-xl font-bold text-gray-800 mb-2">קיבלנו, תודה!</h2>
+      <p class="text-gray-500 text-sm">נשמח לראות אותך בהזדמנות אחרת ❤️</p>
+    </div>
+
+    <!-- Step 5: Thank you -->
+    <div id="step-done" class="step text-center py-6">
+      <div class="text-5xl mb-4">🎊</div>
+      <h2 class="text-xl font-bold text-gray-800 mb-2">תודה רבה!</h2>
+      <p class="text-gray-500 text-sm mb-4">האישור שלך נשמר בהצלחה 💍</p>
+      <div id="summary" class="text-right bg-rose-50 rounded-2xl p-4 text-sm text-gray-600 leading-relaxed"></div>
+    </div>
+
+    <!-- Error -->
+    <div id="step-error" class="step text-center py-8 text-gray-400">
+      <div class="text-3xl mb-3">😕</div>
+      <p>הקישור לא תקין. אנא פנה לחתן ולכלה.</p>
+    </div>
+
+  </div>
+
+  <p class="text-center text-xs text-white/60 mt-4 drop-shadow">יוסף וקארינה – החתונה שלנו 💍</p>
+</div>
+
+<script>
+var TOKEN = "{{ token }}";
+var guestData = {};
+var rsvpStatus = null;
+var plusOne = 0;
+var childrenCount = 0;
+var overnight = 0;
+var mealType = 'regular';
+var plusOneMealType = 'regular';
+
+function showStep(id) {
+  document.querySelectorAll('.step').forEach(function(el) { el.classList.remove('active'); });
+  var el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+
+function setStatus(status) {
+  rsvpStatus = status;
+  if (status === 'declined') {
+    submitDeclined();
+  } else {
+    showStep('step-2');
+  }
+}
+
+function setPlusOne(val) {
+  plusOne = val;
+  document.getElementById('plus-one-yes').classList.toggle('selected', val === 1);
+  document.getElementById('plus-one-no').classList.toggle('selected', val === 0);
+}
+
+function changeChildren(delta) {
+  childrenCount = Math.max(0, childrenCount + delta);
+  document.getElementById('children-display').textContent = childrenCount;
+}
+
+function setOvernight(val) {
+  overnight = val;
+  document.getElementById('overnight-yes').classList.toggle('selected', val === 1);
+  document.getElementById('overnight-no').classList.toggle('selected', val === 0);
+}
+
+function setMeal(type, btn) {
+  mealType = type;
+  document.querySelectorAll('#meal-buttons .btn-choice').forEach(function(b) { b.classList.remove('selected'); });
+  btn.classList.add('selected');
+}
+
+function setPlusOneMeal(type, btn) {
+  plusOneMealType = type;
+  document.querySelectorAll('#plus-one-meal-buttons .btn-choice').forEach(function(b) { b.classList.remove('selected'); });
+  btn.classList.add('selected');
+}
+
+function goStep(n) {
+  if (n === 3 && plusOne === 1) {
+    document.getElementById('plus-one-meal-section').classList.remove('hidden');
+  } else if (n === 3) {
+    document.getElementById('plus-one-meal-section').classList.add('hidden');
+  }
+  showStep('step-' + n);
+}
+
+function submitDeclined() {
+  fetch('/api/rsvp/' + TOKEN, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status: 'declined'})
+  }).then(function() { showStep('step-declined'); })
+    .catch(function() { showStep('step-declined'); });
+}
+
+function submitRSVP() {
+  var notes = document.getElementById('food-notes').value.trim();
+  var payload = {
+    status: rsvpStatus,
+    plus_one: plusOne,
+    children_count: childrenCount,
+    staying_overnight: overnight,
+    meal_type: mealType,
+    food_notes: notes || null,
+    plus_one_meal_type: plusOneMealType
+  };
+  fetch('/api/rsvp/' + TOKEN, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  }).then(function(r) {
+    if (!r.ok) { showStep('step-error'); return; }
+    showSummary(payload);
+    showStep('step-done');
+  }).catch(function() { showStep('step-error'); });
+}
+
+function showSummary(p) {
+  var mealLabels = {regular: '🍗 רגיל', vegetarian: '🥗 צמחוני', vegan: '🌱 טבעוני', gluten_free: '🌾 ללא גלוטן'};
+  var lines = [];
+  lines.push('סטטוס: ' + (p.status === 'confirmed' ? '✅ מגיע/ה' : '🤔 אולי'));
+  if (p.plus_one) lines.push('בן/בת זוג: ✅');
+  if (p.children_count) lines.push('ילדים: ' + p.children_count);
+  if (p.staying_overnight) lines.push('נשאר/ת לישון: ✅');
+  lines.push('אוכל: ' + (mealLabels[p.meal_type] || p.meal_type));
+  if (p.plus_one) lines.push('אוכל לבן/בת זוג: ' + (mealLabels[p.plus_one_meal_type] || p.plus_one_meal_type));
+  if (p.food_notes) lines.push('הערות: ' + p.food_notes);
+  document.getElementById('summary').innerHTML = lines.join('<br>');
+}
+
+window.addEventListener('DOMContentLoaded', function() {
+  fetch('/api/rsvp/' + TOKEN)
+    .then(function(r) {
+      if (!r.ok) { showStep('step-error'); return null; }
+      return r.json();
+    })
+    .then(function(data) {
+      if (!data) return;
+      guestData = data;
+      document.getElementById('guest-name').textContent = data.name;
+      plusOne = data.plus_one || 0;
+      childrenCount = data.children_count || 0;
+      overnight = data.staying_overnight || 0;
+      mealType = data.meal_type || 'regular';
+      plusOneMealType = data.plus_one_meal_type || 'regular';
+      document.getElementById('children-display').textContent = childrenCount;
+      setPlusOne(plusOne);
+      setOvernight(overnight);
+      showStep('step-1');
+    })
+    .catch(function() { showStep('step-error'); });
+});
+</script>
+
+</body>
+</html>

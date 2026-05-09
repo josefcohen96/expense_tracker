@@ -525,6 +525,22 @@ def initialise_database() -> None:
     except Exception:
         pass
 
+    # Migration: add rsvp_token to wedding_guests and back-fill existing rows
+    try:
+        import secrets as _secrets
+        guest_cols = [r[1] for r in cur.execute("PRAGMA table_info('wedding_guests')").fetchall()]
+        if "rsvp_token" not in guest_cols:
+            conn.execute("ALTER TABLE wedding_guests ADD COLUMN rsvp_token TEXT")
+            conn.commit()
+        rows = conn.execute("SELECT id FROM wedding_guests WHERE rsvp_token IS NULL").fetchall()
+        for row in rows:
+            conn.execute("UPDATE wedding_guests SET rsvp_token=? WHERE id=?",
+                         (_secrets.token_urlsafe(16), row[0]))
+        if rows:
+            conn.commit()
+    except Exception:
+        pass
+
     # Seed default rooms from venue if table is empty
     try:
         if not cur.execute("SELECT COUNT(*) FROM wedding_rooms").fetchone()[0]:

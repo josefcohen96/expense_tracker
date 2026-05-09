@@ -14,7 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
 @pytest.fixture(scope="session")
 def temp_db_path(tmp_path_factory) -> Path:
     project_root = Path(__file__).resolve().parents[1]
-    default_db = project_root / "app" / "backend" / "app" / "data" / "budget.db"
+    default_db = project_root / "app" / "backend" / "data" / "budget.db"
     assert default_db.exists(), f"Default DB not found at {default_db}"
     tmp_dir = tmp_path_factory.mktemp("db")
     tmp_db = tmp_dir / "budget_test_copy.sqlite3"
@@ -48,5 +48,3 @@ def db_conn(app_client, temp_db_path):
         yield conn
     finally:
         conn.close()
-
-

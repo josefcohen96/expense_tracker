@@ -254,7 +254,7 @@
             </div>
 
                 <!-- ─── File Attachments Section ──────────────────────────── -->
-                <div class="sm:col-span-2 border border-gray-200 rounded-xl p-4 bg-gray-50">
+                <div class="border border-gray-200 rounded-xl p-4 bg-gray-50">
                     <div class="flex items-center justify-between mb-3">
                         <span class="text-sm font-semibold text-gray-700">קבצים מצורפים</span>
                         <label class="cursor-pointer text-xs bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-600 font-medium px-3 py-2 rounded-lg transition-colors min-h-[40px] flex items-center">
@@ -331,7 +331,7 @@ const VAT_RATE = 0.17;
 
 const STATUS_LABELS = {
     not_contacted:   'לא נוצר קשר',
-    quote_received:  'הצעת מחיר',
+    quote_received:  'הצעת מחיר התקבלה',
     contract_signed: 'חוזה נחתם',
     deal_closed:     'נסגרה עסקה',
     deposit_paid:    'מקדמה שולמה',
@@ -549,7 +549,9 @@ function saveVendor(e) {
 function deleteVendor() {
     if (!confirm('למחוק את הספק?')) return;
     fetch(`/api/wedding/vendors/${VENDOR_ID}`, { method: 'DELETE' })
-        .then(() => window.location.href = '/wedding/vendors');
+        .then(r => { if (!r.ok) throw new Error(); return r; })
+        .then(() => { window.location.href = '/wedding/vendors'; })
+        .catch(() => alert('שגיאה במחיקת הספק'));
 }
 
 // ─── File Attachments ────────────────────────────────────────────────────────
@@ -604,7 +606,7 @@ function makeFileRow(f) {
                </svg>`
         }
         <div class="flex-1 min-w-0">
-            <div class="text-sm font-medium text-gray-800 truncate">${f.original_name}</div>
+            <div class="text-sm font-medium text-gray-800 truncate">${escHtml(f.original_name)}</div>
             <div class="text-xs text-gray-400">${sizeMB} MB</div>
         </div>
         <a href="/api/wedding/files/${f.id}" target="_blank" rel="noopener"
@@ -640,9 +642,15 @@ function deleteFile(id) {
     .catch(() => alert('שגיאה במחיקת הקובץ'));
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function escHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
-// Init
 renderItems();
 </script>
 {% endblock %}

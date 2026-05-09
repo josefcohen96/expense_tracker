@@ -570,7 +570,8 @@ def recurrences_monthly_api(db_conn=Depends(get_db_conn)):
 
     # Get recurring expenses by month
     rows = cur.execute("""
-        SELECT strftime('%Y-%m', t.date) AS month, ABS(SUM(t.amount)) AS total
+        SELECT strftime('%Y-%m', t.date) AS month,
+               SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS total
         FROM transactions t
         WHERE t.date >= date('now', '-6 months')
         AND t.recurrence_id IS NOT NULL

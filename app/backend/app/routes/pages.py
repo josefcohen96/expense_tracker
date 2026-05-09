@@ -713,7 +713,13 @@ async def finances_income(
     user_ids = _get_main_user_ids(db_conn)
 
     total = db_conn.execute(
-        f"SELECT COUNT(*) FROM transactions WHERE amount > 0 AND recurrence_id IS NULL AND user_id IN ({user_ids})"
+        f"""
+        SELECT COUNT(*) FROM transactions t
+        JOIN categories c ON t.category_id = c.id
+        WHERE t.amount > 0 AND t.recurrence_id IS NULL
+          AND t.user_id IN ({user_ids})
+          AND c.name IN ('משכורת', 'קליניקה')
+        """
     ).fetchone()[0]
     rows = db_conn.execute(
         f"""
@@ -729,6 +735,7 @@ async def finances_income(
         LEFT JOIN accounts a ON t.account_id = a.id
         WHERE t.amount > 0 AND t.recurrence_id IS NULL
           AND t.user_id IN ({user_ids})
+          AND c.name IN ('משכורת', 'קליניקה')
         ORDER BY t.date DESC, t.id DESC
         LIMIT ? OFFSET ?
         """,
@@ -1260,13 +1267,16 @@ async def finances_statistics(
 
     month_totals = db_conn.execute(
         f"""
-        SELECT 
-            SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as total_expenses,
-            SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as total_income,
+        SELECT
+            SUM(CASE WHEN t.amount < 0 AND c.name NOT IN ('משכורת', 'קליניקה')
+                     THEN ABS(t.amount) ELSE 0 END) as total_expenses,
+            SUM(CASE WHEN t.amount > 0 AND c.name IN ('משכורת', 'קליניקה')
+                     THEN t.amount ELSE 0 END) as total_income,
             COUNT(*) as total_transactions
-        FROM transactions 
-        WHERE strftime('%Y-%m', date) = ?
-          AND user_id IN ({user_ids})
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        WHERE strftime('%Y-%m', t.date) = ?
+          AND t.user_id IN ({user_ids})
         """,
         (selected_ym,)
     ).fetchone() or {"total_expenses": 0, "total_income": 0, "total_transactions": 0}
@@ -1532,11 +1542,11 @@ async def finances_statistics_drilldown(
         
     elif metric_key == "income":
         title = "הכנסות החודש"
-        where_extra = " AND t.amount > 0"
+        where_extra = " AND t.amount > 0 AND c.name IN ('משכורת', 'קליניקה')"
     elif metric_key == "expenses":
         title = "הוצאות החודש"
-        # All expenses (regular + recurring)
-        where_extra = " AND t.amount < 0"
+        # All expenses (regular + recurring), excluding income categories
+        where_extra = " AND t.amount < 0 AND c.name NOT IN ('משכורת', 'קליניקה')"
     elif metric_key == "recurring":
         title = "הוצאות קבועות החודש"
         where_extra = " AND t.amount < 0 AND t.recurrence_id IS NOT NULL"

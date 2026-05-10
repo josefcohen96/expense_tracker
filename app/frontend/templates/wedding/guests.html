@@ -29,6 +29,8 @@
     'maybe':     'bg-yellow-500',
     'pending':   'bg-gray-400'
 } %}
+{% set meal_labels = {'vegetarian': '🥗 צמחוני', 'vegan': '🌱 טבעוני', 'gluten_free': '🌾 ללא גלוטן', 'other': '🍽 אחר'} %}
+{% set rsvp_food_labels = {'meat': '🥩 בשרי', 'vegan': '🌱 טבעוני', 'gluten_free': '🌾 ללא גלוטן'} %}
 
 <style>
 /* ===== Animations - all screens ===== */
@@ -309,7 +311,6 @@ textarea.inline-edit-input {
 
             <!-- Mobile Cards -->
             <div class="sm:hidden guest-list space-y-2" id="guest-list-mobile">
-                {% set meal_labels = {'vegetarian': '🥗 צמחוני', 'vegan': '🌱 טבעוני', 'gluten_free': '🌾 ללא גלוטן', 'other': '🍽 אחר'} %}
                 {% set meal_colors = {'vegetarian': 'bg-green-50 text-green-700', 'vegan': 'bg-emerald-50 text-emerald-800', 'gluten_free': 'bg-amber-50 text-amber-700', 'other': 'bg-gray-100 text-gray-600'} %}
                 {% for g in guests %}
                 <div class="guest-card bg-white rounded-xl shadow-sm overflow-hidden" data-name="{{ g.name }}" data-guest-id="{{ g.id }}">
@@ -362,8 +363,14 @@ textarea.inline-edit-input {
                             {% endif %}
                         </div>
 
+                        {% if g.food_preference and g.food_preference not in ('', None) %}
+                        <div class="text-xs text-orange-600 mb-1 font-medium">{{ rsvp_food_labels.get(g.food_preference, g.food_preference) }} <span class="text-gray-400 font-normal">(RSVP)</span></div>
+                        {% endif %}
                         {% if g.food_notes %}
                         <div class="text-xs text-gray-400 mb-1 leading-relaxed">🍽 {{ g.food_notes }}</div>
+                        {% endif %}
+                        {% if g.food_allergies %}
+                        <div class="text-xs text-red-500 mb-1 leading-relaxed">⚠️ {{ g.food_allergies }}</div>
                         {% endif %}
                         {% if g.notes %}
                         <div class="text-xs text-gray-400 mb-3 leading-relaxed">{{ g.notes }}</div>
@@ -422,6 +429,7 @@ textarea.inline-edit-input {
                                 <th class="px-4 py-3 text-right font-medium text-gray-600">ילדים</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-600">הסעה</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-600">לינה</th>
+                                <th class="px-4 py-3 text-right font-medium text-gray-600">אוכל</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-600">שולחן</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-600">הערות</th>
                                 <th class="px-4 py-3"></th>
@@ -471,6 +479,19 @@ textarea.inline-edit-input {
                                             title="{{ 'נשאר לישון' if g.staying_overnight else 'לא נשאר לישון' }}">
                                         🛏
                                     </button>
+                                </td>
+                                <td class="px-4 py-3 text-xs max-w-[120px]">
+                                    {% if g.food_preference %}
+                                    <div class="text-orange-600 font-medium">{{ rsvp_food_labels.get(g.food_preference, g.food_preference) }}</div>
+                                    {% elif g.meal_type and g.meal_type != 'regular' %}
+                                    <div>{{ meal_labels.get(g.meal_type, g.meal_type) }}</div>
+                                    {% endif %}
+                                    {% if g.food_allergies %}
+                                    <div class="text-red-500 mt-0.5 truncate" title="{{ g.food_allergies }}">⚠️ {{ g.food_allergies }}</div>
+                                    {% elif g.food_notes %}
+                                    <div class="text-gray-400 mt-0.5 truncate" title="{{ g.food_notes }}">{{ g.food_notes }}</div>
+                                    {% endif %}
+                                    {% if not g.food_preference and (not g.meal_type or g.meal_type == 'regular') and not g.food_allergies and not g.food_notes %}-{% endif %}
                                 </td>
                                 <td class="px-4 py-3 text-gray-600 text-center inline-editable"
                                     data-field="table_number" data-guest-id="{{ g.id }}" data-value="{{ g.table_number or '' }}"

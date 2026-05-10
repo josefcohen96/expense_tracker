@@ -840,3 +840,31 @@ async def assign_guest(body: SeatingAssign, db_conn: sqlite3.Connection = Depend
 async def unassign_guest(guest_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     db_conn.execute("DELETE FROM wedding_seating_assignments WHERE guest_id=?", (guest_id,))
     db_conn.commit()
+
+
+# ─── Invite Tokens ───────────────────────────────────────────────────────────
+
+BASE_URL = "https://expensetracker-production-2084.up.railway.app"
+
+
+@router.post("/guests/{guest_id}/generate-invite")
+async def generate_invite(guest_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    guest = db_conn.execute("SELECT * FROM wedding_guests WHERE id=?", (guest_id,)).fetchone()
+    if not guest:
+        raise HTTPException(status_code=404, detail="Guest not found")
+    token = uuid.uuid4().hex
+    db_conn.execute("UPDATE wedding_guests SET invite_token=? WHERE id=?", (token, guest_id))
+    db_conn.commit()
+    link = f"{BASE_URL}/invite/{token}"
+    return {"token": token, "link": link, "guest_id": guest_id, "guest_name": guest["name"]}
+
+
+@router.get("/guests/{guest_id}/invite-link")
+async def get_invite_link(guest_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    guest = db_conn.execute("SELECT id, name, invite_token FROM wedding_guests WHERE id=?", (guest_id,)).fetchone()
+    if not guest:
+        raise HTTPException(status_code=404, detail="Guest not found")
+    token = guest["invite_token"]
+    if not token:
+        return {"link": None, "guest_id": guest_id}
+    return {"token": token, "link": f"{BASE_URL}/invite/{token}", "guest_id": guest_id, "guest_name": guest["name"]}

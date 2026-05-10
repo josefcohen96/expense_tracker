@@ -515,6 +515,21 @@ def initialise_database() -> None:
     except Exception:
         pass
 
+    # Migration: add RSVP invite fields to wedding_guests
+    try:
+        guest_cols = [r[1] for r in cur.execute("PRAGMA table_info('wedding_guests')").fetchall()]
+        for col, typedef in [
+            ("invite_token", "TEXT"),
+            ("food_preference", "TEXT"),
+            ("food_allergies", "TEXT"),
+            ("rsvp_submitted_at", "TEXT"),
+        ]:
+            if col not in guest_cols:
+                conn.execute(f"ALTER TABLE wedding_guests ADD COLUMN {col} {typedef}")
+        conn.commit()
+    except Exception:
+        pass
+
     # Seed default rooms from venue if table is empty
     try:
         if not cur.execute("SELECT COUNT(*) FROM wedding_rooms").fetchone()[0]:

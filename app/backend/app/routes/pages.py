@@ -1892,6 +1892,100 @@ async def wedding_seating_page(request: Request, db_conn: sqlite3.Connection = D
     })
 
 
+@router.get("/invite/{token}", response_class=HTMLResponse)
+@public
+async def invite_rsvp_page(token: str, request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    guest = db_conn.execute(
+        "SELECT * FROM wedding_guests WHERE invite_token=?", (token,)
+    ).fetchone()
+    if not guest:
+        return templates.TemplateResponse(
+            "wedding/invite_invalid.html",
+            {"request": request},
+            status_code=404,
+        )
+    wedding_date_row = db_conn.execute("SELECT value FROM wedding_settings WHERE key='wedding_date'").fetchone()
+    wedding_date = wedding_date_row[0] if wedding_date_row else None
+    return templates.TemplateResponse(
+        "wedding/invite.html",
+        {
+            "request": request,
+            "guest": dict(guest),
+            "token": token,
+            "wedding_date": wedding_date,
+        },
+    )
+
+
+@router.post("/invite/{token}/rsvp", response_class=HTMLResponse)
+@public
+async def invite_rsvp_submit(token: str, request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    guest = db_conn.execute(
+        "SELECT * FROM wedding_guests WHERE invite_token=?", (token,)
+    ).fetchone()
+    if not guest:
+        return templates.TemplateResponse(
+            "wedding/invite_invalid.html",
+            {"request": request},
+            status_code=404,
+        )
+
+    form = await request.form()
+    attending = form.get("attending", "no")
+    status = "confirmed" if attending == "yes" else "declined"
+
+    plus_one = 0
+    children_count = 0
+    food_preference = None
+    food_allergies = None
+    needs_transport = 0
+    staying_overnight = 0
+    notes = None
+
+    if attending == "yes":
+        total_adults_raw = form.get("total_adults", "1")
+        try:
+            total_adults = max(1, int(total_adults_raw))
+        except Exception:
+            total_adults = 1
+        plus_one = 1 if total_adults >= 2 else 0
+        children_count_raw = form.get("children_count", "0")
+        try:
+            children_count = max(0, int(children_count_raw))
+        except Exception:
+            children_count = 0
+        food_preference = form.get("food_preference") or None
+        food_allergies = (form.get("food_allergies") or "").strip() or None
+        needs_transport = 1 if form.get("needs_transport") == "yes" else 0
+        staying_overnight = 1 if form.get("staying_overnight") == "yes" else 0
+        notes = (form.get("notes") or "").strip() or None
+
+    from datetime import datetime as _dt
+    submitted_at = _dt.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    db_conn.execute(
+        """UPDATE wedding_guests
+           SET status=?, plus_one=?, children_count=?, food_preference=?,
+               food_allergies=?, needs_transport=?, staying_overnight=?,
+               notes=?, rsvp_submitted_at=?
+           WHERE invite_token=?""",
+        (status, plus_one, children_count, food_preference,
+         food_allergies, needs_transport, staying_overnight,
+         notes, submitted_at, token),
+    )
+    db_conn.commit()
+
+    return templates.TemplateResponse(
+        "wedding/invite_success.html",
+        {
+            "request": request,
+            "guest": dict(guest),
+            "attending": attending,
+            "status": status,
+        },
+    )
+
+
 @router.get("/wedding/timeline", response_class=HTMLResponse)
 async def wedding_timeline_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     events = db_conn.execute(

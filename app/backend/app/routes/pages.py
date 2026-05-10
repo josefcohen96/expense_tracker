@@ -1942,6 +1942,8 @@ async def invite_rsvp_submit(token: str, request: Request, db_conn: sqlite3.Conn
     staying_overnight = 0
     notes = None
 
+    meal_type_update = None
+
     if attending == "yes":
         total_adults_raw = form.get("total_adults", "1")
         try:
@@ -1960,6 +1962,10 @@ async def invite_rsvp_submit(token: str, request: Request, db_conn: sqlite3.Conn
         staying_overnight = 1 if form.get("staying_overnight") == "yes" else 0
         notes = (form.get("notes") or "").strip() or None
 
+        # Map RSVP food_preference to admin meal_type so it appears in the guest list
+        _pref_map = {"meat": "regular", "vegan": "vegan", "gluten_free": "gluten_free"}
+        meal_type_update = _pref_map.get(food_preference) if food_preference else None
+
     from datetime import datetime as _dt
     submitted_at = _dt.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -1967,11 +1973,16 @@ async def invite_rsvp_submit(token: str, request: Request, db_conn: sqlite3.Conn
         """UPDATE wedding_guests
            SET status=?, plus_one=?, children_count=?, food_preference=?,
                food_allergies=?, needs_transport=?, staying_overnight=?,
-               notes=?, rsvp_submitted_at=?
+               notes=?, rsvp_submitted_at=?,
+               meal_type=CASE WHEN ? IS NOT NULL THEN ? ELSE meal_type END,
+               food_notes=CASE WHEN ? IS NOT NULL THEN ? ELSE food_notes END
            WHERE invite_token=?""",
         (status, plus_one, children_count, food_preference,
          food_allergies, needs_transport, staying_overnight,
-         notes, submitted_at, token),
+         notes, submitted_at,
+         meal_type_update, meal_type_update,
+         food_allergies, food_allergies,
+         token),
     )
     db_conn.commit()
 

@@ -68,6 +68,9 @@ class GuestCreate(BaseModel):
     staying_overnight: int = 0
     table_number: Optional[int] = None
     notes: Optional[str] = None
+    meal_type: str = "regular"
+    food_notes: Optional[str] = None
+    plus_one_meal_type: str = "regular"
 
 class GuestUpdate(BaseModel):
     name: Optional[str] = None
@@ -81,6 +84,9 @@ class GuestUpdate(BaseModel):
     staying_overnight: Optional[int] = None
     table_number: Optional[int] = None
     notes: Optional[str] = None
+    meal_type: Optional[str] = None
+    food_notes: Optional[str] = None
+    plus_one_meal_type: Optional[str] = None
 
 class RoomCreate(BaseModel):
     name: str
@@ -266,11 +272,12 @@ async def list_guests(db_conn: sqlite3.Connection = Depends(get_db_conn)):
 async def create_guest(body: GuestCreate, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     cur = db_conn.execute(
         """INSERT INTO wedding_guests
-           (name, phone, group_name, status, plus_one, plus_one_name, children_count, needs_transport, staying_overnight, table_number, notes)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+           (name, phone, group_name, status, plus_one, plus_one_name, children_count, needs_transport, staying_overnight, table_number, notes, meal_type, food_notes, plus_one_meal_type)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (body.name, body.phone, body.group_name, body.status,
          body.plus_one, body.plus_one_name, body.children_count,
-         body.needs_transport, body.staying_overnight, body.table_number, body.notes),
+         body.needs_transport, body.staying_overnight, body.table_number, body.notes,
+         body.meal_type, body.food_notes, body.plus_one_meal_type),
     )
     db_conn.commit()
     return dict(db_conn.execute("SELECT * FROM wedding_guests WHERE id=?", (cur.lastrowid,)).fetchone())

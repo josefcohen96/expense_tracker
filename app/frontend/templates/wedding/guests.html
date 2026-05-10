@@ -298,6 +298,8 @@ textarea.inline-edit-input {
 
             <!-- Mobile Cards -->
             <div class="sm:hidden guest-list space-y-2" id="guest-list-mobile">
+                {% set meal_labels = {'vegetarian': '🥗 צמחוני', 'vegan': '🌱 טבעוני', 'gluten_free': '🌾 ללא גלוטן', 'other': '🍽 אחר'} %}
+                {% set meal_colors = {'vegetarian': 'bg-green-50 text-green-700', 'vegan': 'bg-emerald-50 text-emerald-800', 'gluten_free': 'bg-amber-50 text-amber-700', 'other': 'bg-gray-100 text-gray-600'} %}
                 {% for g in guests %}
                 <div class="guest-card bg-white rounded-xl shadow-sm overflow-hidden" data-name="{{ g.name }}" data-guest-id="{{ g.id }}">
                     <div class="p-4">
@@ -341,8 +343,17 @@ textarea.inline-edit-input {
                             {% if g.table_number %}
                             <span class="inline-flex items-center bg-gray-100 text-gray-600 px-2 py-1 rounded-lg text-xs">שולחן {{ g.table_number }}</span>
                             {% endif %}
+                            {% if g.meal_type and g.meal_type != 'regular' %}
+                            <span class="inline-flex items-center {{ meal_colors.get(g.meal_type, 'bg-gray-100 text-gray-600') }} px-2 py-1 rounded-lg text-xs">{{ meal_labels.get(g.meal_type, g.meal_type) }}</span>
+                            {% endif %}
+                            {% if g.plus_one and g.plus_one_meal_type and g.plus_one_meal_type != 'regular' %}
+                            <span class="inline-flex items-center {{ meal_colors.get(g.plus_one_meal_type, 'bg-gray-100 text-gray-600') }} px-2 py-1 rounded-lg text-xs">+1 {{ meal_labels.get(g.plus_one_meal_type, g.plus_one_meal_type) }}</span>
+                            {% endif %}
                         </div>
 
+                        {% if g.food_notes %}
+                        <div class="text-xs text-gray-400 mb-1 leading-relaxed">🍽 {{ g.food_notes }}</div>
+                        {% endif %}
                         {% if g.notes %}
                         <div class="text-xs text-gray-400 mb-3 leading-relaxed">{{ g.notes }}</div>
                         {% endif %}
@@ -354,7 +365,11 @@ textarea.inline-edit-input {
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
                                 חייג
                             </a>
-                            <a href="https://wa.me/972{{ g.phone|replace('-','')|replace(' ','') }}" target="_blank"
+                            <a href="#"
+                               data-phone="972{{ g.phone|replace('-','')|replace(' ','') }}"
+                               data-name="{{ g.name | e }}"
+                               onclick="openWhatsAppRSVP(this); return false;"
+                               target="_blank"
                                class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-medium min-h-[40px]">
                                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                                 WA
@@ -613,11 +628,41 @@ textarea.inline-edit-input {
                         <span class="text-sm text-gray-700">🛏 נשאר לישון</span>
                     </label>
                 </div>
-                <div id="plus-one-name-wrap" class="hidden">
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">שם ה-+1</label>
-                    <input type="text" id="g-plus-one-name"
-                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
-                           placeholder="שם בן/בת הזוג">
+                <div id="plus-one-name-wrap" class="hidden space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">שם ה-+1</label>
+                        <input type="text" id="g-plus-one-name"
+                               class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
+                               placeholder="שם בן/בת הזוג">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">העדפת אוכל - +1</label>
+                        <select id="g-plus-one-meal-type" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400">
+                            <option value="regular">רגיל</option>
+                            <option value="vegetarian">🥗 צמחוני</option>
+                            <option value="vegan">🌱 טבעוני</option>
+                            <option value="gluten_free">🌾 ללא גלוטן</option>
+                            <option value="other">🍽 אחר</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">העדפת אוכל</label>
+                        <select id="g-meal-type" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400">
+                            <option value="regular">רגיל</option>
+                            <option value="vegetarian">🥗 צמחוני</option>
+                            <option value="vegan">🌱 טבעוני</option>
+                            <option value="gluten_free">🌾 ללא גלוטן</option>
+                            <option value="other">🍽 אחר</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">הערות אוכל</label>
+                        <input type="text" id="g-food-notes"
+                               class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
+                               placeholder="אלרגיות, בקשות...">
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1.5">הערות</label>
@@ -639,6 +684,18 @@ textarea.inline-edit-input {
 
 <script>
 // ===== Status data for inline updates =====
+function openWhatsAppRSVP(el) {
+    var phone = el.dataset.phone;
+    var name = el.dataset.name;
+    var msg = 'היי ' + name + '!\n' +
+              'שלחנו לך הזמנה לחתונה שלנו 🎉\n' +
+              'נשמח לדעת - האם תוכל/י להגיע?\n\n' +
+              '✅ מגיע/ה\n' +
+              '❌ לא מגיע/ה\n' +
+              '🤔 עוד לא יודע/ת';
+    window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
+}
+
 var STATUS_MAP = {
     confirmed: {label:'מאושר', badge:'bg-green-100 text-green-700', dot:'bg-green-500'},
     maybe:     {label:'אולי',  badge:'bg-yellow-100 text-yellow-700', dot:'bg-yellow-500'},
@@ -797,10 +854,12 @@ function closeGuestModal() {
     }, 350);
     document.getElementById('guest-id').value = '';
     document.getElementById('guest-modal-title').textContent = 'הוספת מוזמן';
-    ['g-name','g-phone','g-group','g-table','g-children','g-plus-one-name','g-notes'].forEach(function(f) {
+    ['g-name','g-phone','g-group','g-table','g-children','g-plus-one-name','g-food-notes','g-notes'].forEach(function(f) {
         document.getElementById(f).value = '';
     });
     document.getElementById('g-status').value = 'pending';
+    document.getElementById('g-meal-type').value = 'regular';
+    document.getElementById('g-plus-one-meal-type').value = 'regular';
     document.getElementById('g-plus-one').checked = false;
     document.getElementById('g-transport').checked = false;
     document.getElementById('g-overnight').checked = false;
@@ -826,6 +885,9 @@ function editGuestFromBtn(btn) {
     document.getElementById('g-overnight').checked = !!g.staying_overnight;
     document.getElementById('g-plus-one-name').value = g.plus_one_name || '';
     document.getElementById('plus-one-name-wrap').classList.toggle('hidden', !g.plus_one);
+    document.getElementById('g-meal-type').value = g.meal_type || 'regular';
+    document.getElementById('g-plus-one-meal-type').value = g.plus_one_meal_type || 'regular';
+    document.getElementById('g-food-notes').value = g.food_notes || '';
     document.getElementById('g-notes').value = g.notes || '';
     openGuestModal();
 }
@@ -843,6 +905,9 @@ function saveGuest() {
         plus_one_name: document.getElementById('g-plus-one-name').value.trim() || null,
         needs_transport: document.getElementById('g-transport').checked ? 1 : 0,
         staying_overnight: document.getElementById('g-overnight').checked ? 1 : 0,
+        meal_type: document.getElementById('g-meal-type').value || 'regular',
+        food_notes: document.getElementById('g-food-notes').value.trim() || null,
+        plus_one_meal_type: document.getElementById('g-plus-one-meal-type').value || 'regular',
         notes: document.getElementById('g-notes').value.trim() || null,
     };
     if (!payload.name) { alert('יש להזין שם'); return; }

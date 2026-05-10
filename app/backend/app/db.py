@@ -515,7 +515,7 @@ def initialise_database() -> None:
     except Exception:
         pass
 
-    # Migration: add RSVP invite fields to wedding_guests
+    # Migration: add RSVP invite + meal preference fields to wedding_guests
     try:
         guest_cols = [r[1] for r in cur.execute("PRAGMA table_info('wedding_guests')").fetchall()]
         for col, typedef in [
@@ -523,6 +523,9 @@ def initialise_database() -> None:
             ("food_preference", "TEXT"),
             ("food_allergies", "TEXT"),
             ("rsvp_submitted_at", "TEXT"),
+            ("meal_type", "TEXT DEFAULT 'regular'"),
+            ("food_notes", "TEXT"),
+            ("plus_one_meal_type", "TEXT DEFAULT 'regular'"),
         ]:
             if col not in guest_cols:
                 conn.execute(f"ALTER TABLE wedding_guests ADD COLUMN {col} {typedef}")

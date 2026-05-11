@@ -307,6 +307,8 @@
 
 <script>
 function openModal(id) {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     document.getElementById(id).classList.remove('hidden');
     document.body.style.overflow = 'hidden';
     var fab = document.getElementById('task-fab');

@@ -853,21 +853,23 @@ function reloadWithScroll() {
 
 // ===== Guest Modal =====
 function openGuestModal() {
-    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
 
     var modal = document.getElementById('add-guest-modal');
     var backdrop = modal.querySelector('.modal-backdrop');
     var sheet = modal.querySelector('.modal-sheet');
 
-    // Reset classes before showing
     backdrop.classList.remove('open');
     sheet.classList.remove('open');
 
     modal.classList.remove('hidden');
-    void modal.offsetHeight; // Force reflow so Safari renders initial state
+    void modal.offsetHeight;
 
-    backdrop.classList.add('open');
-    sheet.classList.add('open');
+    requestAnimationFrame(function() {
+        backdrop.classList.add('open');
+        sheet.classList.add('open');
+    });
     document.body.style.overflow = 'hidden';
 
     var fab = document.getElementById('guest-fab');

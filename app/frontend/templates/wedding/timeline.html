@@ -522,6 +522,8 @@ function switchDay(day) {
 
 /* ── Modal ────────────────────────────────────── */
 function openAdd(day, startTime, endTime) {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     editingId = null;
     selDay = day || activeDay;
     selCat = 'general';
@@ -542,6 +544,8 @@ function openAdd(day, startTime, endTime) {
 function openAddModal(day) { openAdd(day, '', ''); }
 
 function openEdit(ev) {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     editingId = ev.id;
     selDay = ev.day;
     const cat = ev.category || 'general';

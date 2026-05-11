@@ -286,6 +286,8 @@ function openEditIdeaModal(idea) {
 }
 
 function showIdeaModal() {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     const modal = document.getElementById('idea-modal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');

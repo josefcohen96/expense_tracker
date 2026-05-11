@@ -244,6 +244,8 @@
 // ─── Room Modal ──────────────────────────────────────────────────────────────
 
 function openAddRoomModal() {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     document.getElementById('room-modal-title').textContent = 'הוספת חדר';
     document.getElementById('room-id').value = '';
     document.getElementById('r-name').value = '';
@@ -256,6 +258,8 @@ function openAddRoomModal() {
 }
 
 function openEditRoomFromBtn(btn) {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     document.getElementById('room-modal-title').textContent = 'עריכת חדר';
     document.getElementById('room-id').value      = btn.dataset.roomId;
     document.getElementById('r-name').value       = btn.dataset.roomName;

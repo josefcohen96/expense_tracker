@@ -756,6 +756,8 @@ function showToast(msg) {
 
 // ─── Table Add/Edit Modal ─────────────────────────────────────────────────────
 function openAddTableModal() {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     document.getElementById('table-modal-title').textContent = 'הוסף שולחן';
     document.getElementById('edit-table-id').value = '';
     document.getElementById('tbl-name').value = 'שולחן ' + (Object.keys(tableMap).length + 1);
@@ -769,6 +771,8 @@ function openAddTableModal() {
 }
 
 function editTable(tableId) {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     const t = tableMap[tableId];
     document.getElementById('table-modal-title').textContent = 'ערוך שולחן';
     document.getElementById('edit-table-id').value = tableId;

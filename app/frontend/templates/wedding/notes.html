@@ -191,6 +191,8 @@ function openEditNoteModal(note) {
 }
 
 function showNoteModal() {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     const modal = document.getElementById('note-modal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');

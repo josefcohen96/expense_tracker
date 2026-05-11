@@ -837,6 +837,8 @@ function collectInclusions() {
 }
 
 function openAddModal(category) {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     document.getElementById('modal-title').textContent = 'הוספת ספק';
     document.getElementById('vendor-id').value = '';
     ['v-name','v-contact-name','v-phone','v-price-quoted','v-deposit-amount','v-deposit-date','v-notes','v-location','v-instagram'].forEach(id => {
@@ -850,6 +852,8 @@ function openAddModal(category) {
 }
 
 function openEditModal(v) {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     document.getElementById('modal-title').textContent = 'עריכת ספק';
     document.getElementById('vendor-id').value = v.id;
     document.getElementById('v-name').value = v.name || '';

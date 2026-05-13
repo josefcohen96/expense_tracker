@@ -106,7 +106,7 @@
             {% if ns.committed > 0 %}
             <div class="text-xl font-bold text-green-600" dir="ltr">₪{{ "{:,.0f}".format(ns.committed) }}</div>
             {% else %}
-            <div class="text-xl font-bold text-gray-300">—</div>
+            <div class="text-xl font-bold text-gray-400">—</div>
             {% endif %}
             <div class="text-xs text-gray-500 mt-0.5">סה"כ מחויב</div>
         </div>
@@ -212,7 +212,7 @@
                     </button>
                 {% else %}
                     <div class="flex-1 flex flex-col items-center justify-center py-8 text-center">
-                        <div class="text-gray-200 text-4xl mb-2">{{ cat_icon }}</div>
+                        <div class="text-gray-400 text-4xl mb-2">{{ cat_icon }}</div>
                         <div class="text-gray-400 text-sm mb-4">עדיין לא נבחר ספק</div>
                         <button onclick="openAddModal('{{ cat_key }}')"
                                 class="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-medium transition-colors min-h-[44px]">
@@ -600,7 +600,7 @@ function renderInclusionChips(category, inclusions) {
 
     // Show only items that have a value (yes or no), max 6
     const withValue = items.filter(it => inclusions[it.key] !== undefined);
-    if (!withValue.length) return '<span class="text-xs text-gray-300 italic">לא הוזנו פרמטרים</span>';
+    if (!withValue.length) return '<span class="text-xs text-gray-500 italic">לא הוזנו פרמטרים</span>';
 
     const shown = withValue.slice(0, 6);
     return shown.map(it => {
@@ -671,7 +671,7 @@ function renderCompareView() {
                                     <div class="flex flex-col items-center gap-1">
                                         <span class="font-bold text-gray-900 text-sm leading-tight">${escHtml(v.name)}</span>
                                         ${isChosen ? '<span class="text-xs bg-rose-600 text-white px-2 py-0.5 rounded-full font-medium">✓ נבחר</span>' : ''}
-                                        ${v.price_quoted ? `<span class="font-bold text-sm ${minPrice && v.price_quoted === minPrice && catVendors.length > 1 ? 'text-green-600' : 'text-gray-700'}" dir="ltr">₪${v.price_quoted.toLocaleString()}</span>` : '<span class="text-gray-300 text-xs">ללא מחיר</span>'}
+                                        ${v.price_quoted ? `<span class="font-bold text-sm ${minPrice && v.price_quoted === minPrice && catVendors.length > 1 ? 'text-green-600' : 'text-gray-700'}" dir="ltr">₪${v.price_quoted.toLocaleString()}</span>` : '<span class="text-gray-500 text-xs">ללא מחיר</span>'}
                                         <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE_CLASSES[v.status] || 'bg-gray-100 text-gray-500'}">${STATUS_LABELS[v.status] || v.status}</span>
                                     </div>
                                 </th>`;
@@ -691,7 +691,7 @@ function renderCompareView() {
                         let cell;
                         if (val === true)       cell = '<span class="text-green-500 text-lg">✓</span>';
                         else if (val === false)  cell = '<span class="text-red-400 text-lg">✗</span>';
-                        else                     cell = '<span class="text-gray-200 text-base">—</span>';
+                        else                     cell = '<span class="text-gray-400 text-base">—</span>';
                         const isChosen = ['deal_closed','deposit_paid','fully_paid'].includes(v.status);
                         return `<td class="py-2.5 px-4 text-center ${isChosen ? 'bg-rose-50/30' : ''}">${cell}</td>`;
                     }).join('')}
@@ -699,7 +699,7 @@ function renderCompareView() {
             });
         } else if (incItems.length) {
             html += `
-            <tr><td colspan="${catVendors.length + 1}" class="py-4 px-4 text-center text-xs text-gray-300 italic">
+            <tr><td colspan="${catVendors.length + 1}" class="py-4 px-4 text-center text-xs text-gray-500 italic">
                 לא הוזנו פרמטרים — ערוך ספק כדי להוסיף
             </td></tr>`;
         }

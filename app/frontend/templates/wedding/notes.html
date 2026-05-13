@@ -36,7 +36,7 @@
                 <button onclick="togglePin({{ note.id }}, {{ note.pinned }})"
                         class="flex-shrink-0 p-1 rounded-lg hover:bg-black/10 transition-colors mt-0.5"
                         title="{% if note.pinned %}שחרר נעיצה{% else %}נעץ{% endif %}">
-                    <svg class="w-4 h-4 transition-colors {% if note.pinned %}text-rose-500{% else %}text-gray-300 group-hover:text-gray-400{% endif %}"
+                    <svg class="w-4 h-4 transition-colors {% if note.pinned %}text-rose-500{% else %}text-gray-400 group-hover:text-gray-600{% endif %}"
                          fill="{% if note.pinned %}currentColor{% else %}none{% endif %}"
                          stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

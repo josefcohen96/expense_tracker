@@ -935,7 +935,7 @@ body {
 }
 
 /* FAB should float above home indicator */
-.fab {
+.fab-button {
   bottom: calc(30px + var(--safe-bottom));
   right: calc(30px + var(--safe-right));
 }

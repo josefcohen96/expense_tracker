@@ -4,11 +4,11 @@
 
 {% block content %}
 <!-- Hide the base layout FAB on wedding pages -->
-<style>.fab { display: none !important; }</style>
+<style>.fab-button { display: none !important; }</style>
 
 <!-- Desktop Only: Persistent Sidebar -->
 <aside class="hidden lg:flex lg:flex-col fixed bg-white border-l border-gray-200 shadow-lg overflow-y-auto"
-       style="right: 0; top: calc(64px + env(safe-area-inset-top, 0px)); bottom: 0; width: 16rem; z-index: 50;"
+       style="right: 0; top: calc(64px + 0.5rem + env(safe-area-inset-top, 0px)); bottom: 0; width: 16rem; z-index: 50;"
        dir="rtl">
 
     <!-- Sidebar Header -->
@@ -193,7 +193,7 @@
 
 <!-- Mobile Only: Fixed Left Mini Sidebar -->
 <nav class="lg:hidden fixed left-0 z-[150] bg-white border-r border-gray-200 shadow-md flex flex-col items-center overflow-y-auto"
-     style="top: calc(124px + env(safe-area-inset-top, 0px)); bottom: 0; width: 52px; padding-bottom: env(safe-area-inset-bottom, 0px);">
+     style="top: calc(124px + 0.5rem + env(safe-area-inset-top, 0px)); bottom: env(safe-area-inset-bottom, 16px); width: 52px; padding-bottom: env(safe-area-inset-bottom, 0px);">
 
     <a href="/wedding" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
        {% if request.path == '/wedding' %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">

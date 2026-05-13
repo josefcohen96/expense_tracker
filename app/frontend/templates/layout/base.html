@@ -116,7 +116,7 @@
         }
 
         /* ===== FLOATING ACTION BUTTON (z-index: 300-350) ===== */
-        .fab {
+        .fab-button {
             position: fixed;
             bottom: calc(30px + env(safe-area-inset-bottom));
             right: calc(30px + env(safe-area-inset-right));
@@ -136,7 +136,7 @@
             font-size: 24px;
         }
 
-        .fab:hover {
+        .fab-button:hover {
             transform: scale(1.1) rotate(180deg);
             box-shadow: 0 6px 30px rgba(102, 126, 234, 0.6);
         }
@@ -200,7 +200,7 @@
         .main-content {
             flex: 1;
             min-height: 100vh;
-            margin-top: calc(64px + env(safe-area-inset-top));
+            margin-top: calc(64px + 0.5rem + env(safe-area-inset-top));
             z-index: 10;
             position: relative;
         }
@@ -211,7 +211,7 @@
             /* Mobile: Full width content */
             .main-content {
                 width: 100%;
-                margin-top: calc(64px + env(safe-area-inset-top));
+                margin-top: calc(64px + 0.5rem + env(safe-area-inset-top));
             }
 
             /* Mobile: Adjust navbar */
@@ -220,7 +220,7 @@
             }
 
             /* Mobile: Smaller FAB - positioned above browser bottom bar */
-            .fab {
+            .fab-button {
                 width: 50px;
                 height: 50px;
                 bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
@@ -354,8 +354,8 @@
         }
 
         /* Hide FAB when modal or drawer is open */
-        .modal-overlay.active ~ .fab,
-        body.modal-open .fab {
+        .modal-overlay.active ~ .fab-button,
+        body.modal-open .fab-button {
             opacity: 0;
             pointer-events: none;
             transform: scale(0.5);
@@ -405,7 +405,7 @@
         }
         .section-subheader {
             position: sticky;
-            top: calc(64px + env(safe-area-inset-top, 0px));
+            top: calc(64px + 0.5rem + env(safe-area-inset-top, 0px));
             z-index: 30;
         }
 

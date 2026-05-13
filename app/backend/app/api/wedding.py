@@ -818,6 +818,7 @@ async def update_table_positions(body: SeatingTablePositions, db_conn: sqlite3.C
 
 @router.delete("/seating/tables/{table_id}", status_code=204)
 async def delete_seating_table(table_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    db_conn.execute("DELETE FROM wedding_seating_assignments WHERE table_id=?", (table_id,))
     db_conn.execute("DELETE FROM wedding_seating_tables WHERE id=?", (table_id,))
     db_conn.commit()
 

@@ -533,6 +533,16 @@ def initialise_database() -> None:
     except Exception:
         pass
 
+    # Cleanup: remove orphaned seating assignments pointing to deleted tables
+    try:
+        conn.execute("""
+            DELETE FROM wedding_seating_assignments
+            WHERE table_id NOT IN (SELECT id FROM wedding_seating_tables)
+        """)
+        conn.commit()
+    except Exception:
+        pass
+
     # Seed default rooms from venue if table is empty
     try:
         if not cur.execute("SELECT COUNT(*) FROM wedding_rooms").fetchone()[0]:

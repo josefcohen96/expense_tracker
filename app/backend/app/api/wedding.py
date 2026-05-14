@@ -8,7 +8,7 @@ import uuid
 import os
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from ..db import get_db_conn
@@ -20,6 +20,29 @@ _UPLOADS_DIR = Path(__file__).resolve().parents[3] / "uploads" / "vendor_files"
 _ALLOWED_MIME = {"application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"}
 _ALLOWED_EXT  = {".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp"}
 _MAX_SIZE_MB  = 15
+
+# Magic bytes for file-type sniffing (defense-in-depth alongside extension check)
+_MAGIC_BYTES = {
+    "application/pdf": [b"%PDF-"],
+    "image/jpeg":      [b"\xff\xd8\xff"],
+    "image/png":       [b"\x89PNG\r\n\x1a\n"],
+    "image/gif":       [b"GIF87a", b"GIF89a"],
+    "image/webp":      [b"RIFF"],  # also has "WEBP" at offset 8
+}
+
+def _sniff_mime(content: bytes) -> Optional[str]:
+    if not content:
+        return None
+    for mime, signatures in _MAGIC_BYTES.items():
+        for sig in signatures:
+            if content.startswith(sig):
+                # Extra check for WebP: "WEBP" marker at offset 8
+                if mime == "image/webp":
+                    if len(content) >= 12 and content[8:12] == b"WEBP":
+                        return mime
+                else:
+                    return mime
+    return None
 
 
 # ─── Schemas ────────────────────────────────────────────────────────────────
@@ -189,7 +212,7 @@ async def update_vendor(vendor_id: int, body: VendorUpdate, db_conn: sqlite3.Con
     existing = db_conn.execute("SELECT * FROM wedding_vendors WHERE id=?", (vendor_id,)).fetchone()
     if not existing:
         raise HTTPException(status_code=404, detail="Vendor not found")
-    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    fields = body.model_dump(exclude_unset=True)
     if not fields:
         return dict(existing)
     set_clause = ", ".join(f"{k}=?" for k in fields)
@@ -218,6 +241,8 @@ def _recalculate_price_quoted(vendor_id: int, db_conn: sqlite3.Connection) -> fl
         (vendor_id,)
     ).fetchall()
     if not rows:
+        # Clear the vendor's price_quoted when all line items are removed
+        db_conn.execute("UPDATE wedding_vendors SET price_quoted=0 WHERE id=?", (vendor_id,))
         return 0.0
     pre_vat = sum(r["quantity"] * r["unit_price"] for r in rows)
     vat = sum(r["quantity"] * r["unit_price"] for r in rows if r["apply_vat"]) * VAT_RATE
@@ -245,11 +270,16 @@ async def replace_quote_items(
         raise HTTPException(status_code=404, detail="Vendor not found")
     db_conn.execute("DELETE FROM vendor_quote_items WHERE vendor_id=?", (vendor_id,))
     for i, item in enumerate(items):
+        # Normalize apply_vat to strict 0/1 to prevent unexpected truthy values
+        apply_vat = 1 if item.apply_vat else 0
+        # Sanitize numeric fields against negatives
+        qty = max(0.0, float(item.quantity or 0))
+        price = max(0.0, float(item.unit_price or 0))
         db_conn.execute(
             """INSERT INTO vendor_quote_items
                (vendor_id, description, quantity, unit_price, apply_vat, sort_order)
                VALUES (?,?,?,?,?,?)""",
-            (vendor_id, item.description, item.quantity, item.unit_price, item.apply_vat, i),
+            (vendor_id, item.description, qty, price, apply_vat, i),
         )
     total = _recalculate_price_quoted(vendor_id, db_conn)
     db_conn.commit()
@@ -288,9 +318,14 @@ async def update_guest(guest_id: int, body: GuestUpdate, db_conn: sqlite3.Connec
     existing = db_conn.execute("SELECT * FROM wedding_guests WHERE id=?", (guest_id,)).fetchone()
     if not existing:
         raise HTTPException(status_code=404, detail="Guest not found")
-    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    fields = body.model_dump(exclude_unset=True)
     if not fields:
         return dict(existing)
+    # If marking guest declined, clean up seating/room assignments to keep state consistent
+    new_status = fields.get("status")
+    if new_status == "declined":
+        db_conn.execute("DELETE FROM wedding_seating_assignments WHERE guest_id=?", (guest_id,))
+        db_conn.execute("DELETE FROM wedding_room_assignments WHERE guest_id=?", (guest_id,))
     set_clause = ", ".join(f"{k}=?" for k in fields)
     db_conn.execute(
         f"UPDATE wedding_guests SET {set_clause} WHERE id=?",
@@ -302,6 +337,10 @@ async def update_guest(guest_id: int, body: GuestUpdate, db_conn: sqlite3.Connec
 
 @router.delete("/guests/{guest_id}", status_code=204)
 async def delete_guest(guest_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    # Explicitly clean dependent rows since FK CASCADEs may not be enforced
+    # (SQLite requires PRAGMA foreign_keys=ON which we cannot rely on per-connection).
+    db_conn.execute("DELETE FROM wedding_seating_assignments WHERE guest_id=?", (guest_id,))
+    db_conn.execute("DELETE FROM wedding_room_assignments WHERE guest_id=?", (guest_id,))
     db_conn.execute("DELETE FROM wedding_guests WHERE id=?", (guest_id,))
     db_conn.commit()
 
@@ -331,6 +370,8 @@ async def list_rooms(db_conn: sqlite3.Connection = Depends(get_db_conn)):
 
 @router.post("/rooms", status_code=201)
 async def create_room(body: RoomCreate, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    if body.max_capacity < 1:
+        raise HTTPException(status_code=400, detail="max_capacity must be ≥ 1")
     cur = db_conn.execute(
         "INSERT INTO wedding_rooms (name, room_type, max_capacity, notes) VALUES (?,?,?,?)",
         (body.name, body.room_type, body.max_capacity, body.notes),
@@ -344,9 +385,12 @@ async def update_room(room_id: int, body: RoomUpdate, db_conn: sqlite3.Connectio
     existing = db_conn.execute("SELECT * FROM wedding_rooms WHERE id=?", (room_id,)).fetchone()
     if not existing:
         raise HTTPException(status_code=404, detail="Room not found")
-    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    fields = body.model_dump(exclude_unset=True)
     if not fields:
         return dict(existing)
+    # Defend against capacity ≤ 0 which would break occupancy math in templates
+    if "max_capacity" in fields and (fields["max_capacity"] is None or fields["max_capacity"] < 1):
+        raise HTTPException(status_code=400, detail="max_capacity must be ≥ 1")
     set_clause = ", ".join(f"{k}=?" for k in fields)
     db_conn.execute(f"UPDATE wedding_rooms SET {set_clause} WHERE id=?", (*fields.values(), room_id))
     db_conn.commit()
@@ -362,10 +406,34 @@ async def delete_room(room_id: int, db_conn: sqlite3.Connection = Depends(get_db
 
 @router.post("/rooms/{room_id}/assign/{guest_id}", status_code=201)
 async def assign_guest_to_room(room_id: int, guest_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
-    if not db_conn.execute("SELECT 1 FROM wedding_rooms WHERE id=?", (room_id,)).fetchone():
+    room = db_conn.execute("SELECT id, max_capacity FROM wedding_rooms WHERE id=?", (room_id,)).fetchone()
+    if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-    if not db_conn.execute("SELECT 1 FROM wedding_guests WHERE id=?", (guest_id,)).fetchone():
+    guest = db_conn.execute(
+        "SELECT id, plus_one, children_count, status FROM wedding_guests WHERE id=?", (guest_id,)
+    ).fetchone()
+    if not guest:
         raise HTTPException(status_code=404, detail="Guest not found")
+    if guest["status"] == "declined":
+        raise HTTPException(status_code=400, detail="Cannot assign a declined guest to a room")
+
+    # Compute how many beds this guest occupies and whether the room has room.
+    needed = 1 + (1 if guest["plus_one"] else 0) + int(guest["children_count"] or 0)
+    # Current occupancy excluding this guest (if already in this room)
+    occupancy_row = db_conn.execute(
+        """SELECT COALESCE(SUM(1 + CASE WHEN g.plus_one=1 THEN 1 ELSE 0 END + COALESCE(g.children_count,0)), 0)
+           FROM wedding_room_assignments ra
+           JOIN wedding_guests g ON g.id = ra.guest_id
+           WHERE ra.room_id = ? AND ra.guest_id != ? AND g.status != 'declined'""",
+        (room_id, guest_id),
+    ).fetchone()
+    current_occupancy = int(occupancy_row[0] or 0)
+    if current_occupancy + needed > int(room["max_capacity"]):
+        raise HTTPException(
+            status_code=400,
+            detail=f"החדר מלא ({current_occupancy}/{room['max_capacity']}). אין מקום לעוד {needed} אנשים.",
+        )
+
     db_conn.execute(
         "INSERT INTO wedding_room_assignments (room_id, guest_id) VALUES (?,?) ON CONFLICT(guest_id) DO UPDATE SET room_id=excluded.room_id",
         (room_id, guest_id),
@@ -405,7 +473,7 @@ async def update_task(task_id: int, body: TaskUpdate, db_conn: sqlite3.Connectio
     existing = db_conn.execute("SELECT * FROM wedding_tasks WHERE id=?", (task_id,)).fetchone()
     if not existing:
         raise HTTPException(status_code=404, detail="Task not found")
-    updates = body.model_dump(exclude_none=True)
+    updates = body.model_dump(exclude_unset=True)
     if not updates:
         return dict(existing)
     set_clause = ", ".join(f"{k}=?" for k in updates)
@@ -446,7 +514,7 @@ async def update_budget_item(item_id: int, body: BudgetItemUpdate, db_conn: sqli
     existing = db_conn.execute("SELECT * FROM wedding_budget_items WHERE id=?", (item_id,)).fetchone()
     if not existing:
         raise HTTPException(status_code=404, detail="Budget item not found")
-    updates = body.model_dump(exclude_none=True)
+    updates = body.model_dump(exclude_unset=True)
     if not updates:
         return dict(existing)
     set_clause = ", ".join(f"{k}=?" for k in updates)
@@ -506,10 +574,12 @@ async def upload_vendor_file(
     orig_name = file.filename or "file"
     ext = Path(orig_name).suffix.lower()
     if ext not in _ALLOWED_EXT:
-        raise HTTPException(status_code=400, detail=f"סוג קובץ לא נתמך. מותר: PDF, JPG, PNG, GIF")
+        raise HTTPException(status_code=400, detail="סוג קובץ לא נתמך. מותר: PDF, JPG, PNG, GIF, WEBP")
 
     # Read content and check size
     content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="הקובץ ריק")
     size_mb = len(content) / (1024 * 1024)
     if size_mb > _MAX_SIZE_MB:
         raise HTTPException(status_code=400, detail=f"הקובץ גדול מדי (מקסימום {_MAX_SIZE_MB}MB)")
@@ -522,18 +592,27 @@ async def upload_vendor_file(
         ".gif": "image/gif",
         ".webp": "image/webp",
     }
-    mime_type = mime_map.get(ext, "application/octet-stream")
+    declared_mime = mime_map.get(ext, "application/octet-stream")
 
-    # Store file
+    # Verify magic bytes match the declared extension — defense against renamed payloads
+    detected_mime = _sniff_mime(content)
+    if detected_mime is None or detected_mime != declared_mime:
+        raise HTTPException(
+            status_code=400,
+            detail="תוכן הקובץ אינו תואם לסיומת. ודא שהקובץ הוא PDF/תמונה אמיתי.",
+        )
+
+    # Store file under a UUID name so original_name can't influence the path
     stored_name = f"{uuid.uuid4().hex}{ext}"
     vendor_dir = _UPLOADS_DIR / str(vendor_id)
     vendor_dir.mkdir(parents=True, exist_ok=True)
     (vendor_dir / stored_name).write_bytes(content)
 
-    # Save metadata
+    # Save metadata (truncate display name to avoid pathological lengths)
+    safe_orig = orig_name[:255]
     cur = db_conn.execute(
         "INSERT INTO vendor_files (vendor_id, original_name, stored_name, file_size, mime_type) VALUES (?,?,?,?,?)",
-        (vendor_id, orig_name, stored_name, len(content), mime_type),
+        (vendor_id, safe_orig, stored_name, len(content), declared_mime),
     )
     db_conn.commit()
     row = db_conn.execute("SELECT * FROM vendor_files WHERE id=?", (cur.lastrowid,)).fetchone()
@@ -545,7 +624,12 @@ async def get_vendor_file(file_id: int, db_conn: sqlite3.Connection = Depends(ge
     row = db_conn.execute("SELECT * FROM vendor_files WHERE id=?", (file_id,)).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="File not found")
-    file_path = _UPLOADS_DIR / str(row["vendor_id"]) / row["stored_name"]
+    file_path = (_UPLOADS_DIR / str(row["vendor_id"]) / row["stored_name"]).resolve()
+    # Guard against path-traversal: stored_name should be UUID-only, but verify.
+    try:
+        file_path.relative_to(_UPLOADS_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid file path")
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found on disk")
     return FileResponse(
@@ -605,7 +689,7 @@ async def update_note(note_id: int, body: NoteUpdate, db_conn: sqlite3.Connectio
     existing = db_conn.execute("SELECT * FROM wedding_notes WHERE id=?", (note_id,)).fetchone()
     if not existing:
         raise HTTPException(status_code=404, detail="Note not found")
-    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    fields = body.model_dump(exclude_unset=True)
     if not fields:
         return dict(existing)
     set_clause = ", ".join(f"{k}=?" for k in fields) + ", updated_at=CURRENT_TIMESTAMP"
@@ -663,7 +747,7 @@ async def update_idea(idea_id: int, body: IdeaUpdate, db_conn: sqlite3.Connectio
     existing = db_conn.execute("SELECT * FROM wedding_ideas WHERE id=?", (idea_id,)).fetchone()
     if not existing:
         raise HTTPException(status_code=404, detail="Idea not found")
-    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    fields = body.model_dump(exclude_unset=True)
     if not fields:
         return dict(existing)
     set_clause = ", ".join(f"{k}=?" for k in fields) + ", updated_at=CURRENT_TIMESTAMP"
@@ -706,7 +790,7 @@ async def update_timeline_event(event_id: int, body: TimelineEventUpdate, db_con
     existing = db_conn.execute("SELECT * FROM wedding_timeline_events WHERE id=?", (event_id,)).fetchone()
     if not existing:
         raise HTTPException(status_code=404, detail="Event not found")
-    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    fields = body.model_dump(exclude_unset=True)
     if not fields:
         return dict(existing)
     set_clause = ", ".join(f"{k}=?" for k in fields)
@@ -796,9 +880,18 @@ async def update_seating_table(table_id: int, body: SeatingTableUpdate, db_conn:
     existing = db_conn.execute("SELECT * FROM wedding_seating_tables WHERE id=?", (table_id,)).fetchone()
     if not existing:
         raise HTTPException(status_code=404, detail="Table not found")
-    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    fields = body.model_dump(exclude_unset=True)
     if not fields:
         return dict(existing)
+    # Validate capacity ≥ 1 to prevent broken occupancy math
+    if "capacity" in fields and (fields["capacity"] is None or fields["capacity"] < 1):
+        raise HTTPException(status_code=400, detail="capacity must be ≥ 1")
+    # If capacity is reduced, drop any out-of-range seat assignments
+    if "capacity" in fields and fields["capacity"] is not None and fields["capacity"] < existing["capacity"]:
+        db_conn.execute(
+            "DELETE FROM wedding_seating_assignments WHERE table_id=? AND seat_number>?",
+            (table_id, fields["capacity"]),
+        )
     set_clause = ", ".join(f"{k}=?" for k in fields)
     db_conn.execute(f"UPDATE wedding_seating_tables SET {set_clause} WHERE id=?", (*fields.values(), table_id))
     db_conn.commit()
@@ -808,9 +901,15 @@ async def update_seating_table(table_id: int, body: SeatingTableUpdate, db_conn:
 @router.post("/seating/tables/positions")
 async def update_table_positions(body: SeatingTablePositions, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     for item in body.tables:
+        try:
+            tid = int(item["id"])
+            x = float(item["x"])
+            y = float(item["y"])
+        except (KeyError, TypeError, ValueError):
+            continue
         db_conn.execute(
             "UPDATE wedding_seating_tables SET x=?, y=? WHERE id=?",
-            (item["x"], item["y"], item["id"]),
+            (x, y, tid),
         )
     db_conn.commit()
     return {"ok": True}
@@ -825,23 +924,54 @@ async def delete_seating_table(table_id: int, db_conn: sqlite3.Connection = Depe
 
 @router.post("/seating/assign", status_code=201)
 async def assign_guest(body: SeatingAssign, db_conn: sqlite3.Connection = Depends(get_db_conn)):
-    all_seats = [body.seat_number] + body.extra_seats
-    # Remove all existing assignments for this guest
-    db_conn.execute("DELETE FROM wedding_seating_assignments WHERE guest_id=?", (body.guest_id,))
-    # Remove existing occupants of all target seats
-    for seat in all_seats:
+    # Validate table exists and grab its capacity
+    table = db_conn.execute(
+        "SELECT id, capacity FROM wedding_seating_tables WHERE id=?", (body.table_id,)
+    ).fetchone()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    if not db_conn.execute("SELECT 1 FROM wedding_guests WHERE id=?", (body.guest_id,)).fetchone():
+        raise HTTPException(status_code=404, detail="Guest not found")
+
+    # Dedupe + validate seat numbers fall within 1..capacity
+    capacity = int(table["capacity"])
+    seen = set()
+    all_seats: list[int] = []
+    for s in [body.seat_number] + list(body.extra_seats or []):
+        try:
+            si = int(s)
+        except (TypeError, ValueError):
+            continue
+        if si < 1 or si > capacity:
+            raise HTTPException(status_code=400, detail=f"Seat number {si} is outside table capacity (1-{capacity})")
+        if si in seen:
+            continue
+        seen.add(si)
+        all_seats.append(si)
+    if not all_seats:
+        raise HTTPException(status_code=400, detail="No valid seats provided")
+
+    try:
+        # Treat as single transaction so partial failure doesn't leave inconsistent state
+        # Remove any prior assignments for this guest
+        db_conn.execute("DELETE FROM wedding_seating_assignments WHERE guest_id=?", (body.guest_id,))
+        # Free target seats (may belong to other guests)
+        placeholders = ",".join("?" * len(all_seats))
         db_conn.execute(
-            "DELETE FROM wedding_seating_assignments WHERE table_id=? AND seat_number=?",
-            (body.table_id, seat),
+            f"DELETE FROM wedding_seating_assignments WHERE table_id=? AND seat_number IN ({placeholders})",
+            (body.table_id, *all_seats),
         )
-    # Insert one row per seat
-    for seat in all_seats:
-        db_conn.execute(
-            "INSERT INTO wedding_seating_assignments (table_id, seat_number, guest_id) VALUES (?,?,?)",
-            (body.table_id, seat, body.guest_id),
-        )
-    db_conn.commit()
-    return {"ok": True}
+        # Insert one row per seat
+        for seat in all_seats:
+            db_conn.execute(
+                "INSERT INTO wedding_seating_assignments (table_id, seat_number, guest_id) VALUES (?,?,?)",
+                (body.table_id, seat, body.guest_id),
+            )
+        db_conn.commit()
+    except Exception:
+        db_conn.rollback()
+        raise HTTPException(status_code=500, detail="Failed to assign seats")
+    return {"ok": True, "seats": all_seats}
 
 
 @router.delete("/seating/assign/{guest_id}", status_code=204)
@@ -852,27 +982,45 @@ async def unassign_guest(guest_id: int, db_conn: sqlite3.Connection = Depends(ge
 
 # ─── Invite Tokens ───────────────────────────────────────────────────────────
 
-BASE_URL = "https://expensetracker-production-2084.up.railway.app"
+# Default base URL used when no request context is available. Can be overridden by
+# the PUBLIC_BASE_URL environment variable for staging/custom domains.
+DEFAULT_BASE_URL = "https://expensetracker-production-2084.up.railway.app"
+
+
+def _resolve_base_url(request: Optional[Request]) -> str:
+    """Prefer env override, then request scheme+host, then production fallback."""
+    env_url = os.environ.get("PUBLIC_BASE_URL", "").strip()
+    if env_url:
+        return env_url.rstrip("/")
+    if request is not None:
+        try:
+            base = str(request.base_url).rstrip("/")
+            if base:
+                return base
+        except Exception:
+            pass
+    return DEFAULT_BASE_URL
 
 
 @router.post("/guests/{guest_id}/generate-invite")
-async def generate_invite(guest_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+async def generate_invite(guest_id: int, request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     guest = db_conn.execute("SELECT * FROM wedding_guests WHERE id=?", (guest_id,)).fetchone()
     if not guest:
         raise HTTPException(status_code=404, detail="Guest not found")
     token = uuid.uuid4().hex
     db_conn.execute("UPDATE wedding_guests SET invite_token=? WHERE id=?", (token, guest_id))
     db_conn.commit()
-    link = f"{BASE_URL}/invite/{token}"
+    link = f"{_resolve_base_url(request)}/invite/{token}"
     return {"token": token, "link": link, "guest_id": guest_id, "guest_name": guest["name"]}
 
 
 @router.get("/guests/{guest_id}/invite-link")
-async def get_invite_link(guest_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+async def get_invite_link(guest_id: int, request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     guest = db_conn.execute("SELECT id, name, invite_token FROM wedding_guests WHERE id=?", (guest_id,)).fetchone()
     if not guest:
         raise HTTPException(status_code=404, detail="Guest not found")
     token = guest["invite_token"]
     if not token:
         return {"link": None, "guest_id": guest_id}
-    return {"token": token, "link": f"{BASE_URL}/invite/{token}", "guest_id": guest_id, "guest_name": guest["name"]}
+    link = f"{_resolve_base_url(request)}/invite/{token}"
+    return {"token": token, "link": link, "guest_id": guest_id, "guest_name": guest["name"]}

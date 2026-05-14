@@ -197,10 +197,11 @@
                                class="text-xs text-rose-600 hover:text-rose-800 font-medium py-1.5 px-2 min-h-[36px] flex items-center rounded-lg hover:bg-rose-50">
                                פרטים
                             </a>
-                            <button data-vendor='{{ v | tojson | replace("'", "&#39;") }}'
+                            <button data-vendor='{{ v | tojson | forceescape }}'
                                     onclick="openEditModal(JSON.parse(this.dataset.vendor))"
                                     class="text-xs text-gray-500 hover:text-gray-700 py-1.5 px-2 min-h-[36px] rounded-lg hover:bg-gray-100">ערוך</button>
-                            <button onclick="deleteVendor({{ v.id }}, '{{ v.name }}')"
+                            <button data-vendor-id="{{ v.id }}" data-vendor-name="{{ v.name }}"
+                                    onclick="deleteVendor(parseInt(this.dataset.vendorId), this.dataset.vendorName)"
                                     class="text-xs text-red-400 hover:text-red-600 mr-auto py-1.5 px-2 min-h-[36px] rounded-lg hover:bg-red-50">מחק</button>
                         </div>
                     </div>
@@ -256,8 +257,10 @@
                     </div>
                     <div class="flex gap-2 mt-2 pt-2 border-t border-gray-100">
                         <a href="/wedding/vendors/{{ v.id }}" class="text-xs text-rose-600 hover:text-rose-800 font-medium py-1.5 px-2 min-h-[36px] flex items-center">פרטים</a>
-                        <button data-vendor='{{ v | tojson | replace("'", "&#39;") }}' onclick="openEditModal(JSON.parse(this.dataset.vendor))" class="text-xs text-gray-500 hover:text-gray-700 py-1.5 px-2 min-h-[36px]">ערוך</button>
-                        <button onclick="deleteVendor({{ v.id }}, '{{ v.name | replace("'", "\\'") }}')" class="text-xs text-red-400 hover:text-red-600 mr-auto py-1.5 px-2 min-h-[36px]">מחק</button>
+                        <button data-vendor='{{ v | tojson | forceescape }}' onclick="openEditModal(JSON.parse(this.dataset.vendor))" class="text-xs text-gray-500 hover:text-gray-700 py-1.5 px-2 min-h-[36px]">ערוך</button>
+                        <button data-vendor-id="{{ v.id }}" data-vendor-name="{{ v.name }}"
+                                onclick="deleteVendor(parseInt(this.dataset.vendorId), this.dataset.vendorName)"
+                                class="text-xs text-red-400 hover:text-red-600 mr-auto py-1.5 px-2 min-h-[36px]">מחק</button>
                     </div>
                 </div>
             </div>

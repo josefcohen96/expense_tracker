@@ -515,14 +515,34 @@ function tableMouseDown(e) {
     if (e.target.closest('button') || e.target.closest('.seat')) return;
     dragTableId = parseInt(this.dataset.tableId);
     const rect = this.getBoundingClientRect();
-    const canvasRect = document.getElementById('canvas-outer').getBoundingClientRect();
     dragOffX = e.clientX - rect.left;
     dragOffY = e.clientY - rect.top;
     this.classList.add('dragging');
     e.preventDefault();
 }
+
+async function endTableDrag() {
+    if (!dragTableId) return;
+    const id = dragTableId;
+    dragTableId = null;  // clear immediately so duplicate fires no-op
+    const el = document.getElementById('tbl-' + id);
+    if (el) {
+        el.classList.remove('dragging');
+        const nx = parseFloat(el.style.left), ny = parseFloat(el.style.top);
+        if (!Number.isNaN(nx) && !Number.isNaN(ny) && tableMap[id]) {
+            tableMap[id].x = nx;
+            tableMap[id].y = ny;
+            try {
+                await api('POST', '/api/wedding/seating/tables/positions', {tables:[{id, x:nx, y:ny}]});
+            } catch (err) { /* swallow — UI is already updated */ }
+        }
+    }
+}
+
 document.addEventListener('mousemove', e => {
     if (!dragTableId) return;
+    // If primary button no longer held (e.g. mouseup happened outside window), end drag
+    if (e.buttons === 0) { endTableDrag(); return; }
     const outer = document.getElementById('canvas-outer');
     const outerRect = outer.getBoundingClientRect();
     const x = e.clientX - outerRect.left + outer.scrollLeft - dragOffX;
@@ -530,18 +550,10 @@ document.addEventListener('mousemove', e => {
     const el = document.getElementById('tbl-' + dragTableId);
     if (el) { el.style.left = Math.max(0,x)+'px'; el.style.top = Math.max(0,y)+'px'; }
 });
-document.addEventListener('mouseup', async e => {
-    if (!dragTableId) return;
-    const el = document.getElementById('tbl-' + dragTableId);
-    if (el) {
-        el.classList.remove('dragging');
-        const nx = parseFloat(el.style.left), ny = parseFloat(el.style.top);
-        tableMap[dragTableId].x = nx;
-        tableMap[dragTableId].y = ny;
-        await api('POST', '/api/wedding/seating/tables/positions', {tables:[{id:dragTableId,x:nx,y:ny}]});
-    }
-    dragTableId = null;
-});
+document.addEventListener('mouseup', endTableDrag);
+// Belt-and-suspenders: clean up drag state when window loses focus or user leaves the document
+window.addEventListener('blur', endTableDrag);
+document.addEventListener('mouseleave', endTableDrag);
 
 // ─── Canvas drag-over / drop (for new table placement) ───────────────────────
 function canvasDragOver(e) { e.preventDefault(); }
@@ -618,8 +630,10 @@ function openAssignModal(tableId, seatNum, currentGuestId) {
 function closeAssignModal() { document.getElementById('assign-modal').style.display='none'; assignTarget=null; }
 
 function renderAssignList(filter) {
-    const unseated = GUESTS.filter(g => g.status !== 'declined' && (!guestAssign[g.id] || guestAssign[g.id].table_id === assignTarget.table_id));
-    const list = filter ? unseated.filter(g => g.name.includes(filter)||(g.group_name||'').includes(filter)||(g.plus_one_name||'').includes(filter)) : unseated;
+    // Show ALL non-declined guests so users can move someone from another table.
+    // Guests seated elsewhere are tagged so the user knows the assignment will move them.
+    const candidates = GUESTS.filter(g => g.status !== 'declined');
+    const list = filter ? candidates.filter(g => g.name.includes(filter)||(g.group_name||'').includes(filter)||(g.plus_one_name||'').includes(filter)) : candidates;
     const scroll = document.getElementById('guest-list-scroll');
     if (!list.length) { scroll.innerHTML = '<div style="text-align:center;color:#9ca3af;padding:1rem;font-size:.8rem">לא נמצאו מוזמנים</div>'; return; }
 
@@ -630,13 +644,15 @@ function renderAssignList(filter) {
     scroll.innerHTML = list.map(g => {
         const ga = guestAssign[g.id];
         const isCurrentlyHere = ga && ga.table_id === tableId && ga.seats.includes(assignTarget.seat_number);
+        const seatedElsewhere = ga && ga.table_id !== tableId;
+        const otherTableName = seatedElsewhere && tableMap[ga.table_id] ? tableMap[ga.table_id].name : '';
         const extras = [];
         if (g.plus_one) extras.push(`<span style="color:#be123c;font-weight:600">+${escHtml(g.plus_one_name||'1')}</span>`);
         if (g.children_count > 0) extras.push(`<span style="color:#1d4ed8">${g.children_count} ילד${g.children_count>1?'ים':''}</span>`);
         const n = personCount(g);
         const subLine = [...extras, g.group_name ? `<span>${escHtml(g.group_name)}</span>` : ''].filter(Boolean).join(' · ');
 
-        // Count seats available for this guest
+        // Count seats available for this guest (treat their own seats here as available)
         const occupiedByOthers = Object.values(assignMap[tableId] || {}).filter(gid => gid !== g.id).length;
         const available = cap - occupiedByOthers;
         const notEnough = n > available;
@@ -644,11 +660,15 @@ function renderAssignList(filter) {
         const multiTag = n > 1
             ? `<span style="color:${notEnough?'#dc2626':'#6b7280'};font-size:.65rem;flex-shrink:0;margin-right:.25rem">${notEnough?'⚠️ ':''}👥${n}</span>`
             : '';
+        const elsewhereTag = seatedElsewhere
+            ? `<span style="color:#a16207;font-size:.65rem;flex-shrink:0;margin-right:.25rem" title="ישוב כעת ב${escHtml(otherTableName)} — בחירה תעביר אותו">↪ ${escHtml(otherTableName)}</span>`
+            : '';
         return `<div class="guest-option ${isCurrentlyHere?'bg-rose-50':''}" onclick="pickGuest(${g.id})">
             <div style="flex:1;min-width:0">
                 <div class="go-name">${escHtml(g.name)}</div>
                 ${subLine ? `<div class="go-group" style="margin-top:.1rem">${subLine}</div>` : ''}
             </div>
+            ${elsewhereTag}
             ${multiTag}
             ${isCurrentlyHere ? '<span style="color:#be123c;font-size:.7rem;flex-shrink:0">✓ כאן</span>' : ''}
         </div>`;
@@ -706,7 +726,7 @@ async function doAssign(guestId, tableId, seatNum) {
         }
     }
 
-    // Apply new assignments
+    // Apply new assignments locally
     assignMap[tableId] = assignMap[tableId] || {};
     for (const s of allSeats) assignMap[tableId][s] = guestId;
     guestAssign[guestId] = { table_id: tableId, seat_number: seatNum, seats: allSeats };
@@ -719,6 +739,12 @@ async function doAssign(guestId, tableId, seatNum) {
     if (g && personCount(g) > cap) {
         const missing = personCount(g) - cap;
         showToast(`⚠️ ${missing} מקומות חסרים בשולחן — הוקצו ${cap} מתוך ${personCount(g)}`);
+    }
+
+    // Sync server: unassign each displaced guest BEFORE the new assignment so that
+    // their seats — possibly elsewhere on the same table — don't linger server-side.
+    for (const dId of displaced) {
+        try { await api('DELETE', `/api/wedding/seating/assign/${dId}`); } catch (e) { /* continue */ }
     }
 
     await api('POST', '/api/wedding/seating/assign', {
@@ -822,10 +848,11 @@ async function saveTable() {
         Object.assign(tableMap[parseInt(editId)], updated);
         refreshTable(parseInt(editId));
     } else {
-        // pick a free spot on canvas
+        // pick a free spot on canvas — wrap the multipliers, not the sum (precedence bug)
         const outer = document.getElementById('canvas-outer');
-        const x = outer.scrollLeft + 80 + Object.keys(tableMap).length * 30 % 600;
-        const y = outer.scrollTop  + 80 + Object.keys(tableMap).length * 20 % 400;
+        const count = Object.keys(tableMap).length;
+        const x = outer.scrollLeft + 80 + ((count * 30) % 600);
+        const y = outer.scrollTop  + 80 + ((count * 20) % 400);
         const created = await api('POST', '/api/wedding/seating/tables',
             {name, shape, capacity, color: selectedColor, notes: notes || null, x, y});
         tableMap[created.id] = created;

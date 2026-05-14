@@ -362,12 +362,16 @@ function toggleTask(id, currentCompleted) {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({completed: newVal})
-    }).then(() => location.reload());
+    })
+    .then(r => { if (!r.ok) throw new Error(); location.reload(); })
+    .catch(() => alert('שגיאה בעדכון המשימה'));
 }
 
 function deleteTask(id) {
     if (!confirm('למחוק משימה זו?')) return;
-    fetch(`/api/wedding/tasks/${id}`, {method:'DELETE'}).then(() => location.reload());
+    fetch(`/api/wedding/tasks/${id}`, {method:'DELETE'})
+        .then(r => { if (!r.ok) throw new Error(); location.reload(); })
+        .catch(() => alert('שגיאה במחיקת המשימה'));
 }
 </script>
 {% endblock %}

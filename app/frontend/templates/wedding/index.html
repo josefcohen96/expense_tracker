@@ -58,10 +58,15 @@
                 <span class="text-xl">💰</span>
             </div>
             {% if total_budget > 0 %}
+            {% set _pct = ((grand_committed / total_budget) * 100) | int %}
+            {% set _pct_capped = [_pct, 100] | min %}
+            {% set _remaining = total_budget - grand_committed %}
             <div class="text-2xl font-bold text-gray-900" dir="ltr">₪{{ "{:,.0f}".format(total_budget) }}</div>
-            <div class="text-xs text-gray-500 mt-1">נוצל: ₪{{ "{:,.0f}".format(grand_committed) }} — נותר: ₪{{ "{:,.0f}".format(total_budget - grand_committed) }}</div>
+            <div class="text-xs {% if _remaining < 0 %}text-red-600{% else %}text-gray-500{% endif %} mt-1">
+                נוצל: ₪{{ "{:,.0f}".format(grand_committed) }} — נותר: ₪{{ "{:,.0f}".format(_remaining) }}
+            </div>
             <div class="mt-2 bg-gray-100 rounded-full h-2">
-                <div class="bg-rose-500 h-2 rounded-full" style="width: {{ [((grand_committed / total_budget) * 100)|int, 100]|min }}%"></div>
+                <div class="{% if _pct >= 100 %}bg-red-500{% else %}bg-rose-500{% endif %} h-2 rounded-full" style="width: {{ _pct_capped }}%"></div>
             </div>
             {% else %}
             <div class="text-2xl font-bold text-gray-400">—</div>
@@ -148,32 +153,43 @@
 </div>
 
 <!-- Set wedding date modal -->
-<div id="date-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center" dir="rtl">
+<div id="date-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center" dir="rtl"
+     role="dialog" aria-modal="true" aria-labelledby="date-modal-title" onclick="if(event.target===this)closeDateModal()">
     <div class="bg-white rounded-xl shadow-xl p-5 sm:p-6 w-full max-w-sm mx-4">
-        <h3 class="text-lg font-bold mb-4">קביעת תאריך חתונה</h3>
-        <input type="date" id="wedding-date-input" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base mb-4 focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400">
+        <h3 id="date-modal-title" class="text-lg font-bold mb-4">קביעת תאריך חתונה</h3>
+        <input type="date" id="wedding-date-input" aria-label="תאריך חתונה"
+               class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base mb-4 focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400">
         <div class="flex gap-3">
-            <button onclick="closeDateModal()" class="flex-1 py-3 text-gray-600 bg-gray-100 rounded-xl text-sm font-medium min-h-[48px] active:bg-gray-200">ביטול</button>
-            <button onclick="saveDateSetting()" class="flex-1 py-3 bg-rose-600 text-white rounded-xl text-sm font-bold min-h-[48px] active:bg-rose-700">שמור</button>
+            <button type="button" onclick="closeDateModal()" class="flex-1 py-3 text-gray-600 bg-gray-100 rounded-xl text-sm font-medium min-h-[48px] active:bg-gray-200">ביטול</button>
+            <button type="button" onclick="saveDateSetting()" class="flex-1 py-3 bg-rose-600 text-white rounded-xl text-sm font-bold min-h-[48px] active:bg-rose-700">שמור</button>
         </div>
     </div>
 </div>
 
 <script>
 function setWeddingDate() {
-    document.getElementById('date-modal').classList.remove('hidden');
+    const modal = document.getElementById('date-modal');
+    modal.classList.remove('hidden');
+    setTimeout(() => document.getElementById('wedding-date-input').focus(), 50);
 }
 function closeDateModal() {
     document.getElementById('date-modal').classList.add('hidden');
 }
 function saveDateSetting() {
     const val = document.getElementById('wedding-date-input').value;
-    if (!val) return;
+    if (!val) { alert('יש לבחור תאריך'); return; }
     fetch('/api/wedding/settings', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({key: 'wedding_date', value: val})
-    }).then(() => location.reload());
+    })
+    .then(r => { if (!r.ok) throw new Error(); location.reload(); })
+    .catch(() => alert('שגיאה בשמירת התאריך'));
 }
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !document.getElementById('date-modal').classList.contains('hidden')) {
+        closeDateModal();
+    }
+});
 </script>
 {% endblock %}

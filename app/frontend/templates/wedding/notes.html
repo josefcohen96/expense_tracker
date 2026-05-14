@@ -219,27 +219,39 @@ async function saveNote() {
     };
     const url    = id ? `/api/wedding/notes/${id}` : '/api/wedding/notes';
     const method = id ? 'PUT' : 'POST';
-    const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
-    if (res.ok) { closeNoteModal(); location.reload(); }
+    try {
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error('http ' + res.status);
+        closeNoteModal();
+        location.reload();
+    } catch (e) {
+        alert('שגיאה בשמירת הפתק');
+    }
 }
 
 async function deleteNote(id) {
     if (!confirm('למחוק את הפתק?')) return;
-    const res = await fetch(`/api/wedding/notes/${id}`, { method: 'DELETE' });
-    if (res.ok) location.reload();
+    try {
+        const res = await fetch(`/api/wedding/notes/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('http ' + res.status);
+        location.reload();
+    } catch (e) { alert('שגיאה במחיקה'); }
 }
 
 async function togglePin(id, currentPinned) {
-    await fetch(`/api/wedding/notes/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pinned: currentPinned ? 0 : 1 }),
-    });
-    location.reload();
+    try {
+        const res = await fetch(`/api/wedding/notes/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pinned: currentPinned ? 0 : 1 }),
+        });
+        if (!res.ok) throw new Error('http ' + res.status);
+        location.reload();
+    } catch (e) { alert('שגיאה בעדכון'); }
 }
 </script>
 

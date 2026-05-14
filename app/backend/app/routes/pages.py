@@ -248,11 +248,14 @@ async def wedding_lodging_page(request: Request, db_conn: sqlite3.Connection = D
         "SELECT * FROM wedding_rooms ORDER BY id"
     ).fetchall()]
 
+    # Filter out declined guests from assignments — they should never count
+    # toward room occupancy even if they were assigned earlier and later changed status.
     assignments = [dict(r) for r in db_conn.execute(
         """SELECT ra.room_id, ra.guest_id, g.name AS guest_name,
                   g.plus_one, g.plus_one_name, g.children_count, g.group_name
            FROM wedding_room_assignments ra
-           JOIN wedding_guests g ON g.id = ra.guest_id"""
+           JOIN wedding_guests g ON g.id = ra.guest_id
+           WHERE g.status != 'declined'"""
     ).fetchall()]
 
     assigned_ids = {a["guest_id"] for a in assignments}
@@ -263,13 +266,14 @@ async def wedding_lodging_page(request: Request, db_conn: sqlite3.Connection = D
             for a in room["assigned"]
         )
 
+    # Only consider guests who actually plan to attend AND want overnight stay
     all_guests = [dict(g) for g in db_conn.execute(
-        "SELECT id, name, group_name, plus_one, plus_one_name, children_count, staying_overnight FROM wedding_guests ORDER BY group_name, name"
+        "SELECT id, name, group_name, plus_one, plus_one_name, children_count, staying_overnight FROM wedding_guests WHERE status != 'declined' ORDER BY group_name, name"
     ).fetchall()]
 
     overnight_guests = [g for g in all_guests if g["staying_overnight"]]
     unassigned_overnight = [g for g in overnight_guests if g["id"] not in assigned_ids]
-    all_unassigned = [g for g in all_guests if g["id"] not in assigned_ids and g["staying_overnight"]]
+    all_unassigned = [g for g in overnight_guests if g["id"] not in assigned_ids]
 
     total_capacity = sum(r["max_capacity"] for r in rooms)
     total_assigned = len(assigned_ids)
@@ -1590,12 +1594,13 @@ async def finances_backup(request: Request) -> HTMLResponse:
 
 @router.get("/wedding", response_class=HTMLResponse)
 async def wedding_dashboard(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    # Total expected attendance excludes declined guests so the cards sum back to total.
     try:
         total_guests = db_conn.execute(
-            "SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests"
+            "SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests WHERE status != 'declined'"
         ).fetchone()[0]
     except Exception:
-        total_guests = db_conn.execute("SELECT COUNT(*) FROM wedding_guests").fetchone()[0]
+        total_guests = db_conn.execute("SELECT COUNT(*) FROM wedding_guests WHERE status != 'declined'").fetchone()[0]
     confirmed    = db_conn.execute("SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests WHERE status='confirmed'").fetchone()[0]
     declined     = db_conn.execute("SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests WHERE status='declined'").fetchone()[0]
     maybe        = db_conn.execute("SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests WHERE status='maybe'").fetchone()[0]
@@ -1702,8 +1707,9 @@ async def wedding_guests_page(request: Request, db_conn: sqlite3.Connection = De
 
     total_invitations = db_conn.execute("SELECT COUNT(*) FROM wedding_guests").fetchone()[0]
     try:
+        # Expected attendance — excludes declined guests so cards sum back to this total.
         total_people = db_conn.execute(
-            "SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests"
+            "SELECT COALESCE(SUM(1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)), 0) FROM wedding_guests WHERE status != 'declined'"
         ).fetchone()[0]
     except Exception:
         total_people = total_invitations

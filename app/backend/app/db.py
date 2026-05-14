@@ -22,6 +22,11 @@ def get_connection() -> sqlite3.Connection:
         check_same_thread=False,  # <— הוספה חשובה
     )
     conn.row_factory = sqlite3.Row
+    # Enforce declared ON DELETE CASCADE rules (SQLite is off by default per-connection)
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+    except sqlite3.Error:
+        pass
     return conn
 
 
@@ -480,10 +485,40 @@ def initialise_database() -> None:
             seat_number INTEGER NOT NULL,
             guest_id INTEGER NOT NULL REFERENCES wedding_guests(id) ON DELETE CASCADE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(table_id, seat_number),
-            UNIQUE(guest_id)
+            UNIQUE(table_id, seat_number)
         )
     """)
+
+    # Migration: older DBs had UNIQUE(guest_id) on wedding_seating_assignments,
+    # which prevented a single guest from occupying multiple seats (themselves +
+    # plus_one + children at the same table). Rebuild the table to drop that
+    # constraint while keeping data and the table-seat uniqueness.
+    try:
+        existing_sql = cur.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='wedding_seating_assignments'"
+        ).fetchone()
+        if existing_sql and "UNIQUE(guest_id)" in existing_sql[0].replace(" ", ""):
+            cur.execute("PRAGMA foreign_keys = OFF")
+            cur.execute("""
+                CREATE TABLE wedding_seating_assignments_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    table_id INTEGER NOT NULL REFERENCES wedding_seating_tables(id) ON DELETE CASCADE,
+                    seat_number INTEGER NOT NULL,
+                    guest_id INTEGER NOT NULL REFERENCES wedding_guests(id) ON DELETE CASCADE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(table_id, seat_number)
+                )
+            """)
+            cur.execute(
+                "INSERT INTO wedding_seating_assignments_new (id, table_id, seat_number, guest_id, created_at) "
+                "SELECT id, table_id, seat_number, guest_id, created_at FROM wedding_seating_assignments"
+            )
+            cur.execute("DROP TABLE wedding_seating_assignments")
+            cur.execute("ALTER TABLE wedding_seating_assignments_new RENAME TO wedding_seating_assignments")
+            conn.commit()
+            cur.execute("PRAGMA foreign_keys = ON")
+    except Exception:
+        pass
 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS wedding_rooms (

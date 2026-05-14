@@ -76,8 +76,19 @@
             {% endif %}
         </div>
         <!-- Remaining -->
-        {% set left_color = 'border-red-400' if grand_left < 0 else ('border-orange-400' if grand_left < total_budget * 0.1 else 'border-teal-400') %}
-        {% set left_text_color = 'text-red-600' if grand_left < 0 else ('text-orange-600' if total_budget > 0 and grand_left < total_budget * 0.1 else 'text-teal-700') %}
+        {% if total_budget <= 0 %}
+            {% set left_color = 'border-gray-300' %}
+            {% set left_text_color = 'text-gray-400' %}
+        {% elif grand_left < 0 %}
+            {% set left_color = 'border-red-400' %}
+            {% set left_text_color = 'text-red-600' %}
+        {% elif grand_left < total_budget * 0.1 %}
+            {% set left_color = 'border-orange-400' %}
+            {% set left_text_color = 'text-orange-600' %}
+        {% else %}
+            {% set left_color = 'border-teal-400' %}
+            {% set left_text_color = 'text-teal-700' %}
+        {% endif %}
         <div class="bg-white rounded-xl shadow p-5 border-r-4 {{ left_color }}">
             <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">נותר בתקציב</div>
             <div class="text-3xl font-bold {{ left_text_color }}" dir="ltr">

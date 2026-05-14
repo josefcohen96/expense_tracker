@@ -315,18 +315,25 @@ async function saveIdea() {
     };
     const url    = id ? `/api/wedding/ideas/${id}` : '/api/wedding/ideas';
     const method = id ? 'PUT' : 'POST';
-    const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
-    if (res.ok) { closeIdeaModal(); location.reload(); }
+    try {
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error('http ' + res.status);
+        closeIdeaModal();
+        location.reload();
+    } catch (e) { alert('שגיאה בשמירת הרעיון'); }
 }
 
 async function deleteIdea(id) {
     if (!confirm('למחוק את הרעיון?')) return;
-    const res = await fetch(`/api/wedding/ideas/${id}`, { method: 'DELETE' });
-    if (res.ok) location.reload();
+    try {
+        const res = await fetch(`/api/wedding/ideas/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('http ' + res.status);
+        location.reload();
+    } catch (e) { alert('שגיאה במחיקה'); }
 }
 </script>
 

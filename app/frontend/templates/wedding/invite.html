@@ -126,18 +126,18 @@
                 </div>
 
                 <!-- Details (shown when attending=yes) -->
-                <div id="attendingDetails" class="section-toggle" style="max-height:0; opacity:0;">
+                <div id="attendingDetails" class="section-toggle" style="max-height:0; opacity:0;" aria-hidden="true">
 
                     <!-- Number of people -->
                     <div class="mb-6">
-                        <label class="block text-sm font-semibold text-gray-600 mb-3">
+                        <label class="block text-sm font-semibold text-gray-600 mb-3" id="total_adults_label">
                             כמה מבוגרים סה"כ? (כולל עצמך)
                         </label>
-                        <div class="flex items-center gap-4 justify-center">
-                            <button type="button" onclick="changeCount('total_adults', -1)"
+                        <div class="flex items-center gap-4 justify-center" role="group" aria-labelledby="total_adults_label">
+                            <button type="button" onclick="changeCount('total_adults', -1)" aria-label="הפחת מספר מבוגרים"
                                 class="w-10 h-10 rounded-full bg-rose-100 text-rose-700 font-bold text-xl flex items-center justify-center hover:bg-rose-200 transition-colors">−</button>
-                            <span id="total_adults_display" class="text-2xl font-bold text-gray-800 w-8 text-center">1</span>
-                            <button type="button" onclick="changeCount('total_adults', 1)"
+                            <span id="total_adults_display" class="text-2xl font-bold text-gray-800 w-8 text-center" aria-live="polite">1</span>
+                            <button type="button" onclick="changeCount('total_adults', 1)" aria-label="הוסף מבוגר"
                                 class="w-10 h-10 rounded-full bg-rose-100 text-rose-700 font-bold text-xl flex items-center justify-center hover:bg-rose-200 transition-colors">+</button>
                         </div>
                         <input type="hidden" name="total_adults" id="total_adults" value="1">
@@ -146,12 +146,12 @@
 
                     <!-- Children -->
                     <div class="mb-6">
-                        <label class="block text-sm font-semibold text-gray-600 mb-3">ילדים שיגיעו</label>
-                        <div class="flex items-center gap-4 justify-center">
-                            <button type="button" onclick="changeCount('children_count', -1)"
+                        <label class="block text-sm font-semibold text-gray-600 mb-3" id="children_count_label">ילדים שיגיעו</label>
+                        <div class="flex items-center gap-4 justify-center" role="group" aria-labelledby="children_count_label">
+                            <button type="button" onclick="changeCount('children_count', -1)" aria-label="הפחת מספר ילדים"
                                 class="w-10 h-10 rounded-full bg-rose-100 text-rose-700 font-bold text-xl flex items-center justify-center hover:bg-rose-200 transition-colors">−</button>
-                            <span id="children_count_display" class="text-2xl font-bold text-gray-800 w-8 text-center">0</span>
-                            <button type="button" onclick="changeCount('children_count', 1)"
+                            <span id="children_count_display" class="text-2xl font-bold text-gray-800 w-8 text-center" aria-live="polite">0</span>
+                            <button type="button" onclick="changeCount('children_count', 1)" aria-label="הוסף ילד"
                                 class="w-10 h-10 rounded-full bg-rose-100 text-rose-700 font-bold text-xl flex items-center justify-center hover:bg-rose-200 transition-colors">+</button>
                         </div>
                         <input type="hidden" name="children_count" id="children_count" value="0">
@@ -287,11 +287,23 @@
     function toggleDetails(show) {
         const section = document.getElementById('attendingDetails');
         if (show) {
-            section.style.maxHeight = '1200px';
+            // Animate to content's natural height so long allergy/notes inputs aren't clipped.
+            section.style.maxHeight = section.scrollHeight + 'px';
             section.style.opacity = '1';
+            section.setAttribute('aria-hidden', 'false');
+            // Once expanded, drop the max-height ceiling so dynamic content (e.g. typing
+            // in the textarea) can grow freely.
+            setTimeout(() => {
+                if (section.style.opacity === '1') section.style.maxHeight = 'none';
+            }, 400);
         } else {
-            section.style.maxHeight = '0';
-            section.style.opacity = '0';
+            // Reset to the measured height first so the collapse animates smoothly.
+            section.style.maxHeight = section.scrollHeight + 'px';
+            requestAnimationFrame(() => {
+                section.style.maxHeight = '0';
+                section.style.opacity = '0';
+                section.setAttribute('aria-hidden', 'true');
+            });
         }
         document.getElementById('submitBtn').disabled = false;
     }
@@ -314,8 +326,36 @@
         });
     });
 
-    // Prevent double-submit
-    document.getElementById('rsvpForm').addEventListener('submit', function () {
+    // Client-side validation + prevent double-submit
+    document.getElementById('rsvpForm').addEventListener('submit', function (e) {
+        const attending = document.querySelector('input[name="attending"]:checked');
+        if (!attending) {
+            e.preventDefault();
+            alert('יש לבחור אם תגיע/י לחתונה');
+            return;
+        }
+        if (attending.value === 'yes') {
+            // Require food preference and transport/overnight choices when attending.
+            const food = document.querySelector('input[name="food_preference"]:checked');
+            const transport = document.querySelector('input[name="needs_transport"]:checked');
+            const overnight = document.querySelector('input[name="staying_overnight"]:checked');
+            if (!food) {
+                e.preventDefault();
+                alert('יש לבחור העדפת תפריט');
+                document.getElementById('food_allergies').scrollIntoView({behavior:'smooth', block:'center'});
+                return;
+            }
+            if (!transport) {
+                e.preventDefault();
+                alert('יש לציין האם זקוק/ה להסעה');
+                return;
+            }
+            if (!overnight) {
+                e.preventDefault();
+                alert('יש לציין האם תרצה/י לישון במקום');
+                return;
+            }
+        }
         document.getElementById('submitBtn').disabled = true;
         document.getElementById('submitBtn').textContent = 'שולח...';
     });

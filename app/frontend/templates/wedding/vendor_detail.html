@@ -355,18 +355,22 @@ function fmt(n) {
     return '₪' + n.toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
+// Pick whichever copy (mobile-stacked or desktop-grid) is currently visible.
+// offsetParent is reliable across breakpoints; falls back to first input if neither
+// appears visible (e.g. during initial hydration).
+function _visibleInput(nodes) {
+    for (const el of nodes) { if (el.offsetParent !== null) return el; }
+    return nodes[0] || null;
+}
+
 function recalcTotals() {
     const rows = document.querySelectorAll('#items-list .item-row');
-    const isMobile = window.innerWidth < 640;
     let preVat = 0, vatAmount = 0;
     rows.forEach(row => {
-        const qtys   = row.querySelectorAll('.item-qty');
-        const prices = row.querySelectorAll('.item-price');
-        const vats   = row.querySelectorAll('.item-vat');
-        const idx = (qtys.length > 1 && isMobile) ? 1 : 0;
-        const qty   = parseFloat(qtys[idx].value) || 0;
-        const price = parseFloat(prices[idx].value) || 0;
-        const applyVat = vats[idx].checked;
+        const qty = parseFloat((_visibleInput(row.querySelectorAll('.item-qty'))   || {}).value) || 0;
+        const price = parseFloat((_visibleInput(row.querySelectorAll('.item-price')) || {}).value) || 0;
+        const vatEl = _visibleInput(row.querySelectorAll('.item-vat'));
+        const applyVat = vatEl ? vatEl.checked : false;
         const lineTotal = qty * price;
         preVat += lineTotal;
         if (applyVat) vatAmount += lineTotal * VAT_RATE;
@@ -470,27 +474,29 @@ function removeRow(btn) {
 }
 
 function collectItems() {
-    // On mobile, the visible inputs are in the sm:hidden div; on desktop, in the hidden sm:grid div
-    // We read from whichever is visible (check offsetParent or just read the first non-empty)
+    // Read from whichever copy (mobile vs desktop) is currently visible — checking
+    // visibility, not viewport width, so a mid-edit resize doesn't pick the wrong inputs.
     return Array.from(document.querySelectorAll('#items-list .item-row')).map(row => {
-        const descs = row.querySelectorAll('.item-desc');
-        const qtys  = row.querySelectorAll('.item-qty');
-        const prices = row.querySelectorAll('.item-price');
-        const vats  = row.querySelectorAll('.item-vat');
-        // Use the visible one (desktop first at index 0, mobile at index 1)
-        const isMobile = window.innerWidth < 640;
-        const idx = (descs.length > 1 && isMobile) ? 1 : 0;
+        const desc  = _visibleInput(row.querySelectorAll('.item-desc'));
+        const qty   = _visibleInput(row.querySelectorAll('.item-qty'));
+        const price = _visibleInput(row.querySelectorAll('.item-price'));
+        const vat   = _visibleInput(row.querySelectorAll('.item-vat'));
         return {
-            description: descs[idx].value.trim(),
-            quantity:    parseFloat(qtys[idx].value) || 1,
-            unit_price:  parseFloat(prices[idx].value) || 0,
-            apply_vat:   vats[idx].checked ? 1 : 0,
+            description: (desc && desc.value || '').trim(),
+            quantity:    parseFloat(qty && qty.value) || 1,
+            unit_price:  parseFloat(price && price.value) || 0,
+            apply_vat:   (vat && vat.checked) ? 1 : 0,
         };
     }).filter(item => item.description);
 }
 
 function saveQuoteItems() {
+    const allRows = document.querySelectorAll('#items-list .item-row').length;
     const items = collectItems();
+    if (allRows > items.length) {
+        const dropped = allRows - items.length;
+        if (!confirm(`${dropped} שורה ללא תיאור תיווסקנה ולא תישמרנה. להמשיך?`)) return;
+    }
     fetch(`/api/wedding/vendors/${VENDOR_ID}/quote-items`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },

@@ -8,6 +8,7 @@ import uuid
 import os
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -632,10 +633,15 @@ async def get_vendor_file(file_id: int, db_conn: sqlite3.Connection = Depends(ge
         raise HTTPException(status_code=400, detail="Invalid file path")
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found on disk")
+    # Use inline disposition so the browser (including iOS Safari) renders the file
+    # instead of prompting a download. All allowed types (PDF, images) display natively.
+    mime = row["mime_type"]
+    encoded_name = quote(row["original_name"], safe="")
+    disposition = f"inline; filename=\"{row['original_name']}\"; filename*=UTF-8''{encoded_name}"
     return FileResponse(
         path=str(file_path),
-        media_type=row["mime_type"],
-        filename=row["original_name"],
+        media_type=mime,
+        headers={"Content-Disposition": disposition},
     )
 
 

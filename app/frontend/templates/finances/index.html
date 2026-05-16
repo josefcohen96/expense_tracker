@@ -32,6 +32,12 @@
         <div class="font-mono text-3xl font-bold text-red-600 mb-2" dir="ltr">
           ₪{{ total_expenses | round(2) }}
         </div>
+        {% if total_savings > 0 %}
+        <div class="inline-flex items-center gap-1.5 bg-teal-50 border border-teal-200 text-teal-700 text-xs font-semibold px-2.5 py-1 rounded-full mb-2" dir="ltr">
+          <i class="fas fa-piggy-bank text-teal-500"></i>
+          <span>חסכונות: ₪{{ total_savings | round(2) }}</span>
+        </div>
+        {% endif %}
         <div class="flex items-center text-sm">
           <span class="text-gray-500">שינוי:</span>
           <span class="font-semibold mr-2 {% if expenses_change > 0 %}text-red-600{% else %}text-green-600{% endif %}">

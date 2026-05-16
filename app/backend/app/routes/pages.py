@@ -386,10 +386,12 @@ async def finances_dashboard(
     # KPIs for selected month
     kpi_row = db_conn.execute(
         f"""
-        SELECT 
-            SUM(CASE WHEN t.amount < 0 AND c.name NOT IN ('משכורת', 'קליניקה') 
+        SELECT
+            SUM(CASE WHEN t.amount < 0 AND c.name NOT IN ('משכורת', 'קליניקה') AND COALESCE(c.is_saving, 0) = 0
                      THEN ABS(t.amount) ELSE 0 END) as total_expenses,
-            SUM(CASE WHEN t.amount > 0 AND c.name IN ('משכורת', 'קליניקה') 
+            SUM(CASE WHEN t.amount < 0 AND COALESCE(c.is_saving, 0) = 1
+                     THEN ABS(t.amount) ELSE 0 END) as total_savings,
+            SUM(CASE WHEN t.amount > 0 AND c.name IN ('משכורת', 'קליניקה')
                      THEN t.amount ELSE 0 END) as total_income,
             COUNT(*) as total_transactions
         FROM transactions t
@@ -398,9 +400,10 @@ async def finances_dashboard(
           AND t.user_id IN ({user_ids})
         """,
         (selected_ym,),
-    ).fetchone() or {"total_expenses": 0, "total_income": 0, "total_transactions": 0}
+    ).fetchone() or {"total_expenses": 0, "total_savings": 0, "total_income": 0, "total_transactions": 0}
 
     cur_expenses = float(kpi_row["total_expenses"] or 0)
+    cur_savings = float(kpi_row["total_savings"] or 0)
     cur_income = float(kpi_row["total_income"] or 0)
     tx_count = int(kpi_row["total_transactions"] or 0)
 
@@ -410,10 +413,10 @@ async def finances_dashboard(
     prev_ym = f"{prev_year:04d}-{prev_month_num:02d}"
     prev = db_conn.execute(
         f"""
-        SELECT 
-            SUM(CASE WHEN t.amount < 0 AND c.name NOT IN ('משכורת', 'קליניקה') 
+        SELECT
+            SUM(CASE WHEN t.amount < 0 AND c.name NOT IN ('משכורת', 'קליניקה') AND COALESCE(c.is_saving, 0) = 0
                      THEN ABS(t.amount) ELSE 0 END) as total_expenses,
-            SUM(CASE WHEN t.amount > 0 AND c.name IN ('משכורת', 'קליניקה') 
+            SUM(CASE WHEN t.amount > 0 AND c.name IN ('משכורת', 'קליניקה')
                      THEN t.amount ELSE 0 END) as total_income
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
@@ -523,6 +526,7 @@ async def finances_dashboard(
             "show_sidebar": True,
             "selected_month": selected_ym,
             "total_expenses": cur_expenses,
+            "total_savings": cur_savings,
             "total_income": cur_income,
             "transactions_count": tx_count,
             "recurrences_count": recurrences_count,

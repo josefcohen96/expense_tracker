@@ -96,7 +96,8 @@ def initialise_database() -> None:
     cur.execute("""
         CREATE TABLE IF NOT EXISTS categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE
+            name TEXT NOT NULL UNIQUE,
+            is_saving BOOLEAN DEFAULT 0
         )
     """)
 
@@ -253,7 +254,16 @@ def initialise_database() -> None:
         # Migration best-effort; do not fail app startup
         pass
 
-    # 3) Normalize user names to English only (merge Hebrew rows into English)
+    # 3) Add is_saving column to categories (mark חסכונות as savings)
+    try:
+        cols = [r[1] for r in cur.execute("PRAGMA table_info('categories')").fetchall()]
+        if "is_saving" not in cols:
+            cur.execute("ALTER TABLE categories ADD COLUMN is_saving BOOLEAN DEFAULT 0")
+            cur.execute("UPDATE categories SET is_saving = 1 WHERE name = 'חסכונות'")
+    except Exception:
+        pass
+
+    # 4) Normalize user names to English only (merge Hebrew rows into English)
     try:
         # Map of Hebrew -> English canonical names
         user_name_map = (
@@ -295,8 +305,11 @@ def initialise_database() -> None:
 
     # Insert default data if tables are empty
     if not cur.execute("SELECT COUNT(*) FROM categories").fetchone()[0]:
-        for _cat in ("משכורת", "קליניקה", "בריאות", "חסכונות", "פנאי", "הוצאות בית", "רכב", "תחבורה","אוכל בחוץ"):
-            cur.execute("INSERT INTO categories (name) VALUES (?)", (_cat,))
+        for _cat, _is_saving in [
+            ("משכורת", 0), ("קליניקה", 0), ("בריאות", 0), ("חסכונות", 1),
+            ("פנאי", 0), ("הוצאות בית", 0), ("רכב", 0), ("תחבורה", 0), ("אוכל בחוץ", 0),
+        ]:
+            cur.execute("INSERT INTO categories (name, is_saving) VALUES (?, ?)", (_cat, _is_saving))
 
     if not cur.execute("SELECT COUNT(*) FROM users").fetchone()[0]:
         # Seed only the real users (English canonical names)

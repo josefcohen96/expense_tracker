@@ -24,7 +24,7 @@
   </div>
 
   <!-- KPIs -->
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+  <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
     <!-- Expenses Card -->
     <a href="/finances/statistics/drilldown?metric=expenses&month={{ selected_month }}"
       class="card card-elevated hover:scale-105 transition-all block">
@@ -53,6 +53,22 @@
         </div>
         <div class="font-mono text-3xl font-bold text-green-600" dir="ltr">
           ₪{{ total_income_month }}
+        </div>
+      </div>
+    </a>
+
+    <!-- Savings Card -->
+    <a href="/finances/statistics/drilldown?metric=savings&month={{ selected_month }}"
+      class="card card-elevated hover:scale-105 transition-all block">
+      <div class="p-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm font-medium text-gray-600">חסכון החודש</span>
+          <div class="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center">
+            <i class="fas fa-piggy-bank text-teal-600"></i>
+          </div>
+        </div>
+        <div class="font-mono text-3xl font-bold text-teal-600" dir="ltr">
+          ₪{{ total_savings_month }}
         </div>
       </div>
     </a>

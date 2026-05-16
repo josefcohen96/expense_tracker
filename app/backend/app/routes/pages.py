@@ -1272,8 +1272,10 @@ async def finances_statistics(
     month_totals = db_conn.execute(
         f"""
         SELECT
-            SUM(CASE WHEN t.amount < 0 AND c.name NOT IN ('משכורת', 'קליניקה')
+            SUM(CASE WHEN t.amount < 0 AND c.name NOT IN ('משכורת', 'קליניקה') AND COALESCE(c.is_saving, 0) = 0
                      THEN ABS(t.amount) ELSE 0 END) as total_expenses,
+            SUM(CASE WHEN t.amount < 0 AND COALESCE(c.is_saving, 0) = 1
+                     THEN ABS(t.amount) ELSE 0 END) as total_savings,
             SUM(CASE WHEN t.amount > 0 AND c.name IN ('משכורת', 'קליניקה')
                      THEN t.amount ELSE 0 END) as total_income,
             COUNT(*) as total_transactions
@@ -1283,14 +1285,16 @@ async def finances_statistics(
           AND t.user_id IN ({user_ids})
         """,
         (selected_ym,)
-    ).fetchone() or {"total_expenses": 0, "total_income": 0, "total_transactions": 0}
+    ).fetchone() or {"total_expenses": 0, "total_savings": 0, "total_income": 0, "total_transactions": 0}
 
     total_recurring_month = db_conn.execute(
         f"""
-        SELECT COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) as total
-        FROM transactions 
-        WHERE strftime('%Y-%m', date) = ? AND recurrence_id IS NOT NULL
-          AND user_id IN ({user_ids})
+        SELECT COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) as total
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        WHERE strftime('%Y-%m', t.date) = ? AND t.recurrence_id IS NOT NULL
+          AND t.user_id IN ({user_ids})
+          AND COALESCE(c.is_saving, 0) = 0
         """,
         (selected_ym,)
     ).fetchone()[0]
@@ -1300,7 +1304,7 @@ async def finances_statistics(
     # Monthly totals (6 months) for the bar chart are fetched via /api/statistics/monthly
     monthly_data = []
 
-    # Category by month data for donut (last 6 months window, excluding income categories)
+    # Category by month data for donut (last 6 months window, excluding income and savings)
     category_data_rows = db_conn.execute(
         f"""
         SELECT strftime('%Y-%m', t.date) AS month,
@@ -1310,6 +1314,7 @@ async def finances_statistics(
         JOIN categories c ON t.category_id = c.id
         WHERE t.date >= date('now', '-6 months')
           AND c.name NOT IN ('משכורת', 'קליניקה')
+          AND COALESCE(c.is_saving, 0) = 0
           AND t.user_id IN ({user_ids})
         GROUP BY month, c.name
         ORDER BY month ASC, amount DESC
@@ -1335,6 +1340,7 @@ async def finances_statistics(
           AND t.amount < 0
           AND t.recurrence_id IS NULL
           AND c.name NOT IN ('משכורת', 'קליניקה')
+          AND COALESCE(c.is_saving, 0) = 0
           AND t.user_id IN ({user_ids})
         ORDER BY ABS(t.amount) DESC, t.date DESC
         LIMIT 5
@@ -1354,6 +1360,7 @@ async def finances_statistics(
         LEFT JOIN categories c ON t.category_id = c.id
         WHERE t.date >= date('now', '-6 months')
           AND c.name NOT IN ('משכורת', 'קליניקה')
+          AND COALESCE(c.is_saving, 0) = 0
           AND t.user_id IN ({user_ids})
         GROUP BY u.name, a.name
         ORDER BY u.name ASC
@@ -1414,6 +1421,7 @@ async def finances_statistics(
           AND t.amount < 0
           AND t.recurrence_id IS NOT NULL
           AND c.name NOT IN ('משכורת', 'קליניקה')
+          AND COALESCE(c.is_saving, 0) = 0
           AND t.user_id IN ({user_ids})
         ORDER BY ABS(t.amount) DESC, t.date DESC
         LIMIT 10
@@ -1451,17 +1459,18 @@ async def finances_statistics(
             "request": request,
             "selected_month": selected_ym,
             "total_expenses_month": float(month_totals["total_expenses"] or 0),
+            "total_savings_month": float(month_totals["total_savings"] or 0),
             "total_income_month": float(month_totals["total_income"] or 0),
             "total_transactions_month": int(month_totals["total_transactions"] or 0),
             "total_recurring_month": float(total_recurring_month or 0),
             "categories": categories,
             "monthly_data": monthly_data,
-        "category_data": category_data,
-        "top_regular_expenses": top_regular_expenses,
-        "recurring_expenses": recurring_expenses,
-        "active_recurrences": active_recurrences,
-        "cash_credit_user_totals": cash_credit_user_totals,
-        "recurring_user_expenses": recurring_user_expenses,
+            "category_data": category_data,
+            "top_regular_expenses": top_regular_expenses,
+            "recurring_expenses": recurring_expenses,
+            "active_recurrences": active_recurrences,
+            "cash_credit_user_totals": cash_credit_user_totals,
+            "recurring_user_expenses": recurring_user_expenses,
             "show_sidebar": True,
         },
     )
@@ -1549,8 +1558,10 @@ async def finances_statistics_drilldown(
         where_extra = " AND t.amount > 0 AND c.name IN ('משכורת', 'קליניקה')"
     elif metric_key == "expenses":
         title = "הוצאות החודש"
-        # All expenses (regular + recurring), excluding income categories
-        where_extra = " AND t.amount < 0 AND c.name NOT IN ('משכורת', 'קליניקה')"
+        where_extra = " AND t.amount < 0 AND c.name NOT IN ('משכורת', 'קליניקה') AND COALESCE(c.is_saving, 0) = 0"
+    elif metric_key == "savings":
+        title = "חסכון החודש"
+        where_extra = " AND t.amount < 0 AND COALESCE(c.is_saving, 0) = 1"
     elif metric_key == "recurring":
         title = "הוצאות קבועות החודש"
         where_extra = " AND t.amount < 0 AND t.recurrence_id IS NOT NULL"

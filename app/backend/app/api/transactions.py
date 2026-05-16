@@ -21,6 +21,15 @@ def _is_income_category(db_conn: sqlite3.Connection, category_id: Optional[int])
     name = row[0]
     return name in ("משכורת", "קליניקה")
 
+def _is_saving_category(db_conn: sqlite3.Connection, category_id: Optional[int]) -> bool:
+    """Return True if the category is marked as a savings category."""
+    if category_id is None:
+        return False
+    row = db_conn.execute("SELECT is_saving FROM categories WHERE id = ?", (category_id,)).fetchone()
+    if not row:
+        return False
+    return bool(row[0])
+
 @router.get("", response_model=List[schemas.Transaction])
 async def api_get_transactions(
     from_date: Optional[str] = None,

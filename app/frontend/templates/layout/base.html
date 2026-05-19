@@ -88,7 +88,7 @@
 
         .nav-link {
             position: relative;
-            transition: all 0.3s ease;
+            transition: all 0.25s ease;
             border-radius: 8px;
             margin: 0 4px;
         }
@@ -100,10 +100,11 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.12);
             border-radius: 8px;
             transform: scale(0);
-            transition: transform 0.3s ease;
+            transition: transform 0.25s ease;
+            z-index: -1;
         }
 
         .nav-link:hover::before {
@@ -111,8 +112,75 @@
         }
 
         .nav-link:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .nav-link:focus-visible {
+            outline: 2px solid rgba(255, 255, 255, 0.7);
+            outline-offset: 2px;
+        }
+
+        /* Active page indicator in top navbar */
+        .nav-link.is-active {
+            background: rgba(255, 255, 255, 0.18);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .nav-link.is-active::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            left: 20%;
+            right: 20%;
+            height: 3px;
+            background: white;
+            border-radius: 3px;
+        }
+
+        /* Mobile menu panel (extends the navbar gradient downwards) */
+        .mobile-menu-panel {
+            background: linear-gradient(180deg, #5b4ba3 0%, #4c3f8a 100%);
+        }
+
+        .mobile-menu-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            font-size: 1rem;
+            font-weight: 500;
+            color: #ffffff;
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .mobile-menu-link i {
+            color: rgba(255, 255, 255, 0.85);
+            width: 1.25rem;
+            text-align: center;
+        }
+
+        .mobile-menu-link:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .mobile-menu-link.is-active {
+            background: rgba(255, 255, 255, 0.2);
+            font-weight: 600;
+        }
+
+        /* Mobile menu button: clearer hover/focus states */
+        #mobile-menu-button {
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            transition: background-color 0.2s ease;
+        }
+
+        #mobile-menu-button:hover,
+        #mobile-menu-button:focus-visible {
+            background: rgba(255, 255, 255, 0.12);
+            outline: none;
         }
 
         /* ===== FLOATING ACTION BUTTON (z-index: 300-350) ===== */
@@ -414,17 +482,44 @@
             background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
             position: relative;
             overflow: hidden;
+            transition: margin 0.2s ease-out;
         }
 
-        .footer::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.05) 50%, transparent 70%);
-            animation: shimmer 4s infinite;
+        /* Push the footer so it sits next to the fixed side navigation
+           instead of being overlapped by it (wedding / finances pages). */
+        body.has-side-navigation .footer {
+            margin-left: 52px; /* clear mobile mini-sidebar on the left */
+        }
+
+        @media (min-width: 1024px) {
+            body.has-side-navigation .footer {
+                margin-left: 0;
+                margin-right: 16rem; /* clear desktop sidebar on the right (RTL) */
+            }
+        }
+
+        .footer a {
+            transition: color 0.2s ease, transform 0.2s ease;
+        }
+
+        .footer a:hover {
+            transform: translateY(-1px);
+        }
+
+        .footer-social-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.08);
+            color: #cbd5e1;
+        }
+
+        .footer-social-link:hover {
+            background: rgba(255, 255, 255, 0.18);
+            color: white;
         }
 
         /* Loading Animation */
@@ -459,7 +554,7 @@
     {% block head %}{% endblock %}
 </head>
 
-<body class="bg-gray-50 min-h-screen full-viewport-safe">
+<body class="bg-gray-50 min-h-screen full-viewport-safe {% block body_class %}{% endblock %}">
     <!-- Main Navigation Bar -->
     <nav class="nav-gradient text-white shadow-lg">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -475,12 +570,12 @@
                 <!-- Main Categories Navigation -->
                 <div class="hidden md:flex space-x-8 space-x-reverse">
                     <a href="/finances"
-                        class="nav-link px-4 py-2 rounded-xl text-sm font-semibold hover:bg-white/20 transition-colors animate-sequence flex items-center gap-2">
+                        class="nav-link px-4 py-2 rounded-xl text-sm font-semibold transition-colors animate-sequence flex items-center gap-2 {% if request.path.startswith('/finances') %}is-active{% endif %}">
                         <i class="fas fa-wallet"></i>
                         פיננסים
                     </a>
                     <a href="/wedding"
-                        class="nav-link px-4 py-2 rounded-xl text-sm font-semibold hover:bg-white/20 transition-colors animate-sequence flex items-center gap-2">
+                        class="nav-link px-4 py-2 rounded-xl text-sm font-semibold transition-colors animate-sequence flex items-center gap-2 {% if request.path.startswith('/wedding') %}is-active{% endif %}">
                         <span>💍</span>
                         חתונה
                     </a>
@@ -488,14 +583,14 @@
 
                 <div class="hidden md:flex items-center space-x-4 space-x-reverse">
                     {% if request.session.get('user') %}
-                    <span class="text-sm">מחובר כ-{{ request.session.get('user', {}).get('username') }}</span>
-                    <a href="/logout" class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700">
-                        <i class="fas fa-sign-out-alt mr-2"></i>
+                    <span class="text-sm opacity-90">מחובר כ-{{ request.session.get('user', {}).get('username') }}</span>
+                    <a href="/logout" class="nav-link px-3 py-2 rounded-lg text-sm font-medium">
+                        <i class="fas fa-sign-out-alt ml-1"></i>
                         יציאה
                     </a>
                     {% else %}
-                    <a href="/login" class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700">
-                        <i class="fas fa-sign-in-alt mr-2"></i>
+                    <a href="/login" class="nav-link px-3 py-2 rounded-lg text-sm font-medium {% if request.path == '/login' %}is-active{% endif %}">
+                        <i class="fas fa-sign-in-alt ml-1"></i>
                         התחברות
                     </a>
                     {% endif %}
@@ -504,10 +599,17 @@
                 <!-- Mobile menu button -->
                 <div class="md:hidden">
                     <button id="mobile-menu-button"
-                        class="text-white hover:text-gray-300 focus:outline-none transition-colors">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        aria-label="פתיחת תפריט"
+                        aria-expanded="false"
+                        aria-controls="mobile-menu"
+                        class="text-white focus:outline-none transition-colors">
+                        <svg id="mobile-menu-icon-open" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                        <svg id="mobile-menu-icon-close" class="hidden h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </div>
@@ -515,33 +617,32 @@
         </div>
 
         <!-- Mobile menu -->
-        <div id="mobile-menu" class="hidden md:hidden bg-purple-800 border-t border-purple-600">
+        <div id="mobile-menu" class="hidden md:hidden border-t border-white/10 mobile-menu-panel">
             <div class="px-3 py-3 space-y-1">
                 <a href="/finances"
-                    class="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium hover:bg-purple-700 transition-colors">
-                    <i class="fas fa-wallet text-purple-200"></i>
-                    פיננסים
+                    class="mobile-menu-link {% if request.path.startswith('/finances') %}is-active{% endif %}">
+                    <i class="fas fa-wallet"></i>
+                    <span>פיננסים</span>
                 </a>
                 <a href="/wedding"
-                    class="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium hover:bg-purple-700 transition-colors">
+                    class="mobile-menu-link {% if request.path.startswith('/wedding') %}is-active{% endif %}">
                     <span class="text-base">💍</span>
-                    חתונה
+                    <span>חתונה</span>
                 </a>
-                <div class="border-t border-purple-600 my-2"></div>
+                <div class="border-t border-white/10 my-2"></div>
                 {% if request.session.get('user') %}
-                <div class="px-4 py-2 text-sm text-purple-200">
+                <div class="px-4 py-2 text-sm text-white/80">
                     מחובר כ-{{ request.session.get('user', {}).get('username') }}
                 </div>
-                <a href="/logout"
-                    class="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium hover:bg-purple-700 transition-colors">
-                    <i class="fas fa-sign-out-alt text-purple-200"></i>
-                    יציאה
+                <a href="/logout" class="mobile-menu-link">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>יציאה</span>
                 </a>
                 {% else %}
                 <a href="/login"
-                    class="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium hover:bg-purple-700 transition-colors">
-                    <i class="fas fa-sign-in-alt text-purple-200"></i>
-                    התחברות
+                    class="mobile-menu-link {% if request.path == '/login' %}is-active{% endif %}">
+                    <i class="fas fa-sign-in-alt"></i>
+                    <span>התחברות</span>
                 </a>
                 {% endif %}
             </div>
@@ -554,43 +655,78 @@
     </div>
 
     <!-- Footer -->
-    <footer class="footer text-white py-8 mt-auto relative">
-        <div class="max-w-7xl mx-auto px-4 text-center relative z-10">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-6">
+    <footer class="footer text-white py-10 mt-auto relative">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 text-center md:text-right">
+                <!-- Brand -->
                 <div class="animate-sequence">
-                    <h3 class="text-lg font-semibold mb-3">המנביטים</h3>
-                    <p class="text-gray-300">פלטפורמה מתקדמת לניהול חיים מאוזנים ומאושרים</p>
+                    <div class="flex items-center gap-3 justify-center md:justify-start mb-3">
+                        <div class="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-seedling text-purple-300"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold">המנביטים</h3>
+                    </div>
+                    <p class="text-gray-300 text-sm leading-relaxed">פלטפורמה מתקדמת לניהול חיים מאוזנים ומאושרים — פיננסים, חתונה והכל ביניהם.</p>
                 </div>
+
+                <!-- Quick Links -->
                 <div class="animate-sequence">
                     <h3 class="text-lg font-semibold mb-3">קישורים מהירים</h3>
-                    <div class="space-y-2">
-                        <a href="/finances/transactions"
-                            class="block text-gray-300 hover:text-white transition-colors">פיננסים</a>
-                    </div>
+                    <ul class="space-y-2 text-sm">
+                        <li><a href="/finances" class="text-gray-300 hover:text-white inline-flex items-center gap-2">
+                            <i class="fas fa-gauge text-xs opacity-70"></i>דשבורד פיננסי
+                        </a></li>
+                        <li><a href="/finances/transactions" class="text-gray-300 hover:text-white inline-flex items-center gap-2">
+                            <i class="fas fa-exchange-alt text-xs opacity-70"></i>עסקאות
+                        </a></li>
+                        <li><a href="/finances/statistics" class="text-gray-300 hover:text-white inline-flex items-center gap-2">
+                            <i class="fas fa-chart-line text-xs opacity-70"></i>סטטיסטיקות
+                        </a></li>
+                        <li><a href="/wedding" class="text-gray-300 hover:text-white inline-flex items-center gap-2">
+                            <span class="text-xs opacity-70">💍</span>תכנון חתונה
+                        </a></li>
+                    </ul>
                 </div>
+
+                <!-- Contact -->
                 <div class="animate-sequence">
                     <h3 class="text-lg font-semibold mb-3">צור קשר</h3>
-                    <div class="space-y-2">
-                        <p class="text-gray-300">support@hamanbitim.co.il</p>
-                        <div class="flex justify-center space-x-4 space-x-reverse">
-                            <a href="#" class="text-gray-300 hover:text-white transition-colors">
-                                <i class="fab fa-facebook text-xl"></i>
+                    <ul class="space-y-2 text-sm">
+                        <li>
+                            <a href="mailto:support@hamanbitim.co.il"
+                               class="text-gray-300 hover:text-white inline-flex items-center gap-2 break-all">
+                                <i class="fas fa-envelope text-xs opacity-70"></i>
+                                support@hamanbitim.co.il
                             </a>
-                            <a href="#" class="text-gray-300 hover:text-white transition-colors">
-                                <i class="fab fa-twitter text-xl"></i>
-                            </a>
-                            <a href="#" class="text-gray-300 hover:text-white transition-colors">
-                                <i class="fab fa-instagram text-xl"></i>
-                            </a>
-                        </div>
+                        </li>
+                    </ul>
+                    <div class="flex justify-center md:justify-start gap-2 mt-4">
+                        <a href="#" class="footer-social-link" aria-label="Facebook" rel="noopener">
+                            <i class="fab fa-facebook-f"></i>
+                        </a>
+                        <a href="#" class="footer-social-link" aria-label="Twitter" rel="noopener">
+                            <i class="fab fa-twitter"></i>
+                        </a>
+                        <a href="#" class="footer-social-link" aria-label="Instagram" rel="noopener">
+                            <i class="fab fa-instagram"></i>
+                        </a>
                     </div>
                 </div>
             </div>
-            <div class="border-t border-gray-600 pt-6">
-                <p>&copy; 2024 המנביטים. כל הזכויות שמורות.</p>
+
+            <div class="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-gray-400">
+                <p>&copy; <span id="footer-year">2026</span> המנביטים. כל הזכויות שמורות.</p>
+                <p class="text-xs">נבנה באהבה ❤️</p>
             </div>
         </div>
     </footer>
+
+    <script>
+        (function () {
+            var y = document.getElementById('footer-year');
+            if (y) y.textContent = new Date().getFullYear();
+        })();
+    </script>
 
 
     <!-- JavaScript -->
@@ -631,8 +767,34 @@
         if (mobileMenuButton) {
             mobileMenuButton.addEventListener('click', function () {
                 const mobileMenu = document.getElementById('mobile-menu');
-                if (mobileMenu) {
-                    mobileMenu.classList.toggle('hidden');
+                const iconOpen = document.getElementById('mobile-menu-icon-open');
+                const iconClose = document.getElementById('mobile-menu-icon-close');
+                if (!mobileMenu) return;
+
+                const willOpen = mobileMenu.classList.contains('hidden');
+                mobileMenu.classList.toggle('hidden');
+                mobileMenuButton.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+                mobileMenuButton.setAttribute('aria-label', willOpen ? 'סגירת תפריט' : 'פתיחת תפריט');
+                if (iconOpen && iconClose) {
+                    iconOpen.classList.toggle('hidden', willOpen);
+                    iconClose.classList.toggle('hidden', !willOpen);
+                }
+            });
+
+            // Close mobile menu when clicking outside
+            document.addEventListener('click', function (e) {
+                const mobileMenu = document.getElementById('mobile-menu');
+                if (!mobileMenu || mobileMenu.classList.contains('hidden')) return;
+                if (!mobileMenu.contains(e.target) && !mobileMenuButton.contains(e.target)) {
+                    mobileMenu.classList.add('hidden');
+                    const iconOpen = document.getElementById('mobile-menu-icon-open');
+                    const iconClose = document.getElementById('mobile-menu-icon-close');
+                    mobileMenuButton.setAttribute('aria-expanded', 'false');
+                    mobileMenuButton.setAttribute('aria-label', 'פתיחת תפריט');
+                    if (iconOpen && iconClose) {
+                        iconOpen.classList.remove('hidden');
+                        iconClose.classList.add('hidden');
+                    }
                 }
             });
         }

@@ -420,20 +420,20 @@ textarea.inline-edit-input {
             <!-- Desktop Table -->
             <div class="hidden sm:block bg-white rounded-xl shadow overflow-hidden">
                 <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <table id="guest-desktop-table" class="min-w-full divide-y divide-gray-200 text-sm">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-4 py-3 text-right font-medium text-gray-600">שם</th>
-                                <th class="px-4 py-3 text-right font-medium text-gray-600">טלפון</th>
-                                <th class="px-4 py-3 text-right font-medium text-gray-600">קבוצה</th>
-                                <th class="px-4 py-3 text-right font-medium text-gray-600">סטטוס</th>
-                                <th class="px-4 py-3 text-right font-medium text-gray-600">+1</th>
-                                <th class="px-4 py-3 text-right font-medium text-gray-600">ילדים</th>
-                                <th class="px-4 py-3 text-right font-medium text-gray-600">הסעה</th>
-                                <th class="px-4 py-3 text-right font-medium text-gray-600">לינה</th>
-                                <th class="px-4 py-3 text-right font-medium text-gray-600">אוכל</th>
-                                <th class="px-4 py-3 text-right font-medium text-gray-600">שולחן</th>
-                                <th class="px-4 py-3 text-right font-medium text-gray-600">הערות</th>
+                                <th data-col="0" onclick="sortTable(0)" class="px-4 py-3 text-right font-medium text-gray-600 cursor-pointer hover:bg-gray-100 select-none whitespace-nowrap">שם <span class="sort-arrow text-gray-300 text-xs font-normal">↕</span></th>
+                                <th data-col="1" onclick="sortTable(1)" class="px-4 py-3 text-right font-medium text-gray-600 cursor-pointer hover:bg-gray-100 select-none whitespace-nowrap">טלפון <span class="sort-arrow text-gray-300 text-xs font-normal">↕</span></th>
+                                <th data-col="2" onclick="sortTable(2)" class="px-4 py-3 text-right font-medium text-gray-600 cursor-pointer hover:bg-gray-100 select-none whitespace-nowrap">קבוצה <span class="sort-arrow text-gray-300 text-xs font-normal">↕</span></th>
+                                <th data-col="3" onclick="sortTable(3)" class="px-4 py-3 text-right font-medium text-gray-600 cursor-pointer hover:bg-gray-100 select-none whitespace-nowrap">סטטוס <span class="sort-arrow text-gray-300 text-xs font-normal">↕</span></th>
+                                <th data-col="4" onclick="sortTable(4)" class="px-4 py-3 text-right font-medium text-gray-600 cursor-pointer hover:bg-gray-100 select-none whitespace-nowrap">+1 <span class="sort-arrow text-gray-300 text-xs font-normal">↕</span></th>
+                                <th data-col="5" onclick="sortTable(5)" class="px-4 py-3 text-right font-medium text-gray-600 cursor-pointer hover:bg-gray-100 select-none whitespace-nowrap">ילדים <span class="sort-arrow text-gray-300 text-xs font-normal">↕</span></th>
+                                <th data-col="6" onclick="sortTable(6)" class="px-4 py-3 text-right font-medium text-gray-600 cursor-pointer hover:bg-gray-100 select-none whitespace-nowrap">הסעה <span class="sort-arrow text-gray-300 text-xs font-normal">↕</span></th>
+                                <th data-col="7" onclick="sortTable(7)" class="px-4 py-3 text-right font-medium text-gray-600 cursor-pointer hover:bg-gray-100 select-none whitespace-nowrap">לינה <span class="sort-arrow text-gray-300 text-xs font-normal">↕</span></th>
+                                <th data-col="8" onclick="sortTable(8)" class="px-4 py-3 text-right font-medium text-gray-600 cursor-pointer hover:bg-gray-100 select-none whitespace-nowrap">אוכל <span class="sort-arrow text-gray-300 text-xs font-normal">↕</span></th>
+                                <th data-col="9" onclick="sortTable(9)" class="px-4 py-3 text-right font-medium text-gray-600 cursor-pointer hover:bg-gray-100 select-none whitespace-nowrap">שולחן <span class="sort-arrow text-gray-300 text-xs font-normal">↕</span></th>
+                                <th data-col="10" onclick="sortTable(10)" class="px-4 py-3 text-right font-medium text-gray-600 cursor-pointer hover:bg-gray-100 select-none whitespace-nowrap">הערות <span class="sort-arrow text-gray-300 text-xs font-normal">↕</span></th>
                                 <th class="px-4 py-3"></th>
                             </tr>
                         </thead>
@@ -441,40 +441,40 @@ textarea.inline-edit-input {
                             {% for g in guests %}
                             <tr class="hover:bg-gray-50 guest-row" data-name="{{ g.name }}" data-plus-one="{{ g.plus_one_name or '' }}" data-guest-id="{{ g.id }}">
                                 <td class="px-4 py-3 font-medium text-gray-900 whitespace-nowrap inline-editable"
-                                    data-field="name" data-guest-id="{{ g.id }}" data-value="{{ g.name }}"
+                                    data-sort-val="{{ g.name }}" data-field="name" data-guest-id="{{ g.id }}" data-value="{{ g.name }}"
                                     ondblclick="startInlineEdit(this)" title="לחץ פעמיים לעריכה">{{ g.name }}</td>
                                 <td class="px-4 py-3 text-gray-500 whitespace-nowrap inline-editable"
-                                    data-field="phone" data-guest-id="{{ g.id }}" data-value="{{ g.phone or '' }}"
+                                    data-sort-val="{{ g.phone or '' }}" data-field="phone" data-guest-id="{{ g.id }}" data-value="{{ g.phone or '' }}"
                                     ondblclick="startInlineEdit(this)" title="לחץ פעמיים לעריכה" dir="ltr">{{ g.phone or '-' }}</td>
                                 <td class="px-4 py-3 text-gray-600 whitespace-nowrap inline-editable"
-                                    data-field="group_name" data-guest-id="{{ g.id }}" data-value="{{ g.group_name or '' }}"
+                                    data-sort-val="{{ g.group_name or '' }}" data-field="group_name" data-guest-id="{{ g.id }}" data-value="{{ g.group_name or '' }}"
                                     ondblclick="startInlineEdit(this)" title="לחץ פעמיים לעריכה">
                                     {% if g.group_name %}
                                     <span class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full text-xs">{{ g.group_name }}</span>
                                     {% else %}-{% endif %}
                                 </td>
-                                <td class="px-4 py-3 whitespace-nowrap">
+                                <td class="px-4 py-3 whitespace-nowrap" data-sort-val="{{ g.status }}">
                                     <span class="px-2 py-1 rounded-full text-xs font-medium {{ STATUS_COLORS.get(g.status, 'bg-gray-100 text-gray-500') }}">
                                         {{ STATUS_LABELS.get(g.status, g.status) }}
                                     </span>
                                 </td>
-                                <td class="px-4 py-3 text-gray-600">
+                                <td class="px-4 py-3 text-gray-600" data-sort-val="{{ '1' if g.plus_one else '0' }}">
                                     {% if g.plus_one %}
                                         <span class="text-green-600 font-medium">✓</span>
                                         {% if g.plus_one_name %}<span class="text-xs text-gray-400 block">{{ g.plus_one_name }}</span>{% endif %}
                                     {% else %}-{% endif %}
                                 </td>
-                                <td class="px-4 py-3 text-gray-600 text-center">
+                                <td class="px-4 py-3 text-gray-600 text-center" data-sort-val="{{ g.children_count or 0 }}">
                                     {% if g.children_count and g.children_count > 0 %}
                                     <span class="font-medium text-blue-600">{{ g.children_count }}</span>
                                     {% else %}-{% endif %}
                                 </td>
-                                <td class="px-4 py-3">
+                                <td class="px-4 py-3" data-sort-val="{{ '1' if g.needs_transport else '0' }}">
                                     {% if g.needs_transport %}
                                     <span class="text-blue-600 font-medium text-xs">🚌 כן</span>
                                     {% else %}-{% endif %}
                                 </td>
-                                <td class="px-4 py-3 text-center">
+                                <td class="px-4 py-3 text-center" data-sort-val="{{ '1' if g.staying_overnight else '0' }}">
                                     <button onclick="toggleOvernight({{ g.id }}, {{ 1 if g.staying_overnight else 0 }})"
                                             class="w-8 h-8 rounded-full flex items-center justify-center mx-auto transition-colors
                                                    {% if g.staying_overnight %}bg-purple-100 text-purple-600{% else %}bg-gray-100 text-gray-400{% endif %}"
@@ -482,7 +482,7 @@ textarea.inline-edit-input {
                                         🛏
                                     </button>
                                 </td>
-                                <td class="px-4 py-3 text-xs max-w-[120px]">
+                                <td class="px-4 py-3 text-xs max-w-[120px]" data-sort-val="{{ g.food_preference or (g.meal_type if g.meal_type and g.meal_type != 'regular' else '') or '' }}">
                                     {% if g.food_preference %}
                                     <div class="text-orange-600 font-medium">{{ rsvp_food_labels.get(g.food_preference, g.food_preference) }}</div>
                                     {% elif g.meal_type and g.meal_type != 'regular' %}
@@ -496,10 +496,10 @@ textarea.inline-edit-input {
                                     {% if not g.food_preference and (not g.meal_type or g.meal_type == 'regular') and not g.food_allergies and not g.food_notes %}-{% endif %}
                                 </td>
                                 <td class="px-4 py-3 text-gray-600 text-center inline-editable"
-                                    data-field="table_number" data-guest-id="{{ g.id }}" data-value="{{ g.table_number or '' }}"
+                                    data-sort-val="{{ g.table_number or 0 }}" data-field="table_number" data-guest-id="{{ g.id }}" data-value="{{ g.table_number or '' }}"
                                     ondblclick="startInlineEdit(this)" title="לחץ פעמיים לעריכה">{{ g.table_number or '-' }}</td>
                                 <td class="px-4 py-3 text-gray-500 max-w-xs inline-editable"
-                                    data-field="notes" data-guest-id="{{ g.id }}" data-value="{{ g.notes or '' }}"
+                                    data-sort-val="{{ g.notes or '' }}" data-field="notes" data-guest-id="{{ g.id }}" data-value="{{ g.notes or '' }}"
                                     ondblclick="startInlineEdit(this)" title="לחץ פעמיים לעריכה">
                                     <div class="truncate text-xs">{{ g.notes or '' }}</div>
                                 </td>
@@ -1101,6 +1101,55 @@ function startInlineEdit(el) {
             abort();
         }
     });
+}
+
+// ===== Table Sort =====
+var _sortCol = null;
+var _sortDir = 1;
+var _STATUS_SORT_ORDER = { confirmed: 0, maybe: 1, pending: 2, declined: 3 };
+
+function sortTable(colIdx) {
+    if (_sortCol === colIdx) {
+        _sortDir = -_sortDir;
+    } else {
+        _sortCol = colIdx;
+        _sortDir = 1;
+    }
+    document.querySelectorAll('#guest-desktop-table th[data-col]').forEach(function(th) {
+        var arrow = th.querySelector('.sort-arrow');
+        if (!arrow) return;
+        var idx = parseInt(th.dataset.col);
+        if (idx === colIdx) {
+            arrow.textContent = _sortDir === 1 ? ' ↑' : ' ↓';
+            arrow.classList.remove('text-gray-300');
+            arrow.classList.add('text-rose-500');
+        } else {
+            arrow.textContent = ' ↕';
+            arrow.classList.remove('text-rose-500');
+            arrow.classList.add('text-gray-300');
+        }
+    });
+    var tbody = document.querySelector('#guest-desktop-table tbody');
+    var rows = Array.from(tbody.querySelectorAll('tr.guest-row'));
+    rows.sort(function(a, b) {
+        var aCells = a.querySelectorAll('td');
+        var bCells = b.querySelectorAll('td');
+        var aVal = aCells[colIdx] ? (aCells[colIdx].dataset.sortVal || '') : '';
+        var bVal = bCells[colIdx] ? (bCells[colIdx].dataset.sortVal || '') : '';
+        if (colIdx === 3) {
+            var aO = _STATUS_SORT_ORDER[aVal] !== undefined ? _STATUS_SORT_ORDER[aVal] : 99;
+            var bO = _STATUS_SORT_ORDER[bVal] !== undefined ? _STATUS_SORT_ORDER[bVal] : 99;
+            return (aO - bO) * _sortDir;
+        }
+        if (colIdx === 5 || colIdx === 9) {
+            return ((parseFloat(aVal) || 0) - (parseFloat(bVal) || 0)) * _sortDir;
+        }
+        if (colIdx === 4 || colIdx === 6 || colIdx === 7) {
+            return ((bVal === '1' ? 1 : 0) - (aVal === '1' ? 1 : 0)) * _sortDir;
+        }
+        return aVal.localeCompare(bVal, 'he') * _sortDir;
+    });
+    rows.forEach(function(r) { tbody.appendChild(r); });
 }
 
 // ─── Invite Link Modal ────────────────────────────────────────────────────────

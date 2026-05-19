@@ -31,7 +31,7 @@
     {% endif %}
   </td>
   <td data-label="תדירות">{{ r['frequency'] }}</td>
-  <td data-label="תאריך חיוב הבא">{{ r['next_charge_date'] }}</td>
+  <td data-label="תאריך חיוב הבא" class="text-gray-900">{{ r['next_charge_date'] }}</td>
   <td data-label="פעיל">{{ 'כן' if r['active'] else 'לא' }}</td>
   <td>
     <div class="flex items-center gap-2">

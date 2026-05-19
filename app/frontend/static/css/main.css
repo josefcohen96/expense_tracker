@@ -1102,6 +1102,13 @@ body {
 }
 
 /* ===== FORM IMPROVEMENTS ===== */
+/* Ensure date/month inputs always show dark text regardless of browser/OS theme */
+input[type="date"],
+input[type="month"] {
+  color: #1f2937;
+  color-scheme: light;
+}
+
 /* Prevent iOS zoom on focus (requires font-size: 16px) */
 @media (max-width: 767px) {
   input[type="text"],
@@ -1113,6 +1120,8 @@ body {
   select,
   textarea {
     font-size: 16px !important;
+    color: #1f2937;
+    color-scheme: light;
   }
 }
 

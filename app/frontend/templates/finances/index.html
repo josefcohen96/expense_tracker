@@ -124,7 +124,7 @@
         <tbody class="bg-white divide-y divide-gray-200">
           {% for t in recent_transactions %}
           <tr>
-            <td class="px-4 py-2 whitespace-nowrap" data-label="תאריך">{{ t.date }}</td>
+            <td class="px-4 py-2 whitespace-nowrap text-gray-900" data-label="תאריך">{{ t.date }}</td>
             <td class="px-4 py-2 whitespace-nowrap text-red-600" dir="ltr" data-label="סכום">{{ t.amount | round(2) }}
             </td>
             <td class="px-4 py-2" data-label="קטגוריה">{{ t.category }}</td>
@@ -157,7 +157,7 @@
       <ul class="space-y-2">
         {% for r in upcoming_recurrences %}
         <li class="flex justify-between">
-          <span class="text-sm">{{ r.date }} — {{ r.name }} ({{ r.category or '-' }})</span>
+          <span class="text-sm text-gray-800">{{ r.date }} — {{ r.name }} ({{ r.category or '-' }})</span>
           <span class="font-semibold whitespace-nowrap" dir="ltr">₪{{ r.amount | round(2) }}</span>
         </li>
         {% else %}

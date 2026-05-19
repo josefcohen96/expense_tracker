@@ -122,36 +122,32 @@ def log_environment_info() -> None:
 
 
 def log_request_details(request, logger_name: str = "app.requests") -> None:
-    """Log detailed request information for debugging."""
+    """Log non-sensitive request info. Cookies and Authorization are deliberately omitted."""
     request_logger = logging.getLogger(logger_name)
-    
+    safe_headers = {
+        k: v for k, v in request.headers.items()
+        if k.lower() not in {"cookie", "authorization", "x-api-key", "proxy-authorization"}
+    }
     request_info = {
         "method": request.method,
-        "url": str(request.url),
         "path": request.url.path,
         "query_params": dict(request.query_params),
-        "headers": dict(request.headers),
-        "cookies": dict(request.cookies),
+        "headers": safe_headers,
         "client_ip": request.client.host if request.client else None,
         "user_agent": request.headers.get("user-agent"),
     }
-    
     request_logger.debug("Request details:")
     for key, value in request_info.items():
         request_logger.debug(f"  {key}: {value}")
 
 
 def log_session_details(request, logger_name: str = "app.sessions") -> None:
-    """Log session information for debugging."""
+    """Log session shape only. The full session dict is never logged — it carries the user identity."""
     session_logger = logging.getLogger(logger_name)
-    
     session_info = {
-        "session_id": getattr(request.session, 'session_id', None),
         "session_keys": list(request.session.keys()) if hasattr(request.session, 'keys') else [],
-        "session_data": dict(request.session),
-        "session_modified": getattr(request.session, 'modified', False),
+        "has_user": bool(request.session.get("user")) if hasattr(request.session, 'get') else False,
     }
-    
     session_logger.debug("Session details:")
     for key, value in session_info.items():
         session_logger.debug(f"  {key}: {value}")

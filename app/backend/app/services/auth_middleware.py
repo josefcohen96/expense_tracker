@@ -31,11 +31,16 @@ class AuthMiddleware(BaseHTTPMiddleware):
         self.public_route_matchers: List[Tuple[Any, Set[str]]] = list(public_route_matchers)
         self.auth_enabled = auth_enabled
         self.logger = logging.getLogger(__name__)
-        # Fallback cookie-based auth (signed)
-        self.secret_key = os.environ.get(
-            "SESSION_SECRET_KEY",
-            "expense_tracker_session_secret_key_2024_production_secure_random_string_12345",
-        )
+        # Fallback cookie-based auth (signed).
+        # SESSION_SECRET_KEY is validated at app startup in main.py — we just read it here.
+        # No hardcoded fallback: a leaked default key would let anyone forge auth cookies.
+        secret_key = os.environ.get("SESSION_SECRET_KEY")
+        if not secret_key:
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                secret_key = "pytest-only-not-for-production"
+            else:
+                raise RuntimeError("SESSION_SECRET_KEY must be set before AuthMiddleware is initialized")
+        self.secret_key = secret_key
         self.serializer = URLSafeSerializer(self.secret_key, salt="auth-user")
         self.cookie_name = "auth_user"
 
@@ -45,21 +50,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         path = request.url.path
         method = (request.method or "GET").upper()
-        
-        # Log all requests for debugging (reduce verbosity in production)
+
+        # Lightweight per-request log. We deliberately do NOT log cookies, headers,
+        # or the full session dict — those contain auth tokens that would leak if
+        # log files are ever exposed.
         auth_logger = logging.getLogger("app.auth")
         is_production = os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.environ.get("ENVIRONMENT") == "production"
         if not is_production:
             auth_logger.debug(f"Request: {method} {path}")
-            auth_logger.debug(f"Cookies: {dict(request.cookies)}")
-            auth_logger.debug(f"Headers: {dict(request.headers)}")
-        
-        self.logger.info("AuthMiddleware: request received", extra={
-            "path": path,
-            "method": method,
-            "cookies": dict(request.cookies),
-            "timestamp": datetime.now().isoformat()
-        })
 
         # Allow unauthenticated access to static and service worker
         if path.startswith("/static/") or path == "/sw.js":
@@ -87,52 +85,23 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Require a session user for everything else
         user_obj = None
         user_in_session = False
-        session_id = None
-        session_keys = []
-        session_data = {}
-        
+
         try:
-            # Try to access session safely with multiple fallbacks
             if hasattr(request, 'session'):
                 try:
                     user_obj = request.session.get("user")
                     user_in_session = bool(user_obj)
-                    session_id = getattr(request.session, 'session_id', None)
-                    session_keys = list(request.session.keys()) if hasattr(request.session, 'keys') else []
-                    session_data = dict(request.session) if hasattr(request.session, '__dict__') else {}
                 except Exception as session_error:
                     self.logger.warning("AuthMiddleware: session access failed", extra={
                         "path": path,
                         "method": method,
-                        "session_error": str(session_error),
                         "session_error_type": type(session_error).__name__,
-                        "cookies": dict(request.cookies),
                     })
-                    # Continue with empty session data
-            
-            # DEBUG: Log session details for all requests
-            if not is_production:
-                auth_logger.debug(f"Session check - path: {path}, user_in_session: {user_in_session}")
-                auth_logger.debug(f"Session check - user_obj: {user_obj}")
-                auth_logger.debug(f"Session check - session_keys: {session_keys}")
-            
-            self.logger.info("AuthMiddleware: session check", extra={
-                "path": path,
-                "method": method,
-                "user_obj": user_obj,
-                "user_in_session": user_in_session,
-                "session_id": session_id,
-                "session_keys": session_keys,
-                "cookies": dict(request.cookies),
-                "session_data": session_data,
-            })
         except Exception as e:
             self.logger.warning("AuthMiddleware: session access failed", extra={
                 "path": path,
                 "method": method,
-                "error": str(e),
                 "error_type": type(e).__name__,
-                "cookies": dict(request.cookies),
             })
 
         # Fallback: if no session user, try signed cookie auth
@@ -145,12 +114,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     if username:
                         user_obj = {"username": username}
                         user_in_session = True
-                        session_keys = ["user"]
-                        self.logger.info("AuthMiddleware: authenticated via cookie", extra={
-                            "path": path,
-                            "method": method,
-                            "username": username,
-                        })
             except BadSignature:
                 self.logger.warning("AuthMiddleware: invalid auth cookie signature", extra={
                     "path": path,
@@ -160,20 +123,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 self.logger.warning("AuthMiddleware: cookie auth error", extra={
                     "path": path,
                     "method": method,
-                    "error": str(e),
                     "error_type": type(e).__name__,
                 })
 
         if user_in_session:
-            self.logger.info("AuthMiddleware: authenticated request - allowing", extra={
-                "path": path,
-                "method": method,
-                "username": (user_obj or {}).get("username") if isinstance(user_obj, dict) else None,
-                "session_id": session_id,
-                "session_keys": session_keys,
-                "user_obj": user_obj,
-                "timestamp": datetime.now().isoformat()
-            })
             return await call_next(request)
 
         # Not authenticated -> always go to /login (no next param)
@@ -183,19 +136,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 return RedirectResponse(url="/login", status_code=302)
             self.logger.info("AuthMiddleware: redirecting unauthenticated GET", extra={
                 "path": path,
-                "method": method,
-                "session_id": session_id,
-                "session_keys": session_keys,
-                "user_obj": user_obj,
             })
             return RedirectResponse(url="/login", status_code=302)
 
         self.logger.info("AuthMiddleware: redirecting unauthenticated non-GET", extra={
             "path": path,
             "method": method,
-            "session_id": session_id,
-            "session_keys": session_keys,
-            "user_obj": user_obj,
         })
         return RedirectResponse(url="/login", status_code=302)
 

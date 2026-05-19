@@ -11,9 +11,12 @@ services:
     environment:
       # Use development settings for HTTP (non-SSL) access so cookies work
       - ENVIRONMENT=development
-      # - RAILWAY_ENVIRONMENT=true 
+      # - RAILWAY_ENVIRONMENT=true
       - PORT=8080
-      # Passwords (managed via env vars for security)
-      - USER_PASSWORD_YOSEF=YO1234
-      - USER_PASSWORD_KARINA=KA1234
+      # Secrets must come from the host shell or a .env file alongside this file.
+      # The ":?" suffix makes docker-compose fail fast if the variable is unset,
+      # so we never silently boot with a default password.
+      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY:?SESSION_SECRET_KEY must be set (generate with: python -c "import secrets; print(secrets.token_urlsafe(64))")}
+      - USER_PASSWORD_YOSEF=${USER_PASSWORD_YOSEF:?USER_PASSWORD_YOSEF must be set}
+      - USER_PASSWORD_KARINA=${USER_PASSWORD_KARINA:?USER_PASSWORD_KARINA must be set}
     restart: unless-stopped

@@ -19,9 +19,19 @@ if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # --- sessions ---
-# Use a stronger default secret key for production
-DEFAULT_SECRET_KEY = "expense_tracker_session_secret_key_2024_production_secure_random_string_12345"
-SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", DEFAULT_SECRET_KEY)
+# SESSION_SECRET_KEY must be provided via env var. Never hardcode a fallback —
+# a checked-in default would let anyone with repo access forge session cookies.
+# Skip the check only under pytest, where AUTH_ENABLED can also be disabled.
+SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY")
+_running_pytest = os.environ.get("PYTEST_CURRENT_TEST") is not None
+if not SESSION_SECRET_KEY:
+    if _running_pytest:
+        SESSION_SECRET_KEY = "pytest-only-not-for-production"
+    else:
+        raise RuntimeError(
+            "SESSION_SECRET_KEY environment variable must be set. "
+            "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+        )
 
 # Auto-detect HTTPS in production (Railway uses HTTPS)
 is_production = os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.environ.get("ENVIRONMENT") == "production"
@@ -44,10 +54,22 @@ else:
     
     SESSION_COOKIE_DOMAIN = os.environ.get("SESSION_COOKIE_DOMAIN")
 
-# Ensure correct scheme/host behind Railway proxy
+# Ensure correct scheme/host behind Railway proxy.
+# ALLOWED_HOSTS can override via env var (comma-separated). Never use "*" in prod —
+# it disables Host header validation entirely.
+_default_allowed_hosts = [
+    "expensetracker-production-2084.up.railway.app",
+    "127.0.0.1",
+    "localhost",
+]
+_allowed_hosts_env = os.environ.get("ALLOWED_HOSTS", "").strip()
+if _allowed_hosts_env:
+    allowed_hosts = [h.strip() for h in _allowed_hosts_env.split(",") if h.strip()]
+else:
+    allowed_hosts = _default_allowed_hosts
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["expensetracker-production-2084.up.railway.app", "127.0.0.1", "localhost", "*"],
+    allowed_hosts=allowed_hosts,
 )
 
 session_kwargs = {
@@ -60,9 +82,8 @@ session_kwargs = {
 if SESSION_COOKIE_DOMAIN:
     session_kwargs["domain"] = SESSION_COOKIE_DOMAIN
 
-# Log session configuration for debugging
+# Log session configuration shape for debugging — never the secret_key itself.
 print(f"Session configuration: https_only={HTTPS_ONLY}, same_site={COOKIE_SAMESITE}, domain={SESSION_COOKIE_DOMAIN}, is_production={is_production}")
-print(f"Session kwargs: {session_kwargs}")
 
 # Add SessionMiddleware - this must be added before AuthMiddleware
 try:

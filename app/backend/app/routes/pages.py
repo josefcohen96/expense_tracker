@@ -2,7 +2,10 @@ from __future__ import annotations
 import sqlite3
 import os
 import logging
-from typing import Any, Dict, List, Optional
+import time
+from collections import deque
+from threading import Lock
+from typing import Any, Deque, Dict, List, Optional
 from datetime import date, timedelta, datetime
 from pathlib import Path as FSPath
 import calendar
@@ -18,6 +21,55 @@ from ..db import get_db_conn
 from .. import db as _db
 import logging
 logger = logging.getLogger(__name__)
+
+# --- /login rate limiting (per client IP, in-memory) ---
+# In-memory means rate limits reset on process restart, which is fine for this
+# single-instance app with two known users. If we ever move to multi-instance,
+# this needs a shared store (Redis).
+_LOGIN_WINDOW_SECONDS = 300  # 5-minute sliding window
+_LOGIN_MAX_ATTEMPTS = 8      # attempts allowed in that window
+_login_attempts: Dict[str, Deque[float]] = {}
+_login_attempts_lock = Lock()
+
+
+def _client_ip(request: Request) -> str:
+    """Resolve the client IP behind Railway/proxy via X-Forwarded-For."""
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        first = xff.split(",")[0].strip()
+        if first:
+            return first
+    real = request.headers.get("x-real-ip", "").strip()
+    if real:
+        return real
+    return request.client.host if request.client else "unknown"
+
+
+def _check_login_rate_limit(ip: str) -> bool:
+    """Return True if the attempt is allowed; False if the IP is currently blocked."""
+    now = time.monotonic()
+    cutoff = now - _LOGIN_WINDOW_SECONDS
+    with _login_attempts_lock:
+        attempts = _login_attempts.get(ip)
+        if attempts is None:
+            attempts = deque()
+            _login_attempts[ip] = attempts
+        while attempts and attempts[0] < cutoff:
+            attempts.popleft()
+        if len(attempts) >= _LOGIN_MAX_ATTEMPTS:
+            return False
+        attempts.append(now)
+        return True
+
+
+def _get_session_secret() -> str:
+    """Read SESSION_SECRET_KEY at request time. App startup already validated it."""
+    secret = os.environ.get("SESSION_SECRET_KEY")
+    if not secret:
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            return "pytest-only-not-for-production"
+        raise RuntimeError("SESSION_SECRET_KEY environment variable is missing")
+    return secret
 
 # Frontend paths
 ROOT_DIR = FSPath(__file__).resolve().parents[3]
@@ -75,7 +127,6 @@ async def login_page(request: Request) -> HTMLResponse:
         logger.info("Login page served", extra={
             "next": next_q,
             "has_session_user": has_session_user,
-            "session_data": dict(request.session) if hasattr(request, 'session') and request.session else {},
         })
         
         # If user is already authenticated, redirect to dashboard
@@ -104,104 +155,70 @@ async def login_post(request: Request):
     form = await request.form()
     username = (form.get("username") or "").strip()
     password = (form.get("password") or "").strip()
-    
-    # Debug: Log request details to diagnose cookie issues
-    debug_logger = logging.getLogger("app.debug")
-    debug_logger.debug(f"request.url.scheme = {request.url.scheme}")
-    debug_logger.debug(f"request.base_url.scheme = {request.base_url.scheme}")
-    debug_logger.debug(f"request.scope['scheme'] = {request.scope.get('scheme')}")
-    debug_logger.debug(f"headers = {dict(request.headers)}")
-    
-    # Log session state before login attempt
-    debug_logger.info(f"Session state before login: {dict(request.session) if hasattr(request, 'session') and request.session else 'No session'}")
-    
-    logger.info("LOGIN attempt started", extra={
+
+    # Rate limit BEFORE doing any credential check or expensive work.
+    client_ip = _client_ip(request)
+    if not _check_login_rate_limit(client_ip):
+        logger.warning("LOGIN rate-limited", extra={"ip": client_ip, "username": username})
+        return templates.TemplateResponse(
+            "pages/login.html",
+            {
+                "request": request,
+                "error": "יותר מדי ניסיונות התחברות. נסה שוב בעוד מספר דקות.",
+                "show_sidebar": False,
+            },
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
+    logger.info("LOGIN attempt", extra={
         "username": username,
-        "password_length": len(password),
-        "request_url": str(request.url),
-        "request_method": request.method,
-        "headers": dict(request.headers),
-        "cookies": dict(request.cookies),
-        "session_before": dict(request.session) if hasattr(request, 'session') else None,
-        "timestamp": datetime.now().isoformat()
+        "ip": client_ip,
+        "timestamp": datetime.now().isoformat(),
     })
 
-    # Static users per request: KARINA, YOSEF (Auth via Environment Variables)
-    valid_users = {
-        "KARINA": os.environ.get("USER_PASSWORD_KARINA", "KA1234"),
-        "YOSEF": os.environ.get("USER_PASSWORD_YOSEF", "YO1234"),
-    }
-    auth_logger = logging.getLogger("app.auth")
-    auth_logger.info(f"LOGIN attempt: {username}")
-    logger.info("LOGIN attempt", extra={"username": username})
+    # Credentials must come from environment. Missing env vars => 500 instead of
+    # falling back to a hardcoded password — better to fail loud than to ship the
+    # default password publicly via the repo.
+    karina_pw = os.environ.get("USER_PASSWORD_KARINA")
+    yosef_pw = os.environ.get("USER_PASSWORD_YOSEF")
+    if not karina_pw or not yosef_pw:
+        logger.error("LOGIN misconfigured: USER_PASSWORD_* env var is missing")
+        return templates.TemplateResponse(
+            "pages/login.html",
+            {
+                "request": request,
+                "error": "שגיאת תצורה בשרת. פנה למנהל המערכת.",
+                "show_sidebar": False,
+            },
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    valid_users = {"KARINA": karina_pw, "YOSEF": yosef_pw}
     # case-insensitive username match
     user_key = username.upper()
     if user_key in valid_users and password == valid_users[user_key]:
-        auth_logger.info(f"LOGIN credentials validated for: {user_key}")
-        logger.info("LOGIN credentials validated", extra={
-            "username": user_key,
-            "timestamp": datetime.now().isoformat()
-        })
-        
+        logger.info("LOGIN success", extra={"username": user_key, "ip": client_ip})
+
         try:
-            logger.info("Setting session", extra={"username": user_key})
-            
-            # Check if session exists and is accessible
             if not hasattr(request, 'session'):
                 logger.error("No session object available on request")
                 raise Exception("No session object available")
-            
-            # Clear any existing session data first
             try:
                 request.session.clear()
             except Exception as clear_error:
                 logger.warning(f"Failed to clear session: {clear_error}")
-            
-            # Set the user in session
             request.session["user"] = {"username": user_key}
-            
-            # Get session info for logging
-            session_id = getattr(request.session, 'session_id', None)
-            session_keys = list(request.session.keys()) if hasattr(request.session, 'keys') else []
-            
-            auth_logger.info(f"LOGIN session set successfully for: {user_key}")
-            auth_logger.debug(f"LOGIN session keys: {session_keys}")
-            auth_logger.debug(f"LOGIN session data: {dict(request.session)}")
-            
-            logger.info("Session set successfully", extra={
-                "username": user_key,
-                "session_id": session_id,
-                "session_keys": session_keys,
-                "session_after": dict(request.session),
-                "timestamp": datetime.now().isoformat()
-            })
-            
         except Exception as e:
             logger.error("Failed to set session", extra={
                 "username": user_key,
                 "error": str(e),
                 "error_type": type(e).__name__,
-                "timestamp": datetime.now().isoformat()
             })
-            # Don't raise the exception, continue with redirect
-            
-        # Always go to dashboard after successful login
-        logger.info("Redirecting to dashboard", extra={
-            "username": user_key,
-            "redirect_url": "/finances",
-            "timestamp": datetime.now().isoformat()
-        })
-        
-        # Create redirect response and ensure session is saved
+
         response = RedirectResponse(url="/finances", status_code=status.HTTP_303_SEE_OTHER)
 
         # Also set a signed fallback cookie for auth in case session cookie is blocked by the platform
         try:
-            secret_key = os.environ.get(
-                "SESSION_SECRET_KEY",
-                "expense_tracker_session_secret_key_2024_production_secure_random_string_12345",
-            )
-            serializer = URLSafeSerializer(secret_key, salt="auth-user")
+            serializer = URLSafeSerializer(_get_session_secret(), salt="auth-user")
             token = serializer.dumps({"u": user_key})
             # Mirror session cookie attributes
             is_production = os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.environ.get("ENVIRONMENT") == "production"
@@ -218,20 +235,11 @@ async def login_post(request: Request):
             )
         except Exception as cookie_err:
             logger.warning("Failed to set auth cookie", extra={"error": str(cookie_err)})
-        
-        # Log final session state
-        if hasattr(request, 'session') and request.session:
-            logger.info("Final session state before redirect", extra={
-                "username": user_key,
-                "session_data": dict(request.session),
-                "session_keys": list(request.session.keys()) if hasattr(request.session, 'keys') else [],
-                "timestamp": datetime.now().isoformat()
-            })
-        
+
         return response
 
     # invalid credentials
-    logger.info("LOGIN failed", extra={"username": username})
+    logger.info("LOGIN failed", extra={"username": username, "ip": client_ip})
     return templates.TemplateResponse(
         "pages/login.html",
         {
@@ -347,15 +355,10 @@ async def finances_dashboard(
     month: Optional[str] = None,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> HTMLResponse:
-    # Log the request details
-    logger.info("FINANCES dashboard request", extra={
+    logger.debug("FINANCES dashboard request", extra={
         "path": request.url.path,
         "method": request.method,
-        "headers": dict(request.headers),
-        "cookies": dict(request.cookies),
-        "session": dict(request.session) if hasattr(request, 'session') else None,
         "month": month,
-        "timestamp": datetime.now().isoformat()
     })
     # Ensure schema exists in deployments where startup init may have been skipped
     try:

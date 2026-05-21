@@ -197,7 +197,15 @@ def create_backup_file(db_conn: Optional[sqlite3.Connection] = None) -> Path:
             file_name = f"monthly_backup_{year}_{month:02d}.xlsx"
             wb.save(filename=str(out_dir / file_name))
 
-            LOG.info("Created excel backup folder %s", out_dir.name)
+            # Zip the folder so it can be downloaded directly
+        zip_path = BACKUP_DIR / f"{folder_name}.zip"
+        with zipfile.ZipFile(str(zip_path), "w", zipfile.ZIP_DEFLATED) as zf:
+            for f in out_dir.iterdir():
+                if f.is_file():
+                    zf.write(f, arcname=f.name)
+        shutil.rmtree(out_dir)
+
+        LOG.info("Created backup zip %s", zip_path.name)
     finally:
         _IN_PROGRESS = False
         if conn is not None and not conn_provided:
@@ -205,7 +213,7 @@ def create_backup_file(db_conn: Optional[sqlite3.Connection] = None) -> Path:
                 conn.close()
             except Exception:
                 pass
-    return out_dir
+    return zip_path
 
 
 def create_monthly_backup(year: int, month: int, db_conn: Optional[sqlite3.Connection] = None) -> Path:
@@ -329,36 +337,42 @@ def create_monthly_backup(year: int, month: int, db_conn: Optional[sqlite3.Conne
 
 def list_backup_files() -> List[Dict]:
     """
-    List items in BACKUP_DIR. For files: file_name, created_at, size.
-    For directories: treat the dir as a backup (name, mtime, aggregated size).
+    List downloadable backup items:
+    - ZIP files directly in BACKUP_DIR (full backups)
+    - XLSX files inside BACKUP_DIR/excel/ (monthly backups)
+    Directories are skipped (legacy; full backups now produce zips).
     """
     items = []
+
+    # Full backup zips
     for p in sorted(BACKUP_DIR.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
+        if not p.is_file():
+            continue
         try:
-            if p.is_file():
+            stat = p.stat()
+            items.append({
+                "file_name": p.name,
+                "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                "size": stat.st_size,
+            })
+        except Exception:
+            LOG.exception("Failed to stat backup entry %s", p)
+
+    # Monthly Excel files
+    if EXCEL_ROOT.is_dir():
+        for p in sorted(EXCEL_ROOT.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
+            if not p.is_file() or p.suffix.lower() not in (".xlsx", ".xlsm"):
+                continue
+            try:
                 stat = p.stat()
                 items.append({
                     "file_name": p.name,
                     "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
                     "size": stat.st_size,
                 })
-            elif p.is_dir():
-                total = 0
-                for f in p.rglob("*"):
-                    if f.is_file():
-                        try:
-                            total += f.stat().st_size
-                        except Exception:
-                            continue
-                stat = p.stat()
-                items.append({
-                    "file_name": p.name,
-                    "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                    "size": total,
-                })
-        except Exception:
-            LOG.exception("Failed to stat backup entry %s", p)
-            continue
+            except Exception:
+                LOG.exception("Failed to stat excel backup entry %s", p)
+
     return items
 
 

@@ -5,8 +5,10 @@ exactly the right data — correct headers, correct rows, correct values —
 and that the file is a valid, openable Excel workbook.
 """
 
+import io
 import sqlite3
 import shutil
+import zipfile
 from datetime import date, datetime
 from pathlib import Path
 
@@ -136,22 +138,29 @@ class TestExcelFileValidity:
         wb = load_workbook(filename=str(out))
         assert wb is not None
 
-    def test_full_backup_folder_contains_six_xlsx_files(self, tmp_path):
+    def test_full_backup_zip_contains_six_xlsx_files(self, tmp_path):
         conn = _setup_isolated_db(tmp_path)
         today = date.today()
         _insert_transaction(conn, date_str=today.isoformat(), amount=200.0)
 
-        folder = create_backup_file(db_conn=conn)
+        zip_path = create_backup_file(db_conn=conn)
         conn.close()
 
-        assert folder.is_dir(), "create_backup_file must return a directory"
-        xlsx_files = list(folder.glob("*.xlsx"))
-        assert len(xlsx_files) == 6, (
-            f"Expected 6 Excel files (one per month), found {len(xlsx_files)}: {xlsx_files}"
-        )
-        for f in xlsx_files:
-            wb = load_workbook(filename=str(f))
-            assert wb is not None, f"{f.name} is not a valid workbook"
+        assert zip_path.suffix == ".zip", f"Expected a .zip file, got: {zip_path}"
+        assert zip_path.exists(), "ZIP file was not created"
+
+        with zipfile.ZipFile(str(zip_path), "r") as zf:
+            names = zf.namelist()
+            xlsx_names = [n for n in names if n.endswith(".xlsx")]
+            assert len(xlsx_names) == 6, (
+                f"Expected 6 xlsx files inside zip, found {len(xlsx_names)}: {xlsx_names}"
+            )
+            # Verify each member is a valid workbook
+            for name in xlsx_names:
+                data = zf.read(name)
+                import io
+                wb = load_workbook(filename=io.BytesIO(data))
+                assert wb is not None, f"{name} inside zip is not a valid workbook"
 
 
 class TestSheetNamesAndHeaders:
@@ -399,18 +408,20 @@ class TestRecurrencesContent:
         assert row[9] == "כן",        f"active flag: {row[9]}"
 
     def test_recurrences_same_in_every_month_of_full_backup(self, tmp_path):
-        """Full backup (6 months): recurrences sheet must be identical in each file."""
+        """Full backup ZIP (6 months): recurrences sheet must be identical in each file."""
+        import io
         conn = _setup_isolated_db(tmp_path)
-        folder = create_backup_file(db_conn=conn)
+        zip_path = create_backup_file(db_conn=conn)
         conn.close()
 
         all_rec_rows = []
-        for xl in sorted(folder.glob("*.xlsx")):
-            wb = load_workbook(filename=str(xl))
-            rows = list(wb["הוצאות קבועות"].iter_rows(min_row=2, values_only=True))
-            all_rec_rows.append((xl.name, rows))
+        with zipfile.ZipFile(str(zip_path), "r") as zf:
+            for name in sorted(zf.namelist()):
+                wb = load_workbook(filename=io.BytesIO(zf.read(name)))
+                rows = list(wb["הוצאות קבועות"].iter_rows(min_row=2, values_only=True))
+                all_rec_rows.append((name, rows))
 
-        # All months should have the same recurrences
+        assert all_rec_rows, "ZIP must contain at least one xlsx"
         first_rows = all_rec_rows[0][1]
         for fname, rows in all_rec_rows[1:]:
             assert rows == first_rows, (
@@ -419,52 +430,55 @@ class TestRecurrencesContent:
 
 
 class TestFullBackupMonthCoverage:
-    """Verifies the 6-month full backup covers the right months."""
+    """Verifies the 6-month full backup ZIP covers the right months."""
+
+    def _zip_names(self, tmp_path) -> set:
+        conn = _setup_isolated_db(tmp_path)
+        zip_path = create_backup_file(db_conn=conn)
+        conn.close()
+        with zipfile.ZipFile(str(zip_path), "r") as zf:
+            return set(zf.namelist())
 
     def test_file_names_cover_last_six_months(self, tmp_path):
-        conn = _setup_isolated_db(tmp_path)
-        folder = create_backup_file(db_conn=conn)
-        conn.close()
-
         today = date.today()
-        expected_files = set()
+        expected = set()
         for i in range(6):
             total = today.year * 12 + today.month - 1 - i
             y = total // 12
             m = total % 12 + 1
-            expected_files.add(f"monthly_backup_{y}_{m:02d}.xlsx")
+            expected.add(f"monthly_backup_{y}_{m:02d}.xlsx")
 
-        actual_files = {f.name for f in folder.glob("*.xlsx")}
-        assert actual_files == expected_files, (
-            f"File names mismatch.\nExpected: {expected_files}\nGot: {actual_files}"
+        actual = self._zip_names(tmp_path)
+        assert actual == expected, (
+            f"ZIP contents mismatch.\nExpected: {expected}\nGot: {actual}"
         )
 
     def test_transactions_appear_only_in_correct_month_file(self, tmp_path):
+        import io
         conn = _setup_isolated_db(tmp_path)
         today = date.today()
-
-        # Insert one transaction in THIS month
         ym = f"{today.year}-{today.month:02d}"
         _insert_transaction(conn, date_str=f"{ym}-10", amount=777.0)
 
-        folder = create_backup_file(db_conn=conn)
+        zip_path = create_backup_file(db_conn=conn)
         conn.close()
 
-        current_month_file = folder / f"monthly_backup_{today.year}_{today.month:02d}.xlsx"
-        assert current_month_file.exists()
+        current_name = f"monthly_backup_{today.year}_{today.month:02d}.xlsx"
+        with zipfile.ZipFile(str(zip_path), "r") as zf:
+            assert current_name in zf.namelist(), f"{current_name} not found in zip"
 
-        current_rows = list(
-            load_workbook(filename=str(current_month_file))["הוצאות"]
-            .iter_rows(min_row=2, values_only=True)
-        )
-        assert len(current_rows) == 1 and abs(current_rows[0][2] - 777.0) < 0.001
+            # Current month must have the transaction
+            wb_cur = load_workbook(filename=io.BytesIO(zf.read(current_name)))
+            cur_rows = list(wb_cur["הוצאות"].iter_rows(min_row=2, values_only=True))
+            assert len(cur_rows) == 1 and abs(cur_rows[0][2] - 777.0) < 0.001
 
-        # All other month files must have 0 data rows
-        for xl in folder.glob("*.xlsx"):
-            if xl.name == current_month_file.name:
-                continue
-            rows = list(load_workbook(filename=str(xl))["הוצאות"].iter_rows(min_row=2, values_only=True))
-            assert rows == [], f"{xl.name} unexpectedly contains rows: {rows}"
+            # Other months must be empty
+            for name in zf.namelist():
+                if name == current_name:
+                    continue
+                wb = load_workbook(filename=io.BytesIO(zf.read(name)))
+                rows = list(wb["הוצאות"].iter_rows(min_row=2, values_only=True))
+                assert rows == [], f"{name} unexpectedly contains rows: {rows}"
 
 
 class TestReentryGuard:

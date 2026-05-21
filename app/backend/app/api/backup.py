@@ -100,18 +100,18 @@ async def restore_backup(filename: str) -> JSONResponse:
 
 @router.delete("/{filename}")
 async def delete_backup(filename: str) -> JSONResponse:
-    """Delete a backup file."""
+    """Delete a backup file (ZIP from BACKUP_DIR or xlsx from excel/)."""
     try:
-        backup_path = BACKUP_DIR / filename
-        if not backup_path.exists():
-            raise HTTPException(status_code=404, detail="Backup file not found")
-        # Support both files and directories
-        if backup_path.is_dir():
-            import shutil
-            shutil.rmtree(backup_path)
-        else:
-            backup_path.unlink()
-        return JSONResponse({"message": "Backup deleted successfully"})
+        # Look in BACKUP_DIR first, then excel/
+        for search_dir in (BACKUP_DIR, EXCEL_DIR):
+            candidate = search_dir / filename
+            if candidate.exists():
+                if candidate.is_dir():
+                    shutil.rmtree(candidate)
+                else:
+                    candidate.unlink()
+                return JSONResponse({"message": "Backup deleted successfully"})
+        raise HTTPException(status_code=404, detail="Backup file not found")
     except HTTPException:
         raise
     except Exception as exc:

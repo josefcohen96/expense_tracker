@@ -7,12 +7,23 @@
   <h1 class="text-2xl font-bold">גיבוי</h1>
 
   <div class="bg-white p-4 rounded shadow">
+    <p class="text-gray-600 mb-3 text-sm">לחץ על "צור גיבוי" כדי ליצור קובץ ZIP עם נתוני 6 החודשים האחרונים. לאחר היצירה תוכל להורידו למחשב.</p>
     <button id="createBackup" class="btn btn-primary">צור גיבוי עכשיו</button>
   </div>
 
+  <!-- Full backups (ZIP) -->
   <div class="bg-white p-4 rounded shadow">
-    <h2 class="text-xl font-semibold mb-4">קבצי גיבוי</h2>
-    <ul id="backupList" class="list-disc pr-6"></ul>
+    <h2 class="text-xl font-semibold mb-4">גיבויים מלאים (ZIP)</h2>
+    <ul id="backupList" class="divide-y divide-gray-100"></ul>
+    <p id="backupEmpty" class="text-gray-400 text-sm hidden">אין גיבויים עדיין</p>
+  </div>
+
+  <!-- Monthly Excel files -->
+  <div class="bg-white p-4 rounded shadow">
+    <h2 class="text-xl font-semibold mb-2">קבצי Excel חודשיים</h2>
+    <p class="text-gray-500 text-sm mb-4">קבצים שנוצרו ע"י גיבוי חודשי ספציפי</p>
+    <ul id="excelList" class="divide-y divide-gray-100"></ul>
+    <p id="excelEmpty" class="text-gray-400 text-sm hidden">אין קבצי Excel עדיין</p>
   </div>
 </div>
 
@@ -26,28 +37,72 @@ function formatSize(bytes){
   return `${val.toFixed(val >= 10 ? 0 : 1)} ${units[i]}`;
 }
 
+function buildRow({ name, sizeStr, createdStr, downloadHref, deleteHandler }) {
+  const li = document.createElement('li');
+  li.className = 'py-2 flex items-center justify-between';
+  li.innerHTML = `
+    <div>
+      <span class="font-medium">${name}</span>
+      <span class="text-gray-400 text-sm mr-2">${sizeStr}${createdStr ? ' · ' + createdStr : ''}</span>
+    </div>
+    <div class="flex gap-3 whitespace-nowrap">
+      <a class="text-blue-600 hover:underline text-sm" href="${downloadHref}" download>⬇ הורדה</a>
+      <button class="text-red-500 hover:underline text-sm" data-action="delete">מחיקה</button>
+    </div>
+  `;
+  li.querySelector('[data-action="delete"]').addEventListener('click', deleteHandler);
+  return li;
+}
+
 async function refreshBackups() {
   try {
     const res = await fetch('/api/backup');
     if (!res.ok) return;
     const data = await res.json();
+    const backups = (data.backups || []);
+
+    const zipItems  = backups.filter(b => /\.zip$/i.test(b.file || ''));
+    const xlsxItems = backups.filter(b => /\.xlsx$/i.test(b.file || '') && (b.file||'').includes('monthly_backup'));
+
+    // --- ZIP list ---
     const list = document.getElementById('backupList');
+    const emptyZip = document.getElementById('backupEmpty');
     list.innerHTML = '';
-    (data.backups || []).forEach(item => {
-      const name = item && typeof item === 'object' ? (item.file || '') : String(item || '');
-      const sizeStr = item && typeof item === 'object' ? formatSize(item.size) : '';
-      const createdStr = item && typeof item === 'object' && item.created ? new Date(item.created).toLocaleString('he-IL') : '';
-      const canDownload = /\.(zip|xlsx|xlsm)$/i.test(name);
-      const li = document.createElement('li');
-      li.className = 'mb-2';
-      li.innerHTML = `
-        <span class="mr-2 font-medium">${name}</span>
-        <span class="text-gray-500 mr-2">${sizeStr}${createdStr ? ' · ' + createdStr : ''}</span>
-        ${canDownload ? `<a class="text-blue-600 hover:underline mr-2" href="/api/backup/download/${name}">הורדה</a>` : ''}
-        <button class="text-red-600 hover:underline" onclick="deleteBackup('${name}')">מחיקה</button>
-      `;
-      list.appendChild(li);
-    });
+    if (zipItems.length === 0) {
+      emptyZip.classList.remove('hidden');
+    } else {
+      emptyZip.classList.add('hidden');
+      zipItems.forEach(item => {
+        const name = item.file || '';
+        const sizeStr = formatSize(item.size);
+        const createdStr = item.created ? new Date(item.created).toLocaleString('he-IL') : '';
+        list.appendChild(buildRow({
+          name, sizeStr, createdStr,
+          downloadHref: `/api/backup/download/${name}`,
+          deleteHandler: () => deleteBackup(name),
+        }));
+      });
+    }
+
+    // --- Excel list ---
+    const excelList = document.getElementById('excelList');
+    const emptyExcel = document.getElementById('excelEmpty');
+    excelList.innerHTML = '';
+    if (xlsxItems.length === 0) {
+      emptyExcel.classList.remove('hidden');
+    } else {
+      emptyExcel.classList.add('hidden');
+      xlsxItems.forEach(item => {
+        const name = item.file || '';
+        const sizeStr = formatSize(item.size);
+        const createdStr = item.created ? new Date(item.created).toLocaleString('he-IL') : '';
+        excelList.appendChild(buildRow({
+          name, sizeStr, createdStr,
+          downloadHref: `/api/backup/download-excel/${name}`,
+          deleteHandler: () => deleteBackup(name),
+        }));
+      });
+    }
   } catch (e) { console.error(e); }
 }
 
@@ -66,8 +121,8 @@ document.getElementById('createBackup').addEventListener('click', async () => {
     const res = await fetch('/api/backup/create', { method: 'POST' });
     if (res.ok) {
       await refreshBackups();
-      btn.textContent = 'נוצר!';
-      setTimeout(()=> btn.textContent = orig, 1000);
+      btn.textContent = '✓ נוצר!';
+      setTimeout(()=> btn.textContent = orig, 1500);
     } else {
       btn.textContent = 'שגיאה';
       setTimeout(()=> btn.textContent = orig, 1500);

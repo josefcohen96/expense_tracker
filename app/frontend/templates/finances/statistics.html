@@ -106,6 +106,91 @@
     </a>
   </div>
 
+  <!-- Savings Analysis -->
+  <div class="panel">
+    <div class="panel-header justify-between flex-wrap gap-2">
+      <span class="flex items-center gap-2.5">
+        <i class="fas fa-piggy-bank" style="color: var(--success-600);"></i>
+        ניתוח חסכונות
+        <span class="text-sm font-normal text-gray-500">(6 חודשים אחרונים)</span>
+      </span>
+      {% if savings_change != 0 %}
+      <span class="badge {% if savings_change > 0 %}badge-success{% else %}badge-danger{% endif %}">
+        <i class="fas fa-arrow-{% if savings_change > 0 %}up{% else %}down{% endif %} text-[10px]"></i>
+        {{ savings_change | round(1) }}% מהחודש הקודם
+      </span>
+      {% endif %}
+    </div>
+    <div class="panel-body space-y-6">
+
+      <!-- KPI tiles -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="rounded-xl bg-teal-50 border border-teal-100 p-3.5">
+          <div class="text-xs font-medium text-teal-700/80 mb-1">חיסכון החודש</div>
+          <div class="font-mono text-2xl font-bold text-teal-700" dir="ltr">₪{{ total_savings_month | round(0) | int }}</div>
+        </div>
+        <div class="rounded-xl bg-gray-50 border border-gray-100 p-3.5">
+          <div class="text-xs font-medium text-gray-500 mb-1">ממוצע חודשי</div>
+          <div class="font-mono text-2xl font-bold text-gray-800" dir="ltr">₪{{ savings_avg_6m | round(0) | int }}</div>
+        </div>
+        <div class="rounded-xl bg-gray-50 border border-gray-100 p-3.5">
+          <div class="text-xs font-medium text-gray-500 mb-1">סה"כ נחסך (6 ח')</div>
+          <div class="font-mono text-2xl font-bold text-gray-800" dir="ltr">₪{{ savings_total_6m | round(0) | int }}</div>
+        </div>
+        <div class="rounded-xl bg-indigo-50 border border-indigo-100 p-3.5">
+          <div class="text-xs font-medium text-indigo-700/80 mb-1">שיעור מההכנסה</div>
+          <div class="font-mono text-2xl font-bold text-indigo-700" dir="ltr">{{ savings_rate | round(1) }}%</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- 6-month bar trend (pure CSS) -->
+        <div>
+          <h3 class="text-sm font-semibold text-gray-600 mb-3">מגמת חיסכון חודשית</h3>
+          <div class="flex items-end justify-between gap-2 h-40 px-1" dir="ltr">
+            {% for item in savings_trend %}
+            <div class="flex-1 flex flex-col items-center justify-end h-full group">
+              <span class="text-[11px] font-mono font-semibold text-teal-700 mb-1 whitespace-nowrap">
+                {% if item.total > 0 %}₪{{ item.total | round(0) | int }}{% endif %}
+              </span>
+              <div class="w-full rounded-t-lg bg-gradient-to-t from-teal-500 to-teal-300 transition-all duration-500 group-hover:from-teal-600 group-hover:to-teal-400"
+                   style="height: {% if savings_trend_max > 0 %}{{ (item.total / savings_trend_max * 100) | round(0) | int }}{% else %}0{% endif %}%; min-height: {% if item.total > 0 %}6px{% else %}2px{% endif %};"
+                   title="₪{{ item.total | round(2) }}"></div>
+              <span class="text-[11px] text-gray-500 mt-1.5">{{ item.label }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Savings deductions this month -->
+        <div>
+          <h3 class="text-sm font-semibold text-gray-600 mb-3">
+            הורדות החודש
+            <span class="badge badge-neutral mr-1">{{ savings_deductions | length }}</span>
+          </h3>
+          <ul class="space-y-1.5">
+            {% for d in savings_deductions %}
+            <li class="flex items-center justify-between gap-3 py-2 px-3 rounded-lg bg-teal-50/50 border border-teal-100/70">
+              <div class="min-w-0">
+                <div class="text-sm font-medium text-gray-800 truncate">
+                  {{ d.recurrence_name or d.notes or d.category }}
+                </div>
+                <div class="text-xs text-gray-500">{{ d.date }} · {{ d.user }}</div>
+              </div>
+              <span class="font-mono font-semibold text-teal-700 whitespace-nowrap" dir="ltr">₪{{ d.amount | round(2) }}</span>
+            </li>
+            {% else %}
+            <li class="text-gray-400 text-center py-8">
+              <i class="fas fa-piggy-bank text-2xl mb-2 block opacity-40"></i>
+              אין הורדות חיסכון בחודש זה
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Main 2x2 layout -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
     <!-- Left column: tables -->

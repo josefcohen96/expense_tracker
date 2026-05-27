@@ -1460,6 +1460,75 @@ async def finances_statistics(
     ).fetchall()
     active_recurrences = [dict(row) for row in (active_recurrences_rows or [])]
 
+    # -----------------------------
+    # Savings analytics
+    # Savings are transactions in categories flagged is_saving (e.g. "חסכונות").
+    # They behave like a fixed monthly deduction (~1-2 charges/month), so we show
+    # a 6-month trend, headline KPIs and the actual deductions for the month.
+    # -----------------------------
+    # Build the trailing-6-months window (consistent with the rest of the page).
+    _base = today.replace(day=1)
+    last_6_months: List[str] = []
+    for _i in range(5, -1, -1):
+        _y, _m = _base.year, _base.month - _i
+        while _m <= 0:
+            _m += 12
+            _y -= 1
+        last_6_months.append(f"{_y:04d}-{_m:02d}")
+
+    savings_trend_rows = db_conn.execute(
+        f"""
+        SELECT strftime('%Y-%m', t.date) AS month,
+               COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS total
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        WHERE t.date >= date('now', 'start of month', '-5 months')
+          AND COALESCE(c.is_saving, 0) = 1
+          AND t.user_id IN ({user_ids})
+        GROUP BY month
+        """
+    ).fetchall()
+    _savings_lookup = {row["month"]: float(row["total"] or 0) for row in (savings_trend_rows or [])}
+    _heb_months = ["ינו", "פבר", "מרץ", "אפר", "מאי", "יונ", "יול", "אוג", "ספט", "אוק", "נוב", "דצמ"]
+    savings_trend = [
+        {"month": ym, "label": _heb_months[int(ym[5:7]) - 1], "total": _savings_lookup.get(ym, 0.0)}
+        for ym in last_6_months
+    ]
+    savings_trend_max = max((item["total"] for item in savings_trend), default=0.0)
+    savings_total_6m = sum(item["total"] for item in savings_trend)
+    savings_avg_6m = savings_total_6m / 6 if savings_trend else 0.0
+
+    # Savings deductions for the selected month (the actual fixed charges)
+    savings_deductions_rows = db_conn.execute(
+        f"""
+        SELECT t.date,
+               ABS(t.amount) AS amount,
+               c.name AS category,
+               u.name AS user,
+               t.notes,
+               r.name AS recurrence_name
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.user_id = u.id
+        LEFT JOIN recurrences r ON t.recurrence_id = r.id
+        WHERE strftime('%Y-%m', t.date) = ?
+          AND t.amount < 0
+          AND COALESCE(c.is_saving, 0) = 1
+          AND t.user_id IN ({user_ids})
+        ORDER BY ABS(t.amount) DESC, t.date DESC
+        """,
+        (selected_ym,)
+    ).fetchall()
+    savings_deductions = [dict(row) for row in (savings_deductions_rows or [])]
+
+    _savings_month = float(month_totals["total_savings"] or 0)
+    _income_month = float(month_totals["total_income"] or 0)
+    savings_rate = (_savings_month / _income_month * 100) if _income_month > 0 else 0.0
+    # Change vs previous month within the trend window (penultimate vs last)
+    savings_change = 0.0
+    if len(savings_trend) >= 2 and savings_trend[-2]["total"] > 0:
+        savings_change = ((savings_trend[-1]["total"] - savings_trend[-2]["total"]) / savings_trend[-2]["total"]) * 100
+
     return templates.TemplateResponse(
         "finances/statistics.html",
         {
@@ -1478,6 +1547,13 @@ async def finances_statistics(
             "active_recurrences": active_recurrences,
             "cash_credit_user_totals": cash_credit_user_totals,
             "recurring_user_expenses": recurring_user_expenses,
+            "savings_trend": savings_trend,
+            "savings_trend_max": savings_trend_max,
+            "savings_total_6m": savings_total_6m,
+            "savings_avg_6m": savings_avg_6m,
+            "savings_rate": savings_rate,
+            "savings_change": savings_change,
+            "savings_deductions": savings_deductions,
             "show_sidebar": True,
         },
     )

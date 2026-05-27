@@ -4,134 +4,131 @@
 
 {% block finances_content %}
 <div class="space-y-6">
-  <h1 class="text-2xl font-bold">לוח בקרה</h1>
-
-  <form method="get" class="flex flex-wrap gap-3 items-end">
+  <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 animate-sequence">
     <div>
-      <label class="block text-sm font-medium">חודש</label>
-      <input type="month" name="month" value="{{ selected_month }}" class="border rounded px-3 py-2 w-full sm:w-auto" />
+      <h1 class="text-2xl sm:text-3xl font-bold heading-accent">לוח בקרה</h1>
+      <p class="text-gray-500 text-sm mt-1">סקירת ההכנסות וההוצאות שלך לחודש הנבחר</p>
     </div>
-    <div class="flex gap-2 w-full sm:w-auto">
-      <button class="btn btn-primary btn-sm w-full sm:w-auto">סנן</button>
-      {% if selected_month %}
-      <a href="/finances" class="btn btn-outline btn-sm w-full sm:w-auto">איפוס</a>
-      {% endif %}
-    </div>
-  </form>
+
+    <form method="get" class="flex flex-wrap gap-2 items-end bg-white/70 backdrop-blur rounded-xl p-2 border border-white/70 shadow-sm">
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1 px-1">חודש</label>
+        <input type="month" name="month" value="{{ selected_month }}" class="form-input py-2 px-3 w-full sm:w-auto" />
+      </div>
+      <div class="flex gap-2 w-full sm:w-auto">
+        <button class="btn btn-primary btn-sm w-full sm:w-auto"><i class="fas fa-filter"></i>סנן</button>
+        {% if selected_month %}
+        <a href="/finances" class="btn btn-outline btn-sm w-full sm:w-auto">איפוס</a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
 
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
     <!-- Expenses Card -->
-    <div class="card card-elevated hover:scale-105 transition-transform">
-      <div class="p-5">
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-sm font-medium text-gray-600">הוצאות החודש</span>
-          <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-            <i class="fas fa-arrow-down text-red-600"></i>
-          </div>
-        </div>
-        <div class="font-mono text-3xl font-bold text-red-600 mb-2" dir="ltr">
-          ₪{{ total_expenses | round(2) }}
-        </div>
-        {% if total_savings > 0 %}
-        <div class="inline-flex items-center gap-1.5 bg-teal-50 border border-teal-200 text-teal-700 text-xs font-semibold px-2.5 py-1 rounded-full mb-2" dir="ltr">
-          <i class="fas fa-piggy-bank text-teal-500"></i>
-          <span>חסכונות: ₪{{ total_savings | round(2) }}</span>
-        </div>
-        {% endif %}
-        <div class="flex items-center text-sm">
-          <span class="text-gray-500">שינוי:</span>
-          <span class="font-semibold mr-2 {% if expenses_change > 0 %}text-red-600{% else %}text-green-600{% endif %}">
-            {{ expenses_change | round(1) }}%
-            <i class="fas fa-arrow-{% if expenses_change > 0 %}up{% else %}down{% endif %} text-xs"></i>
-          </span>
-        </div>
+    <div class="stat-card stat-expense animate-sequence">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-sm font-medium text-gray-600">הוצאות החודש</span>
+        <span class="icon-chip icon-chip-danger"><i class="fas fa-arrow-trend-down"></i></span>
+      </div>
+      <div class="font-mono text-3xl font-bold text-red-600 mb-2" dir="ltr">
+        ₪{{ total_expenses | round(2) }}
+      </div>
+      {% if total_savings > 0 %}
+      <div class="inline-flex items-center gap-1.5 bg-teal-50 border border-teal-200 text-teal-700 text-xs font-semibold px-2.5 py-1 rounded-full mb-2" dir="ltr">
+        <i class="fas fa-piggy-bank text-teal-500"></i>
+        <span>חסכונות: ₪{{ total_savings | round(2) }}</span>
+      </div>
+      {% endif %}
+      <div class="flex items-center text-sm">
+        <span class="text-gray-500">שינוי:</span>
+        <span class="badge mr-2 {% if expenses_change > 0 %}badge-danger{% else %}badge-success{% endif %}">
+          <i class="fas fa-arrow-{% if expenses_change > 0 %}up{% else %}down{% endif %} text-[10px]"></i>
+          {{ expenses_change | round(1) }}%
+        </span>
       </div>
     </div>
 
     <!-- Income Card -->
-    <div class="card card-elevated hover:scale-105 transition-transform">
-      <div class="p-5">
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-sm font-medium text-gray-600">הכנסות החודש</span>
-          <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-            <i class="fas fa-arrow-up text-green-600"></i>
-          </div>
-        </div>
-        <div class="font-mono text-3xl font-bold text-green-600 mb-2" dir="ltr">
-          ₪{{ total_income | round(2) }}
-        </div>
-        <div class="flex items-center text-sm">
-          <span class="text-gray-500">שינוי:</span>
-          <span class="font-semibold mr-2 {% if income_change > 0 %}text-green-600{% else %}text-red-600{% endif %}">
-            {{ income_change | round(1) }}%
-            <i class="fas fa-arrow-{% if income_change > 0 %}up{% else %}down{% endif %} text-xs"></i>
-          </span>
-        </div>
+    <div class="stat-card stat-income animate-sequence">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-sm font-medium text-gray-600">הכנסות החודש</span>
+        <span class="icon-chip icon-chip-success"><i class="fas fa-arrow-trend-up"></i></span>
+      </div>
+      <div class="font-mono text-3xl font-bold text-green-600 mb-2" dir="ltr">
+        ₪{{ total_income | round(2) }}
+      </div>
+      <div class="flex items-center text-sm">
+        <span class="text-gray-500">שינוי:</span>
+        <span class="badge mr-2 {% if income_change > 0 %}badge-success{% else %}badge-danger{% endif %}">
+          <i class="fas fa-arrow-{% if income_change > 0 %}up{% else %}down{% endif %} text-[10px]"></i>
+          {{ income_change | round(1) }}%
+        </span>
       </div>
     </div>
 
     <!-- Transactions Card -->
-    <div class="card card-elevated hover:scale-105 transition-transform">
-      <div class="p-5">
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-sm font-medium text-gray-600">מספר עסקאות</span>
-          <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-            <i class="fas fa-exchange-alt text-blue-600"></i>
-          </div>
-        </div>
-        <div class="font-mono text-3xl font-bold text-gray-900 mb-2">
-          {{ transactions_count }}
-        </div>
-        <div class="text-sm text-gray-500">
-          החודש הנוכחי
-        </div>
+    <div class="stat-card stat-info animate-sequence">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-sm font-medium text-gray-600">מספר עסקאות</span>
+        <span class="icon-chip icon-chip-info"><i class="fas fa-exchange-alt"></i></span>
+      </div>
+      <div class="font-mono text-3xl font-bold text-gray-900 mb-2">
+        {{ transactions_count }}
+      </div>
+      <div class="text-sm text-gray-500">
+        החודש הנוכחי
       </div>
     </div>
 
     <!-- Recurring Card -->
-    <div class="card card-elevated hover:scale-105 transition-transform">
-      <div class="p-5">
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-sm font-medium text-gray-600">הוצאות קבועות</span>
-          <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-            <i class="fas fa-repeat text-purple-600"></i>
-          </div>
-        </div>
-        <div class="font-mono text-3xl font-bold text-gray-900 mb-2">
-          {{ recurrences_count }}
-        </div>
-        <div class="text-sm text-gray-500">
-          פעילות
-        </div>
+    <div class="stat-card stat-accent animate-sequence">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-sm font-medium text-gray-600">הוצאות קבועות</span>
+        <span class="icon-chip icon-chip-accent"><i class="fas fa-repeat"></i></span>
+      </div>
+      <div class="font-mono text-3xl font-bold text-gray-900 mb-2">
+        {{ recurrences_count }}
+      </div>
+      <div class="text-sm text-gray-500">
+        פעילות
       </div>
     </div>
   </div>
 
-  <div class="bg-white p-4 rounded shadow overflow-hidden">
-    <h2 class="text-xl font-semibold mb-4">עסקאות אחרונות</h2>
-    <div class="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-          <tr>
-            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">תאריך</th>
-            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">סכום</th>
-            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">קטגוריה</th>
-            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">משתמש</th>
-            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">חשבון</th>
-            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">הערות</th>
+  <div class="panel animate-sequence">
+    <div class="panel-header justify-between">
+      <span class="flex items-center gap-2.5"><i class="fas fa-clock-rotate-left"></i>עסקאות אחרונות</span>
+      <a href="/finances/transactions" class="text-sm font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">
+        הצג הכל <i class="fas fa-arrow-left text-xs"></i>
+      </a>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full">
+        <thead>
+          <tr class="text-right text-xs font-semibold text-gray-500 border-b border-gray-100">
+            <th class="px-4 py-3">תאריך</th>
+            <th class="px-4 py-3">סכום</th>
+            <th class="px-4 py-3">קטגוריה</th>
+            <th class="px-4 py-3">משתמש</th>
+            <th class="px-4 py-3">חשבון</th>
+            <th class="px-4 py-3">הערות</th>
           </tr>
         </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
+        <tbody class="divide-y divide-gray-50">
           {% for t in recent_transactions %}
-          <tr>
-            <td class="px-4 py-2 whitespace-nowrap text-gray-900" data-label="תאריך">{{ t.date }}</td>
-            <td class="px-4 py-2 whitespace-nowrap text-red-600" dir="ltr" data-label="סכום">{{ t.amount | round(2) }}
-            </td>
-            <td class="px-4 py-2" data-label="קטגוריה">{{ t.category }}</td>
-            <td class="px-4 py-2" data-label="משתמש">{{ t.user }}</td>
-            <td class="px-4 py-2" data-label="חשבון">{{ t.account or '-' }}</td>
-            <td class="px-4 py-2" data-label="הערות">{{ t.notes or '-' }}</td>
+          <tr class="hover:bg-blue-50/50 transition-colors">
+            <td class="px-4 py-3 whitespace-nowrap text-gray-700" data-label="תאריך">{{ t.date }}</td>
+            <td class="px-4 py-3 whitespace-nowrap font-mono font-semibold text-red-600" dir="ltr" data-label="סכום">₪{{ t.amount | round(2) }}</td>
+            <td class="px-4 py-3" data-label="קטגוריה"><span class="badge badge-neutral">{{ t.category }}</span></td>
+            <td class="px-4 py-3 text-gray-700" data-label="משתמש">{{ t.user }}</td>
+            <td class="px-4 py-3 text-gray-700" data-label="חשבון">{{ t.account or '-' }}</td>
+            <td class="px-4 py-3 text-gray-500" data-label="הערות">{{ t.notes or '-' }}</td>
           </tr>
+          {% else %}
+          <tr><td colspan="6" class="px-4 py-10 text-center text-gray-400">
+            <i class="fas fa-inbox text-2xl mb-2 block opacity-50"></i>אין עסקאות להצגה
+          </td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -139,82 +136,36 @@
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-    <div class="bg-white p-4 rounded shadow">
-      <h2 class="text-xl font-semibold mb-4">קטגוריות עיקריות ({{ selected_month or 'חודש נוכחי' }})</h2>
-      <ul class="space-y-2">
-        {% for c in top_categories %}
-        <li class="flex justify-between">
-          <span>{{ c.category }}</span>
-          <span class="font-semibold" dir="ltr">₪{{ c.total | round(2) }}</span>
-        </li>
-        {% else %}
-        <li class="text-gray-500">אין נתונים</li>
-        {% endfor %}
-      </ul>
+    <div class="panel animate-sequence">
+      <div class="panel-header"><i class="fas fa-tags"></i>קטגוריות עיקריות ({{ selected_month or 'חודש נוכחי' }})</div>
+      <div class="panel-body">
+        <ul class="space-y-1">
+          {% for c in top_categories %}
+          <li class="flex justify-between items-center py-2 px-2 rounded-lg hover:bg-gray-50 transition-colors">
+            <span class="text-gray-700">{{ c.category }}</span>
+            <span class="font-mono font-semibold text-gray-900" dir="ltr">₪{{ c.total | round(2) }}</span>
+          </li>
+          {% else %}
+          <li class="text-gray-400 text-center py-6">אין נתונים</li>
+          {% endfor %}
+        </ul>
+      </div>
     </div>
-    <div class="bg-white p-4 rounded shadow">
-      <h2 class="text-xl font-semibold mb-4">חיובים קבועים צפויים ({{ selected_month or 'חודש נוכחי' }})</h2>
-      <ul class="space-y-2">
-        {% for r in upcoming_recurrences %}
-        <li class="flex justify-between">
-          <span class="text-sm text-gray-800">{{ r.date }} — {{ r.name }} ({{ r.category or '-' }})</span>
-          <span class="font-semibold whitespace-nowrap" dir="ltr">₪{{ r.amount | round(2) }}</span>
-        </li>
-        {% else %}
-        <li class="text-gray-500">אין חיובים צפויים</li>
-        {% endfor %}
-      </ul>
+    <div class="panel animate-sequence">
+      <div class="panel-header"><i class="fas fa-calendar-check"></i>חיובים קבועים צפויים ({{ selected_month or 'חודש נוכחי' }})</div>
+      <div class="panel-body">
+        <ul class="space-y-1">
+          {% for r in upcoming_recurrences %}
+          <li class="flex justify-between items-center gap-3 py-2 px-2 rounded-lg hover:bg-gray-50 transition-colors">
+            <span class="text-sm text-gray-700 min-w-0 truncate">{{ r.date }} — {{ r.name }} ({{ r.category or '-' }})</span>
+            <span class="font-mono font-semibold text-gray-900 whitespace-nowrap" dir="ltr">₪{{ r.amount | round(2) }}</span>
+          </li>
+          {% else %}
+          <li class="text-gray-400 text-center py-6">אין חיובים צפויים</li>
+          {% endfor %}
+        </ul>
+      </div>
     </div>
   </div>
 </div>
 {% endblock %}
-
-<script>
-  try {
-    console.log('[FINANCES] page loaded', {
-      location: window.location.href,
-      timestamp: new Date().toISOString(),
-      cookies: document.cookie,
-      sw: !!navigator.serviceWorker,
-      swController: !!navigator.serviceWorker?.controller,
-      userAgent: navigator.userAgent,
-      referrer: document.referrer
-    });
-
-    // Monitor navigation events
-    window.addEventListener('beforeunload', function () {
-      console.log('[FINANCES] page unloading', {
-        timestamp: new Date().toISOString(),
-        cookies: document.cookie
-      });
-    });
-
-    // Monitor page visibility changes
-    document.addEventListener('visibilitychange', function () {
-      console.log('[FINANCES] page visibility changed', {
-        hidden: document.hidden,
-        visibilityState: document.visibilityState,
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    // Monitor any redirects
-    let redirectCount = 0;
-    const originalLocation = window.location.href;
-
-    setInterval(function () {
-      if (window.location.href !== originalLocation) {
-        redirectCount++;
-        console.log('[FINANCES] redirect detected', {
-          count: redirectCount,
-          from: originalLocation,
-          to: window.location.href,
-          timestamp: new Date().toISOString()
-        });
-      }
-    }, 100);
-
-  } catch (err) {
-    console.error('[FINANCES] init error', err);
-  }
-</script>

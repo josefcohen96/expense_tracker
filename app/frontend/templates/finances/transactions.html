@@ -556,14 +556,9 @@
 
     // Inline editing functions - defined first to ensure they're available
     window.editTransactionInline = function (id) {
-        console.log('editTransactionInline called with id:', id);
-
         // Hide view mode elements and show edit mode elements
         const viewElements = document.querySelectorAll(`[id$="-view-${id}"]`);
         const editElements = document.querySelectorAll(`[id$="-edit-${id}"]`);
-
-        console.log('Found view elements:', viewElements.length);
-        console.log('Found edit elements:', editElements.length);
 
         viewElements.forEach(el => el.classList.add('hidden'));
         editElements.forEach(el => el.classList.remove('hidden'));
@@ -578,13 +573,9 @@
         // Hide edit button
         const editBtn = document.querySelector(`[onclick="editTransactionInline(${id})"]`);
         if (editBtn) editBtn.classList.add('hidden');
-
-        console.log('Edit mode activated for transaction:', id);
     }
 
     window.saveTransactionInline = function (id) {
-        console.log('saveTransactionInline called with id:', id);
-
         // Get all the edited values
         const date = document.getElementById(`date-edit-${id}`).value;
         const amount = parseFloat(document.getElementById(`amount-edit-${id}`).value);
@@ -595,8 +586,6 @@
         const tagsEl = document.getElementById(`tags-edit-${id}`);
         const notes = notesEl ? notesEl.value : null;
         const tags = tagsEl ? tagsEl.value : null;
-
-        console.log('Edited values:', { date, amount, categoryId, userId, accountId, notes, tags });
 
         // Determine if it's income or expense based on original amount
         const originalAmount = parseFloat(document.getElementById(`amount-view-${id}`).textContent.replace(/[₪+\s]/g, ''));
@@ -703,8 +692,6 @@
     }
 
     window.cancelEditInline = function (id) {
-        console.log('cancelEditInline called with id:', id);
-
         // Show view mode elements and hide edit mode elements
         const viewElements = document.querySelectorAll(`[id$="-view-${id}"]`);
         const editElements = document.querySelectorAll(`[id$="-edit-${id}"]`);
@@ -722,8 +709,6 @@
         // Show edit button
         const editBtn = document.querySelector(`[onclick="editTransactionInline(${id})"]`);
         if (editBtn) editBtn.classList.remove('hidden');
-
-        console.log('Edit mode cancelled for transaction:', id);
     }
 
     window.openAddModal = function () {
@@ -978,8 +963,6 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function () {
-        console.log('DOM loaded, initializing inline editing...');
-
         // Set current sort
         const urlParams = new URLSearchParams(window.location.search);
         const sort = urlParams.get('sort');
@@ -1033,13 +1016,6 @@
         if (urlParams.get('tags')) {
             document.getElementById('tags').value = urlParams.get('tags');
         }
-
-        // Test that inline editing functions are available
-        console.log('Inline editing functions available:', {
-            editTransactionInline: typeof editTransactionInline,
-            saveTransactionInline: typeof saveTransactionInline,
-            cancelEditInline: typeof cancelEditInline
-        });
     });
 
     // Close modal when clicking outside

@@ -2,101 +2,59 @@
 {% block title %}התחברות{% endblock %}
 
 {% block content %}
-<div class="max-w-md mx-auto mt-10">
-  <div class="card">
-    <div class="card-header">
-      <h2 class="text-xl font-semibold text-gray-900 flex items-center">
-        <i class="fas fa-lock mr-3 text-orange-600"></i>
-        התחברות
-      </h2>
+<div class="min-h-[80vh] flex items-center justify-center px-4 py-10">
+  <div class="w-full max-w-md animate-fade-in">
+    <!-- Brand -->
+    <div class="text-center mb-6">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-primary shadow-custom mb-3">
+        <i class="fas fa-seedling text-white text-2xl"></i>
+      </div>
+      <h1 class="text-2xl font-bold text-gray-900">המנביטים</h1>
+      <p class="text-gray-500 text-sm mt-1">ברוכים השבים — התחברו כדי להמשיך</p>
     </div>
-    <form id="loginForm" method="post" action="/login">
-      <div class="card-body space-y-4">
-        {% if error %}
-          <div class="p-3 rounded bg-red-100 text-red-800 text-sm">{{ error }}</div>
-        {% endif %}
-        <div class="form-group">
-          <label for="username" class="form-label">שם משתמש</label>
-          <input type="text" id="username" name="username" required class="form-input" autocomplete="username">
-        </div>
-        <div class="form-group">
-          <label for="password" class="form-label">סיסמה</label>
-          <input type="password" id="password" name="password" required class="form-input" autocomplete="current-password">
-        </div>
-        
+
+    <div class="card overflow-hidden">
+      <div class="card-header">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-right-to-bracket text-indigo-600"></i>
+          התחברות
+        </h2>
       </div>
-      <div class="card-footer flex justify-end">
-        <button type="submit" class="btn btn-primary">
-          <i class="fas fa-sign-in-alt mr-2"></i>
-          התחבר
-        </button>
-      </div>
-    </form>
+      <form id="loginForm" method="post" action="/login">
+        <div class="card-body space-y-4">
+          {% if error %}
+            <div class="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+              <i class="fas fa-circle-exclamation"></i>
+              <span>{{ error }}</span>
+            </div>
+          {% endif %}
+          <div class="form-group !mb-0">
+            <label for="username" class="form-label">שם משתמש</label>
+            <input type="text" id="username" name="username" required class="form-input" autocomplete="username" placeholder="הזינו שם משתמש">
+          </div>
+          <div class="form-group !mb-0">
+            <label for="password" class="form-label">סיסמה</label>
+            <input type="password" id="password" name="password" required class="form-input" autocomplete="current-password" placeholder="••••••••">
+          </div>
+        </div>
+        <div class="card-footer flex justify-end bg-transparent border-0 pt-0">
+          <button type="submit" class="btn btn-primary w-full">
+            <i class="fas fa-sign-in-alt"></i>
+            התחבר
+          </button>
+        </div>
+      </form>
+    </div>
+    <p class="text-center text-xs text-gray-500 mt-4">
+      <i class="fas fa-shield-halved ml-1 opacity-70"></i>
+      כניסה מותרת רק למשתמש מורשה
+    </p>
   </div>
-  <p class="text-center text-xs text-gray-500 mt-4">כניסה מותרת רק למשתמש מורשה</p>
-  <script>
-    try {
-      console.log('[LOGIN] page loaded', {
-        location: window.location.href,
-        next: new URLSearchParams(window.location.search).get('next') || null,
-        sw: !!navigator.serviceWorker,
-        swController: !!navigator.serviceWorker?.controller,
-        cookies: document.cookie,
-        timestamp: new Date().toISOString()
-      });
-      
-      const f = document.getElementById('loginForm');
-      f?.addEventListener('submit', function (e) {
-        const u = (document.getElementById('username') || {}).value;
-        const p = (document.getElementById('password') || {}).value;
-        
-        console.log('[LOGIN] form submission started', { 
-          username: u,
-          passwordLength: p.length,
-          timestamp: new Date().toISOString(),
-          cookies: document.cookie,
-          formAction: f.action,
-          formMethod: f.method
-        });
-        
-        // Notify service worker about login attempt
-        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-          console.log('[LOGIN] notifying service worker about login attempt');
-          navigator.serviceWorker.controller.postMessage({
-            type: 'LOGIN_ATTEMPT',
-            username: u,
-            timestamp: Date.now()
-          });
-        } else {
-          console.log('[LOGIN] no service worker controller available');
-        }
-        
-        // Let the normal form submit happen; we only trace
-        console.log('[LOGIN] allowing form submission to proceed');
-      });
-      
-      // Monitor page visibility changes
-      document.addEventListener('visibilitychange', function() {
-        console.log('[LOGIN] page visibility changed', {
-          hidden: document.hidden,
-          visibilityState: document.visibilityState,
-          timestamp: new Date().toISOString()
-        });
-      });
-      
-      // Monitor beforeunload
-      window.addEventListener('beforeunload', function() {
-        console.log('[LOGIN] page unloading', {
-          timestamp: new Date().toISOString(),
-          cookies: document.cookie
-        });
-      });
-      
-      document.getElementById('username').focus();
-    } catch (err) {
-      console.error('[LOGIN] init error', err);
-    }
-  </script>
+</div>
+<script>
+  // Autofocus the username field on load.
+  document.getElementById('username')?.focus();
+</script>
 {% endblock %}
 
 

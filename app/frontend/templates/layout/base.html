@@ -563,11 +563,11 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-16">
                 <!-- Logo/Brand -->
-                <div class="flex items-center animate-sequence">
-                    <div class="w-8 h-8 bg-white rounded-lg mr-3 flex items-center justify-center">
+                <div class="flex items-center gap-3 animate-sequence">
+                    <div class="w-9 h-9 bg-white rounded-xl flex items-center justify-center shadow-md ring-1 ring-white/40">
                         <i class="fas fa-seedling text-purple-600"></i>
                     </div>
-                    <h1 class="text-xl font-bold text-gradient">המנביטים</h1>
+                    <h1 class="text-xl font-bold text-white tracking-tight">המנביטים</h1>
                 </div>
 
                 <!-- Main Categories Navigation -->
@@ -852,17 +852,6 @@
                 if (sidebarExpand) {
                     sidebarExpand.addEventListener('click', toggleSidebar);
                 }
-
-                // Debug: Log sidebar state
-                console.log('Sidebar initialized:', {
-                    sidebar: sidebar ? 'found' : 'not found',
-                    sidebarCollapsed: sidebarCollapsed ? 'found' : 'not found',
-                    sidebarToggle: sidebarToggle ? 'found' : 'not found',
-                    sidebarExpand: sidebarExpand ? 'found' : 'not found',
-                    isCollapsed: isCollapsed
-                });
-            } else {
-                console.log('Sidebar elements not found');
             }
         });
 
@@ -894,17 +883,6 @@
             }
         }
 
-        // PERFORMANCE OPTIMIZATIONS
-        // Preload critical resources
-        function preloadCriticalResources() {
-            // Preload critical CSS
-            const criticalCSS = document.createElement('link');
-            criticalCSS.rel = 'preload';
-            criticalCSS.as = 'style';
-            criticalCSS.href = '/static/css/main.css?v=20251002';
-            document.head.appendChild(criticalCSS);
-        }
-
         // Lazy load non-critical resources
         function lazyLoadResources() {
             // Lazy load images
@@ -927,13 +905,11 @@
         // Initialize performance optimizations and animations
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', function () {
-                preloadCriticalResources();
                 lazyLoadResources();
                 // Start page animations immediately
                 document.body.classList.add('loaded');
             });
         } else {
-            preloadCriticalResources();
             lazyLoadResources();
             // Start page animations immediately
             document.body.classList.add('loaded');

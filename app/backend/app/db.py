@@ -612,5 +612,21 @@ def initialise_database() -> None:
     except Exception:
         pass
 
+    # Workouts Tracker Table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS workouts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            workout_type TEXT NOT NULL,
+            total_duration INTEGER NOT NULL,
+            exercise_name TEXT NOT NULL,
+            total_sets INTEGER NOT NULL,
+            total_reps INTEGER NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    """)
+
     conn.commit()
     conn.close()
+

@@ -582,6 +582,11 @@
                         <span>💍</span>
                         חתונה
                     </a>
+                    <a href="/workouts"
+                        class="nav-link px-4 py-2 rounded-xl text-sm font-semibold transition-colors animate-sequence flex items-center gap-2 {% if request.path.startswith('/workouts') %}is-active{% endif %}">
+                        <i class="fas fa-dumbbell"></i>
+                        אימונים
+                    </a>
                 </div>
 
                 <div class="hidden md:flex items-center space-x-4 space-x-reverse">
@@ -631,6 +636,11 @@
                     class="mobile-menu-link {% if request.path.startswith('/wedding') %}is-active{% endif %}">
                     <span class="text-base">💍</span>
                     <span>חתונה</span>
+                </a>
+                <a href="/workouts"
+                    class="mobile-menu-link {% if request.path.startswith('/workouts') %}is-active{% endif %}">
+                    <i class="fas fa-dumbbell"></i>
+                    <span>אימונים</span>
                 </a>
                 <div class="border-t border-white/10 my-2"></div>
                 {% if request.session.get('user') %}
@@ -687,6 +697,9 @@
                         </a></li>
                         <li><a href="/wedding" class="text-gray-300 hover:text-white inline-flex items-center gap-2">
                             <span class="text-xs opacity-70">💍</span>תכנון חתונה
+                        </a></li>
+                        <li><a href="/workouts" class="text-gray-300 hover:text-white inline-flex items-center gap-2">
+                            <i class="fas fa-dumbbell text-xs opacity-70"></i>אימונים
                         </a></li>
                     </ul>
                 </div>

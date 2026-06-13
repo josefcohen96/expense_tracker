@@ -21,6 +21,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const dd = String(today.getDate()).padStart(2, '0');
         dateInput.value = `${yyyy}-${mm}-${dd}`;
     }
+
+    // 2. Initialize default skill details
+    const select = document.getElementById('skill-select');
+    if (select) {
+        displaySkillData(select.value);
+    }
 });
 
 // --- Start Workout Session (User triggered) ---
@@ -473,5 +479,100 @@ async function finishWorkout() {
     } catch (error) {
         console.error("Save workout request failed", error);
         alert("נכשלה ההתקשרות עם השרת. אנא בדוק את החיבור לרשת ונסה שנית.");
+    }
+}
+
+// --- Interactive Skill Progressions Guide Logic ---
+function switchSidebarTab(tabName) {
+    const tabHistory = document.getElementById('tab-history');
+    const tabSkills = document.getElementById('tab-skills');
+    const historyContent = document.getElementById('sidebar-history-content');
+    const skillsContent = document.getElementById('sidebar-skills-content');
+    
+    if (tabName === 'history') {
+        if (tabHistory) {
+            tabHistory.classList.add('border-indigo-600', 'text-indigo-600');
+            tabHistory.classList.remove('border-transparent', 'text-gray-500');
+        }
+        if (tabSkills) {
+            tabSkills.classList.remove('border-indigo-600', 'text-indigo-600');
+            tabSkills.classList.add('border-transparent', 'text-gray-500');
+        }
+        if (historyContent) historyContent.classList.remove('hidden');
+        if (skillsContent) skillsContent.classList.add('hidden');
+    } else {
+        if (tabHistory) {
+            tabHistory.classList.remove('border-indigo-600', 'text-indigo-600');
+            tabHistory.classList.add('border-transparent', 'text-gray-500');
+        }
+        if (tabSkills) {
+            tabSkills.classList.add('border-indigo-600', 'text-indigo-600');
+            tabSkills.classList.remove('border-transparent', 'text-gray-500');
+        }
+        if (historyContent) historyContent.classList.add('hidden');
+        if (skillsContent) skillsContent.classList.remove('hidden');
+        
+        // Auto display selected skill details
+        const select = document.getElementById('skill-select');
+        if (select) {
+            displaySkillData(select.value);
+        }
+    }
+}
+
+function displaySkillData(skillKey) {
+    // Hide all skill detail blocks
+    const detailBlocks = document.querySelectorAll('.skill-detail-block');
+    detailBlocks.forEach(block => block.classList.add('hidden'));
+    
+    // Show the selected one
+    const selectedBlock = document.getElementById(`skill-details-${skillKey}`);
+    if (selectedBlock) {
+        selectedBlock.classList.remove('hidden');
+    }
+}
+
+function toggleCuesAccordion(skillKey) {
+    const content = document.getElementById(`accordion-content-${skillKey}`);
+    const icon = document.getElementById(`accordion-icon-${skillKey}`);
+    
+    if (content) {
+        content.classList.toggle('hidden');
+    }
+    if (icon) {
+        icon.classList.toggle('rotate-180');
+    }
+}
+
+function addSkillProgression(name, hebrew, reps, rest) {
+    // 1. If workout session not started, start it
+    const sessionContainer = document.getElementById('active-workout-session');
+    if (sessionContainer && sessionContainer.classList.contains('hidden')) {
+        startWorkoutSession();
+    }
+    
+    // 2. Build new exercise and add to list
+    const cleanHebrewName = hebrew || name;
+    const cleanEnglishName = name;
+    const displayName = `${cleanHebrewName} (${cleanEnglishName})`;
+    
+    // Ensure unique ID for exercise
+    const exId = 'ex-' + Date.now() + Math.random().toString(36).substr(2, 5);
+    
+    const newEx = {
+        id: exId,
+        name: displayName,
+        sets: [
+            { id: 'set-' + Date.now() + '-1', reps: reps, rest: rest, done: false }
+        ]
+    };
+    
+    activeExercises.push(newEx);
+    renderActiveExercises();
+    
+    // 3. Smooth scroll to exercises container
+    const exercisesContainer = document.getElementById('active-exercises');
+    if (exercisesContainer) {
+        exercisesContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 }

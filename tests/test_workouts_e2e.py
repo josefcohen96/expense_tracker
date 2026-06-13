@@ -4,8 +4,8 @@ def test_workout_page_loads(app_client):
     """Test that the workouts page loads correctly."""
     r = app_client.get("/workouts")
     assert r.status_code == 200
-    assert "מעקב אימוני קליסטניקס" in r.text
-    assert "היסטוריית אימונים" in r.text
+    assert "היסטוריה" in r.text
+    assert "מדריך מיומנויות" in r.text
     assert "exercise-modal" in r.text
 
 def test_save_workout_success(app_client, db_conn):

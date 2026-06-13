@@ -21,10 +21,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const dd = String(today.getDate()).padStart(2, '0');
         dateInput.value = `${yyyy}-${mm}-${dd}`;
     }
-
-    // 2. Start Live Workout Timer
-    startWorkoutTimer();
 });
+
+// --- Start Workout Session (User triggered) ---
+function startWorkoutSession() {
+    workoutStartTime = Date.now();
+    
+    const startContainer = document.getElementById('start-session-container');
+    const sessionContainer = document.getElementById('active-workout-session');
+    
+    if (startContainer) startContainer.classList.add('hidden');
+    if (sessionContainer) sessionContainer.classList.remove('hidden');
+    
+    startWorkoutTimer();
+}
+
 
 // --- Live Workout Timer Logic ---
 function startWorkoutTimer() {

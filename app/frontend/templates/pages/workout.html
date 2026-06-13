@@ -74,7 +74,22 @@
         
         <!-- Active Workout Session Area (Takes 2/3 of space on desktop) -->
         <div class="lg:col-span-2 space-y-6">
-            <div class="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
+            <!-- Start Workout Button Container -->
+            <div id="start-session-container" class="bg-white border border-gray-200 shadow-md rounded-2xl p-8 text-center py-16">
+                <div class="w-20 h-20 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                    <i class="fas fa-dumbbell text-3xl animate-bounce"></i>
+                </div>
+                <h2 class="text-2xl font-black text-gray-900 mb-2">אימון חדש</h2>
+                <p class="text-gray-600 text-sm max-w-sm mx-auto mb-8">מוכן להתחיל להתאמן? לחץ על הכפתור כדי להתחיל אימון חדש, להפעיל את שעון המנוחה ולתעד את הסטים שלך.</p>
+                <button onclick="startWorkoutSession()" 
+                        class="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-lg rounded-2xl shadow-lg hover:shadow-purple-100 transition-all active:scale-95 animate-pulse">
+                    <i class="fas fa-play-circle text-xl"></i>
+                    התחל אימון חדש
+                </button>
+            </div>
+
+            <!-- Active Workout Card (Hidden by default) -->
+            <div id="active-workout-session" class="hidden bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
                 <!-- Session Controller Header -->
                 <div class="bg-gradient-to-l from-purple-800 to-indigo-900 p-6 text-white">
                     <div class="flex flex-wrap justify-between items-center gap-4">

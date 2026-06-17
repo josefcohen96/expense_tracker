@@ -171,6 +171,9 @@
              transition:transform .15s; }
 .color-dot.selected { border-color:#111; transform:scale(1.15); }
 
+/* ─── Panel drag-over feedback ───────────────────────── */
+#guests-panel .panel-body.drag-over-panel { background:#fff7f7; outline:2px dashed #fda4af; }
+
 /* ─── Guest assign modal ─────────────────────────────── */
 .guest-option { padding:.5rem .75rem; border-radius:.6rem; cursor:pointer; display:flex;
                 align-items:center; justify-content:space-between; font-size:.8rem;
@@ -568,14 +571,16 @@ function canvasDrop(e) {
 // ─── Guest drag-and-drop ──────────────────────────────────────────────────────
 function guestDragStart(e, guestId) {
     dragGuestId = guestId;
-    e.dataTransfer.setData('text/plain', guestId);
+    e.dataTransfer.setData('text/plain', String(guestId));
     e.dataTransfer.effectAllowed = 'move';
 }
 function seatDragStart(e) {
-    const guestId = parseInt(e.currentTarget.dataset.guestId);
+    const seatEl = e.currentTarget || e.target.closest('.seat');
+    if (!seatEl) { e.preventDefault(); return; }
+    const guestId = parseInt(seatEl.dataset.guestId);
     if (!guestId) { e.preventDefault(); return; }
     dragGuestId = guestId;
-    e.dataTransfer.setData('text/plain', guestId);
+    e.dataTransfer.setData('text/plain', String(guestId));
     e.dataTransfer.effectAllowed = 'move';
 }
 function guestDragEnd(e) { dragGuestId = null; }
@@ -585,7 +590,12 @@ function seatDragOver(e) {
     e.stopPropagation();
     e.currentTarget.classList.add('drag-over');
 }
-function seatDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+function seatDragLeave(e) {
+    // Only remove the class when the cursor actually leaves the seat element,
+    // not when it moves into a child element (text span, etc.) inside the seat.
+    if (e.currentTarget.contains(e.relatedTarget)) return;
+    e.currentTarget.classList.remove('drag-over');
+}
 
 async function seatDrop(e) {
     e.preventDefault();
@@ -747,10 +757,14 @@ async function doAssign(guestId, tableId, seatNum) {
         try { await api('DELETE', `/api/wedding/seating/assign/${dId}`); } catch (e) { /* continue */ }
     }
 
-    await api('POST', '/api/wedding/seating/assign', {
-        table_id: tableId, seat_number: seatNum, guest_id: guestId,
-        extra_seats: allSeats.slice(1)
-    });
+    try {
+        await api('POST', '/api/wedding/seating/assign', {
+            table_id: tableId, seat_number: seatNum, guest_id: guestId,
+            extra_seats: allSeats.slice(1)
+        });
+    } catch (err) {
+        showToast(`⚠️ שגיאה בשמירת ההושבה: ${err.message}`);
+    }
 }
 
 async function doUnassign(guestId) {
@@ -763,7 +777,11 @@ async function doUnassign(guestId) {
     refreshTable(prev.table_id);
     renderPanel(document.getElementById('panel-search').value || null);
     updateStats();
-    await api('DELETE', `/api/wedding/seating/assign/${guestId}`);
+    try {
+        await api('DELETE', `/api/wedding/seating/assign/${guestId}`);
+    } catch (err) {
+        showToast(`⚠️ שגיאה בהסרת ההושבה: ${err.message}`);
+    }
 }
 
 function showToast(msg) {
@@ -925,7 +943,9 @@ async function api(method, url, body) {
     if (body) opts.body = JSON.stringify(body);
     const r = await fetch(url, opts);
     if (r.status === 204) return null;
-    return r.json();
+    const data = await r.json();
+    if (!r.ok) throw Object.assign(new Error(data.detail || `HTTP ${r.status}`), { status: r.status });
+    return data;
 }
 </script>
 {% endblock %}

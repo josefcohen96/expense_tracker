@@ -948,8 +948,8 @@ async def assign_guest(body: SeatingAssign, db_conn: sqlite3.Connection = Depend
             si = int(s)
         except (TypeError, ValueError):
             continue
-        if si < 1 or si > capacity:
-            raise HTTPException(status_code=400, detail=f"Seat number {si} is outside table capacity (1-{capacity})")
+        if si < 0 or si >= capacity:
+            raise HTTPException(status_code=400, detail=f"Seat number {si} is outside table capacity (0-{capacity - 1})")
         if si in seen:
             continue
         seen.add(si)

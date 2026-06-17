@@ -378,7 +378,9 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
             z-index: 500;
             display: none;
             align-items: center;
@@ -467,7 +469,9 @@
         .drawer-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.5);
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(3px);
+            -webkit-backdrop-filter: blur(3px);
             z-index: 410;
             display: none;
         }
@@ -482,7 +486,8 @@
 
         /* Footer Improvements */
         .footer {
-            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
+            border-top: 1px solid #e5e7eb;
             position: relative;
             overflow: hidden;
             transition: margin 0.2s ease-out;
@@ -516,13 +521,13 @@
             width: 36px;
             height: 36px;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.08);
-            color: #cbd5e1;
+            background: rgba(102, 126, 234, 0.1);
+            color: #6b7280;
         }
 
         .footer-social-link:hover {
-            background: rgba(255, 255, 255, 0.18);
-            color: white;
+            background: rgba(102, 126, 234, 0.2);
+            color: #4c51bf;
         }
 
         /* Loading Animation */
@@ -668,37 +673,37 @@
     </div>
 
     <!-- Footer -->
-    <footer class="footer text-white py-10 mt-auto relative">
+    <footer class="footer text-gray-700 py-10 mt-auto relative">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 text-center md:text-right">
                 <!-- Brand -->
                 <div class="animate-sequence">
                     <div class="flex items-center gap-3 justify-center md:justify-start mb-3">
-                        <div class="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center">
-                            <i class="fas fa-seedling text-purple-300"></i>
+                        <div class="w-9 h-9 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-seedling text-purple-600"></i>
                         </div>
                         <h3 class="text-lg font-semibold">המנביטים</h3>
                     </div>
-                    <p class="text-gray-300 text-sm leading-relaxed">פלטפורמה מתקדמת לניהול חיים מאוזנים ומאושרים — פיננסים, חתונה והכל ביניהם.</p>
+                    <p class="text-gray-600 text-sm leading-relaxed">פלטפורמה מתקדמת לניהול חיים מאוזנים ומאושרים — פיננסים, חתונה והכל ביניהם.</p>
                 </div>
 
                 <!-- Quick Links -->
                 <div class="animate-sequence">
                     <h3 class="text-lg font-semibold mb-3">קישורים מהירים</h3>
                     <ul class="space-y-2 text-sm">
-                        <li><a href="/finances" class="text-gray-300 hover:text-white inline-flex items-center gap-2">
+                        <li><a href="/finances" class="text-gray-600 hover:text-purple-700 inline-flex items-center gap-2">
                             <i class="fas fa-gauge text-xs opacity-70"></i>דשבורד פיננסי
                         </a></li>
-                        <li><a href="/finances/transactions" class="text-gray-300 hover:text-white inline-flex items-center gap-2">
+                        <li><a href="/finances/transactions" class="text-gray-600 hover:text-purple-700 inline-flex items-center gap-2">
                             <i class="fas fa-exchange-alt text-xs opacity-70"></i>עסקאות
                         </a></li>
-                        <li><a href="/finances/statistics" class="text-gray-300 hover:text-white inline-flex items-center gap-2">
+                        <li><a href="/finances/statistics" class="text-gray-600 hover:text-purple-700 inline-flex items-center gap-2">
                             <i class="fas fa-chart-line text-xs opacity-70"></i>סטטיסטיקות
                         </a></li>
-                        <li><a href="/wedding" class="text-gray-300 hover:text-white inline-flex items-center gap-2">
+                        <li><a href="/wedding" class="text-gray-600 hover:text-purple-700 inline-flex items-center gap-2">
                             <span class="text-xs opacity-70">💍</span>תכנון חתונה
                         </a></li>
-                        <li><a href="/workouts" class="text-gray-300 hover:text-white inline-flex items-center gap-2">
+                        <li><a href="/workouts" class="text-gray-600 hover:text-purple-700 inline-flex items-center gap-2">
                             <i class="fas fa-dumbbell text-xs opacity-70"></i>אימונים
                         </a></li>
                     </ul>
@@ -710,7 +715,7 @@
                     <ul class="space-y-2 text-sm">
                         <li>
                             <a href="mailto:support@hamanbitim.co.il"
-                               class="text-gray-300 hover:text-white inline-flex items-center gap-2 break-all">
+                               class="text-gray-600 hover:text-purple-700 inline-flex items-center gap-2 break-all">
                                 <i class="fas fa-envelope text-xs opacity-70"></i>
                                 support@hamanbitim.co.il
                             </a>
@@ -730,7 +735,7 @@
                 </div>
             </div>
 
-            <div class="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-gray-400">
+            <div class="border-t border-gray-200 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-gray-500">
                 <p>&copy; <span id="footer-year">2026</span> המנביטים. כל הזכויות שמורות.</p>
                 <p class="text-xs">נבנה באהבה ❤️</p>
             </div>

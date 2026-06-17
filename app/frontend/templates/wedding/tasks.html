@@ -72,7 +72,7 @@
                             <span class="text-sm text-gray-600">הצג שהושלמו</span>
                         </label>
                         <div class="flex gap-2">
-                            <button type="submit" class="flex-1 px-4 py-2.5 bg-gray-700 text-white rounded-lg text-sm font-medium min-h-[44px]">סנן</button>
+                            <button type="submit" class="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-medium min-h-[44px]">סנן</button>
                             {% if category_filter or show_completed == '1' %}
                             <a href="/wedding/tasks" class="flex-1 text-center px-3 py-2.5 text-sm text-gray-500 hover:bg-gray-100 rounded-lg min-h-[44px] flex items-center justify-center">איפוס</a>
                             {% endif %}
@@ -117,7 +117,7 @@
                         <span class="text-sm text-gray-600">הצג שהושלמו</span>
                     </label>
                     <div class="flex flex-col gap-2">
-                        <button type="submit" class="w-full px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-medium">סנן</button>
+                        <button type="submit" class="w-full px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-medium">סנן</button>
                         {% if category_filter or show_completed == '1' %}
                         <a href="/wedding/tasks" class="w-full text-center px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">איפוס</a>
                         {% endif %}
@@ -249,7 +249,7 @@
 
 <!-- Add/Edit Task Modal -->
 <div id="add-task-modal" class="hidden fixed inset-0 z-[500] flex items-start sm:items-center justify-center sm:p-4" dir="rtl">
-    <div class="absolute inset-0 bg-black/50" onclick="closeModal('add-task-modal')"></div>
+    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="closeModal('add-task-modal')"></div>
     <div class="relative bg-white w-full sm:rounded-xl shadow-xl sm:max-w-lg sm:mx-4 max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto"
          style="padding-bottom: env(safe-area-inset-bottom, 0px);">
         <div class="sticky top-0 bg-white z-10 px-5 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between">

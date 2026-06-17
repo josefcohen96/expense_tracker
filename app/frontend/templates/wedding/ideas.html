@@ -20,7 +20,7 @@
     <!-- Status Pills -->
     <div class="flex gap-2 flex-wrap">
         {% for s, label, active_cls in [
-            ('',            'הכל',   'bg-gray-800 text-white shadow-md'),
+            ('',            'הכל',   'bg-rose-600 text-white shadow-md'),
             ('new',         '✨ חדש',        'bg-blue-500 text-white shadow-md'),
             ('considering', '🤔 שוקל',       'bg-amber-500 text-white shadow-md'),
             ('approved',    '✅ אושר',        'bg-green-500 text-white shadow-md'),
@@ -132,7 +132,7 @@
 
 <!-- Create/Edit Modal -->
 <div id="idea-modal" class="fixed inset-0 z-[500] hidden items-center justify-center p-4">
-    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeIdeaModal()"></div>
+    <div class="absolute inset-0 bg-slate-900/30 backdrop-blur-sm" onclick="closeIdeaModal()"></div>
     <div id="idea-modal-card"
          class="relative w-full max-w-md rounded-2xl shadow-2xl p-6 bg-white transition-colors duration-200 max-h-[92vh] overflow-y-auto">
 

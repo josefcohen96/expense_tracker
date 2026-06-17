@@ -568,7 +568,7 @@ textarea.inline-edit-input {
 
 <!-- Inline Status Picker (small bottom sheet) -->
 <div id="status-picker-overlay" class="hidden fixed inset-0 z-[500]" dir="rtl">
-    <div class="modal-backdrop absolute inset-0 bg-black/40" onclick="closeStatusPicker()"></div>
+    <div class="modal-backdrop absolute inset-0 bg-slate-900/30 backdrop-blur-sm" onclick="closeStatusPicker()"></div>
     <div class="status-picker absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl" style="padding-bottom: env(safe-area-inset-bottom, 0px);">
         <div class="grab-handle flex justify-center pt-3 pb-2">
             <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
@@ -607,7 +607,7 @@ textarea.inline-edit-input {
 
 <!-- Add/Edit Guest Modal -->
 <div id="add-guest-modal" class="hidden fixed inset-0 z-[600] flex items-start justify-center" dir="rtl">
-    <div class="modal-backdrop absolute inset-0 bg-black/40" onclick="closeGuestModal()"></div>
+    <div class="modal-backdrop absolute inset-0 bg-slate-900/30 backdrop-blur-sm" onclick="closeGuestModal()"></div>
     <div class="modal-sheet relative bg-white w-full sm:rounded-xl sm:shadow-xl sm:max-w-xl sm:mx-4 sm:mt-10 rounded-b-2xl max-h-[100dvh] sm:max-h-[94vh] overflow-y-auto"
          style="padding-bottom: env(safe-area-inset-bottom, 0px);">
         <!-- Top spacing (mobile) -->
@@ -1274,7 +1274,7 @@ function copyInviteLink() {
 
 <!-- Invite Link Modal -->
 <div id="invite-modal" class="hidden fixed inset-0 z-[900] flex items-center justify-center px-4" dir="rtl">
-    <div class="modal-backdrop absolute inset-0 bg-black/50" onclick="closeInviteModal()"></div>
+    <div class="modal-backdrop absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="closeInviteModal()"></div>
     <div class="modal-sheet relative z-10 bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
         <div class="flex items-center justify-between mb-5">
             <h3 class="text-lg font-bold text-gray-800">🔗 לינק הזמנה</h3>

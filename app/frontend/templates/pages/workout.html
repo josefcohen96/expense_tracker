@@ -21,37 +21,65 @@
         transition: background-color 0.25s ease, border-color 0.25s ease;
     }
     .set-row.is-done {
-        background-color: #f0fdf4 !important; /* Tailwind bg-green-50 */
-        border-color: #bbf7d0 !important; /* Tailwind border-green-200 */
+        background-color: #f0fdf4 !important;
+        border-color: #bbf7d0 !important;
     }
     .set-row.is-done input {
         color: #166534;
         font-weight: 600;
     }
-    /* Inline editing inputs look like plain text until focused */
+    /* Inline editing inputs — 16px prevents iOS auto-zoom on focus */
     .inline-edit-input {
         background: transparent;
         border: 1px solid transparent;
         transition: all 0.2s ease;
         text-align: center;
+        font-size: 16px;
     }
     .inline-edit-input:hover {
-        background-color: #f3f4f6; /* bg-gray-100 */
+        background-color: #f3f4f6;
         border-color: #e5e7eb;
     }
     .inline-edit-input:focus {
         background-color: #ffffff;
-        border-color: #3b82f6; /* border-blue-500 */
+        border-color: #3b82f6;
         box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
         outline: none;
+    }
+    /* Hide number input spinners on mobile */
+    .inline-edit-input::-webkit-outer-spin-button,
+    .inline-edit-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    .inline-edit-input[type=number] {
+        -moz-appearance: textfield;
     }
     /* Smooth modal transition */
     .modal-backdrop {
         transition: opacity 0.3s ease;
     }
-    /* Safe padding for fixed rest banner at bottom */
+    /* Prevent background scroll when modal is open (iOS-compatible) */
+    body.modal-open {
+        overflow: hidden;
+        position: fixed;
+        width: 100%;
+    }
+    /* Rest timer hourglass slow spin */
+    @keyframes spin-slow {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    .animate-spin-slow {
+        animation: spin-slow 3s linear infinite;
+    }
+    /* Safe padding for fixed rest banner + safe area (iPhone X+) */
     .workout-container {
-        padding-bottom: 90px;
+        padding-bottom: max(100px, calc(80px + env(safe-area-inset-bottom, 0px)));
+    }
+    /* Rest timer banner respects iPhone home bar */
+    #rest-timer-banner {
+        padding-bottom: max(1rem, calc(0.5rem + env(safe-area-inset-bottom, 0px)));
     }
 </style>
 {% endblock %}
@@ -91,41 +119,38 @@
             <!-- Active Workout Card (Hidden by default) -->
             <div id="active-workout-session" class="hidden bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
                 <!-- Session Controller Header -->
-                <div class="bg-gradient-to-l from-purple-800 to-indigo-900 p-6 text-white">
-                    <div class="flex flex-wrap justify-between items-center gap-4">
-                        <div class="flex items-center gap-3">
-                            <div class="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center text-xl shadow-inner animate-pulse">
-                                <i class="fas fa-stopwatch text-purple-300"></i>
-                            </div>
-                            <div>
-                                <span class="text-xs text-purple-200 uppercase tracking-wider font-semibold">משך זמן האימון</span>
-                                <div id="workout-timer" class="text-3xl font-black digital-timer text-white">00:00</div>
-                            </div>
+                <div class="bg-gradient-to-l from-purple-800 to-indigo-900 p-4 sm:p-6 text-white">
+                    <!-- Row 1: Timer -->
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-11 h-11 bg-white/10 rounded-xl flex items-center justify-center text-xl shadow-inner animate-pulse flex-shrink-0">
+                            <i class="fas fa-stopwatch text-purple-300"></i>
                         </div>
-                        
-                        <!-- Inputs for Workout details -->
-                        <div class="flex flex-wrap items-center gap-3">
-                            <!-- Date Selector -->
-                            <div class="flex flex-col">
-                                <label for="workout-date" class="text-xs text-purple-200 mb-1">תאריך</label>
-                                <input type="date" id="workout-date" 
-                                       class="bg-white/10 border border-white/20 text-white text-sm rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-purple-400 focus:outline-none"
-                                       value="">
-                            </div>
-                            
-                            <!-- Workout Type Selector -->
-                            <div class="flex flex-col">
-                                <label for="workout-type" class="text-xs text-purple-200 mb-1">סוג אימון</label>
-                                <select id="workout-type" 
-                                        class="bg-white/10 border border-white/20 text-white text-sm rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-purple-400 focus:outline-none cursor-pointer">
-                                    <option value="Calisthenics" class="text-gray-800">קליסטניקס</option>
-                                    <option value="Push" class="text-gray-800">Push (דחיפה)</option>
-                                    <option value="Pull" class="text-gray-800">Pull (משיכה)</option>
-                                    <option value="Core" class="text-gray-800">Core (בטן וליבה)</option>
-                                    <option value="Legs" class="text-gray-800">Legs (רגליים)</option>
-                                    <option value="Full Body" class="text-gray-800">גוף מלא</option>
-                                </select>
-                            </div>
+                        <div>
+                            <span class="text-xs text-purple-200 uppercase tracking-wider font-semibold">משך זמן האימון</span>
+                            <div id="workout-timer" class="text-3xl font-black digital-timer text-white leading-none">00:00</div>
+                        </div>
+                    </div>
+                    <!-- Row 2: Workout details — full width inputs on mobile -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex flex-col">
+                            <label for="workout-date" class="text-xs text-purple-200 mb-1">תאריך</label>
+                            <input type="date" id="workout-date"
+                                   class="bg-white/10 border border-white/20 text-white text-base rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-400 focus:outline-none w-full"
+                                   style="color-scheme: dark;"
+                                   value="">
+                        </div>
+                        <div class="flex flex-col">
+                            <label for="workout-type" class="text-xs text-purple-200 mb-1">סוג אימון</label>
+                            <select id="workout-type"
+                                    class="bg-white/10 border border-white/20 text-white text-base rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-400 focus:outline-none cursor-pointer w-full"
+                                    style="color-scheme: dark;">
+                                <option value="Calisthenics" class="text-gray-800 bg-white">קליסטניקס</option>
+                                <option value="Push" class="text-gray-800 bg-white">Push (דחיפה)</option>
+                                <option value="Pull" class="text-gray-800 bg-white">Pull (משיכה)</option>
+                                <option value="Core" class="text-gray-800 bg-white">Core (בטן)</option>
+                                <option value="Legs" class="text-gray-800 bg-white">Legs (רגליים)</option>
+                                <option value="Full Body" class="text-gray-800 bg-white">גוף מלא</option>
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -355,32 +380,34 @@
 </div>
 
 <!-- ================= STICKY TIMER BANNER ================= -->
-<div id="rest-timer-banner" class="fixed bottom-0 left-0 right-0 z-[400] bg-gray-900/95 text-white border-t border-gray-800 shadow-2xl py-4 px-6 translate-y-full transition-transform duration-300 ease-out">
-    <div class="max-w-xl mx-auto flex items-center justify-between gap-4">
+<div id="rest-timer-banner" class="fixed bottom-0 left-0 right-0 z-[400] bg-gray-900/95 text-white border-t border-gray-800 shadow-2xl pt-3 px-4 translate-y-full transition-transform duration-300 ease-out">
+    <div class="max-w-xl mx-auto flex items-center justify-between gap-3">
         <!-- Timer Display -->
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 bg-purple-600/30 text-purple-400 rounded-full flex items-center justify-center text-lg flex-shrink-0" id="timer-banner-icon">
                 <i class="fas fa-hourglass-half animate-spin-slow"></i>
             </div>
             <div>
-                <p class="text-xs text-gray-400 leading-none">זמן מנוחה פעיל</p>
-                <div class="text-2xl font-black digital-timer mt-1" id="timer-banner-clock">00:00</div>
+                <p class="text-xs text-gray-400 leading-none">זמן מנוחה</p>
+                <div class="text-2xl font-black digital-timer mt-0.5" id="timer-banner-clock">00:00</div>
             </div>
         </div>
 
-        <!-- Timer Controls -->
+        <!-- Timer Controls — min 44px touch targets -->
         <div class="flex items-center gap-2">
-            <button onclick="adjustRestTimer(-10)" class="w-10 h-10 border border-gray-700 bg-gray-800 hover:bg-gray-700 active:scale-90 text-sm font-bold rounded-xl transition-all">
+            <button onclick="adjustRestTimer(-10)" class="w-11 h-11 border border-gray-700 bg-gray-800 hover:bg-gray-700 active:scale-90 text-sm font-bold rounded-xl transition-all">
                 -10s
             </button>
-            <button onclick="adjustRestTimer(10)" class="w-10 h-10 border border-gray-700 bg-gray-800 hover:bg-gray-700 active:scale-90 text-sm font-bold rounded-xl transition-all">
+            <button onclick="adjustRestTimer(10)" class="w-11 h-11 border border-gray-700 bg-gray-800 hover:bg-gray-700 active:scale-90 text-sm font-bold rounded-xl transition-all">
                 +10s
             </button>
-            <button onclick="skipRestTimer()" class="px-4 h-10 bg-purple-600 hover:bg-purple-700 active:scale-95 text-sm font-bold rounded-xl transition-all">
+            <button onclick="skipRestTimer()" class="px-4 h-11 bg-purple-600 hover:bg-purple-700 active:scale-95 text-sm font-bold rounded-xl transition-all">
                 דילוג
             </button>
         </div>
     </div>
+    <!-- Safe area spacer for iPhone X+ home bar -->
+    <div style="height: env(safe-area-inset-bottom, 0px);"></div>
 </div>
 
 <!-- Scripts -->

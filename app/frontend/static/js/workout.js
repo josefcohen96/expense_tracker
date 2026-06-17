@@ -76,6 +76,10 @@ function openExerciseModal() {
     const modal = document.getElementById('exercise-modal');
     if (modal) {
         modal.classList.add('active');
+        // iOS scroll lock: save current scroll position, then fix body in place
+        const scrollY = window.scrollY;
+        document.body.dataset.scrollY = scrollY;
+        document.body.style.top = `-${scrollY}px`;
         document.body.classList.add('modal-open');
     }
 }
@@ -84,7 +88,11 @@ function closeExerciseModal() {
     const modal = document.getElementById('exercise-modal');
     if (modal) {
         modal.classList.remove('active');
+        // iOS scroll lock: restore scroll position after releasing body
+        const scrollY = parseInt(document.body.dataset.scrollY || '0', 10);
         document.body.classList.remove('modal-open');
+        document.body.style.top = '';
+        window.scrollTo(0, scrollY);
     }
 }
 
@@ -113,28 +121,28 @@ function generateExerciseCardHTML(exercise) {
     exercise.sets.forEach((set, idx) => {
         setsHTML += `
         <tr class="set-row border-b border-gray-100 ${set.done ? 'is-done' : ''}" data-set-id="${set.id}" data-exercise-id="${exercise.id}">
-            <td class="py-2.5 text-center font-bold text-gray-500 text-sm w-12">${idx + 1}</td>
-            <td class="py-2 text-center w-24">
-                <input type="number" value="${set.reps}" 
-                       class="inline-edit-input w-16 text-center py-1.5 font-bold text-gray-800 text-sm rounded-lg"
+            <td class="py-2 text-center font-bold text-gray-500 text-xs w-8">${idx + 1}</td>
+            <td class="py-1.5 text-center w-20">
+                <input type="number" value="${set.reps}"
+                       class="inline-edit-input w-14 text-center py-1.5 font-bold text-gray-800 rounded-lg"
                        onchange="updateSetData('${exercise.id}', '${set.id}', 'reps', this.value)"
-                       inputmode="numeric" pattern="[0-9]*">
+                       inputmode="numeric" pattern="[0-9]*" min="0">
             </td>
-            <td class="py-2 text-center w-24">
-                <input type="number" value="${set.rest}" 
-                       class="inline-edit-input w-16 text-center py-1.5 text-gray-500 text-sm rounded-lg"
+            <td class="py-1.5 text-center w-20">
+                <input type="number" value="${set.rest}"
+                       class="inline-edit-input w-14 text-center py-1.5 text-gray-500 rounded-lg"
                        onchange="updateSetData('${exercise.id}', '${set.id}', 'rest', this.value)"
-                       inputmode="numeric" pattern="[0-9]*">
+                       inputmode="numeric" pattern="[0-9]*" min="0">
             </td>
-            <td class="py-2 text-center w-16">
+            <td class="py-1.5 text-center w-12">
                 <div class="flex justify-center">
                     <input type="checkbox" ${set.done ? 'checked' : ''}
                            class="done-checkbox w-8 h-8 rounded-lg border-2 border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer transition-all"
                            onchange="toggleSetDone('${exercise.id}', '${set.id}', this.checked)">
                 </div>
             </td>
-            <td class="py-2 text-center w-12">
-                <button onclick="removeSet('${exercise.id}', '${set.id}')" class="text-gray-400 hover:text-red-500 active:scale-90 transition-colors p-1.5 rounded-lg hover:bg-gray-50">
+            <td class="py-1.5 text-center w-10">
+                <button onclick="removeSet('${exercise.id}', '${set.id}')" class="text-gray-400 hover:text-red-500 active:scale-90 transition-colors p-1.5 rounded-lg">
                     <i class="fas fa-trash-alt text-xs"></i>
                 </button>
             </td>
@@ -143,29 +151,27 @@ function generateExerciseCardHTML(exercise) {
     });
 
     return `
-    <div class="exercise-card bg-white border border-gray-200 shadow-md rounded-2xl p-5 mb-5 relative" data-exercise-id="${exercise.id}">
+    <div class="exercise-card bg-white border border-gray-200 shadow-md rounded-2xl p-4 mb-4 relative" data-exercise-id="${exercise.id}">
         <!-- Card Header -->
-        <div class="flex justify-between items-center mb-4">
-            <div>
-                <h3 class="text-lg font-extrabold text-gray-900 leading-tight">${exercise.name}</h3>
-            </div>
-            <button onclick="removeExercise('${exercise.id}')" 
-                    class="text-gray-400 hover:text-red-500 active:scale-90 transition-colors p-2 rounded-xl hover:bg-red-50" 
+        <div class="flex justify-between items-center mb-3">
+            <h3 class="text-base font-extrabold text-gray-900 leading-tight">${exercise.name}</h3>
+            <button onclick="removeExercise('${exercise.id}')"
+                    class="text-gray-400 hover:text-red-500 active:scale-90 transition-colors p-2 rounded-xl hover:bg-red-50 flex-shrink-0"
                     title="הסר תרגיל">
                 <i class="fas fa-trash-alt"></i>
             </button>
         </div>
 
-        <!-- Sets Table -->
+        <!-- Sets Table — columns sized to fit iPhone SE (375px) without horizontal scroll -->
         <div class="overflow-x-auto">
-            <table class="w-full min-w-[320px]">
+            <table class="w-full">
                 <thead>
                     <tr class="border-b border-gray-200 text-xs text-gray-400 font-bold uppercase tracking-wider">
-                        <th class="pb-2 text-center font-bold">סט</th>
+                        <th class="pb-2 text-center font-bold w-8">#</th>
                         <th class="pb-2 text-center font-bold">חזרות</th>
-                        <th class="pb-2 text-center font-bold">מנוחה (ש')</th>
-                        <th class="pb-2 text-center font-bold">בוצע</th>
-                        <th class="pb-2 text-center font-bold"></th>
+                        <th class="pb-2 text-center font-bold">מנוחה</th>
+                        <th class="pb-2 text-center font-bold">✓</th>
+                        <th class="pb-2 text-center font-bold w-10"></th>
                     </tr>
                 </thead>
                 <tbody id="sets-tbody-${exercise.id}">
@@ -175,9 +181,9 @@ function generateExerciseCardHTML(exercise) {
         </div>
 
         <!-- Card Footer -->
-        <div class="mt-4 pt-2 flex justify-start">
-            <button onclick="addSet('${exercise.id}')" 
-                    class="inline-flex items-center gap-1.5 px-4 py-2 border border-dashed border-purple-500 hover:border-purple-600 text-purple-700 font-bold text-xs rounded-xl hover:bg-purple-50/50 transition-all active:scale-95">
+        <div class="mt-3 pt-2 flex justify-start">
+            <button onclick="addSet('${exercise.id}')"
+                    class="inline-flex items-center gap-1.5 px-3 py-2 border border-dashed border-purple-500 hover:border-purple-600 text-purple-700 font-bold text-xs rounded-xl hover:bg-purple-50/50 transition-all active:scale-95">
                 <i class="fas fa-plus"></i>
                 הוסף סט
             </button>

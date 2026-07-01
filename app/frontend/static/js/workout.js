@@ -10,6 +10,11 @@ let restTimerInterval = null;
 let restTimeRemaining = 0;
 let isTimerFinished = false;
 
+// --- Gamification State ---
+// Mirrors the server XP formula: every completed set is worth 10 XP + 1 XP per rep.
+const XP_PER_SET = 10;
+let comboCount = 0; // consecutive completed sets without unchecking
+
 // --- Initialize Page ---
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Set default date to today in local timezone
@@ -27,18 +32,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (select) {
         displaySkillData(select.value);
     }
+
+    // 3. Paint quest stage maps (locked/current/conquered) from saved progress
+    renderAllStageMaps();
 });
 
 // --- Start Workout Session (User triggered) ---
 function startWorkoutSession() {
     workoutStartTime = Date.now();
-    
+
     const startContainer = document.getElementById('start-session-container');
     const sessionContainer = document.getElementById('active-workout-session');
-    
+
     if (startContainer) startContainer.classList.add('hidden');
     if (sessionContainer) sessionContainer.classList.remove('hidden');
-    
+
+    // Reset game HUD for the fresh session
+    comboCount = 0;
+    updateSessionScore();
+    updateComboIndicator();
+
     startWorkoutTimer();
 }
 
@@ -298,10 +311,71 @@ function toggleSetDone(exerciseId, setId, isChecked) {
         }
     }
 
+    // --- Game feedback: XP + combo ---
+    if (isChecked) {
+        comboCount++;
+        spawnXpFloat(rowEl, XP_PER_SET + set.reps);
+        if (navigator.vibrate) navigator.vibrate(40);
+    } else {
+        comboCount = 0; // breaking the chain resets the combo
+    }
+    updateSessionScore();
+    updateComboIndicator();
+
     // Trigger Sticky Rest Timer countdown if checked "Done"
     if (isChecked) {
         startRestTimer(set.rest);
     }
+}
+
+// --- Session Score HUD ---
+function computeSessionScore() {
+    let score = 0;
+    activeExercises.forEach(ex => {
+        ex.sets.forEach(set => {
+            if (set.done) score += XP_PER_SET + set.reps;
+        });
+    });
+    return score;
+}
+
+function updateSessionScore() {
+    const scoreEl = document.getElementById('session-score');
+    if (!scoreEl) return;
+    scoreEl.textContent = computeSessionScore();
+    scoreEl.classList.remove('score-bump');
+    void scoreEl.offsetWidth; // restart the CSS animation
+    scoreEl.classList.add('score-bump');
+}
+
+function updateComboIndicator() {
+    const indicator = document.getElementById('combo-indicator');
+    const countEl = document.getElementById('combo-count');
+    if (!indicator || !countEl) return;
+
+    if (comboCount >= 2) {
+        countEl.textContent = comboCount;
+        indicator.classList.remove('hidden');
+        indicator.classList.remove('combo-pop');
+        void indicator.offsetWidth;
+        indicator.classList.add('combo-pop');
+    } else {
+        indicator.classList.add('hidden');
+    }
+}
+
+// Floating "+XP" particle rising from the completed set row.
+// Pass a number for XP, or any string for a custom celebration text.
+function spawnXpFloat(anchorEl, xp) {
+    if (!anchorEl) return;
+    const rect = anchorEl.getBoundingClientRect();
+    const float = document.createElement('div');
+    float.className = 'xp-float text-lg';
+    float.textContent = typeof xp === 'number' ? `+${xp} XP` : xp;
+    float.style.left = `${rect.left + rect.width / 2 - 30}px`;
+    float.style.top = `${rect.top}px`;
+    document.body.appendChild(float);
+    setTimeout(() => float.remove(), 1300);
 }
 
 // --- Sticky Rest Timer countdown Logic ---
@@ -473,12 +547,10 @@ async function finishWorkout() {
         if (response.ok && data.status === 'success') {
             // Success animation/feedback
             if (navigator.vibrate) {
-                navigator.vibrate(300);
+                navigator.vibrate([100, 50, 100, 50, 300]);
             }
-            alert("האימון נשמר בהצלחה!");
-            
-            // Reload page to update history and clear state
-            window.location.reload();
+            // Game-style victory screen with rewards from the server
+            showVictoryModal(data.rewards, totalCompletedSets);
         } else {
             alert(`שגיאה בשמירת האימון: ${data.message || 'שגיאה כללית בשרת'}`);
         }
@@ -489,35 +561,24 @@ async function finishWorkout() {
 }
 
 // --- Interactive Skill Progressions Guide Logic ---
+const SIDEBAR_TABS = ['history', 'skills', 'achievements'];
+
 function switchSidebarTab(tabName) {
-    const tabHistory = document.getElementById('tab-history');
-    const tabSkills = document.getElementById('tab-skills');
-    const historyContent = document.getElementById('sidebar-history-content');
-    const skillsContent = document.getElementById('sidebar-skills-content');
-    
-    if (tabName === 'history') {
-        if (tabHistory) {
-            tabHistory.classList.add('border-indigo-600', 'text-indigo-600');
-            tabHistory.classList.remove('border-transparent', 'text-gray-500');
+    SIDEBAR_TABS.forEach(name => {
+        const tabBtn = document.getElementById(`tab-${name}`);
+        const content = document.getElementById(`sidebar-${name}-content`);
+        const isActive = name === tabName;
+
+        if (tabBtn) {
+            tabBtn.classList.toggle('border-indigo-600', isActive);
+            tabBtn.classList.toggle('text-indigo-600', isActive);
+            tabBtn.classList.toggle('border-transparent', !isActive);
+            tabBtn.classList.toggle('text-gray-500', !isActive);
         }
-        if (tabSkills) {
-            tabSkills.classList.remove('border-indigo-600', 'text-indigo-600');
-            tabSkills.classList.add('border-transparent', 'text-gray-500');
-        }
-        if (historyContent) historyContent.classList.remove('hidden');
-        if (skillsContent) skillsContent.classList.add('hidden');
-    } else {
-        if (tabHistory) {
-            tabHistory.classList.remove('border-indigo-600', 'text-indigo-600');
-            tabHistory.classList.add('border-transparent', 'text-gray-500');
-        }
-        if (tabSkills) {
-            tabSkills.classList.add('border-indigo-600', 'text-indigo-600');
-            tabSkills.classList.remove('border-transparent', 'text-gray-500');
-        }
-        if (historyContent) historyContent.classList.add('hidden');
-        if (skillsContent) skillsContent.classList.remove('hidden');
-        
+        if (content) content.classList.toggle('hidden', !isActive);
+    });
+
+    if (tabName === 'skills') {
         // Auto display selected skill details
         const select = document.getElementById('skill-select');
         if (select) {
@@ -548,6 +609,193 @@ function toggleCuesAccordion(skillKey) {
     if (icon) {
         icon.classList.toggle('rotate-180');
     }
+}
+
+// ====================== VICTORY SCREEN & CONFETTI ======================
+
+function animateCountUp(el, target, durationMs) {
+    if (!el) return;
+    const start = performance.now();
+    const step = (now) => {
+        const progress = Math.min((now - start) / durationMs, 1);
+        // ease-out cubic
+        const eased = 1 - Math.pow(1 - progress, 3);
+        el.textContent = Math.round(target * eased);
+        if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+}
+
+function launchConfetti(pieceCount) {
+    const colors = ['#facc15', '#a855f7', '#22c55e', '#3b82f6', '#f97316', '#ec4899'];
+    for (let i = 0; i < pieceCount; i++) {
+        const piece = document.createElement('div');
+        piece.className = 'confetti-piece';
+        const size = 6 + Math.random() * 8;
+        piece.style.left = `${Math.random() * 100}vw`;
+        piece.style.width = `${size}px`;
+        piece.style.height = `${size * (0.4 + Math.random() * 0.8)}px`;
+        piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+        piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+        piece.style.animationDuration = `${2.2 + Math.random() * 2.5}s`;
+        piece.style.animationDelay = `${Math.random() * 0.8}s`;
+        document.body.appendChild(piece);
+        setTimeout(() => piece.remove(), 6000);
+    }
+}
+
+function showVictoryModal(rewards, completedSets) {
+    const modal = document.getElementById('victory-modal');
+    if (!modal || !rewards) {
+        // Fallback if the server didn't send rewards (e.g. older cached response)
+        alert("האימון נשמר בהצלחה!");
+        window.location.reload();
+        return;
+    }
+
+    modal.classList.add('active');
+    launchConfetti(90);
+
+    // Stars: 1 for finishing, 2 for a solid session, 3 for a big one
+    const starCount = completedSets >= 16 ? 3 : (completedSets >= 8 ? 2 : 1);
+    const stars = modal.querySelectorAll('.victory-star');
+    stars.forEach((star, idx) => {
+        star.classList.toggle('earned', idx < starCount);
+    });
+
+    // XP earned count-up
+    animateCountUp(document.getElementById('victory-xp'), rewards.xp_gained, 1400);
+
+    // Level + progress bar toward the next level
+    const levelEl = document.getElementById('victory-level');
+    if (levelEl) levelEl.textContent = rewards.new_level;
+    const xpLabel = document.getElementById('victory-xp-label');
+    if (xpLabel) xpLabel.textContent = `${rewards.xp_in_level} / ${rewards.xp_for_next} XP`;
+    const bar = document.getElementById('victory-xp-bar');
+    if (bar) {
+        // Animate from 0 to the real progress after the card pops in
+        setTimeout(() => { bar.style.width = `${rewards.progress_pct}%`; }, 400);
+    }
+
+    // Level-up banner
+    if (rewards.leveled_up) {
+        const banner = document.getElementById('victory-levelup');
+        const newLevelEl = document.getElementById('victory-new-level');
+        if (newLevelEl) newLevelEl.textContent = rewards.new_level;
+        if (banner) banner.classList.remove('hidden');
+        // Extra celebration for a level-up
+        setTimeout(() => launchConfetti(60), 900);
+    }
+
+    // Newly unlocked achievements
+    if (rewards.new_achievements && rewards.new_achievements.length > 0) {
+        const container = document.getElementById('victory-achievements');
+        if (container) {
+            container.innerHTML = rewards.new_achievements.map(ach => `
+                <div class="flex items-center gap-3 bg-yellow-400/10 border border-yellow-400/30 rounded-xl px-3 py-2.5">
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 text-white flex items-center justify-center flex-shrink-0">
+                        <i class="fas ${ach.icon}"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-black text-yellow-300">הישג חדש: ${ach.title}</p>
+                        <p class="text-[10px] text-purple-300">${ach.desc}</p>
+                    </div>
+                </div>
+            `).join('');
+            container.classList.remove('hidden');
+        }
+    }
+}
+
+function closeVictoryModal() {
+    // Reload refreshes the player card, history and achievements with server state
+    window.location.reload();
+}
+
+// ====================== QUEST STAGE MAP (Skill progressions as game levels) ======================
+// Stage completion is personal training progress, persisted locally per browser.
+
+const SKILL_PROGRESS_KEY = 'workout_skill_progress_v1';
+
+function getSkillProgress() {
+    try {
+        return JSON.parse(localStorage.getItem(SKILL_PROGRESS_KEY)) || {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function saveSkillProgress(progress) {
+    try {
+        localStorage.setItem(SKILL_PROGRESS_KEY, JSON.stringify(progress));
+    } catch (e) { /* private mode — progress just won't persist */ }
+}
+
+function toggleStageComplete(skillKey, stageIdx) {
+    const progress = getSkillProgress();
+    const completed = new Set(progress[skillKey] || []);
+
+    if (completed.has(stageIdx)) {
+        completed.delete(stageIdx);
+    } else {
+        completed.add(stageIdx);
+        // Small celebration for conquering a stage
+        const node = document.getElementById(`stage-${skillKey}-${stageIdx}`);
+        spawnXpFloat(node, '⭐');
+        if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+        launchConfetti(25);
+    }
+
+    progress[skillKey] = Array.from(completed).sort((a, b) => a - b);
+    saveSkillProgress(progress);
+    renderStageMap(skillKey);
+}
+
+function renderStageMap(skillKey) {
+    const nodes = document.querySelectorAll(`.stage-node[data-skill="${skillKey}"]`);
+    if (!nodes.length) return;
+
+    const completed = new Set(getSkillProgress()[skillKey] || []);
+    // The "current" stage is the first uncompleted one
+    let currentIdx = 0;
+    while (completed.has(currentIdx)) currentIdx++;
+
+    nodes.forEach(node => {
+        const idx = parseInt(node.dataset.stage, 10);
+        const isDone = completed.has(idx);
+        const isCurrent = idx === currentIdx;
+
+        node.classList.toggle('stage-completed', isDone);
+        node.classList.toggle('stage-current', isCurrent);
+        node.classList.toggle('stage-locked', !isDone && !isCurrent);
+
+        const dotLabel = node.querySelector('.stage-dot-label');
+        if (dotLabel) {
+            dotLabel.innerHTML = isDone ? '<i class="fas fa-check"></i>'
+                : (!isCurrent ? '<i class="fas fa-lock text-[8px]"></i>' : `${idx + 1}`);
+        }
+        const statusIcon = node.querySelector('.stage-status-icon');
+        if (statusIcon) {
+            statusIcon.innerHTML = isDone ? '<i class="fas fa-star text-yellow-500 text-[10px]"></i>'
+                : (isCurrent ? '<i class="fas fa-location-arrow text-purple-500 text-[10px]"></i>' : '');
+        }
+        const conquerLabel = node.querySelector('.stage-conquer-label');
+        if (conquerLabel) conquerLabel.textContent = isDone ? 'בטל' : 'כבשתי!';
+    });
+
+    // Quest progress bar + counter
+    const total = nodes.length;
+    const doneCount = Math.min(completed.size, total);
+    const bar = document.getElementById(`quest-bar-${skillKey}`);
+    if (bar) bar.style.width = `${Math.round(doneCount * 100 / total)}%`;
+    const counter = document.getElementById(`quest-progress-${skillKey}`);
+    if (counter) counter.textContent = `${doneCount}/${total} שלבים`;
+}
+
+function renderAllStageMaps() {
+    const skillKeys = new Set();
+    document.querySelectorAll('.stage-node[data-skill]').forEach(node => skillKeys.add(node.dataset.skill));
+    skillKeys.forEach(key => renderStageMap(key));
 }
 
 function addSkillProgression(name, hebrew, reps, rest) {

@@ -81,6 +81,123 @@
     #rest-timer-banner {
         padding-bottom: max(1rem, calc(0.5rem + env(safe-area-inset-bottom, 0px)));
     }
+
+    /* ===== GAMIFICATION ===== */
+    /* XP bar animated shine sweep */
+    .xp-bar-fill {
+        position: relative;
+        overflow: hidden;
+        transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .xp-bar-fill::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.45) 50%, transparent 70%);
+        animation: xp-shine 2.5s ease-in-out infinite;
+    }
+    @keyframes xp-shine {
+        0% { transform: translateX(100%); }
+        60%, 100% { transform: translateX(-100%); }
+    }
+    /* Level badge glow */
+    .level-badge {
+        box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.25), 0 0 20px rgba(250, 204, 21, 0.4);
+    }
+    /* Floating +XP particle rising from a completed set */
+    .xp-float {
+        position: fixed;
+        z-index: 900;
+        pointer-events: none;
+        font-weight: 900;
+        color: #16a34a;
+        text-shadow: 0 1px 3px rgba(255,255,255,0.9);
+        animation: xp-float-up 1.2s ease-out forwards;
+    }
+    @keyframes xp-float-up {
+        0% { opacity: 0; transform: translateY(0) scale(0.6); }
+        15% { opacity: 1; transform: translateY(-10px) scale(1.15); }
+        100% { opacity: 0; transform: translateY(-70px) scale(1); }
+    }
+    /* Combo flame pop */
+    .combo-pop {
+        animation: combo-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes combo-pop {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.35); }
+        100% { transform: scale(1); }
+    }
+    /* Session score bump */
+    .score-bump {
+        animation: score-bump 0.35s ease-out;
+    }
+    @keyframes score-bump {
+        0% { transform: scale(1); color: #facc15; }
+        50% { transform: scale(1.25); color: #fde047; }
+        100% { transform: scale(1); }
+    }
+    /* Victory modal entrance */
+    #victory-modal.active { display: flex; }
+    #victory-modal { display: none; }
+    .victory-card {
+        animation: victory-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes victory-in {
+        0% { opacity: 0; transform: scale(0.7) translateY(40px); }
+        100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    /* Victory stars staggered pop */
+    .victory-star { opacity: 0; transform: scale(0); }
+    .victory-star.earned {
+        animation: star-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    @keyframes star-pop {
+        0% { opacity: 0; transform: scale(0) rotate(-40deg); }
+        70% { opacity: 1; transform: scale(1.3) rotate(8deg); }
+        100% { opacity: 1; transform: scale(1) rotate(0); }
+    }
+    /* Level-up banner pulse */
+    .levelup-banner {
+        animation: levelup-glow 1.2s ease-in-out infinite alternate;
+    }
+    @keyframes levelup-glow {
+        from { box-shadow: 0 0 12px rgba(250, 204, 21, 0.5); }
+        to { box-shadow: 0 0 32px rgba(250, 204, 21, 0.95); }
+    }
+    /* Confetti pieces */
+    .confetti-piece {
+        position: fixed;
+        top: -20px;
+        z-index: 950;
+        pointer-events: none;
+        animation: confetti-fall linear forwards;
+    }
+    @keyframes confetti-fall {
+        0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(105vh) rotate(720deg); opacity: 0.4; }
+    }
+    /* Achievement badges */
+    .achievement-locked {
+        filter: grayscale(1);
+        opacity: 0.45;
+    }
+    /* Quest stage map states */
+    .stage-node { transition: all 0.25s ease; }
+    .stage-completed .stage-dot { background: #22c55e; border-color: #86efac; }
+    .stage-current .stage-dot {
+        background: #a855f7;
+        border-color: #e9d5ff;
+        animation: stage-pulse 1.6s ease-in-out infinite;
+    }
+    .stage-locked { opacity: 0.55; }
+    .stage-locked .stage-dot { background: #d1d5db; border-color: #e5e7eb; }
+    .stage-current .stage-card { border-color: #c084fc; box-shadow: 0 4px 14px -4px rgba(168, 85, 247, 0.35); }
+    .stage-completed .stage-card { background: #f0fdf4; border-color: #bbf7d0; }
+    @keyframes stage-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.5); }
+        50% { box-shadow: 0 0 0 6px rgba(168, 85, 247, 0); }
+    }
 </style>
 {% endblock %}
 
@@ -94,7 +211,62 @@
                 <i class="fas fa-dumbbell text-purple-600"></i>
                 מעקב אימוני קליסטניקס
             </h1>
-            <p class="text-sm text-gray-600 mt-1">נהל את האימונים שלך, עקוב אחר זמני מנוחה ושמור סיכומים ישירות למסד הנתונים.</p>
+            <p class="text-sm text-gray-600 mt-1">כל סט שווה נקודות. תתאמן, תצבור XP, תעלה שלב ותפתח הישגים.</p>
+        </div>
+    </div>
+
+    <!-- ===== PLAYER CARD (Gamification profile) ===== -->
+    <div class="mb-8 bg-gradient-to-l from-gray-900 via-purple-950 to-indigo-950 rounded-2xl border border-purple-800/40 shadow-xl p-5 sm:p-6 text-white relative overflow-hidden">
+        <!-- Decorative glow -->
+        <div class="absolute -top-16 -left-16 w-48 h-48 bg-purple-600/20 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="flex flex-col sm:flex-row sm:items-center gap-5 relative">
+            <!-- Level badge -->
+            <div class="flex items-center gap-4 flex-shrink-0">
+                <div class="level-badge w-20 h-20 rounded-2xl bg-gradient-to-br from-yellow-400 to-amber-600 flex flex-col items-center justify-center text-gray-900 flex-shrink-0">
+                    <span class="text-[10px] font-black uppercase tracking-wider leading-none">שלב</span>
+                    <span id="player-level" class="text-3xl font-black leading-none digital-timer">{{ game.level }}</span>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <i class="fas {{ game.rank.icon }} text-yellow-400"></i>
+                        <h2 class="text-lg font-black">{{ game.rank.title }}</h2>
+                    </div>
+                    {% if game.next_rank %}
+                    <p class="text-[11px] text-purple-300 mt-0.5">הדרגה הבאה: {{ game.next_rank.title }} (שלב {{ game.next_rank.level }})</p>
+                    {% else %}
+                    <p class="text-[11px] text-yellow-300 mt-0.5"><i class="fas fa-crown"></i> הגעת לדרגה הגבוהה ביותר!</p>
+                    {% endif %}
+                    <!-- Streak flame -->
+                    <div class="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-500/20 border border-orange-400/30 rounded-full text-xs font-bold text-orange-300">
+                        <i class="fas fa-fire {{ 'animate-pulse' if game.streak >= 3 else '' }}"></i>
+                        רצף: {{ game.streak }} {{ 'ימים' if game.streak != 1 else 'יום' }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- XP progress -->
+            <div class="flex-1 min-w-0">
+                <div class="flex justify-between items-baseline mb-1.5 text-xs">
+                    <span class="font-bold text-purple-200">
+                        <i class="fas fa-star text-yellow-400 ml-1"></i>
+                        <span id="player-total-xp">{{ "{:,}".format(game.total_xp) }}</span> XP סה"כ
+                    </span>
+                    <span class="text-purple-300 digital-timer">{{ game.xp_in_level }} / {{ game.xp_for_next }}</span>
+                </div>
+                <div class="h-4 bg-white/10 rounded-full overflow-hidden border border-white/10">
+                    <div id="player-xp-bar" class="xp-bar-fill h-full bg-gradient-to-l from-yellow-400 to-amber-500 rounded-full" style="width: {{ game.progress_pct }}%;"></div>
+                </div>
+                <p class="text-[11px] text-purple-300 mt-1.5">עוד <span class="font-bold text-white">{{ game.xp_for_next - game.xp_in_level }} XP</span> לשלב {{ game.level + 1 }} 🚀</p>
+
+                <!-- Career stats chips -->
+                <div class="flex flex-wrap gap-2 mt-3">
+                    <span class="px-2.5 py-1 bg-white/10 rounded-lg text-[11px] font-bold"><i class="fas fa-dumbbell text-purple-300 ml-1"></i>{{ game.total_workouts }} אימונים</span>
+                    <span class="px-2.5 py-1 bg-white/10 rounded-lg text-[11px] font-bold"><i class="fas fa-layer-group text-purple-300 ml-1"></i>{{ game.total_sets }} סטים</span>
+                    <span class="px-2.5 py-1 bg-white/10 rounded-lg text-[11px] font-bold"><i class="fas fa-bolt text-purple-300 ml-1"></i>{{ "{:,}".format(game.total_reps) }} חזרות</span>
+                    <span class="px-2.5 py-1 bg-white/10 rounded-lg text-[11px] font-bold"><i class="fas fa-medal text-yellow-400 ml-1"></i>{{ game.unlocked_count }}/{{ game.achievements|length }} הישגים</span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -120,14 +292,28 @@
             <div id="active-workout-session" class="hidden bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
                 <!-- Session Controller Header -->
                 <div class="bg-gradient-to-l from-purple-800 to-indigo-900 p-4 sm:p-6 text-white">
-                    <!-- Row 1: Timer -->
-                    <div class="flex items-center gap-3 mb-4">
-                        <div class="w-11 h-11 bg-white/10 rounded-xl flex items-center justify-center text-xl shadow-inner animate-pulse flex-shrink-0">
-                            <i class="fas fa-stopwatch text-purple-300"></i>
+                    <!-- Row 1: Timer + Session Score HUD -->
+                    <div class="flex items-center justify-between gap-3 mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-11 h-11 bg-white/10 rounded-xl flex items-center justify-center text-xl shadow-inner animate-pulse flex-shrink-0">
+                                <i class="fas fa-stopwatch text-purple-300"></i>
+                            </div>
+                            <div>
+                                <span class="text-xs text-purple-200 uppercase tracking-wider font-semibold">משך זמן האימון</span>
+                                <div id="workout-timer" class="text-3xl font-black digital-timer text-white leading-none">00:00</div>
+                            </div>
                         </div>
-                        <div>
-                            <span class="text-xs text-purple-200 uppercase tracking-wider font-semibold">משך זמן האימון</span>
-                            <div id="workout-timer" class="text-3xl font-black digital-timer text-white leading-none">00:00</div>
+                        <!-- Live game HUD -->
+                        <div class="text-left flex-shrink-0">
+                            <div class="flex items-center justify-end gap-1.5">
+                                <span id="session-score" class="text-3xl font-black digital-timer text-yellow-400 leading-none">0</span>
+                                <i class="fas fa-star text-yellow-400 text-sm"></i>
+                            </div>
+                            <span class="text-xs text-purple-200 uppercase tracking-wider font-semibold">XP באימון</span>
+                            <div id="combo-indicator" class="hidden mt-1 inline-flex items-center gap-1 px-2 py-0.5 bg-orange-500/30 border border-orange-400/40 rounded-full text-[11px] font-black text-orange-300">
+                                <i class="fas fa-fire"></i>
+                                קומבו x<span id="combo-count">0</span>
+                            </div>
                         </div>
                     </div>
                     <!-- Row 2: Workout details — full width inputs on mobile -->
@@ -194,15 +380,20 @@
             <div class="bg-white rounded-2xl border border-gray-200 shadow-md p-6">
                 <!-- Tabs Selector -->
                 <div class="flex border-b border-gray-200 mb-4">
-                    <button id="tab-history" onclick="switchSidebarTab('history')" 
+                    <button id="tab-history" onclick="switchSidebarTab('history')"
                             class="flex-1 pb-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 transition-all text-center focus:outline-none">
                         <i class="fas fa-history ml-1.5"></i>
                         היסטוריה
                     </button>
-                    <button id="tab-skills" onclick="switchSidebarTab('skills')" 
+                    <button id="tab-skills" onclick="switchSidebarTab('skills')"
+                            class="flex-1 pb-3 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition-all text-center focus:outline-none">
+                        <i class="fas fa-map ml-1.5"></i>
+                        מסע מיומנויות
+                    </button>
+                    <button id="tab-achievements" onclick="switchSidebarTab('achievements')"
                             class="flex-1 pb-3 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition-all text-center focus:outline-none">
                         <i class="fas fa-medal ml-1.5"></i>
-                        מדריך מיומנויות
+                        הישגים
                     </button>
                 </div>
 
@@ -238,6 +429,37 @@
                             <p class="text-sm">לא נמצאו אימונים קודמים.</p>
                         </div>
                     {% endif %}
+                </div>
+
+                <!-- Tab content: Achievements (Badges) -->
+                <div id="sidebar-achievements-content" class="hidden max-h-[600px] overflow-y-auto pr-1">
+                    <p class="text-xs text-gray-500 mb-4">
+                        <i class="fas fa-medal text-yellow-500 ml-1"></i>
+                        פתחת <span class="font-black text-gray-800">{{ game.unlocked_count }}</span> מתוך {{ game.achievements|length }} הישגים
+                    </p>
+                    <div class="grid grid-cols-2 gap-3">
+                        {% for ach in game.achievements %}
+                        <div class="p-3 rounded-xl border text-center {{ 'bg-gradient-to-b from-yellow-50 to-amber-50 border-yellow-300 shadow-sm' if ach.unlocked else 'bg-gray-50 border-gray-200 achievement-locked' }}">
+                            <div class="w-12 h-12 mx-auto rounded-full flex items-center justify-center text-xl mb-2 {{ 'bg-gradient-to-br from-yellow-400 to-amber-500 text-white shadow-md' if ach.unlocked else 'bg-gray-200 text-gray-400' }}">
+                                <i class="fas {{ ach.icon if ach.unlocked else 'fa-lock' }}"></i>
+                            </div>
+                            <h4 class="text-xs font-black text-gray-800">{{ ach.title }}</h4>
+                            <p class="text-[10px] text-gray-500 mt-0.5 leading-snug">{{ ach.desc }}</p>
+                            {% if ach.unlocked %}
+                            <span class="inline-block mt-1.5 px-2 py-0.5 bg-green-100 text-green-700 text-[9px] font-black rounded-full">
+                                <i class="fas fa-check ml-0.5"></i>הושג!
+                            </span>
+                            {% else %}
+                            <div class="mt-2">
+                                <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                    <div class="h-full bg-purple-400 rounded-full" style="width: {{ (ach.current * 100 / ach.target)|round|int }}%;"></div>
+                                </div>
+                                <span class="text-[9px] text-gray-400 font-bold">{{ ach.current }} / {{ ach.target }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
                 </div>
 
                 <!-- Tab content: Skills Progression Guide -->
@@ -289,33 +511,53 @@
                             </div>
                         </div>
 
-                        <!-- Progression Stepper -->
+                        <!-- Quest Stage Map (Progressions as game levels) -->
                         <div class="space-y-3">
-                            <h4 class="text-xs font-bold text-gray-500 pr-1">שלבי התקדמות (Progressions)</h4>
-                            <div class="relative border-r border-gray-200 mr-2 pr-4 space-y-4">
+                            <div class="flex justify-between items-center pr-1">
+                                <h4 class="text-xs font-bold text-gray-500">מפת השלבים במסע</h4>
+                                <span class="text-[10px] font-black text-purple-600 digital-timer" id="quest-progress-{{ skill_key }}"></span>
+                            </div>
+                            <!-- Quest map progress bar -->
+                            <div class="h-2 bg-gray-100 rounded-full overflow-hidden mx-1">
+                                <div id="quest-bar-{{ skill_key }}" class="h-full bg-gradient-to-l from-purple-500 to-indigo-500 rounded-full transition-all duration-700" style="width: 0%;"></div>
+                            </div>
+                            <div class="relative border-r-2 border-gray-200 mr-3 pr-5 space-y-4">
                                 {% for step in skill.progressions %}
-                                <div class="relative">
-                                    <!-- Stepper dot -->
-                                    <div class="absolute right-[-21px] top-1 w-2.5 h-2.5 rounded-full bg-purple-500 border border-white shadow"></div>
-                                    
-                                    <!-- Step card -->
-                                    <div class="p-3 bg-white border border-gray-150 rounded-xl shadow-sm hover:shadow transition-all text-right">
+                                <div id="stage-{{ skill_key }}-{{ loop.index0 }}" class="stage-node relative" data-skill="{{ skill_key }}" data-stage="{{ loop.index0 }}">
+                                    <!-- Stage number dot -->
+                                    <div class="stage-dot absolute right-[-33px] top-2 w-6 h-6 rounded-full bg-gray-300 border-2 border-white shadow flex items-center justify-center text-[10px] font-black text-white">
+                                        <span class="stage-dot-label">{{ loop.index }}</span>
+                                    </div>
+
+                                    <!-- Stage card -->
+                                    <div class="stage-card p-3 bg-white border border-gray-200 rounded-xl shadow-sm transition-all text-right">
                                         <div class="flex justify-between items-start gap-2">
                                             <div>
-                                                <h5 class="text-xs font-bold text-gray-800">{{ step.hebrew }}</h5>
+                                                <h5 class="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                                    <span class="stage-status-icon"></span>
+                                                    {{ step.hebrew }}
+                                                </h5>
                                                 <p class="text-[10px] text-gray-400 mt-0.5">{{ step.name }}</p>
                                             </div>
-                                            <span class="px-1.5 py-0.5 text-[9px] bg-gray-100 text-gray-600 rounded">
+                                            <span class="px-1.5 py-0.5 text-[9px] bg-gray-100 text-gray-600 rounded flex-shrink-0">
                                                 {{ step.reps }} חזרות
                                             </span>
                                         </div>
                                         <div class="mt-2.5 pt-2 border-t border-gray-50 flex justify-between items-center text-[10px]">
                                             <span class="text-gray-400">מנוחה: {{ step.rest }} ש'</span>
-                                            <button onclick="addSkillProgression('{{ step.name }}', '{{ step.hebrew }}', {{ step.reps }}, {{ step.rest }})" 
-                                                    class="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold rounded-lg transition-all active:scale-95 flex items-center gap-1 focus:outline-none">
-                                                <i class="fas fa-plus text-[8px]"></i>
-                                                אימון
-                                            </button>
+                                            <div class="flex items-center gap-1.5">
+                                                <button onclick="toggleStageComplete('{{ skill_key }}', {{ loop.index0 }})"
+                                                        class="stage-conquer-btn px-2.5 py-1 bg-green-100 hover:bg-green-200 text-green-700 font-bold rounded-lg transition-all active:scale-95 flex items-center gap-1 focus:outline-none"
+                                                        title="סמן שכבשת את השלב">
+                                                    <i class="fas fa-flag-checkered text-[8px]"></i>
+                                                    <span class="stage-conquer-label">כבשתי!</span>
+                                                </button>
+                                                <button onclick="addSkillProgression('{{ step.name }}', '{{ step.hebrew }}', {{ step.reps }}, {{ step.rest }})"
+                                                        class="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold rounded-lg transition-all active:scale-95 flex items-center gap-1 focus:outline-none">
+                                                    <i class="fas fa-plus text-[8px]"></i>
+                                                    אימון
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -408,6 +650,59 @@
     </div>
     <!-- Safe area spacer for iPhone X+ home bar -->
     <div style="height: env(safe-area-inset-bottom, 0px);"></div>
+</div>
+
+<!-- ================= VICTORY MODAL (Workout complete rewards) ================= -->
+<div id="victory-modal" class="fixed inset-0 z-[600] bg-gray-950/85 items-center justify-center p-4">
+    <div class="victory-card w-full max-w-md bg-gradient-to-b from-gray-900 via-purple-950 to-indigo-950 border border-purple-700/50 rounded-3xl shadow-2xl p-6 sm:p-8 text-center text-white relative overflow-hidden">
+        <!-- Glow decoration -->
+        <div class="absolute -top-20 left-1/2 -translate-x-1/2 w-64 h-64 bg-yellow-400/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <!-- Trophy -->
+        <div class="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center text-4xl text-white shadow-lg level-badge mb-3 relative">
+            <i class="fas fa-trophy"></i>
+        </div>
+        <h2 class="text-2xl font-black mb-1">אימון הושלם! 🎉</h2>
+        <p class="text-sm text-purple-300 mb-4">כל הכבוד, לוחם. הנקודות נזקפו לזכותך.</p>
+
+        <!-- Stars -->
+        <div class="flex justify-center gap-3 text-4xl mb-5" id="victory-stars">
+            <i class="victory-star fas fa-star text-yellow-400" style="animation-delay: 0.2s;"></i>
+            <i class="victory-star fas fa-star text-yellow-400" style="animation-delay: 0.5s;"></i>
+            <i class="victory-star fas fa-star text-yellow-400" style="animation-delay: 0.8s;"></i>
+        </div>
+
+        <!-- XP earned counter -->
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-4 mb-4">
+            <div class="text-4xl font-black digital-timer text-yellow-400">
+                +<span id="victory-xp">0</span> XP
+            </div>
+            <div class="mt-3">
+                <div class="flex justify-between text-[11px] text-purple-300 mb-1">
+                    <span>שלב <span id="victory-level">1</span></span>
+                    <span id="victory-xp-label"></span>
+                </div>
+                <div class="h-3 bg-white/10 rounded-full overflow-hidden">
+                    <div id="victory-xp-bar" class="xp-bar-fill h-full bg-gradient-to-l from-yellow-400 to-amber-500 rounded-full" style="width: 0%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Level up banner (hidden unless leveled up) -->
+        <div id="victory-levelup" class="hidden levelup-banner bg-gradient-to-l from-yellow-500 to-amber-500 text-gray-900 rounded-2xl px-4 py-3 mb-4 font-black text-lg">
+            <i class="fas fa-angles-up ml-1"></i>
+            עלית שלב! ברוך הבא לשלב <span id="victory-new-level"></span>
+        </div>
+
+        <!-- New achievements (hidden unless unlocked) -->
+        <div id="victory-achievements" class="hidden space-y-2 mb-4 text-right"></div>
+
+        <button onclick="closeVictoryModal()"
+                class="w-full py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 font-black text-lg rounded-2xl shadow-lg transition-all active:scale-95">
+            <i class="fas fa-check ml-1"></i>
+            מעולה, נתראה באימון הבא!
+        </button>
+    </div>
 </div>
 
 <!-- Scripts -->

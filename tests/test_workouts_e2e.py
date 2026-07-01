@@ -5,8 +5,13 @@ def test_workout_page_loads(app_client):
     r = app_client.get("/workouts")
     assert r.status_code == 200
     assert "היסטוריה" in r.text
-    assert "מדריך מיומנויות" in r.text
+    assert "מסע מיומנויות" in r.text
     assert "exercise-modal" in r.text
+    # Gamification UI elements
+    assert "player-level" in r.text
+    assert "session-score" in r.text
+    assert "victory-modal" in r.text
+    assert "tab-achievements" in r.text
 
 def test_save_workout_success(app_client, db_conn):
     """Test that saving a workout aggregates exercise info and stores it in SQLite."""
@@ -47,7 +52,19 @@ def test_save_workout_success(app_client, db_conn):
     
     r = app_client.post("/workouts", json=payload)
     assert r.status_code == 200
-    assert r.json() == {"status": "success", "message": "Workout saved successfully!"}
+    body = r.json()
+    assert body["status"] == "success"
+    assert body["message"] == "Workout saved successfully!"
+
+    # Gamification rewards: 5 sets, 54 reps, 45 minutes
+    # XP = 50 (base) + 5*10 (sets) + 54 (reps) + 45*2 (minutes) = 244
+    rewards = body["rewards"]
+    assert rewards["xp_gained"] == 244
+    assert rewards["new_level"] >= rewards["old_level"]
+    assert rewards["total_xp"] >= rewards["xp_gained"]
+    assert "rank" in rewards and "title" in rewards["rank"]
+    assert isinstance(rewards["new_achievements"], list)
+    assert 0 <= rewards["progress_pct"] <= 100
 
     # Verify rows in database
     rows = db_conn.execute(

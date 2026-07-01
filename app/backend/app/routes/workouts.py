@@ -1,5 +1,6 @@
 import sqlite3
 import logging
+from datetime import date as date_cls, timedelta
 from typing import Dict, List, Any
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -168,25 +169,176 @@ SKILL_PROGRESSIONS = {
     }
 }
 
-@router.get("/workouts", response_class=HTMLResponse)
-async def workout_page(
-    request: Request,
-    db_conn: sqlite3.Connection = Depends(get_db_conn)
-) -> HTMLResponse:
-    """Render the main workout tracker page with active UI and history of workouts."""
-    # Resolve the logged-in user to fetch their workouts only
-    user_obj = request.session.get("user")
+# ====================== GAMIFICATION ENGINE ======================
+# XP is derived deterministically from workout history, so no schema change
+# is needed — every saved workout "earns" points retroactively as well.
+
+XP_BASE_PER_WORKOUT = 50   # showing up is most of the battle
+XP_PER_SET = 10
+XP_PER_REP = 1
+XP_PER_MINUTE = 2
+XP_MINUTES_CAP = 120       # don't reward leaving the timer running overnight
+
+# Rank titles unlocked by level (level -> title)
+RANKS = [
+    (1, "טירון ברזל", "fa-seedling"),
+    (3, "חניך מתאמן", "fa-user-ninja"),
+    (5, "לוחם רחוב", "fa-hand-fist"),
+    (8, "לוחם מתקדם", "fa-shield-halved"),
+    (12, "אלוף השכונה", "fa-medal"),
+    (16, "מאסטר קליסטניקס", "fa-trophy"),
+    (20, "אגדה חיה", "fa-crown"),
+]
+
+
+def _session_xp(total_sets: int, total_reps: int, duration_minutes: int) -> int:
+    """XP earned by a single workout session."""
+    return (
+        XP_BASE_PER_WORKOUT
+        + XP_PER_SET * max(0, total_sets)
+        + XP_PER_REP * max(0, total_reps)
+        + XP_PER_MINUTE * min(max(0, duration_minutes), XP_MINUTES_CAP)
+    )
+
+
+def _xp_needed_for_level(level: int) -> int:
+    """XP needed to advance FROM the given level to the next one."""
+    return 100 + (level - 1) * 75
+
+
+def _level_from_xp(total_xp: int) -> Dict[str, int]:
+    """Convert total XP into level + progress inside the current level."""
+    level = 1
+    remaining = total_xp
+    while remaining >= _xp_needed_for_level(level):
+        remaining -= _xp_needed_for_level(level)
+        level += 1
+    needed = _xp_needed_for_level(level)
+    return {
+        "level": level,
+        "xp_in_level": remaining,
+        "xp_for_next": needed,
+        "progress_pct": min(100, round(remaining * 100 / needed)),
+    }
+
+
+def _rank_for_level(level: int) -> Dict[str, str]:
+    title, icon = RANKS[0][1], RANKS[0][2]
+    for min_level, rank_title, rank_icon in RANKS:
+        if level >= min_level:
+            title, icon = rank_title, rank_icon
+    return {"title": title, "icon": icon}
+
+
+def _next_rank_for_level(level: int) -> Dict[str, Any]:
+    for min_level, rank_title, _ in RANKS:
+        if level < min_level:
+            return {"title": rank_title, "level": min_level}
+    return {}
+
+
+def _compute_streak(dates: List[str]) -> int:
+    """Longest run of consecutive workout days ending at the most recent workout."""
+    day_set = set()
+    for d in dates:
+        try:
+            day_set.add(date_cls.fromisoformat(d[:10]))
+        except (ValueError, TypeError):
+            continue
+    if not day_set:
+        return 0
+    streak = 1
+    day = max(day_set)
+    while day - timedelta(days=1) in day_set:
+        streak += 1
+        day -= timedelta(days=1)
+    return streak
+
+
+def compute_gamification(history: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Aggregate workout history into the full player-profile game state."""
+    total_workouts = len(history)
+    total_sets = 0
+    total_reps = 0
+    total_minutes = 0
+    total_xp = 0
+    longest_session = 0
+    max_exercises_in_session = 0
+
+    for session in history:
+        session_sets = sum(ex["sets"] for ex in session["exercises"])
+        session_reps = sum(ex["reps"] for ex in session["exercises"])
+        duration = session.get("total_duration") or 0
+        total_sets += session_sets
+        total_reps += session_reps
+        total_minutes += duration
+        longest_session = max(longest_session, duration)
+        max_exercises_in_session = max(max_exercises_in_session, len(session["exercises"]))
+        total_xp += _session_xp(session_sets, session_reps, duration)
+
+    streak = _compute_streak([s["date"] for s in history])
+    level_info = _level_from_xp(total_xp)
+    level = level_info["level"]
+
+    achievement_defs = [
+        ("first_steps", "fa-shoe-prints", "צעד ראשון", "השלם אימון ראשון", total_workouts, 1),
+        ("warming_up", "fa-fire", "מתחמם", "השלם 5 אימונים", total_workouts, 5),
+        ("iron_addict", "fa-dumbbell", "מכור לברזל", "השלם 15 אימונים", total_workouts, 15),
+        ("local_legend", "fa-crown", "אגדה מקומית", "השלם 50 אימונים", total_workouts, 50),
+        ("set_collector", "fa-layer-group", "אספן סטים", "בצע 100 סטים במצטבר", total_sets, 100),
+        ("set_machine", "fa-industry", "מכונת סטים", "בצע 500 סטים במצטבר", total_sets, 500),
+        ("rep_1000", "fa-bolt", "אלף חזרות", "בצע 1,000 חזרות במצטבר", total_reps, 1000),
+        ("rep_5000", "fa-meteor", "5,000 חזרות", "בצע 5,000 חזרות במצטבר", total_reps, 5000),
+        ("streak_3", "fa-fire-flame-curved", "על הגל", "3 ימי אימון ברצף", streak, 3),
+        ("streak_7", "fa-calendar-week", "שבוע מושלם", "7 ימי אימון ברצף", streak, 7),
+        ("marathon", "fa-stopwatch", "מרתוניסט", "אימון של 60 דקות ומעלה", longest_session, 60),
+        ("variety", "fa-shapes", "מגוון אישי", "5 תרגילים שונים באימון אחד", max_exercises_in_session, 5),
+    ]
+    achievements = [
+        {
+            "id": a_id,
+            "icon": icon,
+            "title": title,
+            "desc": desc,
+            "current": min(current, target),
+            "target": target,
+            "unlocked": current >= target,
+        }
+        for a_id, icon, title, desc, current, target in achievement_defs
+    ]
+
+    return {
+        "total_xp": total_xp,
+        "level": level,
+        "xp_in_level": level_info["xp_in_level"],
+        "xp_for_next": level_info["xp_for_next"],
+        "progress_pct": level_info["progress_pct"],
+        "rank": _rank_for_level(level),
+        "next_rank": _next_rank_for_level(level),
+        "streak": streak,
+        "total_workouts": total_workouts,
+        "total_sets": total_sets,
+        "total_reps": total_reps,
+        "total_minutes": total_minutes,
+        "achievements": achievements,
+        "unlocked_count": sum(1 for a in achievements if a["unlocked"]),
+    }
+
+
+def _resolve_user_id(request: Request, db_conn: sqlite3.Connection):
+    """Resolve logged-in user id, or None when auth is enabled and no session."""
     import os
+    user_obj = request.session.get("user")
     auth_enabled = os.environ.get("AUTH_ENABLED", "1") == "1"
     if not user_obj and auth_enabled:
-        # AuthMiddleware will redirect, but as defensive fallback
-        return HTMLResponse("Unauthorized", status_code=status.HTTP_401_UNAUTHORIZED)
-        
+        return None
     username = (user_obj.get("username") if user_obj else "Yosef").title()
     user_row = db_conn.execute("SELECT id FROM users WHERE name = ?", (username,)).fetchone()
-    user_id = user_row["id"] if user_row else 1
+    return user_row["id"] if user_row else 1
 
-    # Fetch workout logs from the database
+
+def _fetch_history(db_conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]]:
+    """Fetch workout rows and aggregate them into per-session dicts."""
     rows = db_conn.execute(
         """
         SELECT date, workout_type, total_duration, exercise_name, total_sets, total_reps
@@ -197,7 +349,6 @@ async def workout_page(
         (user_id,)
     ).fetchall()
 
-    # Aggregate exercises by workout session (grouped by date, type, and duration)
     workout_sessions = {}
     for r in rows:
         session_key = (r["date"], r["workout_type"], r["total_duration"])
@@ -213,8 +364,22 @@ async def workout_page(
             "sets": r["total_sets"],
             "reps": r["total_reps"]
         })
-        
-    history = list(workout_sessions.values())
+    return list(workout_sessions.values())
+
+
+@router.get("/workouts", response_class=HTMLResponse)
+async def workout_page(
+    request: Request,
+    db_conn: sqlite3.Connection = Depends(get_db_conn)
+) -> HTMLResponse:
+    """Render the main workout tracker page with active UI and history of workouts."""
+    user_id = _resolve_user_id(request, db_conn)
+    if user_id is None:
+        # AuthMiddleware will redirect, but as defensive fallback
+        return HTMLResponse("Unauthorized", status_code=status.HTTP_401_UNAUTHORIZED)
+
+    history = _fetch_history(db_conn, user_id)
+    game = compute_gamification(history)
 
     return templates.TemplateResponse(
         "pages/workout.html",
@@ -223,6 +388,7 @@ async def workout_page(
             "default_exercises": DEFAULT_EXERCISES,
             "history": history,
             "skills_guide": SKILL_PROGRESSIONS,
+            "game": game,
             "show_sidebar": False,  # Hide standard finance sidebar to give space for mobile-first workout UI
         }
     )
@@ -234,21 +400,18 @@ async def save_workout(
     request: Request,
     db_conn: sqlite3.Connection = Depends(get_db_conn)
 ):
-    """Save aggregate workout data to the database."""
-    user_obj = request.session.get("user")
-    import os
-    auth_enabled = os.environ.get("AUTH_ENABLED", "1") == "1"
-    if not user_obj and auth_enabled:
+    """Save aggregate workout data and return the game rewards it earned."""
+    user_id = _resolve_user_id(request, db_conn)
+    if user_id is None:
         return JSONResponse({"status": "error", "message": "Not authenticated"}, status_code=status.HTTP_401_UNAUTHORIZED)
-
-    username = (user_obj.get("username") if user_obj else "Yosef").title()
-    user_row = db_conn.execute("SELECT id FROM users WHERE name = ?", (username,)).fetchone()
-    user_id = user_row["id"] if user_row else 1
 
     if not payload.exercises:
         return JSONResponse({"status": "error", "message": "No exercises performed in this workout."}, status_code=status.HTTP_400_BAD_REQUEST)
 
     try:
+        # Snapshot game state before saving to detect level-ups and new badges
+        game_before = compute_gamification(_fetch_history(db_conn, user_id))
+
         # Insert each exercise row
         for ex in payload.exercises:
             if ex.total_sets > 0:
@@ -268,7 +431,32 @@ async def save_workout(
                     )
                 )
         db_conn.commit()
-        return {"status": "success", "message": "Workout saved successfully!"}
+
+        game_after = compute_gamification(_fetch_history(db_conn, user_id))
+        unlocked_before = {a["id"] for a in game_before["achievements"] if a["unlocked"]}
+        new_achievements = [
+            {"icon": a["icon"], "title": a["title"], "desc": a["desc"]}
+            for a in game_after["achievements"]
+            if a["unlocked"] and a["id"] not in unlocked_before
+        ]
+
+        return {
+            "status": "success",
+            "message": "Workout saved successfully!",
+            "rewards": {
+                "xp_gained": game_after["total_xp"] - game_before["total_xp"],
+                "total_xp": game_after["total_xp"],
+                "old_level": game_before["level"],
+                "new_level": game_after["level"],
+                "leveled_up": game_after["level"] > game_before["level"],
+                "rank": game_after["rank"],
+                "xp_in_level": game_after["xp_in_level"],
+                "xp_for_next": game_after["xp_for_next"],
+                "progress_pct": game_after["progress_pct"],
+                "streak": game_after["streak"],
+                "new_achievements": new_achievements,
+            },
+        }
     except Exception as e:
         logger.exception("Failed to save workout session")
         return JSONResponse({"status": "error", "message": f"Database error: {str(e)}"}, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)

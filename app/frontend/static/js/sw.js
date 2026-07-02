@@ -1,9 +1,9 @@
 // Service Worker for Performance Optimization and Caching
 
 // Bump versions to force update on clients
-const CACHE_NAME = 'expense-tracker-v1.1.0';
-const STATIC_CACHE = 'static-v1.1.0';
-const DYNAMIC_CACHE = 'dynamic-v1.1.0';
+const CACHE_NAME = 'expense-tracker-v1.2.0';
+const STATIC_CACHE = 'static-v1.2.0';
+const DYNAMIC_CACHE = 'dynamic-v1.2.0';
 
 // Track login time to avoid intercepting requests immediately after login
 let lastLoginTime = 0;
@@ -139,7 +139,7 @@ self.addEventListener('fetch', event => {
 
     // Handle static files
     if (url.pathname.startsWith('/static/')) {
-        event.respondWith(handleStaticRequest(request));
+        event.respondWith(handleStaticRequest(event));
         return;
     }
 
@@ -217,22 +217,33 @@ async function handleApiRequest(request) {
     }
 }
 
-// Handle static files - cache first, network fallback
-async function handleStaticRequest(request) {
-    const cachedResponse = await caches.match(request);
+// Handle static files - stale-while-revalidate.
+// A pure cache-first strategy froze JS/CSS forever: clients kept running
+// workout.js from months ago against freshly deployed HTML, so new buttons
+// (e.g. the skills/achievements tabs) called functions that didn't exist.
+// Now the cached copy is served instantly for speed, but the network copy
+// is always fetched in the background and replaces it for the next load.
+async function handleStaticRequest(event) {
+    const request = event.request;
+    const cache = await caches.open(STATIC_CACHE);
+    const cachedResponse = await cache.match(request);
+
+    const networkUpdate = fetch(request, { credentials: 'include' })
+        .then(response => {
+            if (response.ok) {
+                cache.put(request, response.clone());
+            }
+            return response;
+        });
 
     if (cachedResponse) {
+        // Keep the SW alive until the background refresh settles
+        event.waitUntil(networkUpdate.catch(() => {}));
         return cachedResponse;
     }
 
     try {
-        const response = await fetch(request, { credentials: 'include' });
-        if (response.ok) {
-            const cache = await caches.open(STATIC_CACHE);
-            cache.put(request, response.clone());
-        }
-
-        return response;
+        return await networkUpdate;
     } catch (error) {
         console.log('Static file request failed:', error);
         return new Response('Not found', { status: 404 });

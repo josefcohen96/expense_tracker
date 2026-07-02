@@ -16,44 +16,121 @@
         transform: translateY(-2px);
         box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
     }
-    /* Set row checked state transitions */
+    /* ===== SET ROWS — mobile-first, big touch targets ===== */
     .set-row {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.5rem;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.875rem;
         transition: background-color 0.25s ease, border-color 0.25s ease;
     }
     .set-row.is-done {
-        background-color: #f0fdf4 !important;
-        border-color: #bbf7d0 !important;
+        background-color: #ecfdf5;
+        border-color: #a7f3d0;
     }
-    .set-row.is-done input {
-        color: #166534;
-        font-weight: 600;
+    .set-row.is-done .stepper-input {
+        color: #047857;
     }
-    /* Inline editing inputs — 16px prevents iOS auto-zoom on focus */
-    .inline-edit-input {
+    /* Stepper: − [value] + — replaces bare number inputs */
+    .stepper-group {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: stretch;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        overflow: hidden;
+    }
+    .set-row.is-done .stepper-group {
+        background: #ffffff;
+        border-color: #a7f3d0;
+    }
+    .stepper-btn {
+        width: 2.1rem;
+        min-height: 2.75rem;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #7c3aed;
+        font-size: 0.75rem;
+        touch-action: manipulation;
+        -webkit-user-select: none;
+        user-select: none;
+        transition: background-color 0.15s ease;
+    }
+    .stepper-btn:active {
+        background-color: #f5f3ff;
+    }
+    /* 16px prevents iOS auto-zoom on focus */
+    .stepper-input {
+        width: 100%;
+        min-width: 1.75rem;
+        border: none;
         background: transparent;
-        border: 1px solid transparent;
-        transition: all 0.2s ease;
         text-align: center;
         font-size: 16px;
+        font-weight: 700;
+        color: #1f2937;
+        padding: 0;
     }
-    .inline-edit-input:hover {
-        background-color: #f3f4f6;
-        border-color: #e5e7eb;
-    }
-    .inline-edit-input:focus {
-        background-color: #ffffff;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+    .stepper-input:focus {
         outline: none;
+        background: #ffffff;
     }
-    /* Hide number input spinners on mobile */
-    .inline-edit-input::-webkit-outer-spin-button,
-    .inline-edit-input::-webkit-inner-spin-button {
+    .stepper-input::-webkit-outer-spin-button,
+    .stepper-input::-webkit-inner-spin-button {
         -webkit-appearance: none;
         margin: 0;
     }
-    .inline-edit-input[type=number] {
+    .stepper-input[type=number] {
         -moz-appearance: textfield;
+        appearance: textfield;
+    }
+    /* Big "done" toggle button */
+    .set-done-btn {
+        width: 2.75rem;
+        height: 2.75rem;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid #d1d5db;
+        border-radius: 0.75rem;
+        color: #d1d5db;
+        font-size: 1rem;
+        background: #ffffff;
+        transition: all 0.2s ease;
+        touch-action: manipulation;
+    }
+    .set-done-btn:active {
+        transform: scale(0.9);
+    }
+    .set-row.is-done .set-done-btn {
+        background: #10b981;
+        border-color: #10b981;
+        color: #ffffff;
+        box-shadow: 0 4px 10px -2px rgba(16, 185, 129, 0.5);
+    }
+    .set-del-btn {
+        width: 2rem;
+        height: 2.75rem;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #9ca3af;
+        border-radius: 0.5rem;
+        touch-action: manipulation;
+        transition: color 0.15s ease;
+    }
+    .set-del-btn:active {
+        color: #ef4444;
+        transform: scale(0.9);
     }
     /* Smooth modal transition */
     .modal-backdrop {
@@ -80,6 +157,16 @@
     /* Rest timer banner respects iPhone home bar */
     #rest-timer-banner {
         padding-bottom: max(1rem, calc(0.5rem + env(safe-area-inset-bottom, 0px)));
+    }
+    /* Rest banner "time's up" state — toggled by class, keeps layout intact */
+    #rest-timer-banner.timer-finished {
+        background-color: rgba(220, 38, 38, 0.96);
+        border-color: #f87171;
+        animation: banner-pulse 1s ease-in-out infinite;
+    }
+    @keyframes banner-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.85; }
     }
 
     /* ===== GAMIFICATION ===== */
@@ -342,33 +429,38 @@
                 </div>
 
                 <!-- Active Workout Exercises List -->
-                <div class="p-6">
-                    <div id="active-exercises" class="space-y-6">
-                        <!-- Empty State (Shown initially) -->
-                        <div id="empty-state" class="text-center py-12 px-4 border-2 border-dashed border-gray-300 rounded-xl">
-                            <div class="w-16 h-16 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <i class="fas fa-dumbbell text-2xl"></i>
-                            </div>
-                            <h3 class="text-lg font-bold text-gray-800 mb-1">האימון ריק</h3>
-                            <p class="text-gray-600 text-sm max-w-sm mx-auto mb-6">לחץ על הוספת תרגיל כדי לבחור מרשימת תרגילי קליסטניקס מובנים או להוסיף תרגיל מותאם אישית.</p>
-                            <button onclick="openExerciseModal()" class="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl shadow-md transition-all active:scale-95">
-                                <i class="fas fa-plus"></i>
-                                הוסף תרגיל לאימון
-                            </button>
+                <div class="p-4 sm:p-6">
+                    <!-- Empty State — lives OUTSIDE the render container so re-renders never delete it -->
+                    <div id="empty-state" class="text-center py-12 px-4 border-2 border-dashed border-gray-300 rounded-xl">
+                        <div class="w-16 h-16 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-dumbbell text-2xl"></i>
                         </div>
+                        <h3 class="text-lg font-bold text-gray-800 mb-1">האימון ריק</h3>
+                        <p class="text-gray-600 text-sm max-w-sm mx-auto mb-6">לחץ על הוספת תרגיל כדי לבחור מרשימת תרגילי קליסטניקס מובנים או להוסיף תרגיל מותאם אישית.</p>
+                        <button onclick="openExerciseModal()" class="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl shadow-md transition-all active:scale-95">
+                            <i class="fas fa-plus"></i>
+                            הוסף תרגיל לאימון
+                        </button>
                     </div>
 
+                    <div id="active-exercises" class="space-y-4"></div>
+
                     <!-- Action Buttons at bottom of Active Workout -->
-                    <div id="workout-actions" class="hidden mt-8 pt-6 border-t border-gray-200 flex flex-wrap gap-4 justify-between items-center">
-                        <button onclick="openExerciseModal()" 
-                                class="inline-flex items-center gap-2 px-5 py-3 border border-purple-600 text-purple-700 font-bold rounded-xl hover:bg-purple-50 transition-all active:scale-95">
+                    <div id="workout-actions" class="hidden mt-6 pt-5 border-t border-gray-200 space-y-3">
+                        <button onclick="openExerciseModal()"
+                                class="w-full inline-flex items-center justify-center gap-2 px-5 py-3 border-2 border-dashed border-purple-300 text-purple-700 font-bold rounded-xl hover:bg-purple-50 transition-all active:scale-[0.98]">
                             <i class="fas fa-plus"></i>
                             הוסף תרגיל נוסף
                         </button>
-                        <button onclick="finishWorkout()" 
-                                class="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-700 hover:to-emerald-600 text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-green-100 transition-all active:scale-95">
+                        <button id="finish-workout-btn" onclick="finishWorkout()"
+                                class="w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-l from-green-600 to-emerald-500 hover:from-green-700 hover:to-emerald-600 text-white font-black text-lg rounded-2xl shadow-lg hover:shadow-green-100 transition-all active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none">
                             <i class="fas fa-check-circle"></i>
                             סיום אימון ושמירה
+                        </button>
+                        <button onclick="cancelWorkout()"
+                                class="w-full py-2 text-sm text-gray-400 hover:text-red-500 font-semibold transition-colors">
+                            <i class="fas fa-times ml-1"></i>
+                            ביטול האימון הנוכחי
                         </button>
                     </div>
                 </div>
@@ -623,6 +715,10 @@
 
 <!-- ================= STICKY TIMER BANNER ================= -->
 <div id="rest-timer-banner" class="fixed bottom-0 left-0 right-0 z-[400] bg-gray-900/95 text-white border-t border-gray-800 shadow-2xl pt-3 px-4 translate-y-full transition-transform duration-300 ease-out">
+    <!-- Countdown progress rail -->
+    <div class="absolute top-0 left-0 right-0 h-1 bg-white/10 overflow-hidden">
+        <div id="timer-banner-progress" class="h-full bg-gradient-to-l from-purple-400 to-indigo-400" style="width: 0%; transition: width 0.25s linear;"></div>
+    </div>
     <div class="max-w-xl mx-auto flex items-center justify-between gap-3">
         <!-- Timer Display -->
         <div class="flex items-center gap-3">

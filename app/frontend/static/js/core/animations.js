@@ -446,7 +446,7 @@ style.textContent = `
     }
 
     .toast-info {
-        border-left: 4px solid #667eea;
+        border-left: 4px solid #6366f1;
     }
 
     .toast-success {

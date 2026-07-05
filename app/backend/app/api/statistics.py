@@ -590,6 +590,59 @@ def debug_statistics(db_conn=Depends(get_db_conn)):
     })
 
 
+@router.get("/yearly-comparison")
+def yearly_comparison_api(db_conn=Depends(get_db_conn)):
+    """Monthly expense totals for the current year vs the previous year.
+
+    Expenses only (negative amounts), excluding income categories and savings —
+    the same definition used by the other statistics endpoints.
+    """
+    cur = db_conn.cursor()
+    today = datetime.today()
+    current_year = today.year
+    previous_year = current_year - 1
+
+    rows = cur.execute("""
+        SELECT strftime('%Y', t.date) AS y,
+               strftime('%m', t.date) AS m,
+               COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS expenses
+        FROM transactions t
+        JOIN categories c ON t.category_id = c.id
+        WHERE strftime('%Y', t.date) IN (?, ?)
+        AND c.name NOT IN ('משכורת', 'קליניקה')
+        AND COALESCE(c.is_saving, 0) = 0
+        GROUP BY y, m
+    """, (str(current_year), str(previous_year))).fetchall()
+
+    current = [0.0] * 12
+    previous = [0.0] * 12
+    for row in rows:
+        idx = int(row["m"]) - 1
+        if row["y"] == str(current_year):
+            current[idx] = float(row["expenses"])
+        else:
+            previous[idx] = float(row["expenses"])
+
+    # Year-to-date: compare January..current month in both years
+    ytd_months = today.month
+    current_ytd = sum(current[:ytd_months])
+    previous_ytd = sum(previous[:ytd_months])
+    ytd_change_pct = 0.0
+    if previous_ytd > 0:
+        ytd_change_pct = (current_ytd - previous_ytd) / previous_ytd * 100
+
+    return JSONResponse({
+        "current_year": current_year,
+        "previous_year": previous_year,
+        "current": current,
+        "previous": previous,
+        "current_ytd": current_ytd,
+        "previous_ytd": previous_ytd,
+        "previous_total": sum(previous),
+        "ytd_change_pct": ytd_change_pct,
+    })
+
+
 @router.get("/recurrences")
 def recurrences_monthly_api(db_conn=Depends(get_db_conn)):
     """API endpoint for recurring expenses by month for last 6 months"""

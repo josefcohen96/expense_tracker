@@ -15,10 +15,12 @@ if str(PROJECT_ROOT) not in sys.path:
 def temp_db_path(tmp_path_factory) -> Path:
     project_root = Path(__file__).resolve().parents[1]
     default_db = project_root / "app" / "backend" / "data" / "budget.db"
-    assert default_db.exists(), f"Default DB not found at {default_db}"
     tmp_dir = tmp_path_factory.mktemp("db")
     tmp_db = tmp_dir / "budget_test_copy.sqlite3"
-    shutil.copy2(default_db, tmp_db)
+    if default_db.exists():
+        shutil.copy2(default_db, tmp_db)
+    # If no local DB exists (fresh clone), app_client initialises the schema
+    # and default data into the new file via initialise_database().
     return tmp_db
 
 

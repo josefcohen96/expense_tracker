@@ -31,4 +31,26 @@
   <canvas id="donut-chart"></canvas>
 </div>
 
+<!-- השוואה שנתית: השנה מול שנה שעברה -->
+<h2 class="text-lg font-semibold mt-8 mb-2">הוצאות מול שנה שעברה</h2>
+
+<div id="yearly-summary" class="grid grid-cols-3 gap-3 mb-3" style="display: none;">
+  <div class="bg-white p-3 rounded shadow text-center">
+    <div id="yearly-current-label" class="text-xs text-gray-500 mb-1"></div>
+    <div id="yearly-current-value" class="font-mono text-lg font-bold text-indigo-600" dir="ltr"></div>
+  </div>
+  <div class="bg-white p-3 rounded shadow text-center">
+    <div id="yearly-previous-label" class="text-xs text-gray-500 mb-1"></div>
+    <div id="yearly-previous-value" class="font-mono text-lg font-bold text-gray-700" dir="ltr"></div>
+  </div>
+  <div class="bg-white p-3 rounded shadow text-center">
+    <div class="text-xs text-gray-500 mb-1">שינוי</div>
+    <div id="yearly-change" class="font-mono text-lg font-bold" dir="ltr"></div>
+  </div>
+</div>
+
+<div class="bg-white p-4 rounded shadow" style="height: 320px;">
+  <canvas id="yearly-chart"></canvas>
+</div>
+
 <!-- הסרת גרף הוצאות קבועות לפי דרישה -->

@@ -1,15 +1,17 @@
 # 💰 Expense Tracker
 
-A modern, full-stack expense tracking application built with Python (FastAPI) and Docker. Manage your personal finances, track budgets, and analyze spending habits with an intuitive dashboard.
+A modern, full-stack personal management application built with Python (FastAPI) and Docker. Manage your personal finances, analyze spending habits with an intuitive dashboard, and organize wedding planning and workouts in dedicated modules.
 
 ## ✨ Features
 
-- **Expense Management**: Easily add, edit, and delete daily expenses.
-- **Budget Tracking**: Set monthly budgets and track your progress in real-time.
-- **Interactive Dashboard**: Visual breakdown of your spending by category using dynamic charts.
-- **Data Export/Import**: Seamlessly export your data to Excel or import existing records.
+- **Expense & Income Management**: Easily add, edit, and delete daily expenses and income records.
+- **Interactive Dashboard**: Monthly overview of income, expenses, and savings with month-over-month changes.
+- **Statistics**: Dynamic charts for monthly trends, category breakdowns, top expenses, and year-over-year comparison.
+- **Data Export**: Export your data to Excel, plus full database backup and restore.
 - **Recurring Expenses**: Automated handling of monthly recurring payments.
-- **Responsive Design**: Mobile-friendly interface for tracking on the go.
+- **Wedding Planning Module**: Guests, seating, vendors, budget, tasks, and timeline management.
+- **Workout Tracking Module**: Log and review training sessions.
+- **Responsive Design**: Mobile-friendly interface with offline support (service worker).
 
 ## 🛠️ Technologies Used
 
@@ -17,16 +19,15 @@ A modern, full-stack expense tracking application built with Python (FastAPI) an
 - **Python 3.12**: Core programming language.
 - **FastAPI**: High-performance web framework for building APIs.
 - **Uvicorn**: ASGI web server implementation.
-- **SQLite**: Lightweight, file-based relational database.
-- **SQLAlchemy**: ORM for database interactions.
+- **SQLite**: Lightweight, file-based relational database (via the standard `sqlite3` module).
 - **APScheduler**: Advanced Python Scheduler for recurring tasks.
 - **OpenPyXL**: Library to read/write Excel 2010 xlsx/xlsm files.
 
 ### Frontend
 - **Jinja2**: Templating engine for Python.
-- **HTML5 & CSS3**: Structure and styling.
-- **JavaScript**: Interactive client-side logic.
-- **Chart.js**: (Implied) Visualization library for the dashboard.
+- **HTMX**: Server-driven interactivity without a heavy SPA framework.
+- **HTML5 & CSS3 (Tailwind)**: Structure and styling.
+- **Chart.js**: Visualization library for the statistics dashboard.
 
 ### DevOps & Tools
 - **Docker**: Containerization for consistent environments.

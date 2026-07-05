@@ -54,16 +54,17 @@
     'fully_paid':      'bg-green-100 text-green-700'
 } %}
 
+{% set CHOSEN_STATUSES = ['deal_closed', 'deposit_paid', 'fully_paid'] %}
 {% set predefined_cats = ['venue','catering','chuppah','dj','sound','tables_chairs','alcohol','photographer','video','live_music','flowers','transport','attire'] %}
 
 <!-- Stats calculations -->
 {% set ns = namespace(
     total=0, chosen=0, quote_count=0,
-    committed=0, deposit_total=0
+    committed=0, deposit_total=0, others=[]
 ) %}
 {% for v in vendors %}
     {% set ns.total = ns.total + 1 %}
-    {% if v.status in ['deal_closed','deposit_paid','fully_paid'] %}
+    {% if v.status in CHOSEN_STATUSES %}
         {% set ns.chosen = ns.chosen + 1 %}
         {% if v.price_quoted %}
             {% set ns.committed = ns.committed + v.price_quoted %}
@@ -75,21 +76,27 @@
     {% if v.deposit_amount and v.status in ['deposit_paid','fully_paid'] %}
         {% set ns.deposit_total = ns.deposit_total + v.deposit_amount %}
     {% endif %}
+    {% if v.category not in predefined_cats %}
+        {% set ns.others = ns.others + [v] %}
+    {% endif %}
 {% endfor %}
 
-<div class="space-y-5" dir="rtl">
+<div class="space-y-4" dir="rtl">
 
     <!-- Header -->
     <div class="flex flex-wrap items-center justify-between gap-3">
-        <h1 class="text-xl sm:text-2xl font-bold text-gray-900">ספקים 🏢</h1>
+        <div>
+            <h1 class="text-xl sm:text-2xl font-bold text-gray-900">ספקים 🏢</h1>
+            <p class="text-xs text-gray-500 mt-0.5">נהלו הצעות מחיר, השוו ספקים וסמנו מה כלול</p>
+        </div>
         <button onclick="openAddModal(null)"
-                class="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-4 py-2.5 rounded-xl text-sm font-semibold min-h-[44px] shadow-sm">
+                class="hidden sm:inline-flex items-center bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-4 py-2.5 rounded-xl text-sm font-semibold min-h-[44px] shadow-sm">
             + הוסף ספק
         </button>
     </div>
 
     <!-- Stats Bar -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
         <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
             <div class="text-2xl font-bold text-gray-800">{{ ns.total }}</div>
             <div class="text-xs text-gray-600 mt-0.5">ספקים בסה"כ</div>
@@ -112,48 +119,73 @@
         </div>
     </div>
 
-    <!-- View Toggle -->
-    <div class="flex gap-2 bg-gray-100 p-1 rounded-xl w-fit">
-        <button id="btn-cards" onclick="setView('cards')"
-                class="view-btn active-view px-4 py-2 rounded-lg text-sm font-medium transition-all">
-            כרטיסיות
-        </button>
-        <button id="btn-compare" onclick="setView('compare')"
-                class="view-btn px-4 py-2 rounded-lg text-sm font-medium transition-all text-gray-500 hover:text-gray-700">
-            השוואה
-        </button>
+    <!-- Toolbar: view toggle + category filter chips -->
+    <div class="space-y-2.5">
+        <div class="flex gap-1.5 bg-gray-100 p-1 rounded-xl w-full sm:w-fit">
+            <button id="btn-cards" onclick="setView('cards')"
+                    class="view-btn active-view flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-sm font-medium transition-all min-h-[44px]">
+                כרטיסיות
+            </button>
+            <button id="btn-compare" onclick="setView('compare')"
+                    class="view-btn flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-gray-500 hover:text-gray-700 min-h-[44px]">
+                השוואה
+            </button>
+        </div>
+
+        <!-- Category filter chips (horizontal scroll on mobile) -->
+        <div id="filter-chips" class="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap pb-0.5">
+            <button data-filter="all" onclick="filterCategory('all')"
+                    class="filter-chip filter-chip-active shrink-0 min-h-[40px] px-3.5 rounded-full text-xs font-semibold border transition-colors">
+                הכל ({{ ns.total }})
+            </button>
+            {% for cat_key, cat_label, cat_icon in CATEGORIES %}
+            {% set cnt = vendors | selectattr('category', 'equalto', cat_key) | list | length %}
+            {% if cnt > 0 %}
+            <button data-filter="{{ cat_key }}" onclick="filterCategory('{{ cat_key }}')"
+                    class="filter-chip shrink-0 min-h-[40px] px-3.5 rounded-full text-xs font-semibold border transition-colors">
+                {{ cat_icon }} {{ cat_label }} ({{ cnt }})
+            </button>
+            {% endif %}
+            {% endfor %}
+            {% if ns.others %}
+            <button data-filter="other" onclick="filterCategory('other')"
+                    class="filter-chip shrink-0 min-h-[40px] px-3.5 rounded-full text-xs font-semibold border transition-colors">
+                אחר ({{ ns.others | length }})
+            </button>
+            {% endif %}
+        </div>
     </div>
 
     <!-- ═══════════════ CARDS VIEW ═══════════════ -->
-    <div id="view-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div id="view-cards" class="space-y-5">
 
-        {% for cat_key, cat_label, cat_icon in CATEGORIES %}
-        {% set cat_vendors = vendors | selectattr('category', 'equalto', cat_key) | list %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-            <!-- Card Header -->
-            <div class="bg-rose-50 px-4 py-3 flex items-center justify-between gap-2 border-b border-rose-100">
-                <div class="flex items-center gap-2">
-                    <span class="text-lg leading-none">{{ cat_icon }}</span>
-                    <h2 class="font-bold text-rose-900 text-sm">{{ cat_label }}</h2>
-                    {% if cat_vendors %}
-                    <span class="text-xs text-rose-400">({{ cat_vendors | length }})</span>
-                    {% endif %}
+            {% for cat_key, cat_label, cat_icon in CATEGORIES %}
+            {% set cat_vendors = vendors | selectattr('category', 'equalto', cat_key) | list %}
+            {% if cat_vendors %}
+            {% set chosen_first = (cat_vendors | selectattr('status', 'in', CHOSEN_STATUSES) | list)
+                                + (cat_vendors | rejectattr('status', 'in', CHOSEN_STATUSES) | list) %}
+
+            <div data-cat-card="{{ cat_key }}" class="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
+                <!-- Card Header -->
+                <div class="bg-rose-50 px-4 py-3 flex items-center justify-between gap-2 border-b border-rose-100">
+                    <div class="flex items-center gap-2">
+                        <span class="text-lg leading-none">{{ cat_icon }}</span>
+                        <h2 class="font-bold text-rose-900 text-sm">{{ cat_label }}</h2>
+                        <span class="text-xs text-rose-400">({{ cat_vendors | length }})</span>
+                    </div>
+                    <button onclick="openAddModal('{{ cat_key }}')"
+                            class="text-xs text-rose-500 hover:text-rose-700 font-medium shrink-0 min-h-[36px] px-1">+ הוסף</button>
                 </div>
-                {% if cat_vendors %}
-                <button onclick="openAddModal('{{ cat_key }}')"
-                        class="text-xs text-rose-500 hover:text-rose-700 font-medium shrink-0 min-h-[36px] px-1">+ הוסף</button>
-                {% endif %}
-            </div>
 
-            <!-- Card Body -->
-            <div class="p-3 flex-1 flex flex-col gap-2">
-                {% if cat_vendors %}
+                <!-- Card Body -->
+                <div class="p-3 flex-1 flex flex-col gap-2">
                     {% set prices = cat_vendors | selectattr('price_quoted') | map(attribute='price_quoted') | list %}
                     {% set min_price = prices | min if prices else None %}
 
-                    {% for v in cat_vendors %}
-                    {% set is_chosen = v.status in ['deal_closed', 'deposit_paid', 'fully_paid'] %}
+                    {% for v in chosen_first %}
+                    {% set is_chosen = v.status in CHOSEN_STATUSES %}
                     <div class="border rounded-xl p-3 transition-colors
                         {% if is_chosen %}border-rose-300 bg-rose-50/50{% else %}border-gray-100 bg-gray-50/30 hover:bg-gray-50{% endif %}">
 
@@ -169,7 +201,9 @@
                                 <div class="text-xs text-gray-500 mt-0.5">
                                     {% if v.contact_name %}{{ v.contact_name }}{% endif %}
                                     {% if v.contact_name and v.phone %} · {% endif %}
-                                    {% if v.phone %}<span dir="ltr">{{ v.phone }}</span>{% endif %}
+                                    {% if v.phone %}
+                                    <a href="tel:{{ v.phone | replace('-','') | replace(' ','') }}" class="text-rose-600 font-medium underline-offset-2 hover:underline" dir="ltr">{{ v.phone }}</a>
+                                    {% endif %}
                                 </div>
                                 {% endif %}
                             </div>
@@ -189,20 +223,26 @@
                         </div>
 
                         <!-- Inclusions mini-grid (rendered by JS) -->
-                        <div class="inclusion-chips mt-2" data-vendor-id="{{ v.id }}" data-category="{{ v.category }}" data-inclusions="{{ v.inclusions or '{}' }}"></div>
+                        <div class="inclusion-chips mt-2 flex flex-wrap gap-1" data-vendor-id="{{ v.id }}"></div>
 
                         <!-- Actions -->
-                        <div class="flex gap-2 mt-2 pt-2 border-t border-gray-100">
+                        <div class="flex items-center gap-1.5 mt-2 pt-2 border-t border-gray-100">
                             <a href="/wedding/vendors/{{ v.id }}"
-                               class="text-xs text-rose-600 hover:text-rose-800 font-medium py-1.5 px-2 min-h-[36px] flex items-center rounded-lg hover:bg-rose-50">
+                               class="text-xs text-gray-600 hover:text-gray-800 font-medium py-1.5 px-2 min-h-[38px] flex items-center rounded-lg hover:bg-gray-100">
                                פרטים
                             </a>
-                            <button data-vendor='{{ v | tojson | forceescape }}'
-                                    onclick="openEditModal(JSON.parse(this.dataset.vendor))"
-                                    class="text-xs text-gray-500 hover:text-gray-700 py-1.5 px-2 min-h-[36px] rounded-lg hover:bg-gray-100">ערוך</button>
+                            <button onclick="openTourMode({{ v.id }})"
+                                    class="text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 active:bg-rose-200 border border-rose-200 font-semibold py-1.5 px-2.5 min-h-[38px] rounded-lg flex items-center gap-1">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                                </svg>
+                                מצב סיור
+                            </button>
+                            <button onclick="openEditModalById({{ v.id }})"
+                                    class="text-xs text-gray-500 hover:text-gray-700 py-1.5 px-2 min-h-[38px] rounded-lg hover:bg-gray-100">ערוך</button>
                             <button data-vendor-id="{{ v.id }}" data-vendor-name="{{ v.name }}"
                                     onclick="deleteVendor(parseInt(this.dataset.vendorId), this.dataset.vendorName)"
-                                    class="text-xs text-red-400 hover:text-red-600 mr-auto py-1.5 px-2 min-h-[36px] rounded-lg hover:bg-red-50">מחק</button>
+                                    class="text-xs text-red-400 hover:text-red-600 mr-auto py-1.5 px-2 min-h-[38px] rounded-lg hover:bg-red-50">מחק</button>
                         </div>
                     </div>
                     {% endfor %}
@@ -211,71 +251,89 @@
                             class="mt-1 w-full py-3 border border-dashed border-rose-200 hover:border-rose-400 hover:bg-rose-50/30 text-rose-400 hover:text-rose-600 rounded-xl text-xs font-medium transition-colors min-h-[44px]">
                         + הוסף ספק נוסף
                     </button>
-                {% else %}
-                    <div class="flex-1 flex flex-col items-center justify-center py-8 text-center">
-                        <div class="text-gray-400 text-4xl mb-2">{{ cat_icon }}</div>
-                        <div class="text-gray-400 text-sm mb-4">עדיין לא נבחר ספק</div>
-                        <button onclick="openAddModal('{{ cat_key }}')"
-                                class="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-medium transition-colors min-h-[44px]">
-                            + הוסף ספק
-                        </button>
-                    </div>
-                {% endif %}
+                </div>
             </div>
-        </div>
-        {% endfor %}
-
-        <!-- Other vendors -->
-        {% set ns2 = namespace(others=[]) %}
-        {% for v in vendors %}
-            {% if v.category not in predefined_cats %}
-                {% set ns2.others = ns2.others + [v] %}
             {% endif %}
-        {% endfor %}
-        {% for v in ns2.others %}
-        {% set is_chosen = v.status in ['deal_closed', 'deposit_paid', 'fully_paid'] %}
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-            <div class="bg-gray-50 px-4 py-3 flex items-center justify-between gap-2 border-b border-gray-100">
-                <h2 class="font-bold text-gray-700 text-sm">{{ CATEGORY_LABELS.get(v.category, v.category) }}</h2>
-            </div>
-            <div class="p-3">
-                <div class="border rounded-xl p-3 {% if is_chosen %}border-rose-300 bg-rose-50/50{% else %}border-gray-100{% endif %}">
-                    <div class="flex items-start justify-between gap-2">
-                        <div>
-                            <div class="flex items-center gap-1.5">
-                                <span class="font-semibold text-gray-900 text-sm">{{ v.name }}</span>
-                                {% if is_chosen %}<span class="text-xs bg-rose-600 text-white px-1.5 py-0.5 rounded-full">✓ נבחר</span>{% endif %}
+            {% endfor %}
+
+            <!-- Other (custom category) vendors -->
+            {% for v in ns.others %}
+            {% set is_chosen = v.status in CHOSEN_STATUSES %}
+            <div data-cat-card="other" class="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
+                <div class="bg-gray-50 px-4 py-3 flex items-center justify-between gap-2 border-b border-gray-100">
+                    <h2 class="font-bold text-gray-700 text-sm">{{ CATEGORY_LABELS.get(v.category, v.category) }}</h2>
+                </div>
+                <div class="p-3">
+                    <div class="border rounded-xl p-3 {% if is_chosen %}border-rose-300 bg-rose-50/50{% else %}border-gray-100{% endif %}">
+                        <div class="flex items-start justify-between gap-2">
+                            <div>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="font-semibold text-gray-900 text-sm">{{ v.name }}</span>
+                                    {% if is_chosen %}<span class="text-xs bg-rose-600 text-white px-1.5 py-0.5 rounded-full">✓ נבחר</span>{% endif %}
+                                </div>
+                                {% if v.contact_name or v.phone %}
+                                <div class="text-xs text-gray-500 mt-0.5">
+                                    {{ v.contact_name or '' }}{% if v.contact_name and v.phone %} · {% endif %}
+                                    {% if v.phone %}
+                                    <a href="tel:{{ v.phone | replace('-','') | replace(' ','') }}" class="text-rose-600 font-medium underline-offset-2 hover:underline" dir="ltr">{{ v.phone }}</a>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
                             </div>
-                            {% if v.contact_name or v.phone %}
-                            <div class="text-xs text-gray-500 mt-0.5">{{ v.contact_name }}{% if v.contact_name and v.phone %} · {% endif %}<span dir="ltr">{{ v.phone }}</span></div>
-                            {% endif %}
+                            <div class="text-left shrink-0">
+                                {% if v.price_quoted %}<div class="text-sm font-bold text-gray-800" dir="ltr">₪{{ "{:,.0f}".format(v.price_quoted) }}</div>{% endif %}
+                                <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium {{ STATUS_COLORS.get(v.status, 'bg-gray-200 text-gray-700') }}">{{ STATUS_LABELS.get(v.status, v.status) }}</span>
+                            </div>
                         </div>
-                        <div class="text-left shrink-0">
-                            {% if v.price_quoted %}<div class="text-sm font-bold text-gray-800" dir="ltr">₪{{ "{:,.0f}".format(v.price_quoted) }}</div>{% endif %}
-                            <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium {{ STATUS_COLORS.get(v.status, 'bg-gray-200 text-gray-700') }}">{{ STATUS_LABELS.get(v.status, v.status) }}</span>
+                        <div class="flex items-center gap-1.5 mt-2 pt-2 border-t border-gray-100">
+                            <a href="/wedding/vendors/{{ v.id }}" class="text-xs text-gray-600 hover:text-gray-800 font-medium py-1.5 px-2 min-h-[38px] flex items-center rounded-lg hover:bg-gray-100">פרטים</a>
+                            <button onclick="openEditModalById({{ v.id }})" class="text-xs text-gray-500 hover:text-gray-700 py-1.5 px-2 min-h-[38px] rounded-lg hover:bg-gray-100">ערוך</button>
+                            <button data-vendor-id="{{ v.id }}" data-vendor-name="{{ v.name }}"
+                                    onclick="deleteVendor(parseInt(this.dataset.vendorId), this.dataset.vendorName)"
+                                    class="text-xs text-red-400 hover:text-red-600 mr-auto py-1.5 px-2 min-h-[38px] rounded-lg hover:bg-red-50">מחק</button>
                         </div>
-                    </div>
-                    <div class="flex gap-2 mt-2 pt-2 border-t border-gray-100">
-                        <a href="/wedding/vendors/{{ v.id }}" class="text-xs text-rose-600 hover:text-rose-800 font-medium py-1.5 px-2 min-h-[36px] flex items-center">פרטים</a>
-                        <button data-vendor='{{ v | tojson | forceescape }}' onclick="openEditModal(JSON.parse(this.dataset.vendor))" class="text-xs text-gray-500 hover:text-gray-700 py-1.5 px-2 min-h-[36px]">ערוך</button>
-                        <button data-vendor-id="{{ v.id }}" data-vendor-name="{{ v.name }}"
-                                onclick="deleteVendor(parseInt(this.dataset.vendorId), this.dataset.vendorName)"
-                                class="text-xs text-red-400 hover:text-red-600 mr-auto py-1.5 px-2 min-h-[36px]">מחק</button>
                     </div>
                 </div>
             </div>
-        </div>
+            {% endfor %}
+
+        </div><!-- /grid -->
+
+        <!-- Quick-add for categories without vendors yet -->
+        {% set ns_empty = namespace(cats=[]) %}
+        {% for cat_key, cat_label, cat_icon in CATEGORIES %}
+            {% if vendors | selectattr('category', 'equalto', cat_key) | list | length == 0 %}
+                {% set ns_empty.cats = ns_empty.cats + [(cat_key, cat_label, cat_icon)] %}
+            {% endif %}
         {% endfor %}
+        {% if ns_empty.cats %}
+        <div data-cat-card="__quickadd" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div class="flex items-center gap-2 mb-3">
+                <span class="text-sm font-bold text-gray-700">קטגוריות שעוד לא התחלתם</span>
+                <span class="text-xs text-gray-400">— לחיצה מוסיפה ספק</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                {% for cat_key, cat_label, cat_icon in ns_empty.cats %}
+                <button onclick="openAddModal('{{ cat_key }}')"
+                        class="flex items-center justify-center gap-1.5 py-3 px-2 border border-dashed border-gray-200 hover:border-rose-400 hover:bg-rose-50/40 text-gray-500 hover:text-rose-600 rounded-xl text-xs font-medium transition-colors min-h-[48px]">
+                    <span class="text-base leading-none">{{ cat_icon }}</span>
+                    <span>{{ cat_label }}</span>
+                    <span class="text-rose-400 font-bold">+</span>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
 
     </div><!-- /view-cards -->
 
     <!-- ═══════════════ COMPARE VIEW ═══════════════ -->
     <div id="view-compare" class="hidden space-y-8">
         <!-- Rendered by JS -->
-        <div id="compare-content"></div>
+        <div id="compare-content" class="space-y-6"></div>
     </div>
 
-</div><!-- /space-y-5 -->
+</div><!-- /space-y-4 -->
 
 <!-- Mobile FAB -->
 <button onclick="openAddModal(null)"
@@ -285,7 +343,7 @@
 </button>
 
 <!-- ═══════════════ ADD / EDIT MODAL ═══════════════ -->
-<div id="vendor-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center sm:p-4" dir="rtl">
+<div id="vendor-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[850] flex items-start sm:items-center justify-center sm:p-4" dir="rtl">
     <div id="vendor-modal-body" class="bg-white w-full sm:rounded-2xl shadow-2xl sm:max-w-2xl sm:mx-4 max-h-screen sm:max-h-[90vh] overflow-y-auto"
          style="padding-bottom: env(safe-area-inset-bottom, 0px);">
 
@@ -387,12 +445,19 @@
 
             <!-- Inclusions Section -->
             <div id="inclusions-section">
-                <div class="flex items-center gap-2 mb-3">
+                <div class="flex items-center gap-2 mb-1.5">
                     <div class="h-px flex-1 bg-gray-100"></div>
                     <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">מה כולל הספק</span>
                     <div class="h-px flex-1 bg-gray-100"></div>
                 </div>
-                <div id="inclusions-checkboxes" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs text-gray-400">לחצו ✓ אם כלול, ✗ אם לא. לחיצה חוזרת מנקה.</span>
+                    <button type="button" id="open-tour-from-modal" onclick="tourFromModal()"
+                            class="hidden text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 font-semibold px-2.5 py-1.5 rounded-lg min-h-[36px]">
+                        🚶 מצב סיור
+                    </button>
+                </div>
+                <div id="inclusions-checkboxes" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <!-- rendered by JS onCategoryChange -->
                 </div>
             </div>
@@ -420,12 +485,80 @@
     </div>
 </div>
 
+<!-- ═══════════════ TOUR MODE (full-screen checklist) ═══════════════ -->
+<div id="tour-modal" class="hidden fixed inset-0 z-[900]" dir="rtl">
+    <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm hidden sm:block" onclick="closeTourMode()"></div>
+    <div class="relative mx-auto h-full w-full sm:h-auto sm:max-h-[92vh] sm:max-w-lg sm:top-1/2 sm:-translate-y-1/2 bg-gray-50 sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+
+        <!-- Tour Header -->
+        <div class="bg-white border-b border-gray-100 px-4 pb-3 shrink-0"
+             style="padding-top: calc(1rem + env(safe-area-inset-top, 0px));">
+            <div class="flex items-center justify-between gap-2">
+                <div class="min-w-0">
+                    <div class="text-xs text-rose-500 font-semibold flex items-center gap-1">
+                        <span>🚶 מצב סיור</span>
+                        <span class="text-gray-300">·</span>
+                        <span id="tour-category" class="text-gray-400 font-medium"></span>
+                    </div>
+                    <h3 id="tour-vendor-name" class="text-lg font-bold text-gray-900 truncate"></h3>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <span id="tour-save-status" class="text-xs font-medium text-gray-400 transition-opacity opacity-0">נשמר ✓</span>
+                    <button onclick="closeTourMode()"
+                            class="text-gray-400 hover:text-gray-600 w-11 h-11 flex items-center justify-center rounded-full hover:bg-gray-100">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <!-- Progress -->
+            <div class="mt-2.5">
+                <div class="flex items-center justify-between text-xs text-gray-500 mb-1.5">
+                    <span>סמנו מה כלול ומה לא — נשמר אוטומטית</span>
+                    <span id="tour-progress-text" class="font-semibold text-gray-600"></span>
+                </div>
+                <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div id="tour-progress-bar" class="h-full bg-rose-500 rounded-full transition-all duration-300" style="width:0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tour Items (scrollable) -->
+        <div id="tour-scroll" class="flex-1 overflow-y-auto px-4 py-4">
+            <div id="tour-items" class="space-y-2"></div>
+
+            <!-- Quick notes during the tour -->
+            <div class="mt-4">
+                <label class="block text-xs font-semibold text-gray-500 mb-1.5">📝 הערות מהסיור</label>
+                <textarea id="tour-notes" rows="3"
+                          class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
+                          placeholder="מה ראיתם? מה סיכמתם? מחירים שנאמרו בעל פה..."></textarea>
+            </div>
+        </div>
+
+        <!-- Tour Footer -->
+        <div class="bg-white border-t border-gray-100 px-4 pt-3 shrink-0"
+             style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));">
+            <button onclick="closeTourMode()"
+                    class="w-full bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-base font-bold min-h-[52px] shadow-sm transition-colors">
+                סיום סיור
+            </button>
+        </div>
+    </div>
+</div>
+
 <style>
 .active-view { background: white; color: #111827; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 .inclusion-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; padding: 2px 7px; border-radius: 999px; font-weight: 500; }
-.chip-yes  { background: #dcfce7; color: #15803d; }
-.chip-no   { background: #fee2e2; color: #b91c1c; }
+.chip-yes     { background: #dcfce7; color: #15803d; }
+.chip-no      { background: #fee2e2; color: #b91c1c; }
+.chip-warn    { background: #fef3c7; color: #b45309; }
 .chip-unknown { background: #f3f4f6; color: #9ca3af; }
+.filter-chip        { background: white; color: #6b7280; border-color: #e5e7eb; }
+.filter-chip-active { background: #e11d48; color: white; border-color: #e11d48; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 </style>
 
 <script>
@@ -437,13 +570,13 @@ ALL_VENDORS.forEach(v => {
     catch { v._inc = {}; }
 });
 
+function vendorById(id) {
+    return ALL_VENDORS.find(v => v.id === id) || null;
+}
+
 function escHtml(s) {
     if (s == null) return '';
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-
-function jsonAttr(obj) {
-    return JSON.stringify(obj).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');
 }
 
 const CATEGORY_LABELS_JS = {
@@ -453,8 +586,14 @@ const CATEGORY_LABELS_JS = {
     flowers:'פרחים ועיצוב', transport:'הסעות', attire:'לבוש', other:'אחר',
 };
 
+/*
+ * Per-category checklist items.
+ * type 'restriction' inverts the semantics: true = יש מגבלה (warning),
+ * false = אין מגבלה (good). Regular items: true = כלול, false = לא כלול.
+ */
 const CATEGORY_INCLUSIONS = {
     venue: [
+        { key: 'noise_restriction', label: 'הגבלת רעש', type: 'restriction' },
         { key: 'infrastructure', label: 'תשתיות' },
         { key: 'tables_chairs',  label: 'שולחנות וכסאות' },
         { key: 'food',           label: 'אוכל' },
@@ -512,7 +651,7 @@ const CATEGORY_INCLUSIONS = {
     alcohol: [
         { key: 'wine',           label: 'יין' },
         { key: 'whiskey',        label: 'ויסקי' },
-        { key: 'beer',           label: 'ביירה' },
+        { key: 'beer',           label: 'בירה' },
         { key: 'soft_drinks',    label: 'שתיות קלות' },
         { key: 'bartender',      label: 'ברמן' },
         { key: 'glasses',        label: 'כוסות' },
@@ -596,30 +735,63 @@ function setView(view) {
     if (isCompare) renderCompareView();
 }
 
-/* ─── Inclusion chips (cards view) ────────────────────────────── */
-function renderInclusionChips(category, inclusions) {
-    const items = CATEGORY_INCLUSIONS[category];
-    if (!items || !items.length) return '';
+/* ─── Category filter ──────────────────────────────────────────── */
+let activeFilter = 'all';
 
-    // Show only items that have a value (yes or no), max 6
-    const withValue = items.filter(it => inclusions[it.key] !== undefined);
-    if (!withValue.length) return '<span class="text-xs text-gray-500 italic">לא הוזנו פרמטרים</span>';
-
-    const shown = withValue.slice(0, 6);
-    return shown.map(it => {
-        const val = inclusions[it.key];
-        if (val === true)  return `<span class="inclusion-chip chip-yes">✓ ${it.label}</span>`;
-        if (val === false) return `<span class="inclusion-chip chip-no">✗ ${it.label}</span>`;
-        return '';
-    }).filter(Boolean).join(' ');
+function filterCategory(cat) {
+    activeFilter = cat;
+    document.querySelectorAll('#filter-chips .filter-chip').forEach(chip => {
+        chip.classList.toggle('filter-chip-active', chip.dataset.filter === cat);
+    });
+    document.querySelectorAll('#view-cards [data-cat-card]').forEach(el => {
+        const cardCat = el.dataset.catCard;
+        const show = cat === 'all' || (cardCat === cat && cardCat !== '__quickadd');
+        el.classList.toggle('hidden', cardCat === '__quickadd' ? cat !== 'all' : !show);
+    });
 }
 
-document.querySelectorAll('.inclusion-chips').forEach(el => {
-    const cat = el.dataset.category;
-    let inc = {};
-    try { inc = JSON.parse(el.dataset.inclusions || '{}'); } catch {}
-    el.innerHTML = renderInclusionChips(cat, inc);
-});
+/* ─── Inclusion chips (cards view) ────────────────────────────── */
+function chipFor(item, val) {
+    if (item.type === 'restriction') {
+        if (val === true)  return `<span class="inclusion-chip chip-warn">⚠️ יש ${item.label}</span>`;
+        if (val === false) return `<span class="inclusion-chip chip-yes">✓ אין ${item.label}</span>`;
+        return '';
+    }
+    if (val === true)  return `<span class="inclusion-chip chip-yes">✓ ${item.label}</span>`;
+    if (val === false) return `<span class="inclusion-chip chip-no">✗ ${item.label}</span>`;
+    return '';
+}
+
+function renderInclusionChips(vendor) {
+    const items = CATEGORY_INCLUSIONS[vendor.category];
+    if (!items || !items.length) return '';
+
+    const inc = vendor._inc || {};
+    const withValue = items.filter(it => inc[it.key] !== undefined);
+    if (!withValue.length) {
+        return `<button onclick="openTourMode(${vendor.id})" class="inclusion-chip chip-unknown hover:bg-gray-200 min-h-[28px]">🚶 עוד לא סומן מה כלול — פתחו מצב סיור</button>`;
+    }
+
+    const MAX_CHIPS = 8;
+    const shown = withValue.slice(0, MAX_CHIPS);
+    let html = shown.map(it => chipFor(it, inc[it.key])).filter(Boolean).join(' ');
+    if (withValue.length > MAX_CHIPS) {
+        html += ` <span class="inclusion-chip chip-unknown">+${withValue.length - MAX_CHIPS}</span>`;
+    }
+    return html;
+}
+
+function refreshVendorChips(vendor) {
+    const el = document.querySelector(`.inclusion-chips[data-vendor-id="${vendor.id}"]`);
+    if (el) el.innerHTML = renderInclusionChips(vendor);
+}
+
+function refreshAllChips() {
+    document.querySelectorAll('.inclusion-chips').forEach(el => {
+        const v = vendorById(parseInt(el.dataset.vendorId));
+        if (v) el.innerHTML = renderInclusionChips(v);
+    });
+}
 
 /* ─── Compare View ─────────────────────────────────────────────── */
 const COMPARE_CATEGORIES = [
@@ -637,6 +809,17 @@ const COMPARE_CATEGORIES = [
     ['transport',     'הסעות',             '🚌'],
     ['attire',        'לבוש',              '👗'],
 ];
+
+function compareCell(item, val) {
+    if (item.type === 'restriction') {
+        if (val === true)  return '<span class="text-amber-600 text-sm font-bold whitespace-nowrap">⚠️ יש</span>';
+        if (val === false) return '<span class="text-green-600 text-sm font-bold whitespace-nowrap">✓ אין</span>';
+        return '<span class="text-gray-400 text-base">—</span>';
+    }
+    if (val === true)  return '<span class="text-green-500 text-lg">✓</span>';
+    if (val === false) return '<span class="text-red-400 text-lg">✗</span>';
+    return '<span class="text-gray-400 text-base">—</span>';
+}
 
 function renderCompareView() {
     let html = '';
@@ -658,7 +841,7 @@ function renderCompareView() {
                     <h2 class="font-bold text-rose-900">${catLabel}</h2>
                     <span class="text-xs text-rose-400">(${catVendors.length} ספקים)</span>
                 </div>
-                <button onclick="openAddModal('${catKey}')" class="text-xs text-rose-500 hover:text-rose-700 font-medium">+ הוסף</button>
+                <button onclick="openAddModal('${catKey}')" class="text-xs text-rose-500 hover:text-rose-700 font-medium min-h-[36px]">+ הוסף</button>
             </div>
 
             <!-- Comparison table -->
@@ -690,20 +873,15 @@ function renderCompareView() {
                 <tr class="border-b border-gray-50 ${rowBg}">
                     <td class="py-2.5 px-4 text-xs font-medium text-gray-600 bg-gray-50/50">${item.label}</td>
                     ${catVendors.map(v => {
-                        const val = v._inc[item.key];
-                        let cell;
-                        if (val === true)       cell = '<span class="text-green-500 text-lg">✓</span>';
-                        else if (val === false)  cell = '<span class="text-red-400 text-lg">✗</span>';
-                        else                     cell = '<span class="text-gray-400 text-base">—</span>';
                         const isChosen = ['deal_closed','deposit_paid','fully_paid'].includes(v.status);
-                        return `<td class="py-2.5 px-4 text-center ${isChosen ? 'bg-rose-50/30' : ''}">${cell}</td>`;
+                        return `<td class="py-2.5 px-4 text-center ${isChosen ? 'bg-rose-50/30' : ''}">${compareCell(item, v._inc[item.key])}</td>`;
                     }).join('')}
                 </tr>`;
             });
         } else if (incItems.length) {
             html += `
             <tr><td colspan="${catVendors.length + 1}" class="py-4 px-4 text-center text-xs text-gray-500 italic">
-                לא הוזנו פרמטרים — ערוך ספק כדי להוסיף
+                לא הוזנו פרמטרים — פתחו מצב סיור כדי לסמן
             </td></tr>`;
         }
 
@@ -723,11 +901,14 @@ function renderCompareView() {
                         <td class="py-3 px-4 bg-gray-50/50"></td>
                         ${catVendors.map(v => `
                         <td class="py-3 px-4 text-center">
-                            <div class="flex gap-2 justify-center flex-wrap">
-                                <a href="/wedding/vendors/${v.id}" class="text-xs text-rose-600 hover:text-rose-800 font-medium px-2 py-1.5 rounded-lg hover:bg-rose-50 min-h-[32px] flex items-center">פרטים</a>
-                                <button data-vendor='${jsonAttr(v)}' onclick="openEditModal(JSON.parse(this.dataset.vendor))"
+                            <div class="flex gap-1.5 justify-center flex-wrap">
+                                <button onclick="openTourMode(${v.id})"
+                                        class="text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 font-semibold px-2 py-1.5 rounded-lg min-h-[32px]">🚶 סיור</button>
+                                <a href="/wedding/vendors/${v.id}" class="text-xs text-gray-600 hover:text-gray-800 font-medium px-2 py-1.5 rounded-lg hover:bg-gray-100 min-h-[32px] flex items-center">פרטים</a>
+                                <button onclick="openEditModalById(${v.id})"
                                         class="text-xs text-gray-500 hover:text-gray-700 px-2 py-1.5 rounded-lg hover:bg-gray-100 min-h-[32px]">ערוך</button>
-                                <button onclick="deleteVendor(${v.id}, '${escHtml(v.name)}')"
+                                <button data-vendor-id="${v.id}" data-vendor-name="${escHtml(v.name)}"
+                                        onclick="deleteVendor(parseInt(this.dataset.vendorId), this.dataset.vendorName)"
                                         class="text-xs text-red-400 hover:text-red-600 px-2 py-1.5 rounded-lg hover:bg-red-50 min-h-[32px]">מחק</button>
                             </div>
                         </td>`).join('')}
@@ -757,9 +938,10 @@ function renderCompareView() {
                         ${v.price_quoted ? `<span class="text-sm font-bold text-gray-700" dir="ltr">₪${v.price_quoted.toLocaleString()}</span>` : ''}
                         <span class="text-xs px-2 py-0.5 rounded-full ${STATUS_BADGE_CLASSES[v.status] || 'bg-gray-200 text-gray-700'}">${STATUS_LABELS[v.status] || ''}</span>
                         <a href="/wedding/vendors/${v.id}" class="text-xs text-rose-600 hover:text-rose-800 font-medium px-2 py-1 rounded-lg hover:bg-rose-50">פרטים</a>
-                        <button data-vendor='${jsonAttr(v)}' onclick="openEditModal(JSON.parse(this.dataset.vendor))"
+                        <button onclick="openEditModalById(${v.id})"
                                 class="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded-lg hover:bg-gray-100">ערוך</button>
-                        <button onclick="deleteVendor(${v.id}, '${escHtml(v.name)}')"
+                        <button data-vendor-id="${v.id}" data-vendor-name="${escHtml(v.name)}"
+                                onclick="deleteVendor(parseInt(this.dataset.vendorId), this.dataset.vendorName)"
                                 class="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded-lg hover:bg-red-50">מחק</button>
                     </div>
                 </div>`).join('')}
@@ -768,16 +950,31 @@ function renderCompareView() {
     }
 
     if (!html) {
-        html = '<div class="text-center py-12 text-gray-400">אין ספקים עדיין — לחץ + הוסף ספק</div>';
+        html = '<div class="text-center py-12 text-gray-400">אין ספקים עדיין — לחצו + הוסף ספק</div>';
     }
 
     document.getElementById('compare-content').innerHTML = html;
 }
 
-/* ─── Modal ────────────────────────────────────────────────────── */
+/* ─── Body scroll lock (shared by modals) ─────────────────────── */
+function lockScroll(lock) {
+    document.body.style.overflow = lock ? 'hidden' : '';
+}
+
+/* ─── Add/Edit Modal — inclusions ─────────────────────────────── */
+let modalInc = {};
+
 function onCategoryChange() {
     const cat = document.getElementById('v-category').value;
-    renderInclusionCheckboxes(cat, {});
+    renderInclusionCheckboxes(cat, modalInc);
+}
+
+function incBtnClasses(selected, kind) {
+    // kind: 'good' (green), 'bad' (red), 'warn' (amber)
+    if (!selected) return 'bg-white text-gray-400 border-gray-200';
+    if (kind === 'good') return 'bg-green-500 text-white border-green-500';
+    if (kind === 'warn') return 'bg-amber-500 text-white border-amber-500';
+    return 'bg-red-400 text-white border-red-400';
 }
 
 function renderInclusionCheckboxes(category, currentValues) {
@@ -785,65 +982,52 @@ function renderInclusionCheckboxes(category, currentValues) {
     const container = document.getElementById('inclusions-checkboxes');
     document.getElementById('inclusions-section').style.display = items.length ? '' : 'none';
 
+    // Keep only keys relevant to this category
+    modalInc = {};
+    items.forEach(it => {
+        if (currentValues[it.key] !== undefined) modalInc[it.key] = currentValues[it.key];
+    });
+
     if (!items.length) { container.innerHTML = ''; return; }
 
     container.innerHTML = items.map(item => {
-        const val = currentValues[item.key];
-        const checkedYes   = val === true  ? 'checked' : '';
-        const checkedNo    = val === false ? 'checked' : '';
+        const val = modalInc[item.key];
+        const isRestriction = item.type === 'restriction';
+        const yesText = isRestriction ? 'יש' : '✓';
+        const noText  = isRestriction ? 'אין' : '✗';
+        const yesKind = isRestriction ? 'warn' : 'good';
+        const noKind  = isRestriction ? 'good' : 'bad';
         return `
-        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-100">
-            <span class="text-sm text-gray-700 font-medium">${item.label}</span>
-            <div class="flex gap-1" role="group">
-                <label class="cursor-pointer">
-                    <input type="radio" name="inc_${item.key}" value="yes" ${checkedYes} class="sr-only">
-                    <span class="inc-radio-btn text-xs px-2 py-1 rounded-lg border transition-all
-                        ${checkedYes ? 'bg-green-500 text-white border-green-500' : 'bg-white text-gray-400 border-gray-200 hover:border-green-300'}">✓</span>
-                </label>
-                <label class="cursor-pointer">
-                    <input type="radio" name="inc_${item.key}" value="no" ${checkedNo} class="sr-only">
-                    <span class="inc-radio-btn text-xs px-2 py-1 rounded-lg border transition-all
-                        ${checkedNo ? 'bg-red-400 text-white border-red-400' : 'bg-white text-gray-400 border-gray-200 hover:border-red-300'}">✗</span>
-                </label>
+        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2 border border-gray-100 gap-2">
+            <span class="text-sm text-gray-700 font-medium">${isRestriction ? '⚠️ ' : ''}${item.label}</span>
+            <div class="flex gap-1.5 shrink-0" role="group">
+                <button type="button" onclick="modalIncToggle('${item.key}', true)" data-inc-btn="${item.key}:yes"
+                        class="min-h-[40px] min-w-[44px] px-2.5 rounded-lg border text-xs font-bold transition-all ${incBtnClasses(val === true, yesKind)}">${yesText}</button>
+                <button type="button" onclick="modalIncToggle('${item.key}', false)" data-inc-btn="${item.key}:no"
+                        class="min-h-[40px] min-w-[44px] px-2.5 rounded-lg border text-xs font-bold transition-all ${incBtnClasses(val === false, noKind)}">${noText}</button>
             </div>
         </div>`;
     }).join('');
+}
 
-    // Toggle styling on click
-    container.querySelectorAll('input[type="radio"]').forEach(input => {
-        input.addEventListener('change', () => {
-            const name = input.name;
-            document.querySelectorAll(`input[name="${name}"]`).forEach(r => {
-                const span = r.nextElementSibling;
-                const isYes = r.value === 'yes';
-                if (r.checked) {
-                    span.className = `inc-radio-btn text-xs px-2 py-1 rounded-lg border transition-all ${isYes ? 'bg-green-500 text-white border-green-500' : 'bg-red-400 text-white border-red-400'}`;
-                } else {
-                    span.className = `inc-radio-btn text-xs px-2 py-1 rounded-lg border transition-all ${isYes ? 'bg-white text-gray-400 border-gray-200 hover:border-green-300' : 'bg-white text-gray-400 border-gray-200 hover:border-red-300'}`;
-                }
-            });
-        });
-    });
+function modalIncToggle(key, value) {
+    if (modalInc[key] === value) delete modalInc[key];
+    else modalInc[key] = value;
+    // Re-render with current category to refresh button states
+    renderInclusionCheckboxes(document.getElementById('v-category').value, modalInc);
 }
 
 function collectInclusions() {
-    const cat = document.getElementById('v-category').value;
-    const items = CATEGORY_INCLUSIONS[cat] || [];
-    const result = {};
-    items.forEach(item => {
-        const yesRadio = document.querySelector(`input[name="inc_${item.key}"][value="yes"]`);
-        const noRadio  = document.querySelector(`input[name="inc_${item.key}"][value="no"]`);
-        if (yesRadio && yesRadio.checked)     result[item.key] = true;
-        else if (noRadio && noRadio.checked)  result[item.key] = false;
-    });
-    return result;
+    return { ...modalInc };
 }
 
+/* ─── Add/Edit Modal ───────────────────────────────────────────── */
 function openAddModal(category) {
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
     document.getElementById('modal-title').textContent = 'הוספת ספק';
     document.getElementById('vendor-id').value = '';
+    document.getElementById('open-tour-from-modal').classList.add('hidden');
     ['v-name','v-contact-name','v-phone','v-price-quoted','v-deposit-amount','v-deposit-date','v-notes','v-location','v-instagram'].forEach(id => {
         document.getElementById(id).value = '';
     });
@@ -851,7 +1035,13 @@ function openAddModal(category) {
     document.getElementById('v-status').value = 'not_contacted';
     renderInclusionCheckboxes(category || 'venue', {});
     document.getElementById('vendor-modal').classList.remove('hidden');
+    lockScroll(true);
     document.getElementById('v-name').focus();
+}
+
+function openEditModalById(id) {
+    const v = vendorById(id);
+    if (v) openEditModal(v);
 }
 
 function openEditModal(v) {
@@ -873,12 +1063,23 @@ function openEditModal(v) {
     let inc = {};
     try { inc = JSON.parse(v.inclusions || '{}'); } catch {}
     renderInclusionCheckboxes(v.category || 'other', inc);
+    const tourBtn = document.getElementById('open-tour-from-modal');
+    tourBtn.classList.toggle('hidden', !(CATEGORY_INCLUSIONS[v.category] || []).length);
     document.getElementById('vendor-modal').classList.remove('hidden');
+    lockScroll(true);
     document.getElementById('vendor-modal-body').scrollTop = 0;
 }
 
 function closeModal() {
     document.getElementById('vendor-modal').classList.add('hidden');
+    lockScroll(false);
+}
+
+function tourFromModal() {
+    const id = parseInt(document.getElementById('vendor-id').value);
+    if (!id) return;
+    closeModal();
+    openTourMode(id);
 }
 
 function saveVendor() {
@@ -915,14 +1116,154 @@ function deleteVendor(id, name) {
         .catch(() => alert('שגיאה במחיקה'));
 }
 
-// Close modal on backdrop click
+/* ─── Tour Mode ────────────────────────────────────────────────── */
+let tourVendor = null;
+let tourInc = {};
+let tourSaveTimer = null;
+let tourDirty = false;
+
+function openTourMode(id) {
+    const v = vendorById(id);
+    if (!v) return;
+    const items = CATEGORY_INCLUSIONS[v.category] || [];
+    if (!items.length) { alert('לקטגוריה זו אין רשימת סימון'); return; }
+
+    tourVendor = v;
+    tourInc = { ...(v._inc || {}) };
+    tourDirty = false;
+
+    document.getElementById('tour-vendor-name').textContent = v.name;
+    document.getElementById('tour-category').textContent = CATEGORY_LABELS_JS[v.category] || v.category;
+    document.getElementById('tour-notes').value = v.notes || '';
+    setTourStatus('');
+
+    renderTourItems();
+    document.getElementById('tour-modal').classList.remove('hidden');
+    lockScroll(true);
+    document.getElementById('tour-scroll').scrollTop = 0;
+}
+
+function renderTourItems() {
+    if (!tourVendor) return;
+    const items = CATEGORY_INCLUSIONS[tourVendor.category] || [];
+    const container = document.getElementById('tour-items');
+    const scroller = document.getElementById('tour-scroll');
+    const prevScroll = scroller.scrollTop;
+
+    container.innerHTML = items.map(item => {
+        const val = tourInc[item.key];
+        const isRestriction = item.type === 'restriction';
+        const yesText = isRestriction ? '⚠️ יש' : '✓ כלול';
+        const noText  = isRestriction ? '✓ אין' : '✗ לא כלול';
+        const yesKind = isRestriction ? 'warn' : 'good';
+        const noKind  = isRestriction ? 'good' : 'bad';
+        const marked = val !== undefined;
+        return `
+        <div class="bg-white rounded-2xl border ${marked ? 'border-gray-200' : 'border-gray-100'} shadow-sm p-3 flex items-center justify-between gap-2">
+            <span class="text-base font-medium text-gray-800 min-w-0">${isRestriction ? '⚠️ ' : ''}${item.label}</span>
+            <div class="flex gap-2 shrink-0">
+                <button type="button" onclick="tourSet('${item.key}', true)"
+                        class="min-h-[48px] min-w-[76px] px-3 rounded-xl border text-sm font-bold transition-all active:scale-95 ${incBtnClasses(val === true, yesKind)}">${yesText}</button>
+                <button type="button" onclick="tourSet('${item.key}', false)"
+                        class="min-h-[48px] min-w-[76px] px-3 rounded-xl border text-sm font-bold transition-all active:scale-95 ${incBtnClasses(val === false, noKind)}">${noText}</button>
+            </div>
+        </div>`;
+    }).join('');
+
+    scroller.scrollTop = prevScroll;
+
+    // Progress
+    const marked = items.filter(it => tourInc[it.key] !== undefined).length;
+    document.getElementById('tour-progress-text').textContent = `${marked}/${items.length} סומנו`;
+    document.getElementById('tour-progress-bar').style.width = items.length ? `${Math.round(marked / items.length * 100)}%` : '0%';
+}
+
+function tourSet(key, value) {
+    if (tourInc[key] === value) delete tourInc[key];
+    else tourInc[key] = value;
+    tourDirty = true;
+    renderTourItems();
+    scheduleTourSave();
+}
+
+function setTourStatus(state) {
+    const el = document.getElementById('tour-save-status');
+    if (state === 'saving') {
+        el.textContent = 'שומר…';
+        el.className = 'text-xs font-medium text-gray-400 transition-opacity opacity-100';
+    } else if (state === 'saved') {
+        el.textContent = 'נשמר ✓';
+        el.className = 'text-xs font-medium text-green-600 transition-opacity opacity-100';
+        setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); }, 1800);
+    } else if (state === 'error') {
+        el.textContent = 'שגיאה בשמירה';
+        el.className = 'text-xs font-medium text-red-500 transition-opacity opacity-100';
+    } else {
+        el.className = 'text-xs font-medium text-gray-400 transition-opacity opacity-0';
+    }
+}
+
+function scheduleTourSave() {
+    clearTimeout(tourSaveTimer);
+    tourSaveTimer = setTimeout(saveTourNow, 700);
+}
+
+function saveTourNow() {
+    clearTimeout(tourSaveTimer);
+    if (!tourVendor || !tourDirty) return;
+    tourDirty = false;
+
+    const notes = document.getElementById('tour-notes').value.trim() || null;
+    const payload = { inclusions: JSON.stringify(tourInc), notes: notes };
+
+    setTourStatus('saving');
+    fetch(`/api/wedding/vendors/${tourVendor.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    })
+    .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+    .then(updated => {
+        // Sync the in-memory vendor so cards/compare/edit stay fresh without reload
+        tourVendor.inclusions = updated.inclusions;
+        tourVendor.notes = updated.notes;
+        tourVendor._inc = { ...tourInc };
+        refreshVendorChips(tourVendor);
+        if (!document.getElementById('view-compare').classList.contains('hidden')) renderCompareView();
+        setTourStatus('saved');
+    })
+    .catch(() => { tourDirty = true; setTourStatus('error'); });
+}
+
+function closeTourMode() {
+    saveTourNow();  // flush pending changes
+    document.getElementById('tour-modal').classList.add('hidden');
+    lockScroll(false);
+    tourVendor = null;
+}
+
+document.getElementById('tour-notes').addEventListener('input', () => {
+    tourDirty = true;
+    scheduleTourSave();
+});
+
+/* ─── Global listeners ─────────────────────────────────────────── */
+// Close vendor modal on backdrop click
 document.getElementById('vendor-modal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
 });
 
-// Close modal on Escape key
+// Close modals on Escape key
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && !document.getElementById('vendor-modal').classList.contains('hidden')) closeModal();
+    if (e.key !== 'Escape') return;
+    if (!document.getElementById('tour-modal').classList.contains('hidden')) closeTourMode();
+    else if (!document.getElementById('vendor-modal').classList.contains('hidden')) closeModal();
 });
+
+/* ─── Init ─────────────────────────────────────────────────────── */
+// Portal the overlays to <body>: .main-content creates a stacking context
+// (z-index:10) that would trap them below the fixed navbar (z-index:200).
+['vendor-modal', 'tour-modal'].forEach(id => document.body.appendChild(document.getElementById(id)));
+refreshAllChips();
 </script>
 {% endblock %}

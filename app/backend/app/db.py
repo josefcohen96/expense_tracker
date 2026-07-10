@@ -591,24 +591,41 @@ def initialise_database() -> None:
     except Exception:
         pass
 
-    # Seed default rooms from venue if table is empty
+    # Default rooms for the venue: 3 caravans of 4, 3 tents of 10, 8 double rooms
+    default_rooms = (
+        [(f"קרוואן {i}", "קרוואן", 4) for i in range(1, 4)]
+        + [(f"אוהל {i}", "אוהל", 10) for i in range(1, 4)]
+        + [(f"חדר {i}", "זוגי", 2) for i in range(1, 9)]
+    )
+
+    # Names of the previous venue's default rooms — used to detect an
+    # untouched old seed so it can be replaced with the current one.
+    _old_default_room_names = {
+        "בית התה", "בית המטפל", "בית הסופר", "בית הנווד",
+        "בית אברהם", "בית המרפא", "בית שחרות", "בית השחר",
+    }
+
     try:
-        if not cur.execute("SELECT COUNT(*) FROM wedding_rooms").fetchone()[0]:
-            default_rooms = [
-                ("בית התה", "לינה משותפת", 30),
-                ("בית המטפל", "זוגי-מיטה זוגית", 2),
-                ("בית הסופר", "זוגי-מ. זוגית+1", 3),
-                ("בית הנווד", "זוגי-מיטה זוגית", 2),
-                ("בית אברהם", "יחידים", 7),
-                ("בית המרפא", "יחידים", 6),
-                ("בית שחרות", "משפחתי 3+2", 5),
-                ("בית השחר", "משפחתי 3+2", 5),
-            ]
+        existing_names = {
+            r[0] for r in cur.execute("SELECT name FROM wedding_rooms").fetchall()
+        }
+        if existing_names == _old_default_room_names:
+            # DB still holds the old venue's stock rooms — replace them.
+            # Room assignments to the old rooms are dropped; affected guests
+            # reappear in the "waiting for a room" list on the lodging page.
+            cur.execute(
+                "DELETE FROM wedding_room_assignments WHERE room_id IN "
+                "(SELECT id FROM wedding_rooms)"
+            )
+            cur.execute("DELETE FROM wedding_rooms")
+            existing_names = set()
+        if not existing_names:
             for name, room_type, capacity in default_rooms:
                 cur.execute(
                     "INSERT INTO wedding_rooms (name, room_type, max_capacity) VALUES (?,?,?)",
                     (name, room_type, capacity)
                 )
+        conn.commit()
     except Exception:
         pass
 

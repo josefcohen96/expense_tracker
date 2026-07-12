@@ -1686,6 +1686,36 @@ async def finances_backup(request: Request) -> HTMLResponse:
 # Wedding Module
 # ==============================
 
+def _wedding_total_budget(db_conn: sqlite3.Connection) -> tuple[float, float, float, float]:
+    """Total budget = guest count × avg per guest + our addition.
+
+    Falls back to the legacy manually-entered 'total_budget' setting when
+    none of the formula fields have been set yet.
+    Returns (total, guest_count, avg_per_guest, our_addition).
+    """
+    rows = db_conn.execute(
+        "SELECT key, value FROM wedding_settings WHERE key IN "
+        "('budget_guest_count','budget_avg_per_guest','budget_our_addition','total_budget')"
+    ).fetchall()
+    settings = {r["key"]: r["value"] for r in rows}
+
+    def _num(key: str) -> float:
+        try:
+            return float(settings.get(key) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    guest_count = _num("budget_guest_count")
+    avg_per_guest = _num("budget_avg_per_guest")
+    our_addition = _num("budget_our_addition")
+
+    if guest_count or avg_per_guest or our_addition:
+        total = guest_count * avg_per_guest + our_addition
+    else:
+        total = _num("total_budget")
+    return total, guest_count, avg_per_guest, our_addition
+
+
 @router.get("/wedding", response_class=HTMLResponse)
 async def wedding_dashboard(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     # Total expected attendance excludes declined guests so the cards sum back to total.
@@ -1708,9 +1738,8 @@ async def wedding_dashboard(request: Request, db_conn: sqlite3.Connection = Depe
     open_tasks   = db_conn.execute("SELECT COUNT(*) FROM wedding_tasks WHERE completed=0").fetchone()[0]
     urgent_tasks = db_conn.execute("SELECT COUNT(*) FROM wedding_tasks WHERE completed=0 AND priority='high'").fetchone()[0]
 
-    # Use manually-set total budget from settings
-    setting_row = db_conn.execute("SELECT value FROM wedding_settings WHERE key='total_budget'").fetchone()
-    total_budget = float(setting_row["value"]) if setting_row else 0.0
+    # Total budget derived from guests × avg per guest + our addition
+    total_budget, _, _, _ = _wedding_total_budget(db_conn)
 
     # Committed = only closed-deal vendors + manual actuals
     closed_vendors_total = db_conn.execute(
@@ -1877,11 +1906,9 @@ async def wedding_tasks_page(request: Request, db_conn: sqlite3.Connection = Dep
 
 @router.get("/wedding/budget", response_class=HTMLResponse)
 async def wedding_budget_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
-    # Load user-defined total budget
-    setting = db_conn.execute(
-        "SELECT value FROM wedding_settings WHERE key='total_budget'"
-    ).fetchone()
-    total_budget = float(setting["value"]) if setting else 0.0
+    # Load user-defined total budget (guests × avg per guest + our addition)
+    total_budget, budget_guest_count, budget_avg_per_guest, budget_our_addition = \
+        _wedding_total_budget(db_conn)
 
     # Vendor-derived rows — only vendors with a closed deal enter the budget
     vendor_rows = db_conn.execute(
@@ -1929,6 +1956,9 @@ async def wedding_budget_page(request: Request, db_conn: sqlite3.Connection = De
         "grand_committed": grand_committed,
         "grand_paid": grand_paid,
         "grand_left": grand_left,
+        "budget_guest_count": budget_guest_count,
+        "budget_avg_per_guest": budget_avg_per_guest,
+        "budget_our_addition": budget_our_addition,
     })
 
 

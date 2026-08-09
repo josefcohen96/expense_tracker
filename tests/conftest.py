@@ -28,6 +28,9 @@ def temp_db_path(tmp_path_factory) -> Path:
 def app_client(temp_db_path):
     os.environ["BUDGET_DB_PATH"] = str(temp_db_path)
     os.environ["AUTH_ENABLED"] = "0"
+    # TestClient sends "Host: testserver", which the Host-header check rejects
+    # unless it is listed. Only a default, so a caller can still override it.
+    os.environ.setdefault("ALLOWED_HOSTS", "testserver,localhost,127.0.0.1")
     # Ensure modules read the env var at import time and initialize schema/data
     import app.backend.app.db as db_module
     importlib.reload(db_module)

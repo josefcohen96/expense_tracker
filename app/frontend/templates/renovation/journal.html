@@ -1,0 +1,400 @@
+{% extends "renovation/base.html" %}
+{% import "renovation/_compare.html" as ba %}
+
+{% block reno_title %}יומן לפני ואחרי{% endblock %}
+{% block reno_subtitle %}איך הבית משתנה{% endblock %}
+
+{% block reno_content %}
+
+<div class="r-section-head">
+    <h1 class="r-page-title">יומן לפני ואחרי</h1>
+    {% if can_edit %}
+    <button onclick="openJournalModal()" class="r-btn r-btn-primary r-btn-sm">➕ תיעוד חדש</button>
+    {% endif %}
+</div>
+
+<p class="r-text" style="margin-bottom: 1rem;">
+    מצלמים לפני שמתחילים, מצלמים שוב כשמסיימים — ואז גוררים את הידית על התמונה כדי לראות את השינוי.
+</p>
+
+{% set room_q = '&room=' ~ room_filter if room_filter else '' %}
+{% set state_q = 'state=' ~ state_filter if state_filter else 'state=' %}
+<div class="r-chips">
+    <a href="?state={{ room_q }}" class="r-chip {% if not state_filter %}is-active{% endif %}">הכל</a>
+    <a href="?state=done{{ room_q }}" class="r-chip {% if state_filter == 'done' %}is-active{% endif %}">✨ מוכן להשוואה</a>
+    <a href="?state=waiting{{ room_q }}" class="r-chip {% if state_filter == 'waiting' %}is-active{% endif %}">
+        ⏳ מחכה לתמונה{% if waiting_total %} · {{ waiting_total }}{% endif %}
+    </a>
+</div>
+
+{% if rooms %}
+<div class="r-chips" style="margin-top: .5rem;">
+    <a href="?{{ state_q }}" class="r-chip {% if not room_filter %}is-active{% endif %}">כל החדרים</a>
+    {% for room in rooms %}
+    <a href="?{{ state_q }}&room={{ room.id }}" class="r-chip {% if room_filter == room.id %}is-active{% endif %}">
+        <span>{{ room.icon or '🏠' }}</span>{{ room.name }}
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if groups %}
+{% for group in groups %}
+<section class="r-section">
+    <div class="r-section-head">
+        <h2 class="r-title">{{ group.label }}</h2>
+        <span class="r-muted">{{ group.entries | length }} תיעודים</span>
+    </div>
+
+    <div class="r-grid r-grid-2">
+        {% for entry in group.entries %}
+        <article class="r-card r-card-flush">
+            {% if entry.before_photo and entry.after_photo %}
+                {{ ba.compare(entry) }}
+            {% elif entry.before_photo or entry.after_photo %}
+                {% set only_before = entry.before_photo is not none %}
+                <div class="r-journal-single">
+                    <img src="{{ ba.photo_url(entry.before_photo or entry.after_photo) }}"
+                         alt="{{ entry.title }}" loading="lazy">
+                    <span class="r-ba-tag r-ba-tag-before">{{ 'לפני' if only_before else 'אחרי' }}</span>
+                </div>
+                {% if can_edit %}
+                <button type="button" class="r-btn r-btn-ghost r-btn-block r-btn-sm"
+                        style="border-radius: 0; border-inline: 0;"
+                        onclick="pickJournalPhoto({{ entry.id }}, '{{ 'after' if only_before else 'before' }}')">
+                    📷 להוסיף תמונת {{ 'אחרי' if only_before else 'לפני' }}
+                </button>
+                {% endif %}
+            {% elif can_edit %}
+                <div class="r-grid r-grid-2" style="padding: 1rem 1rem 0;">
+                    <button type="button" class="r-journal-slot" onclick="pickJournalPhoto({{ entry.id }}, 'before')">
+                        <span class="r-journal-slot-icon">📷</span>
+                        <span class="r-journal-slot-title">תמונת "לפני"</span>
+                        <span class="r-muted">לחצו להעלאה</span>
+                    </button>
+                    <button type="button" class="r-journal-slot" onclick="pickJournalPhoto({{ entry.id }}, 'after')">
+                        <span class="r-journal-slot-icon">✨</span>
+                        <span class="r-journal-slot-title">תמונת "אחרי"</span>
+                        <span class="r-muted">לחצו להעלאה</span>
+                    </button>
+                </div>
+            {% endif %}
+
+            <div class="r-card-body">
+                <div class="r-row-between" style="margin-bottom: .5rem;">
+                    <span class="r-journal-date">📅 {{ entry.display_date }}</span>
+                    <span class="r-muted r-truncate">
+                        {% if entry.room_name %}{{ entry.room_icon or '🏠' }} {{ entry.room_name }}{% else %}כל הבית{% endif %}
+                    </span>
+                </div>
+
+                <h3 class="r-heading">{{ entry.title }}</h3>
+
+                {% if entry.notes %}
+                <p class="r-text r-pre-line" style="margin-top: .4rem;">{{ entry.notes }}</p>
+                {% endif %}
+
+                {% if not (entry.before_photo and entry.after_photo) %}
+                <p class="r-muted" style="margin-top: .5rem;">
+                    {% if entry.before_photo %}חסרה תמונת "אחרי" כדי להשוות.
+                    {% elif entry.after_photo %}חסרה תמונת "לפני" כדי להשוות.
+                    {% else %}עדיין בלי תמונות.{% endif %}
+                </p>
+                {% endif %}
+
+                {% if can_edit %}
+                <div class="r-row-between" style="margin-top: .85rem; padding-top: .7rem; border-top: 1px solid rgba(0,0,0,.06);">
+                    <span class="r-muted">{% if entry.author_name %}תועד על ידי {{ entry.author_name }}{% endif %}</span>
+                    <span class="r-row r-shrink-0" style="gap: .25rem;">
+                        <button class="r-icon-btn" aria-label="עריכת התיעוד" onclick='openJournalModal({{ entry | tojson }})'>✏️</button>
+                        <button class="r-icon-btn r-icon-btn-danger" aria-label="מחיקת התיעוד" onclick="deleteJournalEntry({{ entry.id }})">🗑️</button>
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+{% endfor %}
+{% else %}
+<div class="r-empty">
+    <div class="r-empty-icon">📸</div>
+    <h2 class="r-empty-title">היומן עוד ריק</h2>
+    <p class="r-empty-text">
+        {% if state_filter or room_filter %}
+            נסו לשנות את הסינון למעלה.
+        {% else %}
+            לפני שמתחילים לעבוד בחדר — צלמו אותו. אחרי שמסיימים, צלמו שוב מאותה זווית, ותוכלו לגרור בין שתי התמונות.
+        {% endif %}
+    </p>
+    {% if can_edit and not state_filter and not room_filter %}
+    <button onclick="openJournalModal()" class="r-btn r-btn-primary">➕ התיעוד הראשון</button>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if can_edit %}
+<div id="journal-modal" class="r-modal" role="dialog" aria-modal="true" aria-labelledby="journal-modal-title">
+    <div class="r-modal-backdrop" onclick="renoCloseModal('journal-modal')"></div>
+    <div class="r-modal-card">
+        <h2 id="journal-modal-title" class="r-modal-title">תיעוד חדש</h2>
+
+        <div class="r-field">
+            <label class="r-label" for="journal-title">מה תיעדנו</label>
+            <input id="journal-title" type="text" class="r-input" placeholder="למשל: צביעת הסלון">
+        </div>
+
+        <div class="r-field">
+            <span class="r-label">התמונות</span>
+            <div class="r-uploads">
+                <button type="button" class="r-upload" id="journal-tile-before"
+                        onclick="pickModalPhoto('before')" aria-label="בחירת תמונת לפני"></button>
+                <button type="button" class="r-upload" id="journal-tile-after"
+                        onclick="pickModalPhoto('after')" aria-label="בחירת תמונת אחרי"></button>
+            </div>
+            <p class="r-muted" style="margin-top: .4rem;">
+                אפשר להתחיל רק עם תמונת "לפני" ולהוסיף את השנייה כשמסיימים.
+            </p>
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="journal-date">תאריך</label>
+            <input id="journal-date" type="date" class="r-input">
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="journal-room">איזה חדר</label>
+            <select id="journal-room" class="r-input">
+                <option value="">כל הבית</option>
+                {% for room in rooms %}
+                <option value="{{ room.id }}">{{ room.icon or '🏠' }} {{ room.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="journal-notes">מה עשינו</label>
+            <textarea id="journal-notes" class="r-input" rows="3"
+                      placeholder="כמה זמן זה לקח, מה היה קשה, מה כדאי לזכור לפעם הבאה..."></textarea>
+        </div>
+
+        <input type="hidden" id="journal-id">
+
+        <div class="r-modal-actions">
+            <button onclick="saveJournalEntry()" id="journal-save-btn" class="r-btn r-btn-primary r-grow">שמירה</button>
+            <button onclick="renoCloseModal('journal-modal')" class="r-btn r-btn-ghost">ביטול</button>
+        </div>
+    </div>
+</div>
+
+<!-- One hidden picker serves every upload button on the page. -->
+<input type="file" id="journal-file-input" accept="image/*" hidden>
+{% endif %}
+
+{% endblock %}
+
+{% block reno_scripts %}
+{% if can_edit %}
+<script>
+    const TODAY = "{{ today }}";
+    const fileInput = document.getElementById('journal-file-input');
+
+    // Photos chosen in the form but not uploaded yet — a brand new entry has no
+    // id to upload against until it is saved.
+    const pendingPhotos = { before: null, after: null };
+    const existingPhotos = { before: null, after: null };
+    const previewUrls = { before: null, after: null };
+
+    function photoUrl(name) {
+        return '/api/renovation/journal-photos/' + name;
+    }
+
+    /**
+     * Shrink a photo before it leaves the phone: a 12MP camera file is ~5MB and
+     * nothing here is shown wider than a screen. Also normalises formats the
+     * server does not accept (an iPhone HEIC) into plain JPEG.
+     */
+    async function prepareImage(file) {
+        if (!file.type.startsWith('image/') && !/\.(hei[cf])$/i.test(file.name || '')) return file;
+        let bitmap;
+        try {
+            bitmap = await createImageBitmap(file);
+        } catch (_) {
+            return file;  // Let the server decide; it answers with a clear message.
+        }
+        const maxSide = 1600;
+        const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(bitmap.width * scale);
+        canvas.height = Math.round(bitmap.height * scale);
+        canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        bitmap.close && bitmap.close();
+        const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85));
+        if (!blob) return file;
+        return new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+    }
+
+    /** Open the OS picker and hand the chosen file to `onPick`. */
+    function choosePhoto(onPick) {
+        fileInput.value = '';
+        fileInput.onchange = async () => {
+            const file = fileInput.files && fileInput.files[0];
+            if (file) await onPick(file);
+        };
+        fileInput.click();
+    }
+
+    async function uploadPhoto(entryId, slot, file) {
+        const form = new FormData();
+        form.append('file', await prepareImage(file));
+        return renoApi(`/api/renovation/journal/${entryId}/photo/${slot}`, 'POST', form);
+    }
+
+    /** Upload straight from a card — an entry that already exists needs no form. */
+    function pickJournalPhoto(entryId, slot) {
+        choosePhoto(async (file) => {
+            renoToast('מעלה את התמונה...');
+            const result = await uploadPhoto(entryId, slot, file);
+            if (result) window.location.reload();
+        });
+    }
+
+    function pickModalPhoto(slot) {
+        choosePhoto(async (file) => {
+            pendingPhotos[slot] = file;
+            renderTile(slot);
+        });
+    }
+
+    async function clearModalPhoto(event, slot) {
+        event.stopPropagation();
+        if (pendingPhotos[slot]) {
+            pendingPhotos[slot] = null;
+            renderTile(slot);
+            return;
+        }
+        const id = document.getElementById('journal-id').value;
+        if (!id || !existingPhotos[slot]) return;
+        if (!confirm('למחוק את התמונה?')) return;
+        const result = await renoApi(`/api/renovation/journal/${id}/photo/${slot}`, 'DELETE');
+        if (!result) return;
+        existingPhotos[slot] = null;
+        renderTile(slot);
+    }
+
+    function renderTile(slot) {
+        const tile = document.getElementById('journal-tile-' + slot);
+        const label = slot === 'before' ? 'לפני' : 'אחרי';
+
+        if (previewUrls[slot]) {
+            URL.revokeObjectURL(previewUrls[slot]);
+            previewUrls[slot] = null;
+        }
+
+        let src = null;
+        if (pendingPhotos[slot]) {
+            src = previewUrls[slot] = URL.createObjectURL(pendingPhotos[slot]);
+        } else if (existingPhotos[slot]) {
+            src = photoUrl(existingPhotos[slot]);
+        }
+
+        tile.replaceChildren();
+        if (!src) {
+            tile.insertAdjacentHTML('beforeend',
+                `<span class="r-upload-icon">${slot === 'before' ? '📷' : '✨'}</span>` +
+                `<span>תמונת "${label}"</span>`);
+            return;
+        }
+
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = 'תמונת ' + label;
+        const caption = document.createElement('span');
+        caption.className = 'r-upload-label';
+        caption.textContent = label;
+        const clear = document.createElement('span');
+        clear.className = 'r-upload-clear';
+        clear.textContent = '✕';
+        clear.setAttribute('role', 'button');
+        clear.setAttribute('aria-label', 'הסרת התמונה');
+        clear.onclick = (e) => clearModalPhoto(e, slot);
+        tile.append(img, caption, clear);
+    }
+
+    function openJournalModal(entry) {
+        document.getElementById('journal-modal-title').textContent = entry ? 'עריכת תיעוד' : 'תיעוד חדש';
+        document.getElementById('journal-id').value = entry ? entry.id : '';
+        document.getElementById('journal-title').value = entry ? entry.title : '';
+        document.getElementById('journal-date').value = entry && entry.entry_date ? entry.entry_date : TODAY;
+        document.getElementById('journal-room').value = entry && entry.room_id ? String(entry.room_id) : '';
+        document.getElementById('journal-notes').value = entry && entry.notes ? entry.notes : '';
+
+        pendingPhotos.before = pendingPhotos.after = null;
+        existingPhotos.before = entry ? entry.before_photo : null;
+        existingPhotos.after = entry ? entry.after_photo : null;
+        renderTile('before');
+        renderTile('after');
+
+        renoOpenModal('journal-modal');
+        setTimeout(() => document.getElementById('journal-title').focus(), 60);
+    }
+
+    async function saveJournalEntry() {
+        const id = document.getElementById('journal-id').value;
+        const title = document.getElementById('journal-title').value.trim();
+        if (!title) {
+            renoToast('צריך לכתוב מה תיעדנו', true);
+            document.getElementById('journal-title').focus();
+            return;
+        }
+        const roomValue = document.getElementById('journal-room').value;
+        const body = {
+            title,
+            entry_date: document.getElementById('journal-date').value || null,
+            room_id: roomValue ? Number(roomValue) : null,
+            notes: document.getElementById('journal-notes').value.trim() || null,
+        };
+
+        const saveBtn = document.getElementById('journal-save-btn');
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'שומר...';
+        const saved = await renoApi(
+            id ? `/api/renovation/journal/${id}` : '/api/renovation/journal',
+            id ? 'PUT' : 'POST',
+            body,
+        );
+
+        // The entry is saved either way; a photo that fails to upload leaves the
+        // rest of the entry intact and says so.
+        if (saved) {
+            for (const slot of ['before', 'after']) {
+                if (!pendingPhotos[slot]) continue;
+                saveBtn.textContent = 'מעלה תמונות...';
+                await uploadPhoto(saved.id, slot, pendingPhotos[slot]);
+            }
+        }
+
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'שמירה';
+        if (!saved) return;
+        renoCloseModal('journal-modal');
+        window.location.reload();
+    }
+
+    async function deleteJournalEntry(id) {
+        if (!confirm('למחוק את התיעוד? גם התמונות יימחקו.')) return;
+        const result = await renoApi(`/api/renovation/journal/${id}`, 'DELETE');
+        if (result) window.location.reload();
+    }
+
+    // Same deep link as the other pages: ?new=1 opens the form once.
+    if (new URLSearchParams(window.location.search).get('new') === '1') {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('new');
+        window.history.replaceState({}, '', url);
+        openJournalModal();
+    }
+</script>
+{% endif %}
+{% endblock %}

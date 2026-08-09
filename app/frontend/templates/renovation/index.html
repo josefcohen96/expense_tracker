@@ -1,4 +1,5 @@
 {% extends "renovation/base.html" %}
+{% import "renovation/_compare.html" as ba %}
 
 {% block reno_title %}מצב השיפוץ{% endblock %}
 {% block reno_subtitle %}מצב השיפוץ שלנו{% endblock %}
@@ -34,7 +35,7 @@
 
 <!-- Key numbers -->
 <section class="r-section">
-    <div class="r-grid r-grid-5">
+    <div class="r-grid r-grid-6">
         <a href="/renovation/tasks?status=open" class="r-card r-stat">
             <div class="r-stat-icon">📋</div>
             <div class="r-stat-value">{{ open_tasks }}</div>
@@ -60,14 +61,37 @@
             <div class="r-stat-value">{{ total_ideas }}</div>
             <div class="r-stat-label">רעיונות{% if approved_ideas %} · {{ approved_ideas }} אושרו{% endif %}</div>
         </a>
+        <a href="/renovation/journal" class="r-card r-stat">
+            <div class="r-stat-icon">📸</div>
+            <div class="r-stat-value">{{ journal_count }}</div>
+            <div class="r-stat-label">תיעודים ביומן</div>
+        </a>
     </div>
 </section>
 
+{% if latest_pair %}
+<section class="r-section">
+    <div class="r-section-head">
+        <h2 class="r-title">✨ השינוי האחרון</h2>
+        <a href="/renovation/journal" class="r-link">לכל היומן</a>
+    </div>
+    <div class="r-card r-card-flush">
+        {{ ba.compare(latest_pair) }}
+        <div class="r-card-body">
+            <div class="r-row-between">
+                <h3 class="r-heading r-truncate">{{ latest_pair.title }}</h3>
+                <span class="r-journal-date r-shrink-0">{{ latest_pair.display_date }}</span>
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}
 
 {% if can_edit %}
 <section class="r-section">
-    <div class="r-grid r-grid-2">
+    <div class="r-grid r-grid-3">
         <a href="/renovation/tasks?new=1" class="r-btn r-btn-primary r-btn-block">➕ משימה חדשה</a>
+        <a href="/renovation/journal?new=1" class="r-btn r-btn-ghost r-btn-block">📸 תיעוד חדש</a>
         <a href="/renovation/ideas?new=1" class="r-btn r-btn-ghost r-btn-block">💡 רעיון חדש</a>
     </div>
 </section>

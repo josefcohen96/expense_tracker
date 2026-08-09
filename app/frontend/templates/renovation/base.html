@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="/static/css/renovation.css?v=20260809">
+    <link rel="stylesheet" href="/static/css/renovation.css?v=20260809-journal">
     {% block reno_head %}{% endblock %}
 </head>
 
@@ -33,6 +33,8 @@
                     {% if user_display_name %}
                     <span class="r-header-user r-hide-sm">שלום, {{ user_display_name }}</span>
                     {% endif %}
+                    <button type="button" class="r-help-btn" onclick="renoTourOpen(0)"
+                            aria-label="איך משתמשים באתר">?</button>
                     <a href="/logout" class="r-nav-link">יציאה</a>
                 </div>
             </div>
@@ -40,6 +42,7 @@
             <nav class="r-nav" aria-label="ניווט ראשי">
                 <a href="/renovation" class="r-nav-link {% if request.url.path in ['/renovation', '/renovation/'] %}is-active{% endif %}">בית</a>
                 <a href="/renovation/tasks" class="r-nav-link {% if request.url.path.startswith('/renovation/tasks') %}is-active{% endif %}">משימות</a>
+                <a href="/renovation/journal" class="r-nav-link {% if request.url.path.startswith('/renovation/journal') %}is-active{% endif %}">יומן</a>
                 <a href="/renovation/ideas" class="r-nav-link {% if request.url.path.startswith('/renovation/ideas') %}is-active{% endif %}">רעיונות</a>
                 <a href="/renovation/supplies" class="r-nav-link {% if request.url.path.startswith('/renovation/supplies') %}is-active{% endif %}">ציוד</a>
                 <a href="/renovation/rooms" class="r-nav-link {% if request.url.path.startswith('/renovation/rooms') %}is-active{% endif %}">חדרים</a>
@@ -67,6 +70,9 @@
         <a href="/renovation/tasks" class="r-tab {% if request.url.path.startswith('/renovation/tasks') %}is-active{% endif %}">
             <span class="r-tab-icon">✅</span><span>משימות</span>
         </a>
+        <a href="/renovation/journal" class="r-tab {% if request.url.path.startswith('/renovation/journal') %}is-active{% endif %}">
+            <span class="r-tab-icon">📸</span><span>יומן</span>
+        </a>
         <a href="/renovation/ideas" class="r-tab {% if request.url.path.startswith('/renovation/ideas') %}is-active{% endif %}">
             <span class="r-tab-icon">💡</span><span>רעיונות</span>
         </a>
@@ -79,6 +85,38 @@
     </nav>
 
     <div id="reno-toast" class="r-toast" role="status" aria-live="polite"></div>
+
+    <!-- Fullscreen before/after viewer. The figure inside is cloned from
+         whichever comparison the user tapped, so there is no second copy of
+         that markup to keep in sync. -->
+    <div id="reno-compare-lightbox" class="r-modal r-lightbox" role="dialog" aria-modal="true"
+         aria-labelledby="reno-compare-title">
+        <div class="r-modal-backdrop" onclick="renoCloseModal('reno-compare-lightbox')"></div>
+        <div class="r-modal-card">
+            <h2 id="reno-compare-title" class="r-modal-title"></h2>
+            <div id="reno-compare-slot"></div>
+            <div class="r-modal-actions">
+                <button onclick="renoCloseModal('reno-compare-lightbox')" class="r-btn r-btn-ghost r-grow">סגירה</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Guided tour. Opens by itself on a first visit and from the "?" button. -->
+    <div id="reno-tour" class="r-tour" role="dialog" aria-modal="true" aria-labelledby="reno-tour-title">
+        <div class="r-tour-backdrop" onclick="renoTourClose()"></div>
+        <div class="r-tour-card">
+            <button type="button" class="r-tour-skip" onclick="renoTourClose()">דילוג</button>
+            <div class="r-tour-icon" id="reno-tour-icon">👋</div>
+            <h2 class="r-tour-title" id="reno-tour-title"></h2>
+            <p class="r-tour-text" id="reno-tour-text"></p>
+            <a class="r-tour-cta" id="reno-tour-cta" href="#"></a>
+            <div class="r-tour-dots" id="reno-tour-dots"></div>
+            <div class="r-tour-actions">
+                <button type="button" class="r-btn r-btn-ghost" id="reno-tour-prev" onclick="renoTourGo(-1)">הקודם</button>
+                <button type="button" class="r-btn r-btn-primary r-grow" id="reno-tour-next" onclick="renoTourGo(1)">הבא</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         const RENO_CAN_EDIT = {{ 'true' if can_edit else 'false' }};
@@ -96,13 +134,15 @@
         /**
          * Single entry point for every write the renovation pages make.
          * Surfaces the server's Hebrew error message instead of failing silently.
+         * A FormData body is sent as-is, so photo uploads get the same handling.
          */
         async function renoApi(url, method, body) {
+            const isForm = body instanceof FormData;
             try {
                 const res = await fetch(url, {
                     method,
-                    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-                    body: body ? JSON.stringify(body) : undefined,
+                    headers: (body && !isForm) ? { 'Content-Type': 'application/json' } : undefined,
+                    body: isForm ? body : (body ? JSON.stringify(body) : undefined),
                 });
                 if (res.status === 401 || (res.redirected && res.url.includes('/login'))) {
                     window.location.href = '/login';
@@ -138,6 +178,266 @@
             if (e.key !== 'Escape') return;
             document.querySelectorAll('.r-modal.is-open').forEach(m => m.classList.remove('is-open'));
             document.body.style.overflow = '';
+        });
+
+        /* ── Before/after comparison ─────────────────────────────────────── */
+
+        const RENO_REDUCED_MOTION =
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        /** Move a comparison's divider. `pos` is 0 (all "before") to 100 (all "after"). */
+        function renoComparePos(fig, pos) {
+            pos = Math.max(0, Math.min(100, pos));
+            fig.style.setProperty('--pos', pos + '%');
+            fig.dataset.pos = pos;
+            const handle = fig.querySelector('[data-reno-compare-handle]');
+            if (handle) handle.setAttribute('aria-valuenow', Math.round(pos));
+        }
+
+        /** Glide to a position instead of jumping — used by the preset buttons. */
+        function renoCompareTo(fig, target, duration) {
+            if (fig._renoAnim) cancelAnimationFrame(fig._renoAnim);
+            const from = Number(fig.dataset.pos || 55);
+            if (RENO_REDUCED_MOTION) return renoComparePos(fig, target);
+            const start = performance.now();
+            const span = duration || 420;
+            const step = (now) => {
+                const t = Math.min(1, (now - start) / span);
+                const eased = 1 - Math.pow(1 - t, 3);
+                renoComparePos(fig, from + (target - from) * eased);
+                if (t < 1) fig._renoAnim = requestAnimationFrame(step);
+            };
+            fig._renoAnim = requestAnimationFrame(step);
+        }
+
+        function renoInitCompare(root) {
+            (root || document).querySelectorAll('[data-reno-compare]').forEach((fig) => {
+                if (fig.dataset.renoReady) return;
+                fig.dataset.renoReady = '1';
+                renoComparePos(fig, Number(fig.dataset.pos || 55));
+
+                // The moment a person touches the widget, any animation we
+                // started on our own gets out of the way — including the timers
+                // for the parts of the intro sweep that have not run yet.
+                const touched = () => {
+                    fig.classList.add('is-touched');
+                    (fig._renoIntroTimers || []).forEach(clearTimeout);
+                    fig._renoIntroTimers = [];
+                    if (fig._renoAnim) {
+                        cancelAnimationFrame(fig._renoAnim);
+                        fig._renoAnim = null;
+                    }
+                };
+
+                const posFrom = (clientX) => {
+                    const rect = fig.getBoundingClientRect();
+                    return ((clientX - rect.left) / rect.width) * 100;
+                };
+
+                let dragging = false;
+                fig.addEventListener('pointerdown', (e) => {
+                    // The overlay buttons handle their own clicks.
+                    if (e.target.closest('.r-ba-controls, .r-ba-zoom')) return;
+                    dragging = true;
+                    touched();
+                    fig.classList.add('is-dragging');
+                    fig.setPointerCapture(e.pointerId);
+                    renoComparePos(fig, posFrom(e.clientX));
+                });
+
+                fig.addEventListener('pointermove', (e) => {
+                    if (!dragging) return;
+                    e.preventDefault();
+                    renoComparePos(fig, posFrom(e.clientX));
+                });
+
+                const stop = (e) => {
+                    if (!dragging) return;
+                    dragging = false;
+                    fig.classList.remove('is-dragging');
+                    if (fig.hasPointerCapture && fig.hasPointerCapture(e.pointerId)) {
+                        fig.releasePointerCapture(e.pointerId);
+                    }
+                };
+                fig.addEventListener('pointerup', stop);
+                fig.addEventListener('pointercancel', stop);
+
+                const handle = fig.querySelector('[data-reno-compare-handle]');
+                if (handle) {
+                    // Arrow keys move the divider physically, so the widget works
+                    // the same for a keyboard user as it looks on screen.
+                    handle.addEventListener('keydown', (e) => {
+                        const keys = { ArrowLeft: -5, ArrowRight: 5, Home: -100, End: 100 };
+                        if (!(e.key in keys)) return;
+                        e.preventDefault();
+                        touched();
+                        renoComparePos(fig, Number(fig.dataset.pos || 55) + keys[e.key]);
+                    });
+                }
+
+                fig.querySelectorAll('[data-reno-compare-set]').forEach((btn) => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        touched();
+                        renoCompareTo(fig, Number(btn.dataset.renoCompareSet));
+                    });
+                });
+
+                const zoom = fig.querySelector('[data-reno-compare-zoom]');
+                if (zoom) zoom.addEventListener('click', () => renoOpenCompare(fig));
+
+                // First time it scrolls into view, sweep the divider once so it
+                // is obvious the picture can be played with.
+                if (!RENO_REDUCED_MOTION && 'IntersectionObserver' in window) {
+                    const observer = new IntersectionObserver((entries) => {
+                        entries.forEach((entry) => {
+                            if (!entry.isIntersecting) return;
+                            observer.disconnect();
+                            renoCompareTo(fig, 80, 600);
+                            fig._renoIntroTimers = [
+                                setTimeout(() => renoCompareTo(fig, 25, 700), 700),
+                                setTimeout(() => renoCompareTo(fig, 55, 600), 1500),
+                            ];
+                        });
+                    }, { threshold: 0.5 });
+                    observer.observe(fig);
+                }
+            });
+        }
+
+        /** Open a copy of a comparison in the fullscreen viewer. */
+        function renoOpenCompare(fig) {
+            const slot = document.getElementById('reno-compare-slot');
+            const clone = fig.cloneNode(true);
+            delete clone.dataset.renoReady;
+            clone.dataset.pos = 55;
+            const zoomBtn = clone.querySelector('[data-reno-compare-zoom]');
+            if (zoomBtn) zoomBtn.remove();
+            slot.replaceChildren(clone);
+            document.getElementById('reno-compare-title').textContent = fig.dataset.title || 'לפני ואחרי';
+            renoInitCompare(slot);
+            clone.classList.add('is-touched');
+            renoOpenModal('reno-compare-lightbox');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => renoInitCompare(document));
+
+        /* ── Guided tour ─────────────────────────────────────────────────── */
+
+        // Bump the version to show the tour again after a real change.
+        const RENO_TOUR_KEY = 'reno_tour_seen_v1';
+
+        const RENO_TOUR_STEPS = [
+            {
+                icon: '👋',
+                title: 'ברוכים הבאים לשיפוץ שלנו',
+                text: 'כאן מנהלים את כל השיפוץ — מה צריך לעשות, מה צריך לקנות, איזה רעיונות אספנו ואיך הבית משתנה. הכל נשמר אוטומטית ושניכם רואים את אותו הדבר.',
+            },
+            {
+                icon: '✅',
+                title: 'משימות',
+                text: 'כל דבר שצריך לעשות בעצמנו. לוחצים על העיגול כדי לסמן שהושלם, אפשר לקבוע דחיפות ותאריך יעד, ולסנן לפי חדר. מה שבאיחור יקפוץ לכם בעמוד הבית.',
+                cta: 'לעמוד המשימות',
+                href: '/renovation/tasks',
+            },
+            {
+                icon: '📸',
+                title: 'יומן לפני ואחרי',
+                text: 'לפני שמתחילים לעבוד — מצלמים. כשמסיימים — מצלמים שוב מאותה זווית. אחר כך גוררים את הידית על התמונה ורואים את השינוי קורה. זה החלק הכי מספק.',
+                cta: 'ליומן',
+                href: '/renovation/journal',
+            },
+            {
+                icon: '🧰',
+                title: 'ציוד',
+                text: 'רשימת הקניות. אפשר לתלות פריט על משימה מסוימת, ואז רואים מראש מה חסר כדי בכלל להתחיל אותה. מסודר לפי חדרים, כמו מעבר במעברים בחנות.',
+                cta: 'לרשימת הציוד',
+                href: '/renovation/supplies',
+            },
+            {
+                icon: '💡',
+                title: 'רעיונות',
+                text: 'כל השראה שראיתם — תמונה, קישור או סתם מחשבה. מסמנים "שוקלים", "אושר" או "לא מתאים", וצובעים את הכרטיס כדי שיהיה קל למצוא.',
+                cta: 'לרעיונות',
+                href: '/renovation/ideas',
+            },
+            {
+                icon: '🚪',
+                title: 'חדרים ועמוד הבית',
+                text: 'בעמוד החדרים רואים כמה התקדמנו בכל חדר, ובעמוד הבית את התמונה הכוללת. אפשר לפתוח את ההסבר הזה שוב בכל רגע מכפתור ה־? למעלה.',
+                cta: 'לעמוד הבית',
+                href: '/renovation',
+            },
+        ];
+
+        let renoTourStep = 0;
+
+        function renoTourRender() {
+            const step = RENO_TOUR_STEPS[renoTourStep];
+            document.getElementById('reno-tour-icon').textContent = step.icon;
+            document.getElementById('reno-tour-title').textContent = step.title;
+            document.getElementById('reno-tour-text').textContent = step.text;
+
+            const cta = document.getElementById('reno-tour-cta');
+            if (step.cta) {
+                cta.textContent = step.cta + ' ←';
+                cta.href = step.href;
+                cta.style.display = 'inline-block';
+            } else {
+                cta.style.display = 'none';
+            }
+
+            const dots = document.getElementById('reno-tour-dots');
+            dots.replaceChildren(...RENO_TOUR_STEPS.map((_, i) => {
+                const dot = document.createElement('span');
+                dot.className = 'r-tour-dot' + (i === renoTourStep ? ' is-active' : '');
+                return dot;
+            }));
+
+            const isLast = renoTourStep === RENO_TOUR_STEPS.length - 1;
+            document.getElementById('reno-tour-next').textContent = isLast ? 'יאללה, מתחילים' : 'הבא';
+            // Hidden rather than invisible, so "next" fills the row on step one.
+            document.getElementById('reno-tour-prev').style.display = renoTourStep ? '' : 'none';
+            // Restart the pop animation on the icon for the new step.
+            const icon = document.getElementById('reno-tour-icon');
+            icon.style.animation = 'none';
+            void icon.offsetWidth;
+            icon.style.animation = '';
+        }
+
+        function renoTourOpen(step) {
+            renoTourStep = step || 0;
+            renoTourRender();
+            document.getElementById('reno-tour').classList.add('is-open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function renoTourClose() {
+            document.getElementById('reno-tour').classList.remove('is-open');
+            document.body.style.overflow = '';
+            try { localStorage.setItem(RENO_TOUR_KEY, '1'); } catch (_) { /* private mode */ }
+        }
+
+        function renoTourGo(delta) {
+            const next = renoTourStep + delta;
+            if (next < 0) return;
+            if (next >= RENO_TOUR_STEPS.length) return renoTourClose();
+            renoTourStep = next;
+            renoTourRender();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (!document.getElementById('reno-tour').classList.contains('is-open')) return;
+            if (e.key === 'Escape') return renoTourClose();
+            // The page is RTL, so the right arrow means "back" to a Hebrew reader.
+            if (e.key === 'ArrowLeft') renoTourGo(1);
+            if (e.key === 'ArrowRight') renoTourGo(-1);
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            let seen = '1';
+            try { seen = localStorage.getItem(RENO_TOUR_KEY); } catch (_) { /* private mode */ }
+            if (!seen) renoTourOpen(0);
         });
     </script>
 

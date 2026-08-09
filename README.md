@@ -11,6 +11,7 @@ A modern, full-stack personal management application built with Python (FastAPI)
 - **Recurring Expenses**: Automated handling of monthly recurring payments.
 - **Wedding Planning Module**: Guests, seating, vendors, budget, tasks, and timeline management.
 - **Workout Tracking Module**: Log and review training sessions.
+- **Home Renovation Module** (`/renovation`): Hebrew, mobile-first site with its own UI for tracking renovation tasks, ideas (with photo/inspiration links), and room-by-room progress.
 - **Responsive Design**: Mobile-friendly interface with offline support (service worker).
 
 ## 🛠️ Technologies Used
@@ -80,6 +81,31 @@ If you prefer running it locally without Docker:
 
 5.  **Access the application:**
     Open `http://localhost:8080` in your browser.
+
+## 🔑 Users & Configuration
+
+Credentials and secrets come from environment variables — there are no defaults in the repo.
+
+| Variable | Purpose |
+| --- | --- |
+| `SESSION_SECRET_KEY` | Signs session/auth cookies. Generate with `python -c "import secrets; print(secrets.token_urlsafe(64))"`. |
+| `USER_PASSWORD_YOSEF` | Password for the `yosef` login. |
+| `USER_PASSWORD_KARINA` | Password for the `karina` login. |
+| `USER_PASSWORD_TSAHALA` | Password for the `tsahala` login (renovation module). |
+| `ALLOWED_HOSTS` | Comma-separated hosts accepted by the Host-header check. |
+
+Each user only sees the modules they own — enforced in `app/backend/app/services/access.py`
+and applied by the auth middleware, so blocked pages **and** blocked API calls are both denied:
+
+| User | Finances / Wedding / Workouts | Renovation |
+| --- | --- | --- |
+| `yosef` | ✅ | ✅ full access |
+| `karina` | ✅ | 🚫 hidden and blocked |
+| `tsahala` | 🚫 blocked, redirected to `/renovation` | ✅ full access |
+
+Adding a user means adding it to `ALL_USERNAMES` in `access.py` and setting the matching
+`USER_PASSWORD_<NAME>` variable; a missing variable fails that login loudly instead of
+falling back to a default.
 
 ## 📂 Project Structure
 

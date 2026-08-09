@@ -563,6 +563,9 @@
 </head>
 
 <body class="bg-gray-50 min-h-screen full-viewport-safe {% block body_class %}{% endblock %}">
+    {#- Resolved by AuthMiddleware; falls back to the session for public pages. -#}
+    {% set current_username = ((request.state.user or request.session.get('user') or {}).get('username') or '') | upper %}
+    {% set show_renovation = current_username in ['YOSEF', 'TSAHALA'] %}
     <!-- Main Navigation Bar -->
     <nav class="nav-gradient text-white shadow-lg">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -592,6 +595,13 @@
                         <i class="fas fa-dumbbell"></i>
                         אימונים
                     </a>
+                    {% if show_renovation %}
+                    <a href="/renovation"
+                        class="nav-link px-4 py-2 rounded-xl text-sm font-semibold transition-colors animate-sequence flex items-center gap-2 {% if request.path.startswith('/renovation') %}is-active{% endif %}">
+                        <span>🏡</span>
+                        שיפוץ
+                    </a>
+                    {% endif %}
                 </div>
 
                 <div class="hidden md:flex items-center space-x-4 space-x-reverse">
@@ -647,6 +657,13 @@
                     <i class="fas fa-dumbbell"></i>
                     <span>אימונים</span>
                 </a>
+                {% if show_renovation %}
+                <a href="/renovation"
+                    class="mobile-menu-link {% if request.path.startswith('/renovation') %}is-active{% endif %}">
+                    <span class="text-base">🏡</span>
+                    <span>שיפוץ</span>
+                </a>
+                {% endif %}
                 <div class="border-t border-white/10 my-2"></div>
                 {% if request.session.get('user') %}
                 <div class="px-4 py-2 text-sm text-white/80">
@@ -706,6 +723,11 @@
                         <li><a href="/workouts" class="text-gray-600 hover:text-purple-700 inline-flex items-center gap-2">
                             <i class="fas fa-dumbbell text-xs opacity-70"></i>אימונים
                         </a></li>
+                        {% if show_renovation %}
+                        <li><a href="/renovation" class="text-gray-600 hover:text-purple-700 inline-flex items-center gap-2">
+                            <span class="text-xs opacity-70">🏡</span>שיפוץ הבית
+                        </a></li>
+                        {% endif %}
                     </ul>
                 </div>
 

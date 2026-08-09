@@ -1,0 +1,188 @@
+{% extends "renovation/base.html" %}
+
+{% block reno_title %}חדרים{% endblock %}
+{% block reno_subtitle %}חדר אחרי חדר{% endblock %}
+
+{% block reno_content %}
+
+<div class="r-section-head">
+    <h1 class="r-page-title">חדרים</h1>
+    {% if can_edit %}
+    <button onclick="openRoomModal()" class="r-btn r-btn-primary r-btn-sm">➕ חדר חדש</button>
+    {% endif %}
+</div>
+
+{% if room_cards %}
+<div class="r-grid r-grid-2">
+    {% for room in room_cards %}
+    <div class="r-card r-card-flush">
+        {% if room.image_url %}
+        <img src="{{ room.image_url }}" alt="{{ room.name }}" loading="lazy"
+             class="r-card-image r-card-image-sm" onerror="this.remove()">
+        {% endif %}
+        <div class="r-card-body">
+            <div class="r-row" style="margin-bottom: .75rem;">
+                <span class="r-shrink-0" style="font-size: 2rem; line-height: 1;">{{ room.icon or '🏠' }}</span>
+                <span class="r-grow">
+                    <span class="r-title r-truncate" style="display: block;">{{ room.name }}</span>
+                    <span class="r-meta">
+                        {% if room.total %}<span>{{ room.done }}/{{ room.total }} משימות</span>{% else %}<span>עדיין אין משימות</span>{% endif %}
+                        {% if room.ideas %}<span>{% if room.ideas == 1 %}רעיון אחד{% else %}{{ room.ideas }} רעיונות{% endif %}</span>{% endif %}
+                    </span>
+                </span>
+                {% if can_edit %}
+                <span class="r-row r-shrink-0" style="gap: .25rem;">
+                    <button class="r-icon-btn" aria-label="עריכת החדר" onclick='openRoomModal({{ room | tojson }})'>✏️</button>
+                    <button class="r-icon-btn r-icon-btn-danger" aria-label="מחיקת החדר"
+                            onclick="deleteRoom({{ room.id }}, {{ room.total }})">🗑️</button>
+                </span>
+                {% endif %}
+            </div>
+
+            <div class="r-progress" style="margin-bottom: .85rem;">
+                <div class="r-progress-fill" style="width: {{ room.percent }}%"></div>
+            </div>
+
+            {% if room.notes %}
+            <p class="r-text r-pre-line" style="margin-bottom: .85rem;">{{ room.notes }}</p>
+            {% endif %}
+
+            <div class="r-row" style="gap: .5rem;">
+                <a href="/renovation/tasks?room={{ room.id }}" class="r-btn r-btn-ghost r-btn-sm r-grow">
+                    📋 משימות{% if room.open %} ({{ room.open }}){% endif %}
+                </a>
+                <a href="/renovation/ideas?room={{ room.id }}" class="r-btn r-btn-ghost r-btn-sm r-grow">💡 רעיונות</a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="r-empty">
+    <div class="r-empty-icon">🚪</div>
+    <h2 class="r-empty-title">אין עדיין חדרים</h2>
+    <p class="r-empty-text">הוסיפו חדר כדי לחלק את המשימות והרעיונות.</p>
+    {% if can_edit %}
+    <button onclick="openRoomModal()" class="r-btn r-btn-primary">➕ חדר ראשון</button>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if unassigned_tasks %}
+<div class="r-section">
+    <a href="/renovation/tasks" class="r-card">
+        <div class="r-row">
+            <span class="r-shrink-0" style="font-size: 1.75rem;">📦</span>
+            <span class="r-grow">
+                <span class="r-heading" style="display: block;">משימות בלי חדר</span>
+                <span class="r-muted">{{ unassigned_tasks }} משימות שלא שויכו לחדר</span>
+            </span>
+        </div>
+    </a>
+</div>
+{% endif %}
+
+{% if can_edit %}
+<div id="room-modal" class="r-modal" role="dialog" aria-modal="true" aria-labelledby="room-modal-title">
+    <div class="r-modal-backdrop" onclick="renoCloseModal('room-modal')"></div>
+    <div class="r-modal-card">
+        <h2 id="room-modal-title" class="r-modal-title">חדר חדש</h2>
+
+        <div class="r-field">
+            <label class="r-label" for="room-name">שם החדר</label>
+            <input id="room-name" type="text" class="r-input" placeholder="למשל: חדר עבודה">
+        </div>
+
+        <div class="r-field">
+            <span class="r-label">אייקון</span>
+            <div class="r-chips r-chips-wrap">
+                {% for icon in ['🏠', '🛋️', '🍳', '🛏️', '🛁', '🚽', '🪴', '🚪', '🧺', '🪜', '🖼️', '🧱'] %}
+                <button type="button" data-icon="{{ icon }}" onclick="setRoomIcon('{{ icon }}')"
+                        aria-label="אייקון לחדר" class="room-icon-btn r-icon-pick">{{ icon }}</button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="room-image">קישור לתמונה</label>
+            <input id="room-image" type="url" class="r-input" placeholder="https://" dir="ltr">
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="room-notes">הערות</label>
+            <textarea id="room-notes" class="r-input" rows="3" placeholder="מידות, צבעים, מה מתוכנן..."></textarea>
+        </div>
+
+        <input type="hidden" id="room-id">
+        <input type="hidden" id="room-icon" value="🏠">
+
+        <div class="r-modal-actions">
+            <button onclick="saveRoom()" id="room-save-btn" class="r-btn r-btn-primary r-grow">שמירה</button>
+            <button onclick="renoCloseModal('room-modal')" class="r-btn r-btn-ghost">ביטול</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block reno_scripts %}
+{% if can_edit %}
+<script>
+    function setRoomIcon(icon) {
+        document.getElementById('room-icon').value = icon;
+        document.querySelectorAll('.room-icon-btn').forEach(b => {
+            b.classList.toggle('is-active', b.dataset.icon === icon);
+        });
+    }
+
+    function openRoomModal(room) {
+        document.getElementById('room-modal-title').textContent = room ? 'עריכת חדר' : 'חדר חדש';
+        document.getElementById('room-id').value = room ? room.id : '';
+        document.getElementById('room-name').value = room ? room.name : '';
+        document.getElementById('room-image').value = room && room.image_url ? room.image_url : '';
+        document.getElementById('room-notes').value = room && room.notes ? room.notes : '';
+        setRoomIcon(room && room.icon ? room.icon : '🏠');
+        renoOpenModal('room-modal');
+        setTimeout(() => document.getElementById('room-name').focus(), 60);
+    }
+
+    async function saveRoom() {
+        const id = document.getElementById('room-id').value;
+        const name = document.getElementById('room-name').value.trim();
+        if (!name) {
+            renoToast('צריך שם לחדר', true);
+            document.getElementById('room-name').focus();
+            return;
+        }
+        const body = {
+            name,
+            icon: document.getElementById('room-icon').value || '🏠',
+            image_url: document.getElementById('room-image').value.trim() || null,
+            notes: document.getElementById('room-notes').value.trim() || null,
+        };
+
+        const saveBtn = document.getElementById('room-save-btn');
+        saveBtn.disabled = true;
+        const result = await renoApi(
+            id ? `/api/renovation/rooms/${id}` : '/api/renovation/rooms',
+            id ? 'PUT' : 'POST',
+            body,
+        );
+        saveBtn.disabled = false;
+        if (!result) return;
+        renoCloseModal('room-modal');
+        window.location.reload();
+    }
+
+    async function deleteRoom(id, taskCount) {
+        const message = taskCount
+            ? `למחוק את החדר? ${taskCount} משימות יישארו, אבל בלי שיוך לחדר.`
+            : 'למחוק את החדר?';
+        if (!confirm(message)) return;
+        const result = await renoApi(`/api/renovation/rooms/${id}`, 'DELETE');
+        if (result) window.location.reload();
+    }
+</script>
+{% endif %}
+{% endblock %}

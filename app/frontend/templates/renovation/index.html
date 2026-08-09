@@ -1,0 +1,169 @@
+{% extends "renovation/base.html" %}
+
+{% block reno_title %}מצב השיפוץ{% endblock %}
+{% block reno_subtitle %}מצב השיפוץ שלנו{% endblock %}
+
+{% block reno_content %}
+
+<!-- Overall progress -->
+<section class="r-card">
+    <div class="r-row" style="gap: 1.25rem;">
+        <div class="r-ring">
+            <svg viewBox="0 0 100 100" aria-hidden="true">
+                <circle class="r-ring-track" cx="50" cy="50" r="42"></circle>
+                <circle class="r-ring-value" cx="50" cy="50" r="42"
+                        stroke-dasharray="263.9"
+                        stroke-dashoffset="{{ 263.9 - (263.9 * progress / 100) }}"></circle>
+            </svg>
+            <div class="r-ring-label">{{ progress }}%</div>
+        </div>
+        <div class="r-grow">
+            <h1 class="r-page-title" style="margin-bottom: .35rem;">
+                {% if total_tasks == 0 %}מתחילים!{% elif progress == 100 %}סיימנו! 🎉{% else %}יופי, מתקדמים{% endif %}
+            </h1>
+            <p class="r-text">
+                {% if total_tasks == 0 %}
+                    עדיין אין משימות. הוסיפו את המשימה הראשונה כדי להתחיל לעקוב.
+                {% else %}
+                    הושלמו {{ done_tasks }} מתוך {{ total_tasks }} משימות.{% if open_tasks %} נשארו עוד {{ open_tasks }}.{% endif %}
+                {% endif %}
+            </p>
+        </div>
+    </div>
+</section>
+
+<!-- Key numbers -->
+<section class="r-section">
+    <div class="r-grid r-grid-4">
+        <a href="/renovation/tasks?status=open" class="r-card r-stat">
+            <div class="r-stat-icon">📋</div>
+            <div class="r-stat-value">{{ open_tasks }}</div>
+            <div class="r-stat-label">משימות פתוחות</div>
+        </a>
+        <a href="/renovation/tasks?status=in_progress" class="r-card r-stat">
+            <div class="r-stat-icon">🔨</div>
+            <div class="r-stat-value">{{ in_progress_tasks }}</div>
+            <div class="r-stat-label">בתהליך</div>
+        </a>
+        <a href="/renovation/tasks?status=done" class="r-card r-stat">
+            <div class="r-stat-icon">✅</div>
+            <div class="r-stat-value">{{ done_tasks }}</div>
+            <div class="r-stat-label">הושלמו</div>
+        </a>
+        <a href="/renovation/ideas" class="r-card r-stat">
+            <div class="r-stat-icon">💡</div>
+            <div class="r-stat-value">{{ total_ideas }}</div>
+            <div class="r-stat-label">רעיונות{% if approved_ideas %} · {{ approved_ideas }} אושרו{% endif %}</div>
+        </a>
+    </div>
+</section>
+
+{% if can_edit %}
+<section class="r-section">
+    <div class="r-grid r-grid-2">
+        <a href="/renovation/tasks?new=1" class="r-btn r-btn-primary r-btn-block">➕ משימה חדשה</a>
+        <a href="/renovation/ideas?new=1" class="r-btn r-btn-ghost r-btn-block">💡 רעיון חדש</a>
+    </div>
+</section>
+{% endif %}
+
+{% if overdue_tasks %}
+<section class="r-section">
+    <div class="r-section-head">
+        <h2 class="r-title">⏰ באיחור ({{ overdue_tasks | length }})</h2>
+    </div>
+    <div class="r-stack">
+        {% for task in overdue_tasks[:5] %}
+        <a href="/renovation/tasks?status=open" class="r-card r-card-danger">
+            <div class="r-row">
+                <span class="r-stat-icon r-shrink-0">{{ task.room_icon or '🏠' }}</span>
+                <span class="r-grow">
+                    <span class="r-heading r-truncate" style="display:block;">{{ task.title }}</span>
+                    <span class="r-danger-text">לביצוע עד {{ task.due_date }}</span>
+                </span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if upcoming %}
+<section class="r-section">
+    <div class="r-section-head">
+        <h2 class="r-title">📅 הכי קרוב</h2>
+        <a href="/renovation/tasks?status=open" class="r-link">לכל המשימות</a>
+    </div>
+    <div class="r-stack">
+        {% for task in upcoming %}
+        <div class="r-card">
+            <div class="r-row">
+                <span class="r-stat-icon r-shrink-0">{{ task.room_icon or '🏠' }}</span>
+                <span class="r-grow">
+                    <span class="r-heading r-truncate" style="display:block;">{{ task.title }}</span>
+                    <span class="r-muted">{% if task.room_name %}{{ task.room_name }} · {% endif %}{{ task.due_date }}</span>
+                </span>
+                <span class="r-badge {% if task.status == 'in_progress' %}r-badge-amber{% endif %} r-shrink-0">
+                    {{ task_status_labels.get(task.status, task.status) }}
+                </span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if room_progress %}
+<section class="r-section">
+    <div class="r-section-head">
+        <h2 class="r-title">🚪 לפי חדר</h2>
+        <a href="/renovation/rooms" class="r-link">לכל החדרים</a>
+    </div>
+    <div class="r-grid r-grid-2">
+        {% for room in room_progress %}
+        <a href="/renovation/tasks?room={{ room.id }}" class="r-card">
+            <div class="r-row" style="margin-bottom: .7rem;">
+                <span class="r-stat-icon r-shrink-0">{{ room.icon or '🏠' }}</span>
+                <span class="r-heading r-grow r-truncate">{{ room.name }}</span>
+                <span class="r-muted r-shrink-0">{{ room.done }}/{{ room.total }}</span>
+            </div>
+            <div class="r-progress">
+                <div class="r-progress-fill" style="width: {{ room.percent }}%"></div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if recent_ideas %}
+<section class="r-section">
+    <div class="r-section-head">
+        <h2 class="r-title">💡 רעיונות אחרונים</h2>
+        <a href="/renovation/ideas" class="r-link">לכל הרעיונות</a>
+    </div>
+    <div class="r-grid r-grid-2 r-grid-3">
+        {% for idea in recent_ideas %}
+        <a href="/renovation/ideas{% if idea.room_id %}?room={{ idea.room_id }}{% endif %}" class="r-card">
+            <div class="r-heading r-truncate">{{ idea.title }}</div>
+            <div class="r-muted r-truncate">
+                {% if idea.room_name %}{{ idea.room_icon or '🏠' }} {{ idea.room_name }} · {% endif %}{{ idea_status_labels.get(idea.status, idea.status) }}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if total_tasks == 0 and total_ideas == 0 %}
+<section class="r-empty">
+    <div class="r-empty-icon">🏗️</div>
+    <h2 class="r-empty-title">מתחילים לתכנן</h2>
+    <p class="r-empty-text">הוסיפו משימה ראשונה או רעיון ראשון — הכל יישמר כאן.</p>
+    {% if can_edit %}
+    <a href="/renovation/tasks?new=1" class="r-btn r-btn-primary">➕ המשימה הראשונה</a>
+    {% endif %}
+</section>
+{% endif %}
+
+{% endblock %}

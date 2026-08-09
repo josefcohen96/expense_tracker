@@ -8,8 +8,10 @@ from datetime import datetime
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import RedirectResponse, Response
+from starlette.responses import JSONResponse, RedirectResponse, Response
 from itsdangerous import BadSignature, URLSafeSerializer
+
+from .access import USER_YOSEF, can_access_path, home_path_for
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -46,6 +48,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next) -> Response:
         if not self.auth_enabled:
+            # Auth is only disabled under pytest. Present a full-access user so
+            # per-module permission checks downstream behave like a signed-in
+            # owner instead of an anonymous caller.
+            try:
+                request.state.user = {"username": USER_YOSEF}
+            except Exception:
+                pass
             return await call_next(request)
 
         path = request.url.path
@@ -127,6 +136,23 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 })
 
         if user_in_session:
+            # Expose the resolved user to routes/templates (works for both the
+            # session and the signed-cookie fallback).
+            try:
+                request.state.user = user_obj
+            except Exception:
+                pass
+
+            # Module-level access: some users only own part of the app.
+            if not can_access_path(user_obj, path):
+                self.logger.info("AuthMiddleware: module access denied", extra={
+                    "path": path,
+                    "method": method,
+                })
+                if method == "GET":
+                    return RedirectResponse(url=home_path_for(user_obj), status_code=302)
+                return JSONResponse({"detail": "אין לך הרשאה לפעולה הזו"}, status_code=403)
+
             return await call_next(request)
 
         # Not authenticated -> always go to /login (no next param)

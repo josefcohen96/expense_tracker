@@ -11,7 +11,7 @@ A modern, full-stack personal management application built with Python (FastAPI)
 - **Recurring Expenses**: Automated handling of monthly recurring payments.
 - **Wedding Planning Module**: Guests, seating, vendors, budget, tasks, and timeline management.
 - **Workout Tracking Module**: Log and review training sessions.
-- **Home Renovation Module** (`/renovation`): Hebrew, mobile-first site with its own UI for tracking renovation tasks, ideas (with photo/inspiration links), and room-by-room progress.
+- **Home Renovation Module** (`/renovation`): Hebrew, mobile-first site with its own UI for tracking renovation tasks, ideas (with photo/inspiration links), equipment needed per task and room with a "what's missing" shopping list, and room-by-room progress.
 - **Responsive Design**: Mobile-friendly interface with offline support (service worker).
 
 ## 🛠️ Technologies Used

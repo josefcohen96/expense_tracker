@@ -22,6 +22,7 @@ TASK_STATUSES = ("todo", "in_progress", "done")
 TASK_PRIORITIES = ("low", "medium", "high")
 IDEA_STATUSES = ("new", "considering", "approved", "rejected")
 IDEA_COLORS = ("white", "amber", "orange", "green", "teal", "blue", "purple", "pink")
+SUPPLY_STATUSES = ("needed", "bought")
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -69,6 +70,14 @@ def _room_exists(db_conn: sqlite3.Connection, room_id: Optional[int]) -> None:
     row = db_conn.execute("SELECT 1 FROM renovation_rooms WHERE id=?", (room_id,)).fetchone()
     if not row:
         raise HTTPException(status_code=400, detail="החדר שנבחר לא קיים")
+
+
+def _task_exists(db_conn: sqlite3.Connection, task_id: Optional[int]) -> None:
+    if task_id is None:
+        return
+    row = db_conn.execute("SELECT 1 FROM renovation_tasks WHERE id=?", (task_id,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=400, detail="המשימה שנבחרה לא קיימת")
 
 
 def _apply_updates(
@@ -170,6 +179,37 @@ class IdeaCreate(BaseModel):
     _color_ok = field_validator("color")(_one_of("color", IDEA_COLORS))
 
 
+class SupplyCreate(BaseModel):
+    name: str
+    quantity: Optional[str] = None
+    status: str = "needed"
+    room_id: Optional[int] = None
+    task_id: Optional[int] = None
+    notes: Optional[str] = None
+    link_url: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_blank(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("name is required")
+        return v.strip()
+
+    _status_ok = field_validator("status")(_one_of("status", SUPPLY_STATUSES))
+
+
+class SupplyUpdate(BaseModel):
+    name: Optional[str] = None
+    quantity: Optional[str] = None
+    status: Optional[str] = None
+    room_id: Optional[int] = None
+    task_id: Optional[int] = None
+    notes: Optional[str] = None
+    link_url: Optional[str] = None
+
+    _status_ok = field_validator("status")(_one_of("status", SUPPLY_STATUSES))
+
+
 class IdeaUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
@@ -246,11 +286,12 @@ async def delete_room(
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ):
     _require_editor(request)
-    # Tasks and ideas survive the room; they simply become unassigned. The
-    # ON DELETE SET NULL rule needs foreign_keys=ON, which get_connection sets,
-    # but we clear them explicitly so an old connection can't orphan the rows.
+    # Tasks, ideas and supplies survive the room; they simply become unassigned.
+    # The ON DELETE SET NULL rule needs foreign_keys=ON, which get_connection
+    # sets, but we clear them explicitly so an old connection can't orphan rows.
     db_conn.execute("UPDATE renovation_tasks SET room_id=NULL WHERE room_id=?", (room_id,))
     db_conn.execute("UPDATE renovation_ideas SET room_id=NULL WHERE room_id=?", (room_id,))
+    db_conn.execute("UPDATE renovation_supplies SET room_id=NULL WHERE room_id=?", (room_id,))
     db_conn.execute("DELETE FROM renovation_rooms WHERE id=?", (room_id,))
     db_conn.commit()
 
@@ -327,6 +368,9 @@ async def delete_task(
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ):
     _require_editor(request)
+    # Equipment outlives the task that asked for it — it stays on the shopping
+    # list, just no longer tied to a task.
+    db_conn.execute("UPDATE renovation_supplies SET task_id=NULL WHERE task_id=?", (task_id,))
     db_conn.execute("DELETE FROM renovation_tasks WHERE id=?", (task_id,))
     db_conn.commit()
 
@@ -400,4 +444,94 @@ async def delete_idea(
 ):
     _require_editor(request)
     db_conn.execute("DELETE FROM renovation_ideas WHERE id=?", (idea_id,))
+    db_conn.commit()
+
+
+# ─── Supplies (ציוד) ─────────────────────────────────────────────────────────
+
+@router.get("/supplies")
+async def list_supplies(db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    rows = db_conn.execute("""
+        SELECT s.*, r.name AS room_name, r.icon AS room_icon, t.title AS task_title
+        FROM renovation_supplies s
+        LEFT JOIN renovation_rooms r ON r.id = s.room_id
+        LEFT JOIN renovation_tasks t ON t.id = s.task_id
+        ORDER BY
+            CASE s.status WHEN 'needed' THEN 1 ELSE 2 END,
+            r.sort_order IS NULL, r.sort_order ASC,
+            s.id DESC
+    """).fetchall()
+    return [dict(r) for r in rows]
+
+
+@router.post("/supplies", status_code=201)
+async def create_supply(
+    body: SupplyCreate,
+    request: Request,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+):
+    username = _require_editor(request)
+    _room_exists(db_conn, body.room_id)
+    _task_exists(db_conn, body.task_id)
+
+    # An item added straight from a task inherits that task's room, so it still
+    # shows up under the right room on the shopping list.
+    room_id = body.room_id
+    if room_id is None and body.task_id is not None:
+        row = db_conn.execute(
+            "SELECT room_id FROM renovation_tasks WHERE id=?", (body.task_id,)
+        ).fetchone()
+        if row:
+            room_id = row["room_id"]
+
+    cur = db_conn.execute(
+        "INSERT INTO renovation_supplies (name, quantity, status, room_id, task_id, notes, link_url, created_by) "
+        "VALUES (?,?,?,?,?,?,?,?)",
+        (
+            body.name,
+            _clean(body.quantity),
+            body.status,
+            room_id,
+            body.task_id,
+            _clean(body.notes),
+            _clean(body.link_url),
+            username,
+        ),
+    )
+    db_conn.commit()
+    return dict(db_conn.execute("SELECT * FROM renovation_supplies WHERE id=?", (cur.lastrowid,)).fetchone())
+
+
+@router.put("/supplies/{supply_id}")
+async def update_supply(
+    supply_id: int,
+    body: SupplyUpdate,
+    request: Request,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+):
+    _require_editor(request)
+    updates = body.model_dump(exclude_unset=True)
+    if "name" in updates:
+        name = (updates["name"] or "").strip()
+        if not name:
+            raise HTTPException(status_code=422, detail="שם הפריט לא יכול להיות ריק")
+        updates["name"] = name
+    for field in ("quantity", "notes", "link_url"):
+        if field in updates:
+            updates[field] = _clean(updates[field])
+    if "room_id" in updates:
+        _room_exists(db_conn, updates["room_id"])
+    if "task_id" in updates:
+        _task_exists(db_conn, updates["task_id"])
+    return _apply_updates(db_conn, "renovation_supplies", supply_id, updates, "הפריט לא נמצא")
+
+
+@router.delete("/supplies/{supply_id}", status_code=204)
+async def delete_supply(
+    supply_id: int,
+    request: Request,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+):
+    _require_editor(request)
+    db_conn.execute("DELETE FROM renovation_supplies WHERE id=?", (supply_id,))
     db_conn.commit()

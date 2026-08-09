@@ -102,7 +102,10 @@ button:disabled { cursor: default; opacity: .6; }
 
 .r-grid { display: grid; gap: .75rem; }
 .r-grid-2 { grid-template-columns: 1fr; }
-.r-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.r-grid-4, .r-grid-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* An odd tile left alone on the last row stretches instead of sitting half-empty. */
+.r-grid-5 > :last-child:nth-child(odd) { grid-column: span 2; }
 
 .r-grow { flex: 1; min-width: 0; }
 .r-shrink-0 { flex-shrink: 0; }
@@ -232,7 +235,8 @@ button:disabled { cursor: default; opacity: .6; }
     justify-content: center;
     gap: 2px;
     min-height: 66px;
-    font-size: .75rem;
+    /* Five tabs have to fit a narrow phone without wrapping. */
+    font-size: .7rem;
     font-weight: 500;
     color: var(--ink-muted);
 }
@@ -318,6 +322,20 @@ a.r-card:hover, .r-card-link:hover { box-shadow: var(--shadow-md); transform: tr
 .r-btn-block { width: 100%; }
 .r-btn-sm { min-height: 44px; font-size: .9rem; padding: .55rem .9rem; }
 
+/* Three actions per room card have to sit side by side on a narrow phone. */
+.r-room-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .4rem;
+}
+
+.r-room-actions .r-btn {
+    gap: .25rem;
+    padding: .55rem .3rem;
+    font-size: .82rem;
+    white-space: nowrap;
+}
+
 .r-icon-btn {
     width: 42px;
     height: 42px;
@@ -391,6 +409,35 @@ a.r-card:hover, .r-card-link:hover { box-shadow: var(--shadow-md); transform: tr
     border-color: var(--clay-700);
     color: #fff;
     font-weight: 600;
+}
+
+/* ---------- Equipment chips on a task ---------- */
+
+.r-supplies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-top: .6rem;
+}
+
+.r-supply-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .25rem .6rem;
+    border-radius: 999px;
+    border: 1px solid #fcd34d;
+    background: var(--amber-soft);
+    color: #92400e;
+    font-size: .82rem;
+    font-weight: 600;
+}
+
+.r-supply-chip.is-bought {
+    border-color: #bbf7d0;
+    background: var(--green-soft);
+    color: var(--green);
+    font-weight: 500;
 }
 
 /* ---------- Badges ---------- */
@@ -613,6 +660,8 @@ textarea.r-input { min-height: 90px; resize: vertical; }
 @media (min-width: 1024px) {
     .r-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .r-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .r-grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .r-grid-5 > :last-child:nth-child(odd) { grid-column: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

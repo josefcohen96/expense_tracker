@@ -41,6 +41,7 @@
                 <a href="/renovation" class="r-nav-link {% if request.url.path in ['/renovation', '/renovation/'] %}is-active{% endif %}">בית</a>
                 <a href="/renovation/tasks" class="r-nav-link {% if request.url.path.startswith('/renovation/tasks') %}is-active{% endif %}">משימות</a>
                 <a href="/renovation/ideas" class="r-nav-link {% if request.url.path.startswith('/renovation/ideas') %}is-active{% endif %}">רעיונות</a>
+                <a href="/renovation/supplies" class="r-nav-link {% if request.url.path.startswith('/renovation/supplies') %}is-active{% endif %}">ציוד</a>
                 <a href="/renovation/rooms" class="r-nav-link {% if request.url.path.startswith('/renovation/rooms') %}is-active{% endif %}">חדרים</a>
             </nav>
         </div>
@@ -68,6 +69,9 @@
         </a>
         <a href="/renovation/ideas" class="r-tab {% if request.url.path.startswith('/renovation/ideas') %}is-active{% endif %}">
             <span class="r-tab-icon">💡</span><span>רעיונות</span>
+        </a>
+        <a href="/renovation/supplies" class="r-tab {% if request.url.path.startswith('/renovation/supplies') %}is-active{% endif %}">
+            <span class="r-tab-icon">🧰</span><span>ציוד</span>
         </a>
         <a href="/renovation/rooms" class="r-tab {% if request.url.path.startswith('/renovation/rooms') %}is-active{% endif %}">
             <span class="r-tab-icon">🚪</span><span>חדרים</span>

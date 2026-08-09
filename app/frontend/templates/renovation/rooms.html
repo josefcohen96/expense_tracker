@@ -28,6 +28,7 @@
                     <span class="r-meta">
                         {% if room.total %}<span>{{ room.done }}/{{ room.total }} משימות</span>{% else %}<span>עדיין אין משימות</span>{% endif %}
                         {% if room.ideas %}<span>{% if room.ideas == 1 %}רעיון אחד{% else %}{{ room.ideas }} רעיונות{% endif %}</span>{% endif %}
+                        {% if room.supplies_missing %}<span class="r-danger-text">🧰 {% if room.supplies_missing == 1 %}חסר 1{% else %}חסרים {{ room.supplies_missing }}{% endif %}</span>{% endif %}
                     </span>
                 </span>
                 {% if can_edit %}
@@ -47,11 +48,14 @@
             <p class="r-text r-pre-line" style="margin-bottom: .85rem;">{{ room.notes }}</p>
             {% endif %}
 
-            <div class="r-row" style="gap: .5rem;">
-                <a href="/renovation/tasks?room={{ room.id }}" class="r-btn r-btn-ghost r-btn-sm r-grow">
+            <div class="r-room-actions">
+                <a href="/renovation/tasks?room={{ room.id }}" class="r-btn r-btn-ghost r-btn-sm">
                     📋 משימות{% if room.open %} ({{ room.open }}){% endif %}
                 </a>
-                <a href="/renovation/ideas?room={{ room.id }}" class="r-btn r-btn-ghost r-btn-sm r-grow">💡 רעיונות</a>
+                <a href="/renovation/ideas?room={{ room.id }}" class="r-btn r-btn-ghost r-btn-sm">💡 רעיונות</a>
+                <a href="/renovation/supplies?status=all&room={{ room.id }}" class="r-btn r-btn-ghost r-btn-sm">
+                    🧰 ציוד{% if room.supplies_missing %} ({{ room.supplies_missing }}){% endif %}
+                </a>
             </div>
         </div>
     </div>

@@ -252,6 +252,43 @@ def test_supply_added_to_a_task_inherits_its_room(app_client):
     app_client.delete(f"/api/renovation/rooms/{room['id']}")
 
 
+def test_room_filter_chips_show_counts(app_client):
+    room = app_client.post("/api/renovation/rooms", json={"name": "חדרספירה"}).json()
+    open_task = app_client.post("/api/renovation/tasks", json={
+        "title": "משימה פתוחה לספירה", "room_id": room["id"],
+    }).json()
+    done_task = app_client.post("/api/renovation/tasks", json={
+        "title": "משימה סגורה לספירה", "room_id": room["id"], "status": "done",
+    }).json()
+
+    def chip_count(page: str, room_name: str) -> int:
+        """Read the count rendered inside a room's filter chip."""
+        import re
+        match = re.search(
+            room_name + r"\s*<span class=\"r-chip-count\">(\d+)</span>", page
+        )
+        assert match, f"no count chip found for {room_name}"
+        return int(match.group(1))
+
+    # Unfiltered: both tasks.
+    assert chip_count(app_client.get("/renovation/tasks").text, "חדרספירה") == 2
+    # The count follows the status filter, so it always matches what a tap shows.
+    assert chip_count(app_client.get("/renovation/tasks?status=open").text, "חדרספירה") == 1
+    assert chip_count(app_client.get("/renovation/tasks?status=done").text, "חדרספירה") == 1
+
+    # Supplies and ideas count their own kind of row.
+    supply = app_client.post("/api/renovation/supplies", json={
+        "name": "פריטלספירה", "room_id": room["id"],
+    }).json()
+    assert chip_count(app_client.get("/renovation/supplies").text, "חדרספירה") == 1
+    assert chip_count(app_client.get("/renovation/ideas").text, "חדרספירה") == 0
+
+    app_client.delete(f"/api/renovation/supplies/{supply['id']}")
+    for task_id in (open_task["id"], done_task["id"]):
+        app_client.delete(f"/api/renovation/tasks/{task_id}")
+    app_client.delete(f"/api/renovation/rooms/{room['id']}")
+
+
 def test_supply_rejects_bad_input(app_client):
     assert app_client.post("/api/renovation/supplies", json={"name": "  "}).status_code == 422
     assert app_client.post("/api/renovation/supplies", json={"name": "x", "status": "maybe"}).status_code == 422

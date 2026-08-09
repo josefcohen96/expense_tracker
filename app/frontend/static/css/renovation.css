@@ -411,6 +411,31 @@ a.r-card:hover, .r-card-link:hover { box-shadow: var(--shadow-md); transform: tr
     font-weight: 600;
 }
 
+/* How many items sit behind a filter — readable at a glance without reading. */
+.r-chip-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.45rem;
+    height: 1.45rem;
+    padding: 0 .35rem;
+    border-radius: 999px;
+    background: #f1ebe3;
+    color: var(--ink-soft);
+    font-size: .78rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.r-chip.is-active .r-chip-count {
+    background: rgba(255, 255, 255, .28);
+    color: #fff;
+}
+
+/* A room with nothing in it recedes rather than competing for attention. */
+.r-chip.is-empty { opacity: .55; }
+.r-chip.is-empty.is-active { opacity: 1; }
+
 /* ---------- Equipment chips on a task ---------- */
 
 .r-supplies {

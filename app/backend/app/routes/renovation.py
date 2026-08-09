@@ -126,6 +126,20 @@ def _attach_supplies(rows: list[dict], supplies: list[dict], key: str) -> None:
         row["supplies_missing"] = len([s for s in items if s["status"] == "needed"])
 
 
+def _room_counts(rows: list[dict]) -> dict:
+    """How many rows fall in each room, for the counters on the room filters.
+
+    Counted after the status filter but before the room filter, so each room
+    chip answers "how many would I see if I tapped this" at a glance.
+    """
+    counts: dict = {}
+    for row in rows:
+        room_id = row["room_id"]
+        if room_id is not None:
+            counts[room_id] = counts.get(room_id, 0) + 1
+    return counts
+
+
 def _int_or_none(value: Optional[str]) -> Optional[int]:
     try:
         return int(value) if value not in (None, "") else None
@@ -198,6 +212,10 @@ async def renovation_tasks(
         tasks = [t for t in tasks if t["status"] == status_filter]
     elif status_filter == "open":
         tasks = [t for t in tasks if t["status"] != "done"]
+
+    room_counts = _room_counts(tasks)
+    all_rooms_count = len(tasks)
+
     if room_filter is not None:
         tasks = [t for t in tasks if t["room_id"] == room_filter]
 
@@ -205,6 +223,8 @@ async def renovation_tasks(
         "tasks": tasks,
         "status_filter": status_filter,
         "room_filter": room_filter,
+        "room_counts": room_counts,
+        "all_rooms_count": all_rooms_count,
     })
     return templates.TemplateResponse("renovation/tasks.html", ctx)
 
@@ -221,6 +241,10 @@ async def renovation_ideas(
     ideas = _idea_rows(db_conn)
     if status_filter in IDEA_STATUS_LABELS:
         ideas = [i for i in ideas if i["status"] == status_filter]
+
+    room_counts = _room_counts(ideas)
+    all_rooms_count = len(ideas)
+
     if room_filter is not None:
         ideas = [i for i in ideas if i["room_id"] == room_filter]
 
@@ -228,6 +252,8 @@ async def renovation_ideas(
         "ideas": ideas,
         "status_filter": status_filter,
         "room_filter": room_filter,
+        "room_counts": room_counts,
+        "all_rooms_count": all_rooms_count,
     })
     return templates.TemplateResponse("renovation/ideas.html", ctx)
 
@@ -284,6 +310,10 @@ async def renovation_supplies(
 
     if status_filter in SUPPLY_STATUS_LABELS:
         supplies = [s for s in supplies if s["status"] == status_filter]
+
+    room_counts = _room_counts(supplies)
+    all_rooms_count = len(supplies)
+
     if room_filter is not None:
         supplies = [s for s in supplies if s["room_id"] == room_filter]
     if task_filter is not None:
@@ -306,6 +336,8 @@ async def renovation_supplies(
         "status_filter": status_filter,
         "room_filter": room_filter,
         "task_filter": task_filter,
+        "room_counts": room_counts,
+        "all_rooms_count": all_rooms_count,
         "tasks": _task_rows(db_conn),
     })
     return templates.TemplateResponse("renovation/supplies.html", ctx)

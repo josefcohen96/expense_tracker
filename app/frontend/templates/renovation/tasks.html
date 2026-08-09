@@ -24,10 +24,15 @@
 
 {% if rooms %}
 <div class="r-chips" style="margin-top: .5rem;">
-    <a href="?{{ status_q }}" class="r-chip {% if not room_filter %}is-active{% endif %}">כל החדרים</a>
+    <a href="?{{ status_q }}" class="r-chip {% if not room_filter %}is-active{% endif %}">
+        כל החדרים <span class="r-chip-count">{{ all_rooms_count }}</span>
+    </a>
     {% for room in rooms %}
-    <a href="?{{ status_q }}&room={{ room.id }}" class="r-chip {% if room_filter == room.id %}is-active{% endif %}">
-        <span>{{ room.icon or '🏠' }}</span>{{ room.name }}
+    {% set count = room_counts.get(room.id, 0) %}
+    <a href="?{{ status_q }}&room={{ room.id }}"
+       class="r-chip {% if room_filter == room.id %}is-active{% endif %} {% if not count %}is-empty{% endif %}">
+        <span>{{ room.icon or '🚪' }}</span>{{ room.name }}
+        <span class="r-chip-count">{{ count }}</span>
     </a>
     {% endfor %}
 </div>

@@ -73,6 +73,28 @@
                 <a href="{{ task.link_url }}" target="_blank" rel="noopener noreferrer"
                    class="r-link" style="display: inline-block; margin-top: .5rem;">🔗 קישור</a>
                 {% endif %}
+
+                {# Equipment this task needs, missing items first. #}
+                {% if task.supplies %}
+                <div class="r-supplies">
+                    {% for item in task.supplies %}
+                    <span class="r-supply-chip {% if item.status == 'bought' %}is-bought{% endif %}">
+                        {% if item.status == 'bought' %}✅{% else %}🧰{% endif %}
+                        {{ item.name }}{% if item.quantity %} · {{ item.quantity }}{% endif %}
+                    </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if can_edit %}
+                <a href="/renovation/supplies?status=all&task={{ task.id }}&new=1"
+                   class="r-link" style="display: inline-block; margin-top: .6rem;">
+                    🧰 {% if task.supplies %}ניהול הציוד{% else %}הוספת ציוד נדרש{% endif %}
+                    {%- if task.supplies_missing %} ({% if task.supplies_missing == 1 %}חסר פריט אחד{% else %}חסרים {{ task.supplies_missing }} פריטים{% endif %}){% endif %}
+                </a>
+                {% elif task.supplies_missing %}
+                <div class="r-meta"><span class="r-danger-text">🧰 {% if task.supplies_missing == 1 %}חסר פריט אחד{% else %}חסרים {{ task.supplies_missing }} פריטים{% endif %}</span></div>
+                {% endif %}
             </div>
 
             {% if can_edit %}

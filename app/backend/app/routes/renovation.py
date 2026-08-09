@@ -31,6 +31,11 @@ TASK_STATUS_LABELS = {
     "done": "הושלם",
 }
 
+SUPPLY_STATUS_LABELS = {
+    "needed": "חסר",
+    "bought": "יש",
+}
+
 IDEA_STATUS_LABELS = {
     "new": "חדש",
     "considering": "שוקלים",
@@ -71,6 +76,7 @@ def _base_context(request: Request, db_conn: sqlite3.Connection) -> dict:
         "today": date.today().isoformat(),
         "task_status_labels": TASK_STATUS_LABELS,
         "idea_status_labels": IDEA_STATUS_LABELS,
+        "supply_status_labels": SUPPLY_STATUS_LABELS,
     }
 
 
@@ -96,6 +102,30 @@ def _idea_rows(db_conn: sqlite3.Connection) -> list[dict]:
     """).fetchall()]
 
 
+def _supply_rows(db_conn: sqlite3.Connection) -> list[dict]:
+    return [dict(r) for r in db_conn.execute("""
+        SELECT s.*, r.name AS room_name, r.icon AS room_icon, t.title AS task_title
+        FROM renovation_supplies s
+        LEFT JOIN renovation_rooms r ON r.id = s.room_id
+        LEFT JOIN renovation_tasks t ON t.id = s.task_id
+        ORDER BY
+            CASE s.status WHEN 'needed' THEN 1 ELSE 2 END,
+            r.sort_order IS NULL, r.sort_order ASC,
+            s.id DESC
+    """).fetchall()]
+
+
+def _attach_supplies(rows: list[dict], supplies: list[dict], key: str) -> None:
+    """Hang each row's supplies (and its missing count) off the row itself."""
+    by_parent: dict = {}
+    for supply in supplies:
+        by_parent.setdefault(supply[key], []).append(supply)
+    for row in rows:
+        items = by_parent.get(row["id"], [])
+        row["supplies"] = items
+        row["supplies_missing"] = len([s for s in items if s["status"] == "needed"])
+
+
 def _int_or_none(value: Optional[str]) -> Optional[int]:
     try:
         return int(value) if value not in (None, "") else None
@@ -112,7 +142,9 @@ async def renovation_dashboard(
     ctx = _base_context(request, db_conn)
     tasks = _task_rows(db_conn)
     ideas = _idea_rows(db_conn)
+    supplies = _supply_rows(db_conn)
     today = ctx["today"]
+    missing_supplies = [s for s in supplies if s["status"] == "needed"]
 
     done = [t for t in tasks if t["status"] == "done"]
     open_tasks = [t for t in tasks if t["status"] != "done"]
@@ -144,6 +176,9 @@ async def renovation_dashboard(
         "total_ideas": len(ideas),
         "approved_ideas": len([i for i in ideas if i["status"] == "approved"]),
         "room_progress": room_progress,
+        "total_supplies": len(supplies),
+        "missing_supplies_count": len(missing_supplies),
+        "missing_supplies": missing_supplies[:6],
     })
     return templates.TemplateResponse("renovation/index.html", ctx)
 
@@ -158,6 +193,7 @@ async def renovation_tasks(
     room_filter = _int_or_none(request.query_params.get("room"))
 
     tasks = _task_rows(db_conn)
+    _attach_supplies(tasks, _supply_rows(db_conn), "task_id")
     if status_filter in TASK_STATUS_LABELS:
         tasks = [t for t in tasks if t["status"] == status_filter]
     elif status_filter == "open":
@@ -204,11 +240,13 @@ async def renovation_rooms(
     ctx = _base_context(request, db_conn)
     tasks = _task_rows(db_conn)
     ideas = _idea_rows(db_conn)
+    supplies = _supply_rows(db_conn)
 
     cards = []
     for room in ctx["rooms"]:
         room_tasks = [t for t in tasks if t["room_id"] == room["id"]]
         room_done = [t for t in room_tasks if t["status"] == "done"]
+        room_supplies = [s for s in supplies if s["room_id"] == room["id"]]
         cards.append({
             **room,
             "total": len(room_tasks),
@@ -216,6 +254,8 @@ async def renovation_rooms(
             "open": len(room_tasks) - len(room_done),
             "percent": round(len(room_done) * 100 / len(room_tasks)) if room_tasks else 0,
             "ideas": len([i for i in ideas if i["room_id"] == room["id"]]),
+            "supplies": len(room_supplies),
+            "supplies_missing": len([s for s in room_supplies if s["status"] == "needed"]),
         })
 
     ctx.update({
@@ -223,3 +263,49 @@ async def renovation_rooms(
         "unassigned_tasks": len([t for t in tasks if t["room_id"] is None]),
     })
     return templates.TemplateResponse("renovation/rooms.html", ctx)
+
+
+@router.get("/supplies", response_class=HTMLResponse)
+async def renovation_supplies(
+    request: Request,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> HTMLResponse:
+    ctx = _base_context(request, db_conn)
+    status_filter = request.query_params.get("status")
+    # The shopping list is what people open this page for, so "what's missing"
+    # is the default view rather than everything ever added.
+    if status_filter is None:
+        status_filter = "needed"
+    room_filter = _int_or_none(request.query_params.get("room"))
+    task_filter = _int_or_none(request.query_params.get("task"))
+
+    supplies = _supply_rows(db_conn)
+    missing_total = len([s for s in supplies if s["status"] == "needed"])
+
+    if status_filter in SUPPLY_STATUS_LABELS:
+        supplies = [s for s in supplies if s["status"] == status_filter]
+    if room_filter is not None:
+        supplies = [s for s in supplies if s["room_id"] == room_filter]
+    if task_filter is not None:
+        supplies = [s for s in supplies if s["task_id"] == task_filter]
+
+    # Group by room so the list reads like an aisle-by-aisle shopping list.
+    groups: list[dict] = []
+    for room in ctx["rooms"]:
+        items = [s for s in supplies if s["room_id"] == room["id"]]
+        if items:
+            groups.append({"room": room, "items": items})
+    loose = [s for s in supplies if s["room_id"] is None]
+    if loose:
+        groups.append({"room": None, "items": loose})
+
+    ctx.update({
+        "groups": groups,
+        "supplies_count": len(supplies),
+        "missing_total": missing_total,
+        "status_filter": status_filter,
+        "room_filter": room_filter,
+        "task_filter": task_filter,
+        "tasks": _task_rows(db_conn),
+    })
+    return templates.TemplateResponse("renovation/supplies.html", ctx)

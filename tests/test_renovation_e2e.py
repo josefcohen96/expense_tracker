@@ -60,6 +60,7 @@ def test_home_path_depends_on_user():
     "/renovation/tasks",
     "/renovation/ideas",
     "/renovation/rooms",
+    "/renovation/supplies",
 ])
 def test_pages_load(app_client, path):
     res = app_client.get(path)
@@ -71,6 +72,12 @@ def test_rooms_are_seeded(app_client):
     rooms = app_client.get("/api/renovation/rooms").json()
     assert len(rooms) >= 1
     assert any(r["name"] == "מטבח" for r in rooms)
+
+
+def test_general_room_is_replaced_by_a_real_room(app_client):
+    names = [r["name"] for r in app_client.get("/api/renovation/rooms").json()]
+    assert "כללי" not in names
+    assert "מסדרון" in names
 
 
 # ─── Task CRUD ───────────────────────────────────────────────────────────────
@@ -188,6 +195,95 @@ def test_room_name_cannot_be_blanked(app_client):
     room = app_client.post("/api/renovation/rooms", json={"name": "חדר זמני"}).json()
     assert app_client.put(f"/api/renovation/rooms/{room['id']}", json={"name": "  "}).status_code == 422
     app_client.delete(f"/api/renovation/rooms/{room['id']}")
+
+
+# ─── Supplies (ציוד) ─────────────────────────────────────────────────────────
+
+def test_supply_lifecycle_and_missing_view(app_client):
+    room = app_client.post("/api/renovation/rooms", json={"name": "חדר ציוד"}).json()
+
+    # Names are deliberately unlike the form's placeholder copy, so a match in
+    # the page really means the item was rendered.
+    missing = app_client.post("/api/renovation/supplies", json={
+        "name": "פריטחסרלבדיקה", "quantity": "2 פחים", "room_id": room["id"],
+    })
+    assert missing.status_code == 201
+    item = missing.json()
+    assert item["status"] == "needed"
+
+    bought = app_client.post("/api/renovation/supplies", json={
+        "name": "פריטשנקנהלבדיקה", "room_id": room["id"], "status": "bought",
+    }).json()
+
+    # The default view is the shopping list: missing items only.
+    page = app_client.get("/renovation/supplies").text
+    assert "פריטחסרלבדיקה" in page
+    assert "פריטשנקנהלבדיקה" not in page
+
+    assert "פריטשנקנהלבדיקה" in app_client.get("/renovation/supplies?status=all").text
+    assert "פריטחסרלבדיקה" not in app_client.get("/renovation/supplies?status=bought").text
+
+    # Marking it bought takes it off the missing list.
+    assert app_client.put(f"/api/renovation/supplies/{item['id']}", json={"status": "bought"}).status_code == 200
+    assert "פריטחסרלבדיקה" not in app_client.get("/renovation/supplies").text
+
+    for supply_id in (item["id"], bought["id"]):
+        assert app_client.delete(f"/api/renovation/supplies/{supply_id}").status_code == 204
+    app_client.delete(f"/api/renovation/rooms/{room['id']}")
+
+
+def test_supply_added_to_a_task_inherits_its_room(app_client):
+    room = app_client.post("/api/renovation/rooms", json={"name": "חדר ירושה"}).json()
+    task = app_client.post("/api/renovation/tasks", json={
+        "title": "להתקין מדפים", "room_id": room["id"],
+    }).json()
+
+    item = app_client.post("/api/renovation/supplies", json={
+        "name": "ברגים", "task_id": task["id"],
+    }).json()
+    assert item["room_id"] == room["id"]
+
+    # The task page lists the equipment it needs.
+    page = app_client.get("/renovation/tasks").text
+    assert "ברגים" in page
+
+    app_client.delete(f"/api/renovation/supplies/{item['id']}")
+    app_client.delete(f"/api/renovation/tasks/{task['id']}")
+    app_client.delete(f"/api/renovation/rooms/{room['id']}")
+
+
+def test_supply_rejects_bad_input(app_client):
+    assert app_client.post("/api/renovation/supplies", json={"name": "  "}).status_code == 422
+    assert app_client.post("/api/renovation/supplies", json={"name": "x", "status": "maybe"}).status_code == 422
+    assert app_client.post("/api/renovation/supplies", json={"name": "x", "room_id": 999999}).status_code == 400
+    assert app_client.post("/api/renovation/supplies", json={"name": "x", "task_id": 999999}).status_code == 400
+    assert app_client.put("/api/renovation/supplies/999999", json={"status": "bought"}).status_code == 404
+
+
+def test_supplies_survive_their_task_and_room(app_client):
+    room = app_client.post("/api/renovation/rooms", json={"name": "חדר חולף"}).json()
+    task = app_client.post("/api/renovation/tasks", json={
+        "title": "משימה חולפת", "room_id": room["id"],
+    }).json()
+    item = app_client.post("/api/renovation/supplies", json={
+        "name": "דבק", "task_id": task["id"],
+    }).json()
+
+    app_client.delete(f"/api/renovation/tasks/{task['id']}")
+    app_client.delete(f"/api/renovation/rooms/{room['id']}")
+
+    survivors = app_client.get("/api/renovation/supplies").json()
+    kept = next(s for s in survivors if s["id"] == item["id"])
+    assert kept["task_id"] is None
+    assert kept["room_id"] is None
+
+    app_client.delete(f"/api/renovation/supplies/{item['id']}")
+
+
+def test_renovation_users_only_may_edit_supplies():
+    from app.backend.app.services.access import can_access_path
+    assert can_access_path({"username": "KARINA"}, "/api/renovation/supplies") is False
+    assert can_access_path({"username": "TSAHALA"}, "/renovation/supplies") is True
 
 
 # ─── Dashboard aggregation ───────────────────────────────────────────────────

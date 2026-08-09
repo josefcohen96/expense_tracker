@@ -674,6 +674,24 @@ def initialise_database() -> None:
         )
     """)
 
+    # Equipment/materials needed for a task or a room ("ציוד"). Rows survive the
+    # task or room they belong to — the shopping list matters more than the link.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS renovation_supplies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            quantity TEXT,
+            status TEXT NOT NULL DEFAULT 'needed',
+            room_id INTEGER REFERENCES renovation_rooms(id) ON DELETE SET NULL,
+            task_id INTEGER REFERENCES renovation_tasks(id) ON DELETE SET NULL,
+            notes TEXT,
+            link_url TEXT,
+            created_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     # Seed a starter set of rooms so the site is usable from the first visit.
     try:
         has_rooms = cur.execute("SELECT COUNT(*) FROM renovation_rooms").fetchone()[0]
@@ -685,12 +703,35 @@ def initialise_database() -> None:
                 ("חדר אמבטיה", "🛁"),
                 ("שירותים", "🚽"),
                 ("מרפסת", "🪴"),
-                ("כללי", "🏠"),
+                ("מסדרון", "🚪"),
             ]):
                 cur.execute(
                     "INSERT INTO renovation_rooms (name, icon, sort_order) VALUES (?,?,?)",
                     (room_name, room_icon, idx),
                 )
+    except Exception:
+        pass
+
+    # One-time: the original seed shipped a catch-all "כללי" room, which is
+    # redundant now that a task can simply have no room. Turn it into a real
+    # room instead, keeping anything already filed under it. Guarded by a
+    # settings flag so a room the user creates later with that name is left be.
+    try:
+        done = cur.execute(
+            "SELECT 1 FROM system_settings WHERE key='renovation_general_room_replaced'"
+        ).fetchone()
+        if not done:
+            general = cur.execute("SELECT id FROM renovation_rooms WHERE name='כללי'").fetchone()
+            taken = cur.execute("SELECT 1 FROM renovation_rooms WHERE name='מסדרון'").fetchone()
+            if general and not taken:
+                cur.execute(
+                    "UPDATE renovation_rooms SET name='מסדרון', icon='🚪' WHERE id=?",
+                    (general[0],),
+                )
+            cur.execute(
+                "INSERT OR REPLACE INTO system_settings (key, value) VALUES "
+                "('renovation_general_room_replaced', '1')"
+            )
     except Exception:
         pass
 

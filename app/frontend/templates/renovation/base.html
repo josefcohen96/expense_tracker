@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#9a3412">
+    <title>{% block reno_title %}שיפוץ הבית{% endblock %} · שיפוץ הבית</title>
+
+    <!-- Fonts are a progressive enhancement: if they fail to load the system
+         font takes over and the page still looks right. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="/static/css/renovation.css?v=20260809">
+    {% block reno_head %}{% endblock %}
+</head>
+
+<body>
+    <header class="r-header">
+        <div class="r-container">
+            <div class="r-row-between">
+                <a href="/renovation" class="r-brand">
+                    <span class="r-brand-mark">🏡</span>
+                    <span class="r-grow">
+                        <span class="r-brand-name r-truncate">שיפוץ הבית</span>
+                        <span class="r-brand-sub r-truncate">{% block reno_subtitle %}הכל במקום אחד{% endblock %}</span>
+                    </span>
+                </a>
+
+                <div class="r-row r-shrink-0">
+                    {% if user_display_name %}
+                    <span class="r-header-user r-hide-sm">שלום, {{ user_display_name }}</span>
+                    {% endif %}
+                    <a href="/logout" class="r-nav-link">יציאה</a>
+                </div>
+            </div>
+
+            <nav class="r-nav" aria-label="ניווט ראשי">
+                <a href="/renovation" class="r-nav-link {% if request.url.path in ['/renovation', '/renovation/'] %}is-active{% endif %}">בית</a>
+                <a href="/renovation/tasks" class="r-nav-link {% if request.url.path.startswith('/renovation/tasks') %}is-active{% endif %}">משימות</a>
+                <a href="/renovation/ideas" class="r-nav-link {% if request.url.path.startswith('/renovation/ideas') %}is-active{% endif %}">רעיונות</a>
+                <a href="/renovation/rooms" class="r-nav-link {% if request.url.path.startswith('/renovation/rooms') %}is-active{% endif %}">חדרים</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="r-main">
+        <div class="r-container">
+            {% if not can_edit %}
+            <div class="r-notice">
+                <span>👀</span>
+                <span>מצב צפייה בלבד — אפשר לראות את ההתקדמות, אך לא לערוך.</span>
+            </div>
+            {% endif %}
+
+            {% block reno_content %}{% endblock %}
+        </div>
+    </main>
+
+    <nav class="r-tabbar" aria-label="ניווט תחתון">
+        <a href="/renovation" class="r-tab {% if request.url.path in ['/renovation', '/renovation/'] %}is-active{% endif %}">
+            <span class="r-tab-icon">🏠</span><span>בית</span>
+        </a>
+        <a href="/renovation/tasks" class="r-tab {% if request.url.path.startswith('/renovation/tasks') %}is-active{% endif %}">
+            <span class="r-tab-icon">✅</span><span>משימות</span>
+        </a>
+        <a href="/renovation/ideas" class="r-tab {% if request.url.path.startswith('/renovation/ideas') %}is-active{% endif %}">
+            <span class="r-tab-icon">💡</span><span>רעיונות</span>
+        </a>
+        <a href="/renovation/rooms" class="r-tab {% if request.url.path.startswith('/renovation/rooms') %}is-active{% endif %}">
+            <span class="r-tab-icon">🚪</span><span>חדרים</span>
+        </a>
+    </nav>
+
+    <div id="reno-toast" class="r-toast" role="status" aria-live="polite"></div>
+
+    <script>
+        const RENO_CAN_EDIT = {{ 'true' if can_edit else 'false' }};
+
+        let renoToastTimer = null;
+        function renoToast(message, isError) {
+            const el = document.getElementById('reno-toast');
+            el.textContent = message;
+            el.classList.toggle('is-error', !!isError);
+            el.classList.add('is-visible');
+            clearTimeout(renoToastTimer);
+            renoToastTimer = setTimeout(() => el.classList.remove('is-visible'), 2800);
+        }
+
+        /**
+         * Single entry point for every write the renovation pages make.
+         * Surfaces the server's Hebrew error message instead of failing silently.
+         */
+        async function renoApi(url, method, body) {
+            try {
+                const res = await fetch(url, {
+                    method,
+                    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+                    body: body ? JSON.stringify(body) : undefined,
+                });
+                if (res.status === 401 || (res.redirected && res.url.includes('/login'))) {
+                    window.location.href = '/login';
+                    return null;
+                }
+                if (!res.ok) {
+                    let detail = 'משהו השתבש. נסו שוב.';
+                    try {
+                        const data = await res.json();
+                        if (typeof data.detail === 'string') detail = data.detail;
+                    } catch (_) { /* keep the default message */ }
+                    renoToast(detail, true);
+                    return null;
+                }
+                return res.status === 204 ? true : await res.json();
+            } catch (_) {
+                renoToast('אין חיבור לשרת. בדקו את האינטרנט ונסו שוב.', true);
+                return null;
+            }
+        }
+
+        function renoOpenModal(id) {
+            document.getElementById(id).classList.add('is-open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function renoCloseModal(id) {
+            document.getElementById(id).classList.remove('is-open');
+            document.body.style.overflow = '';
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            document.querySelectorAll('.r-modal.is-open').forEach(m => m.classList.remove('is-open'));
+            document.body.style.overflow = '';
+        });
+    </script>
+
+    {% block reno_scripts %}{% endblock %}
+</body>
+
+</html>

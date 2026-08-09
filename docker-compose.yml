@@ -19,4 +19,6 @@ services:
       - SESSION_SECRET_KEY=${SESSION_SECRET_KEY:?SESSION_SECRET_KEY must be set (generate with: python -c "import secrets; print(secrets.token_urlsafe(64))")}
       - USER_PASSWORD_YOSEF=${USER_PASSWORD_YOSEF:?USER_PASSWORD_YOSEF must be set}
       - USER_PASSWORD_KARINA=${USER_PASSWORD_KARINA:?USER_PASSWORD_KARINA must be set}
+      # Renovation module user (Tsahala). Only this user and Yosef can open it.
+      - USER_PASSWORD_TSAHALA=${USER_PASSWORD_TSAHALA:?USER_PASSWORD_TSAHALA must be set}
     restart: unless-stopped

@@ -629,6 +629,71 @@ def initialise_database() -> None:
     except Exception:
         pass
 
+    # --- Home Renovation Module Tables ---
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS renovation_rooms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            icon TEXT DEFAULT '🏠',
+            notes TEXT,
+            image_url TEXT,
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS renovation_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            room_id INTEGER REFERENCES renovation_rooms(id) ON DELETE SET NULL,
+            status TEXT NOT NULL DEFAULT 'todo',
+            priority TEXT NOT NULL DEFAULT 'medium',
+            due_date TEXT,
+            notes TEXT,
+            link_url TEXT,
+            created_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS renovation_ideas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT,
+            room_id INTEGER REFERENCES renovation_rooms(id) ON DELETE SET NULL,
+            status TEXT NOT NULL DEFAULT 'new',
+            color TEXT NOT NULL DEFAULT 'white',
+            image_url TEXT,
+            link_url TEXT,
+            created_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Seed a starter set of rooms so the site is usable from the first visit.
+    try:
+        has_rooms = cur.execute("SELECT COUNT(*) FROM renovation_rooms").fetchone()[0]
+        if not has_rooms:
+            for idx, (room_name, room_icon) in enumerate([
+                ("סלון", "🛋️"),
+                ("מטבח", "🍳"),
+                ("חדר שינה", "🛏️"),
+                ("חדר אמבטיה", "🛁"),
+                ("שירותים", "🚽"),
+                ("מרפסת", "🪴"),
+                ("כללי", "🏠"),
+            ]):
+                cur.execute(
+                    "INSERT INTO renovation_rooms (name, icon, sort_order) VALUES (?,?,?)",
+                    (room_name, room_icon, idx),
+                )
+    except Exception:
+        pass
+
     # Workouts Tracker Table
     cur.execute("""
         CREATE TABLE IF NOT EXISTS workouts (

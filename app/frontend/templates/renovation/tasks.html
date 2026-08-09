@@ -1,0 +1,258 @@
+{% extends "renovation/base.html" %}
+
+{% block reno_title %}משימות{% endblock %}
+{% block reno_subtitle %}מה צריך לעשות{% endblock %}
+
+{% block reno_content %}
+
+<div class="r-section-head">
+    <h1 class="r-page-title">משימות</h1>
+    {% if can_edit %}
+    <button onclick="openTaskModal()" class="r-btn r-btn-primary r-btn-sm">➕ משימה חדשה</button>
+    {% endif %}
+</div>
+
+<!-- Filters -->
+{% set room_q = '&room=' ~ room_filter if room_filter else '' %}
+{% set status_q = 'status=' ~ status_filter if status_filter else 'status=' %}
+<div class="r-chips">
+    <a href="?status={{ room_q }}" class="r-chip {% if not status_filter %}is-active{% endif %}">הכל</a>
+    <a href="?status=open{{ room_q }}" class="r-chip {% if status_filter == 'open' %}is-active{% endif %}">פתוחות</a>
+    <a href="?status=in_progress{{ room_q }}" class="r-chip {% if status_filter == 'in_progress' %}is-active{% endif %}">🔨 בתהליך</a>
+    <a href="?status=done{{ room_q }}" class="r-chip {% if status_filter == 'done' %}is-active{% endif %}">✅ הושלמו</a>
+</div>
+
+{% if rooms %}
+<div class="r-chips" style="margin-top: .5rem;">
+    <a href="?{{ status_q }}" class="r-chip {% if not room_filter %}is-active{% endif %}">כל החדרים</a>
+    {% for room in rooms %}
+    <a href="?{{ status_q }}&room={{ room.id }}" class="r-chip {% if room_filter == room.id %}is-active{% endif %}">
+        <span>{{ room.icon or '🏠' }}</span>{{ room.name }}
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- List -->
+{% if tasks %}
+<div class="r-stack" style="margin-top: 1.25rem;">
+    {% for task in tasks %}
+    {% set is_done = task.status == 'done' %}
+    {% set is_late = task.due_date and task.due_date < today and not is_done %}
+    <div class="r-card {% if is_done %}r-card-dim{% endif %}">
+        <div class="r-row" style="align-items: flex-start;">
+            <button type="button"
+                    class="r-check {% if is_done %}is-done{% endif %}"
+                    {% if can_edit %}onclick="toggleTaskDone({{ task.id }}, {{ 'true' if is_done else 'false' }})"{% else %}disabled{% endif %}
+                    aria-label="{% if is_done %}סימון כלא הושלם{% else %}סימון כהושלם{% endif %}">✓</button>
+
+            <div class="r-grow">
+                <div class="r-row" style="align-items: flex-start; gap: .5rem;">
+                    <h2 class="r-heading r-grow {% if is_done %}r-done-text{% endif %}">{{ task.title }}</h2>
+                    {% if task.priority == 'high' and not is_done %}
+                    <span class="r-badge r-badge-red r-shrink-0">דחוף</span>
+                    {% elif task.status == 'in_progress' %}
+                    <span class="r-badge r-badge-amber r-shrink-0">בתהליך</span>
+                    {% endif %}
+                </div>
+
+                {% if task.room_name or task.due_date %}
+                <div class="r-meta">
+                    {% if task.room_name %}<span>{{ task.room_icon or '🏠' }} {{ task.room_name }}</span>{% endif %}
+                    {% if task.due_date %}
+                    <span class="{% if is_late %}r-danger-text{% endif %}">📅 {{ task.due_date }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if task.notes %}
+                <p class="r-text r-pre-line" style="margin-top: .5rem;">{{ task.notes }}</p>
+                {% endif %}
+
+                {% if task.link_url %}
+                <a href="{{ task.link_url }}" target="_blank" rel="noopener noreferrer"
+                   class="r-link" style="display: inline-block; margin-top: .5rem;">🔗 קישור</a>
+                {% endif %}
+            </div>
+
+            {% if can_edit %}
+            <div class="r-shrink-0" style="display: flex; flex-direction: column; gap: .25rem;">
+                <button class="r-icon-btn" aria-label="עריכת המשימה"
+                        onclick='openTaskModal({{ task | tojson }})'>✏️</button>
+                <button class="r-icon-btn r-icon-btn-danger" aria-label="מחיקת המשימה"
+                        onclick="deleteTask({{ task.id }})">🗑️</button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="r-empty">
+    <div class="r-empty-icon">📋</div>
+    <h2 class="r-empty-title">אין כאן משימות</h2>
+    <p class="r-empty-text">
+        {% if status_filter or room_filter %}נסו לשנות את הסינון למעלה.{% else %}הוסיפו את המשימה הראשונה.{% endif %}
+    </p>
+    {% if can_edit and not status_filter and not room_filter %}
+    <button onclick="openTaskModal()" class="r-btn r-btn-primary">➕ משימה ראשונה</button>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if can_edit %}
+<div id="task-modal" class="r-modal" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">
+    <div class="r-modal-backdrop" onclick="renoCloseModal('task-modal')"></div>
+    <div class="r-modal-card">
+        <h2 id="task-modal-title" class="r-modal-title">משימה חדשה</h2>
+
+        <div class="r-field">
+            <label class="r-label" for="task-title">מה צריך לעשות?</label>
+            <input id="task-title" type="text" class="r-input" placeholder="למשל: להזמין ארונות למטבח">
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="task-room">חדר</label>
+            <select id="task-room" class="r-input">
+                <option value="">בלי חדר מסוים</option>
+                {% for room in rooms %}
+                <option value="{{ room.id }}">{{ room.icon or '🏠' }} {{ room.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="r-field">
+            <span class="r-label">סטטוס</span>
+            <div class="r-chips r-chips-wrap">
+                <button type="button" data-status="todo" onclick="setTaskStatus('todo')" class="task-status-btn r-chip">לביצוע</button>
+                <button type="button" data-status="in_progress" onclick="setTaskStatus('in_progress')" class="task-status-btn r-chip">🔨 בתהליך</button>
+                <button type="button" data-status="done" onclick="setTaskStatus('done')" class="task-status-btn r-chip">✅ הושלם</button>
+            </div>
+        </div>
+
+        <div class="r-field">
+            <span class="r-label">עדיפות</span>
+            <div class="r-chips r-chips-wrap">
+                <button type="button" data-priority="low" onclick="setTaskPriority('low')" class="task-priority-btn r-chip">רגיל</button>
+                <button type="button" data-priority="medium" onclick="setTaskPriority('medium')" class="task-priority-btn r-chip">חשוב</button>
+                <button type="button" data-priority="high" onclick="setTaskPriority('high')" class="task-priority-btn r-chip">דחוף</button>
+            </div>
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="task-due">עד מתי (אפשר להשאיר ריק)</label>
+            <input id="task-due" type="date" class="r-input">
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="task-link">קישור (אתר, הצעת מחיר)</label>
+            <input id="task-link" type="url" class="r-input" placeholder="https://" dir="ltr">
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="task-notes">הערות</label>
+            <textarea id="task-notes" class="r-input" rows="3" placeholder="פרטים, טלפון של בעל מקצוע, מידות..."></textarea>
+        </div>
+
+        <input type="hidden" id="task-id">
+        <input type="hidden" id="task-status" value="todo">
+        <input type="hidden" id="task-priority" value="medium">
+
+        <div class="r-modal-actions">
+            <button onclick="saveTask()" id="task-save-btn" class="r-btn r-btn-primary r-grow">שמירה</button>
+            <button onclick="renoCloseModal('task-modal')" class="r-btn r-btn-ghost">ביטול</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block reno_scripts %}
+{% if can_edit %}
+<script>
+    function setTaskStatus(status) {
+        document.getElementById('task-status').value = status;
+        document.querySelectorAll('.task-status-btn').forEach(b => {
+            b.classList.toggle('is-active', b.dataset.status === status);
+        });
+    }
+
+    function setTaskPriority(priority) {
+        document.getElementById('task-priority').value = priority;
+        document.querySelectorAll('.task-priority-btn').forEach(b => {
+            b.classList.toggle('is-active', b.dataset.priority === priority);
+        });
+    }
+
+    function openTaskModal(task) {
+        document.getElementById('task-modal-title').textContent = task ? 'עריכת משימה' : 'משימה חדשה';
+        document.getElementById('task-id').value = task ? task.id : '';
+        document.getElementById('task-title').value = task ? task.title : '';
+        document.getElementById('task-room').value = task && task.room_id ? String(task.room_id) : '';
+        document.getElementById('task-due').value = task && task.due_date ? task.due_date : '';
+        document.getElementById('task-link').value = task && task.link_url ? task.link_url : '';
+        document.getElementById('task-notes').value = task && task.notes ? task.notes : '';
+        setTaskStatus(task ? task.status : 'todo');
+        setTaskPriority(task ? task.priority : 'medium');
+        renoOpenModal('task-modal');
+        setTimeout(() => document.getElementById('task-title').focus(), 60);
+    }
+
+    async function saveTask() {
+        const id = document.getElementById('task-id').value;
+        const title = document.getElementById('task-title').value.trim();
+        if (!title) {
+            renoToast('צריך לכתוב מה צריך לעשות', true);
+            document.getElementById('task-title').focus();
+            return;
+        }
+        const roomValue = document.getElementById('task-room').value;
+        const body = {
+            title,
+            room_id: roomValue ? Number(roomValue) : null,
+            status: document.getElementById('task-status').value,
+            priority: document.getElementById('task-priority').value,
+            due_date: document.getElementById('task-due').value || null,
+            link_url: document.getElementById('task-link').value.trim() || null,
+            notes: document.getElementById('task-notes').value.trim() || null,
+        };
+
+        const saveBtn = document.getElementById('task-save-btn');
+        saveBtn.disabled = true;
+        const result = await renoApi(
+            id ? `/api/renovation/tasks/${id}` : '/api/renovation/tasks',
+            id ? 'PUT' : 'POST',
+            body,
+        );
+        saveBtn.disabled = false;
+        if (!result) return;
+        renoCloseModal('task-modal');
+        window.location.reload();
+    }
+
+    async function toggleTaskDone(id, isDone) {
+        const result = await renoApi(`/api/renovation/tasks/${id}`, 'PUT', {
+            status: isDone ? 'todo' : 'done',
+        });
+        if (result) window.location.reload();
+    }
+
+    async function deleteTask(id) {
+        if (!confirm('למחוק את המשימה?')) return;
+        const result = await renoApi(`/api/renovation/tasks/${id}`, 'DELETE');
+        if (result) window.location.reload();
+    }
+
+    // Opening the page with ?new=1 (from the dashboard) jumps straight to the
+    // form. The flag is dropped from the URL so a reload after saving does not
+    // pop an empty form open again.
+    if (new URLSearchParams(window.location.search).get('new') === '1') {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('new');
+        window.history.replaceState({}, '', url);
+        openTaskModal();
+    }
+</script>
+{% endif %}
+{% endblock %}

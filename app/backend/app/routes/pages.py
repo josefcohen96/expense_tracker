@@ -1,5 +1,6 @@
 from __future__ import annotations
 import sqlite3
+import hmac
 import os
 import logging
 import time
@@ -19,6 +20,7 @@ from urllib.parse import unquote_plus
 
 from ..db import get_db_conn
 from .. import db as _db
+from ..services.access import home_path_for, password_env_var
 import logging
 logger = logging.getLogger(__name__)
 
@@ -134,8 +136,8 @@ async def login_page(request: Request) -> HTMLResponse:
             logger.info("User already authenticated, redirecting to dashboard", extra={
                 "username": user_obj.get("username") if isinstance(user_obj, dict) else None,
             })
-            return RedirectResponse(url="/finances", status_code=status.HTTP_302_FOUND)
-            
+            return RedirectResponse(url=home_path_for(user_obj), status_code=status.HTTP_302_FOUND)
+
     except Exception:
         logger.exception("Failed logging login_page context")
         
@@ -176,13 +178,16 @@ async def login_post(request: Request):
         "timestamp": datetime.now().isoformat(),
     })
 
-    # Credentials must come from environment. Missing env vars => 500 instead of
+    # Credentials must come from environment. A missing env var => 500 instead of
     # falling back to a hardcoded password — better to fail loud than to ship the
-    # default password publicly via the repo.
-    karina_pw = os.environ.get("USER_PASSWORD_KARINA")
-    yosef_pw = os.environ.get("USER_PASSWORD_YOSEF")
-    if not karina_pw or not yosef_pw:
-        logger.error("LOGIN misconfigured: USER_PASSWORD_* env var is missing")
+    # default password publicly via the repo. Only the attempted user's variable
+    # is required, so adding a new user never locks out the existing ones.
+    # case-insensitive username match
+    user_key = username.upper()
+    env_var = password_env_var(user_key)
+    expected_pw = os.environ.get(env_var) if env_var else None
+    if env_var and not expected_pw:
+        logger.error("LOGIN misconfigured: password env var is missing", extra={"env_var": env_var})
         return templates.TemplateResponse(
             "pages/login.html",
             {
@@ -192,10 +197,10 @@ async def login_post(request: Request):
             },
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
-    valid_users = {"KARINA": karina_pw, "YOSEF": yosef_pw}
-    # case-insensitive username match
-    user_key = username.upper()
-    if user_key in valid_users and password == valid_users[user_key]:
+    # Compare as bytes: compare_digest rejects non-ASCII str, and a password
+    # with Hebrew or accented characters would otherwise raise instead of just
+    # failing the check.
+    if expected_pw and hmac.compare_digest(password.encode("utf-8"), expected_pw.encode("utf-8")):
         logger.info("LOGIN success", extra={"username": user_key, "ip": client_ip})
 
         try:
@@ -214,7 +219,7 @@ async def login_post(request: Request):
                 "error_type": type(e).__name__,
             })
 
-        response = RedirectResponse(url="/finances", status_code=status.HTTP_303_SEE_OTHER)
+        response = RedirectResponse(url=home_path_for(user_key), status_code=status.HTTP_303_SEE_OTHER)
 
         # Also set a signed fallback cookie for auth in case session cookie is blocked by the platform
         try:
@@ -336,8 +341,9 @@ async def logout(request: Request) -> RedirectResponse:
 
 
 @router.get("/", response_class=HTMLResponse)
-async def index(_: Request) -> RedirectResponse:
-    return RedirectResponse(url="/finances", status_code=status.HTTP_302_FOUND)
+async def index(request: Request) -> RedirectResponse:
+    user_obj = getattr(request.state, "user", None) or request.session.get("user")
+    return RedirectResponse(url=home_path_for(user_obj), status_code=status.HTTP_302_FOUND)
 
 
 @router.get("/sw.js")

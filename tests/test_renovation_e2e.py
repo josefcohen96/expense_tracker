@@ -1,13 +1,22 @@
 """End-to-end tests for the home renovation module: pages, CRUD, and the
 per-user access rules that keep the module limited to Yosef and Tsahala.
 """
+import base64
+
 import pytest
 
+from app.backend.app.api.renovation import JOURNAL_PHOTOS_DIR
 from app.backend.app.services.access import (
     can_access_path,
     can_access_renovation,
     can_edit_renovation,
     home_path_for,
+)
+
+# Smallest thing that is genuinely a PNG — the upload endpoint checks magic
+# bytes, so a text file renamed to .png would not do.
+PNG_1PX = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
 )
 
 
@@ -61,6 +70,7 @@ def test_home_path_depends_on_user():
     "/renovation/ideas",
     "/renovation/rooms",
     "/renovation/supplies",
+    "/renovation/journal",
 ])
 def test_pages_load(app_client, path):
     res = app_client.get(path)
@@ -284,6 +294,160 @@ def test_renovation_users_only_may_edit_supplies():
     from app.backend.app.services.access import can_access_path
     assert can_access_path({"username": "KARINA"}, "/api/renovation/supplies") is False
     assert can_access_path({"username": "TSAHALA"}, "/renovation/supplies") is True
+
+
+# ─── Journal — before/after (יומן) ───────────────────────────────────────────
+
+def _upload_photo(app_client, entry_id, slot, content=PNG_1PX, filename="shot.png"):
+    return app_client.post(
+        f"/api/renovation/journal/{entry_id}/photo/{slot}",
+        files={"file": (filename, content, "image/png")},
+    )
+
+
+def test_journal_entry_lifecycle(app_client):
+    room_id = app_client.get("/api/renovation/rooms").json()[0]["id"]
+
+    created = app_client.post("/api/renovation/journal", json={
+        "title": "צביעתהסלוןלבדיקה",
+        "room_id": room_id,
+        "entry_date": "2026-08-09",
+        "notes": "  שתי שכבות  ",
+    })
+    assert created.status_code == 201
+    entry = created.json()
+    assert entry["notes"] == "שתי שכבות"  # trimmed
+    assert entry["before_photo"] is None and entry["after_photo"] is None
+
+    page = app_client.get("/renovation/journal").text
+    assert "צביעתהסלוןלבדיקה" in page
+    assert "9 באוגוסט 2026" in page  # Hebrew date, grouped by month
+
+    updated = app_client.put(f"/api/renovation/journal/{entry['id']}", json={"title": "כותרתמעודכנת"})
+    assert updated.json()["title"] == "כותרתמעודכנת"
+
+    assert app_client.delete(f"/api/renovation/journal/{entry['id']}").status_code == 204
+    assert all(e["id"] != entry["id"] for e in app_client.get("/api/renovation/journal").json())
+
+
+def test_journal_rejects_bad_input(app_client):
+    assert app_client.post("/api/renovation/journal", json={"title": "   "}).status_code == 422
+    assert app_client.post("/api/renovation/journal", json={"title": "x", "room_id": 999999}).status_code == 400
+    assert app_client.put("/api/renovation/journal/999999", json={"title": "x"}).status_code == 404
+    assert app_client.delete("/api/renovation/journal/999999").status_code == 404
+
+
+def test_journal_photos_upload_replace_and_delete(app_client):
+    entry = app_client.post("/api/renovation/journal", json={"title": "מטבחלפניואחרי"}).json()
+
+    before = _upload_photo(app_client, entry["id"], "before")
+    assert before.status_code == 200
+    first_name = before.json()["before_photo"]
+    assert (JOURNAL_PHOTOS_DIR / first_name).is_file()
+
+    # The photo is served back, and only under the name we generated.
+    served = app_client.get(f"/api/renovation/journal-photos/{first_name}")
+    assert served.status_code == 200
+    assert served.content == PNG_1PX
+    assert app_client.get("/api/renovation/journal-photos/../../db.py").status_code in (307, 404)
+    assert app_client.get("/api/renovation/journal-photos/nope.png").status_code == 404
+
+    # Replacing a photo cleans up the file it replaced.
+    replaced = _upload_photo(app_client, entry["id"], "before")
+    second_name = replaced.json()["before_photo"]
+    assert second_name != first_name
+    assert not (JOURNAL_PHOTOS_DIR / first_name).exists()
+
+    after_name = _upload_photo(app_client, entry["id"], "after").json()["after_photo"]
+
+    # With both photos present the page renders the comparison widget.
+    page = app_client.get("/renovation/journal?state=done").text
+    assert "data-reno-compare" in page
+    assert second_name in page and after_name in page
+
+    cleared = app_client.delete(f"/api/renovation/journal/{entry['id']}/photo/before")
+    assert cleared.status_code == 200
+    assert cleared.json()["before_photo"] is None
+    assert not (JOURNAL_PHOTOS_DIR / second_name).exists()
+
+    # Deleting the entry takes its remaining photo with it.
+    app_client.delete(f"/api/renovation/journal/{entry['id']}")
+    assert not (JOURNAL_PHOTOS_DIR / after_name).exists()
+
+
+def test_journal_photo_rejects_bad_uploads(app_client):
+    entry = app_client.post("/api/renovation/journal", json={"title": "בדיקתהעלאה"}).json()
+
+    # A renamed non-image: the extension says PNG, the bytes disagree.
+    assert _upload_photo(app_client, entry["id"], "before", b"<?php echo 1; ?>").status_code == 400
+    # An extension we do not accept at all.
+    assert _upload_photo(app_client, entry["id"], "before", PNG_1PX, "shot.svg").status_code == 400
+    # An empty file.
+    assert _upload_photo(app_client, entry["id"], "before", b"").status_code == 400
+    # A slot that is neither before nor after.
+    assert _upload_photo(app_client, entry["id"], "during").status_code == 400
+    assert _upload_photo(app_client, 999999, "before").status_code == 404
+
+    app_client.delete(f"/api/renovation/journal/{entry['id']}")
+
+
+def test_journal_filters_waiting_and_done(app_client):
+    room = app_client.post("/api/renovation/rooms", json={"name": "חדר יומן"}).json()
+    waiting = app_client.post("/api/renovation/journal", json={
+        "title": "מחכהלתמונהלבדיקה", "room_id": room["id"], "entry_date": "2026-07-01",
+    }).json()
+    done = app_client.post("/api/renovation/journal", json={
+        "title": "הושלםלבדיקה", "room_id": room["id"], "entry_date": "2026-07-02",
+    }).json()
+    _upload_photo(app_client, done["id"], "before")
+    _upload_photo(app_client, done["id"], "after")
+
+    waiting_page = app_client.get("/renovation/journal?state=waiting").text
+    assert "מחכהלתמונהלבדיקה" in waiting_page
+    assert "הושלםלבדיקה" not in waiting_page
+
+    done_page = app_client.get("/renovation/journal?state=done").text
+    assert "הושלםלבדיקה" in done_page
+    assert "מחכהלתמונהלבדיקה" not in done_page
+
+    # Room filter, and a junk filter that must not break the page.
+    other = app_client.post("/api/renovation/rooms", json={"name": "חדר יומן אחר"}).json()
+    assert "מחכהלתמונהלבדיקה" not in app_client.get(f"/renovation/journal?room={other['id']}").text
+    assert app_client.get("/renovation/journal?room=not-a-number").status_code == 200
+
+    # A finished pair is what the dashboard shows off.
+    assert "הושלםלבדיקה" in app_client.get("/renovation").text
+
+    for entry_id in (waiting["id"], done["id"]):
+        app_client.delete(f"/api/renovation/journal/{entry_id}")
+    for room_id in (room["id"], other["id"]):
+        app_client.delete(f"/api/renovation/rooms/{room_id}")
+
+
+def test_journal_entries_survive_their_room(app_client):
+    room = app_client.post("/api/renovation/rooms", json={"name": "חדר נעלם"}).json()
+    entry = app_client.post("/api/renovation/journal", json={
+        "title": "תיעודששורד", "room_id": room["id"],
+    }).json()
+
+    app_client.delete(f"/api/renovation/rooms/{room['id']}")
+
+    kept = next(e for e in app_client.get("/api/renovation/journal").json() if e["id"] == entry["id"])
+    assert kept["room_id"] is None
+    app_client.delete(f"/api/renovation/journal/{entry['id']}")
+
+
+def test_journal_is_behind_the_renovation_access_rules():
+    assert can_access_path({"username": "KARINA"}, "/renovation/journal") is False
+    assert can_access_path({"username": "KARINA"}, "/api/renovation/journal") is False
+    assert can_access_path({"username": "TSAHALA"}, "/renovation/journal") is True
+
+
+def test_tutorial_is_available_on_every_page(app_client):
+    page = app_client.get("/renovation").text
+    assert "reno-tour" in page
+    assert "ברוכים הבאים לשיפוץ שלנו" in page
+    assert "איך משתמשים באתר" in page  # the "?" button in the header
 
 
 # ─── Dashboard aggregation ───────────────────────────────────────────────────

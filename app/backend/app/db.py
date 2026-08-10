@@ -692,6 +692,24 @@ def initialise_database() -> None:
         )
     """)
 
+    # Before/after journal. An entry usually starts life with only a "before"
+    # photo — the "after" one lands weeks later — so both photo columns are
+    # nullable and hold the stored (UUID) filename, never a user-supplied name.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS renovation_journal (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            room_id INTEGER REFERENCES renovation_rooms(id) ON DELETE SET NULL,
+            entry_date TEXT,
+            notes TEXT,
+            before_photo TEXT,
+            after_photo TEXT,
+            created_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     # Seed a starter set of rooms so the site is usable from the first visit.
     try:
         has_rooms = cur.execute("SELECT COUNT(*) FROM renovation_rooms").fetchone()[0]

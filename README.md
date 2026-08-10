@@ -11,7 +11,7 @@ A modern, full-stack personal management application built with Python (FastAPI)
 - **Recurring Expenses**: Automated handling of monthly recurring payments.
 - **Wedding Planning Module**: Guests, seating, vendors, budget, tasks, and timeline management.
 - **Workout Tracking Module**: Log and review training sessions.
-- **Home Renovation Module** (`/renovation`): Hebrew, mobile-first site with its own UI for tracking renovation tasks, ideas (with photo/inspiration links), equipment needed per task and room with a "what's missing" shopping list, and room-by-room progress.
+- **Home Renovation Module** (`/renovation`): Hebrew, mobile-first site with its own UI for tracking renovation tasks, ideas (with photo/inspiration links), equipment needed per task and room with a "what's missing" shopping list, and room-by-room progress. Includes a **before/after journal** (`/renovation/journal`) — upload the two photos of a room and drag a divider across them to compare — and a guided tutorial that opens on a first visit and from the `?` button in the header.
 - **Responsive Design**: Mobile-friendly interface with offline support (service worker).
 
 ## 🛠️ Technologies Used
@@ -106,6 +106,15 @@ and applied by the auth middleware, so blocked pages **and** blocked API calls a
 Adding a user means adding it to `ALL_USERNAMES` in `access.py` and setting the matching
 `USER_PASSWORD_<NAME>` variable; a missing variable fails that login loudly instead of
 falling back to a default.
+
+## 🖼️ Uploaded files
+
+Renovation journal photos and wedding vendor documents are stored on disk under
+`app/uploads/` (git-ignored), not in the database. `docker-compose.yml` mounts that
+directory from the host, so rebuilding the image keeps the files; a deployment that
+skips the mount loses every uploaded photo on the next rebuild. Uploads are validated
+by extension **and** magic bytes (`app/backend/app/services/uploads.py`) and are saved
+under generated UUID names, so nothing a user types reaches the filesystem.
 
 ## 📂 Project Structure
 

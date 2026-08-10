@@ -102,7 +102,7 @@ button:disabled { cursor: default; opacity: .6; }
 
 .r-grid { display: grid; gap: .75rem; }
 .r-grid-2 { grid-template-columns: 1fr; }
-.r-grid-4, .r-grid-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.r-grid-4, .r-grid-5, .r-grid-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 /* An odd tile left alone on the last row stretches instead of sitting half-empty. */
 .r-grid-5 > :last-child:nth-child(odd) { grid-column: span 2; }
@@ -229,19 +229,29 @@ button:disabled { cursor: default; opacity: .6; }
 
 .r-tab {
     flex: 1;
+    /* Six tabs share a 320px-wide phone, so each one has to be allowed to
+       shrink below the width of its own label. */
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 2px;
     min-height: 66px;
-    /* Five tabs have to fit a narrow phone without wrapping. */
-    font-size: .7rem;
+    padding: 0 .15rem;
+    font-size: .66rem;
     font-weight: 500;
     color: var(--ink-muted);
 }
 
-.r-tab-icon { font-size: 1.5rem; line-height: 1; transition: transform .2s ease; }
+.r-tab > span:last-child {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.r-tab-icon { font-size: 1.4rem; line-height: 1; transition: transform .2s ease; }
 .r-tab.is-active { color: var(--clay-700); font-weight: 700; }
 .r-tab.is-active .r-tab-icon { transform: translateY(-2px) scale(1.1); }
 
@@ -611,6 +621,363 @@ textarea.r-input { min-height: 90px; resize: vertical; }
 .r-modal-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 1.25rem; }
 .r-modal-actions { display: flex; gap: .75rem; margin-top: 1.5rem; }
 
+/* ---------- Before/after comparison ---------- */
+
+/* `--pos` is the handle's distance from the *physical* left edge. The "before"
+   photo is clipped to everything right of it, which in an RTL page means the
+   picture starts where the eye does. Everything here is deliberately physical
+   (left / inset) so the widget behaves the same whatever the text direction. */
+.r-ba {
+    position: relative;
+    --pos: 55%;
+    aspect-ratio: 4 / 3;
+    /* Keeps the widget from swallowing a laptop screen on the dashboard. */
+    max-height: 60vh;
+    overflow: hidden;
+    border-radius: var(--radius);
+    background: #efe9e1;
+    /* Horizontal drags belong to the slider; vertical ones still scroll the page. */
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: ew-resize;
+}
+
+.r-ba-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    -webkit-user-drag: none;
+}
+
+.r-ba-clip {
+    position: absolute;
+    inset: 0;
+    clip-path: inset(0 0 0 var(--pos));
+}
+
+.r-ba-tag {
+    position: absolute;
+    top: .6rem;
+    padding: .2rem .6rem;
+    border-radius: 999px;
+    background: rgba(41, 37, 36, .62);
+    color: #fff;
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    pointer-events: none;
+}
+
+.r-ba-tag-before { right: .6rem; }
+.r-ba-tag-after { left: .6rem; }
+
+.r-ba-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--pos);
+    width: 44px;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: ew-resize;
+}
+
+.r-ba-handle::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: #fff;
+    box-shadow: 0 0 6px rgba(0, 0, 0, .35);
+}
+
+.r-ba-grip {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #fff;
+    color: var(--clay-800);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    font-weight: 700;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .3);
+    transition: transform .15s ease;
+}
+
+.r-ba.is-dragging .r-ba-grip { transform: scale(1.12); }
+
+.r-ba-zoom {
+    position: absolute;
+    top: .5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(41, 37, 36, .62);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+}
+
+.r-ba-controls {
+    position: absolute;
+    inset-inline: 0;
+    bottom: .6rem;
+    display: flex;
+    justify-content: center;
+    gap: .3rem;
+}
+
+.r-ba-controls button {
+    padding: .3rem .75rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .92);
+    color: var(--ink);
+    font-size: .8rem;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .2);
+}
+
+.r-ba-controls button:hover { background: #fff; }
+
+/* Sits below the divider's grip, not behind it. */
+.r-ba-hint {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 3.1rem;
+    text-align: center;
+    color: #fff;
+    font-size: .85rem;
+    font-weight: 600;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, .6);
+    pointer-events: none;
+    transition: opacity .3s ease;
+}
+
+.r-ba.is-touched .r-ba-hint { opacity: 0; }
+
+/* Lightbox: the same widget, as big as the screen allows. */
+.r-lightbox .r-modal-card {
+    max-width: 56rem;
+    background: #1c1917;
+    color: #fff;
+}
+
+.r-lightbox .r-ba {
+    max-height: 72vh;
+    background: #000;
+}
+
+.r-lightbox .r-ba-img { object-fit: contain; }
+.r-lightbox .r-modal-title { color: #fff; }
+
+/* ---------- Journal ---------- */
+
+.r-journal-date {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .2rem .7rem;
+    border-radius: 999px;
+    background: var(--clay-50);
+    color: var(--clay-800);
+    font-size: .82rem;
+    font-weight: 700;
+}
+
+/* A single photo, when only "before" or only "after" exists yet. */
+.r-journal-single {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: #efe9e1;
+}
+
+.r-journal-single img { width: 100%; height: 100%; object-fit: cover; }
+
+.r-journal-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .35rem;
+    aspect-ratio: 4 / 3;
+    border-radius: var(--radius);
+    border: 2px dashed #ddd2c3;
+    background: #fbf8f4;
+    color: var(--ink-muted);
+    text-align: center;
+    padding: 1rem;
+    width: 100%;
+}
+
+.r-journal-slot:hover { border-color: var(--clay-600); color: var(--clay-700); }
+.r-journal-slot-icon { font-size: 2rem; }
+.r-journal-slot-title { font-weight: 700; font-size: .95rem; }
+
+/* Photo pickers inside the entry form. */
+.r-uploads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+
+.r-upload {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .3rem;
+    aspect-ratio: 1 / 1;
+    border-radius: var(--radius);
+    border: 2px dashed #ddd2c3;
+    background: #fbf8f4;
+    color: var(--ink-muted);
+    font-size: .85rem;
+    font-weight: 600;
+    overflow: hidden;
+    width: 100%;
+}
+
+.r-upload:hover { border-color: var(--clay-600); }
+.r-upload-icon { font-size: 1.6rem; }
+
+.r-upload img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.r-upload-label {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    padding: .25rem;
+    background: rgba(41, 37, 36, .6);
+    color: #fff;
+    font-size: .78rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.r-upload-clear {
+    position: absolute;
+    top: .35rem;
+    inset-inline-end: .35rem;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: rgba(41, 37, 36, .7);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .9rem;
+}
+
+/* ---------- Tutorial ---------- */
+
+.r-help-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .18);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.r-help-btn:hover { background: rgba(255, 255, 255, .3); }
+
+.r-tour { position: fixed; inset: 0; z-index: 150; display: none; }
+
+.r-tour.is-open {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.r-tour-backdrop { position: absolute; inset: 0; background: rgba(41, 37, 36, .62); }
+
+.r-tour-card {
+    position: relative;
+    width: 100%;
+    max-width: 30rem;
+    max-height: 92vh;
+    overflow-y: auto;
+    background: var(--surface);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: 1.75rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
+    text-align: center;
+    box-shadow: 0 -10px 40px rgba(41, 37, 36, .35);
+}
+
+.r-tour-skip {
+    position: absolute;
+    top: .85rem;
+    inset-inline-start: 1rem;
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--ink-muted);
+}
+
+.r-tour-icon {
+    font-size: 3rem;
+    line-height: 1;
+    margin-bottom: .75rem;
+    animation: r-pop .35s ease;
+}
+
+@keyframes r-pop {
+    from { transform: scale(.6); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.r-tour-title { font-size: 1.3rem; font-weight: 700; margin-bottom: .5rem; }
+.r-tour-text { color: var(--ink-soft); font-size: .98rem; }
+
+.r-tour-cta {
+    display: inline-block;
+    margin-top: .9rem;
+    font-weight: 700;
+    color: var(--clay-700);
+}
+
+.r-tour-cta:hover { text-decoration: underline; }
+
+.r-tour-dots {
+    display: flex;
+    justify-content: center;
+    gap: .4rem;
+    margin: 1.25rem 0 .25rem;
+}
+
+.r-tour-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #e4dbcf;
+    transition: width .2s ease, background-color .2s ease;
+}
+
+.r-tour-dot.is-active { width: 26px; border-radius: 999px; background: var(--clay-700); }
+
+.r-tour-actions { display: flex; gap: .75rem; margin-top: 1rem; }
+
 /* ---------- Toast ---------- */
 
 .r-toast {
@@ -645,6 +1012,9 @@ textarea.r-input { min-height: 90px; resize: vertical; }
 
     .r-modal.is-open { align-items: center; }
     .r-modal-card { border-radius: var(--radius-lg); padding: 1.75rem; }
+
+    .r-tour.is-open { align-items: center; }
+    .r-tour-card { border-radius: var(--radius-lg); padding: 2rem 1.75rem; }
 }
 
 @media (min-width: 768px) {
@@ -658,7 +1028,7 @@ textarea.r-input { min-height: 90px; resize: vertical; }
 }
 
 @media (min-width: 1024px) {
-    .r-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .r-grid-3, .r-grid-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .r-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .r-grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
     .r-grid-5 > :last-child:nth-child(odd) { grid-column: auto; }

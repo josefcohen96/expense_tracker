@@ -8,6 +8,10 @@ services:
       # Persist the sqlite database using a bind mount
       # Maps host folder (relative to docker-compose.yml) to container folder
       - ./budget.db:/app/app/backend/data/budget.db
+      # Uploaded files (renovation journal photos, wedding vendor documents)
+      # live on disk rather than in the database, so they need their own mount
+      # or they disappear the next time the image is rebuilt.
+      - ./uploads:/app/app/uploads
     environment:
       # Use development settings for HTTP (non-SSL) access so cookies work
       - ENVIRONMENT=development

@@ -1,0 +1,43 @@
+{#
+  Before/after comparison widget, shared by the journal page and the dashboard.
+
+  The markup is inert on its own — renoInitCompare() in base.html finds every
+  [data-reno-compare] node and wires up dragging, keyboard control and the
+  fullscreen button. That means a cloned copy (the lightbox clones one of these)
+  comes to life without any extra template work.
+#}
+
+{% macro photo_url(stored_name) -%}
+/api/renovation/journal-photos/{{ stored_name }}
+{%- endmacro %}
+
+{% macro compare(entry, zoomable=true) %}
+<figure class="r-ba" data-reno-compare data-title="{{ entry.title }}">
+    <img class="r-ba-img" src="{{ photo_url(entry.after_photo) }}"
+         alt="{{ entry.title }} — אחרי" loading="lazy" draggable="false">
+    <div class="r-ba-clip">
+        <img class="r-ba-img" src="{{ photo_url(entry.before_photo) }}"
+             alt="{{ entry.title }} — לפני" loading="lazy" draggable="false">
+    </div>
+
+    <span class="r-ba-tag r-ba-tag-before">לפני</span>
+    <span class="r-ba-tag r-ba-tag-after">אחרי</span>
+
+    {% if zoomable %}
+    <button type="button" class="r-ba-zoom" data-reno-compare-zoom aria-label="הגדלה למסך מלא">⤢</button>
+    {% endif %}
+
+    <div class="r-ba-handle" data-reno-compare-handle role="slider" tabindex="0"
+         aria-label="מחוון השוואה בין לפני לאחרי" aria-valuemin="0" aria-valuemax="100" aria-valuenow="55">
+        <span class="r-ba-grip" aria-hidden="true">⇔</span>
+    </div>
+
+    <div class="r-ba-controls">
+        <button type="button" data-reno-compare-set="0">לפני</button>
+        <button type="button" data-reno-compare-set="50">חצי־חצי</button>
+        <button type="button" data-reno-compare-set="100">אחרי</button>
+    </div>
+
+    <span class="r-ba-hint">גררו כדי להשוות ↔</span>
+</figure>
+{% endmacro %}

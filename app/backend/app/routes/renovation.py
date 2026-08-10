@@ -43,6 +43,11 @@ IDEA_STATUS_LABELS = {
     "rejected": "לא מתאים",
 }
 
+HEBREW_MONTHS = (
+    "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
+    "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר",
+)
+
 # Hebrew display names for the header greeting.
 USER_DISPLAY_NAMES = {
     "YOSEF": "יוסף",
@@ -115,6 +120,46 @@ def _supply_rows(db_conn: sqlite3.Connection) -> list[dict]:
     """).fetchall()]
 
 
+def _parse_iso(value: Optional[str]) -> Optional[date]:
+    try:
+        return date.fromisoformat(value) if value else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _journal_rows(db_conn: sqlite3.Connection) -> list[dict]:
+    """Journal entries, newest first, with the room they belong to.
+
+    Each row also carries the Hebrew strings the page prints, so the template
+    never has to slice a date string apart.
+    """
+    rows = [dict(r) for r in db_conn.execute("""
+        SELECT j.*, r.name AS room_name, r.icon AS room_icon
+        FROM renovation_journal j
+        LEFT JOIN renovation_rooms r ON r.id = j.room_id
+        ORDER BY COALESCE(j.entry_date, '') DESC, j.id DESC
+    """).fetchall()]
+
+    for row in rows:
+        parsed = _parse_iso(row.get("entry_date"))
+        month = HEBREW_MONTHS[parsed.month - 1] if parsed else None
+        row["display_date"] = f"{parsed.day} ב{month} {parsed.year}" if parsed else "בלי תאריך"
+        row["month_label"] = f"{month} {parsed.year}" if parsed else "בלי תאריך"
+        author = normalise_username(row.get("created_by"))
+        row["author_name"] = USER_DISPLAY_NAMES.get(author, author.title())
+    return rows
+
+
+def _group_by_month(entries: list[dict]) -> list[dict]:
+    """Consecutive entries sharing a month, in the order they already have."""
+    groups: list[dict] = []
+    for entry in entries:
+        if not groups or groups[-1]["label"] != entry["month_label"]:
+            groups.append({"label": entry["month_label"], "entries": []})
+        groups[-1]["entries"].append(entry)
+    return groups
+
+
 def _attach_supplies(rows: list[dict], supplies: list[dict], key: str) -> None:
     """Hang each row's supplies (and its missing count) off the row itself."""
     by_parent: dict = {}
@@ -143,8 +188,15 @@ async def renovation_dashboard(
     tasks = _task_rows(db_conn)
     ideas = _idea_rows(db_conn)
     supplies = _supply_rows(db_conn)
+    journal = _journal_rows(db_conn)
     today = ctx["today"]
     missing_supplies = [s for s in supplies if s["status"] == "needed"]
+
+    # The dashboard shows off the newest finished pair — an entry still waiting
+    # for its "after" photo has nothing to compare yet.
+    latest_pair = next(
+        (e for e in journal if e["before_photo"] and e["after_photo"]), None
+    )
 
     done = [t for t in tasks if t["status"] == "done"]
     open_tasks = [t for t in tasks if t["status"] != "done"]
@@ -179,6 +231,8 @@ async def renovation_dashboard(
         "total_supplies": len(supplies),
         "missing_supplies_count": len(missing_supplies),
         "missing_supplies": missing_supplies[:6],
+        "journal_count": len(journal),
+        "latest_pair": latest_pair,
     })
     return templates.TemplateResponse("renovation/index.html", ctx)
 
@@ -230,6 +284,36 @@ async def renovation_ideas(
         "room_filter": room_filter,
     })
     return templates.TemplateResponse("renovation/ideas.html", ctx)
+
+
+@router.get("/journal", response_class=HTMLResponse)
+async def renovation_journal(
+    request: Request,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> HTMLResponse:
+    ctx = _base_context(request, db_conn)
+    room_filter = _int_or_none(request.query_params.get("room"))
+    # "waiting" is the working list: entries whose "after" photo is still missing.
+    state_filter = request.query_params.get("state") or ""
+
+    entries = _journal_rows(db_conn)
+    waiting_total = len([e for e in entries if not (e["before_photo"] and e["after_photo"])])
+
+    if state_filter == "waiting":
+        entries = [e for e in entries if not (e["before_photo"] and e["after_photo"])]
+    elif state_filter == "done":
+        entries = [e for e in entries if e["before_photo"] and e["after_photo"]]
+    if room_filter is not None:
+        entries = [e for e in entries if e["room_id"] == room_filter]
+
+    ctx.update({
+        "entries": entries,
+        "groups": _group_by_month(entries),
+        "room_filter": room_filter,
+        "state_filter": state_filter,
+        "waiting_total": waiting_total,
+    })
+    return templates.TemplateResponse("renovation/journal.html", ctx)
 
 
 @router.get("/rooms", response_class=HTMLResponse)

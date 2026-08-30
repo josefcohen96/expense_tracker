@@ -204,6 +204,12 @@ button:disabled { cursor: default; opacity: .6; }
 }
 
 .r-nav-link {
+    /* Flex + min-height so the header's "logout" link is a full touch
+       target rather than the 39px its padding alone produced. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
     padding: .5rem 1.05rem;
     border-radius: 999px;
     font-weight: 600;
@@ -928,8 +934,12 @@ textarea.r-input { min-height: 90px; resize: vertical; }
 
 .r-tour-skip {
     position: absolute;
-    top: .85rem;
-    inset-inline-start: 1rem;
+    /* Offset by the padding it gains below, so the label stays put while the
+       hit area grows to a full touch target. */
+    top: calc(.85rem - .6rem);
+    inset-inline-start: calc(1rem - .75rem);
+    padding: .6rem .75rem;
+    min-height: 44px;
     font-size: .85rem;
     font-weight: 600;
     color: var(--ink-muted);

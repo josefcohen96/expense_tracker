@@ -17,7 +17,11 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from ..db import get_db_conn
-from ..services.access import can_edit_renovation, normalise_username
+from ..services.access import (
+    RENOVATION_ONLY_USERS,
+    can_edit_renovation,
+    normalise_username,
+)
 
 ROOT_DIR = FSPath(__file__).resolve().parents[3]
 TEMPLATES_DIR = ROOT_DIR / "frontend" / "templates"
@@ -78,6 +82,9 @@ def _base_context(request: Request, db_conn: sqlite3.Connection) -> dict:
         "username": username,
         "user_display_name": USER_DISPLAY_NAMES.get(username, username.title()),
         "can_edit": can_edit_renovation(user),
+        # Renovation is its own shell with its own navigation, so a user who
+        # also owns the other modules needs a way back out of it.
+        "show_site_link": username not in RENOVATION_ONLY_USERS,
         "today": date.today().isoformat(),
         "task_status_labels": TASK_STATUS_LABELS,
         "idea_status_labels": IDEA_STATUS_LABELS,

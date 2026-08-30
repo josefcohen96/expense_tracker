@@ -2,9 +2,11 @@
 
 {% block title %}{% block finances_title %}פיננסים{% endblock %} - המנביטים{% endblock %}
 
-{% block body_class %}has-side-navigation{% endblock %}
+{% block body_class %}has-side-navigation has-tabbar{% endblock %}
 
 {% block content %}
+
+<style>body { --m-accent: #2563eb; --m-accent-soft: #eff6ff; }</style>
 
 <!-- Desktop Only: Persistent Sidebar -->
 <aside class="hidden lg:flex lg:flex-col fixed bg-white border-l border-gray-200 shadow-lg overflow-y-auto"
@@ -112,96 +114,57 @@
     </nav>
 </aside>
 
-<!-- Mobile Only: Section Sub-header -->
+<!-- Mobile Only: slim section header (title + page action) -->
 <div class="lg:hidden section-subheader bg-white border-b border-gray-200 shadow-sm" dir="rtl">
-    <div class="flex items-center justify-between px-4 py-2">
+    <div class="flex items-center justify-between gap-2 px-4 py-2.5">
         <div class="flex items-center gap-2 min-w-0">
             <i class="fas fa-wallet text-blue-600 text-sm flex-shrink-0"></i>
             <span class="font-semibold text-gray-800 text-sm truncate">{% block finances_breadcrumb %}פיננסים{% endblock %}</span>
         </div>
-    </div>
-    <!-- Scrollable navigation tabs -->
-    <div class="overflow-x-auto whitespace-nowrap px-2 pb-2" dir="rtl" style="scrollbar-width: none; -ms-overflow-style: none;">
-        <a href="/finances" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium mr-1
-           {% if request.path == '/finances' %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
-            <span>📊</span><span>דשבורד</span>
-        </a>
-        <a href="/finances/transactions" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium mr-1
-           {% if 'transactions' in request.path %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
-            <span>💳</span><span>עסקאות</span>
-        </a>
-        <a href="/finances/income" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium mr-1
-           {% if 'income' in request.path %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
-            <span>💵</span><span>הכנסות</span>
-        </a>
-        <a href="/finances/recurrences" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium mr-1
-           {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
-            <span>🔄</span><span>קבועות</span>
-        </a>
-        <a href="/finances/recurrences/active" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium mr-1
-           {% if 'recurrences/active' in request.path %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
-            <span>⚙️</span><span>ניהול</span>
-        </a>
-        <a href="/finances/statistics" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium mr-1
-           {% if 'statistics' in request.path %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
-            <span>📈</span><span>סטטיסטיקה</span>
-        </a>
-        <a href="/finances/backup" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium mr-1
-           {% if 'backup' in request.path %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
-            <span>💾</span><span>גיבוי</span>
-        </a>
+        <div class="flex items-center gap-2 flex-shrink-0">
+            {% block finances_header_action %}{% endblock %}
+        </div>
     </div>
 </div>
 
-<!-- Mobile Only: Fixed Left Mini Sidebar -->
-<nav class="lg:hidden fixed left-0 z-[150] bg-white border-r border-gray-200 shadow-md flex flex-col items-center overflow-y-auto"
-     style="top: calc(160px + 0.5rem + env(safe-area-inset-top, 0px)); bottom: env(safe-area-inset-bottom, 16px); width: 52px; padding-bottom: env(safe-area-inset-bottom, 0px);">
-
-    <a href="/finances" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if request.path == '/finances' %}bg-blue-50 border-blue-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">📊</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if request.path == '/finances' %}text-blue-600 font-semibold{% else %}text-gray-400{% endif %}">בית</span>
+<!-- Mobile Only: bottom tab bar (the one section navigation on a phone) -->
+<nav class="m-tabbar lg:hidden" aria-label="ניווט פיננסים" dir="rtl">
+    <a href="/finances" class="m-tab {% if request.path == '/finances' %}is-active{% endif %}">
+        <span class="m-tab-icon">📊</span><span>דשבורד</span>
     </a>
-
-    <a href="/finances/transactions" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'transactions' in request.path %}bg-blue-50 border-blue-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">💳</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'transactions' in request.path %}text-blue-600 font-semibold{% else %}text-gray-400{% endif %}">עסקאות</span>
+    <a href="/finances/transactions" class="m-tab {% if 'transactions' in request.path %}is-active{% endif %}">
+        <span class="m-tab-icon">💳</span><span>עסקאות</span>
     </a>
-
-    <a href="/finances/income" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'income' in request.path %}bg-blue-50 border-blue-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">💵</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'income' in request.path %}text-blue-600 font-semibold{% else %}text-gray-400{% endif %}">הכנסות</span>
+    <a href="/finances/income" class="m-tab {% if 'income' in request.path %}is-active{% endif %}">
+        <span class="m-tab-icon">💵</span><span>הכנסות</span>
     </a>
-
-    <a href="/finances/recurrences" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}bg-blue-50 border-blue-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">🔄</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}text-blue-600 font-semibold{% else %}text-gray-400{% endif %}">קבועות</span>
+    <a href="/finances/statistics" class="m-tab {% if 'statistics' in request.path %}is-active{% endif %}">
+        <span class="m-tab-icon">📈</span><span>סטטיסטיקה</span>
     </a>
-
-    <a href="/finances/recurrences/active" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'recurrences/active' in request.path %}bg-blue-50 border-blue-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">⚙️</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'recurrences/active' in request.path %}text-blue-600 font-semibold{% else %}text-gray-400{% endif %}">ניהול</span>
-    </a>
-
-    <a href="/finances/statistics" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'statistics' in request.path %}bg-blue-50 border-blue-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">📈</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'statistics' in request.path %}text-blue-600 font-semibold{% else %}text-gray-400{% endif %}">סטטיסטיקה</span>
-    </a>
-
-    <a href="/finances/backup" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'backup' in request.path %}bg-blue-50 border-blue-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">💾</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'backup' in request.path %}text-blue-600 font-semibold{% else %}text-gray-400{% endif %}">גיבוי</span>
-    </a>
+    <button type="button" class="m-tab" id="fin-more-btn"
+            aria-controls="fin-more-sheet" aria-expanded="false"
+            {% if ('recurrences' in request.path and 'recurrences/active' not in request.path) or ('recurrences/active' in request.path) or ('backup' in request.path) %}data-active="1"{% endif %}>
+        <span class="m-tab-icon">☰</span><span>עוד</span>
+    </button>
 </nav>
 
+<div class="m-sheet-backdrop lg:hidden" id="fin-more-backdrop"></div>
+<div class="m-sheet lg:hidden" id="fin-more-sheet" role="dialog" aria-modal="true"
+     aria-label="עוד עמודי פיננסים" dir="rtl">
+    <div class="m-sheet-grip"></div>
+    <a href="/finances/recurrences" class="m-sheet-link {% if 'recurrences' in request.path and 'recurrences/active' not in request.path %}is-active{% endif %}">
+        <span class="m-tab-icon">🔄</span><span>הוצאות קבועות</span>
+    </a>
+    <a href="/finances/recurrences/active" class="m-sheet-link {% if 'recurrences/active' in request.path %}is-active{% endif %}">
+        <span class="m-tab-icon">⚙️</span><span>ניהול הוצאות קבועות</span>
+    </a>
+    <a href="/finances/backup" class="m-sheet-link {% if 'backup' in request.path %}is-active{% endif %}">
+        <span class="m-tab-icon">💾</span><span>גיבוי</span>
+    </a>
+</div>
+
 <!-- Page Content: pushed right on desktop to clear the sidebar -->
-<div class="min-h-screen p-4 sm:p-6 lg:p-8 pb-10 lg:mr-64 ml-[52px] lg:ml-0" dir="rtl">
+<div class="min-h-screen p-4 sm:p-6 lg:p-8 pb-10 lg:mr-64" dir="rtl">
     {% block finances_content %}{% endblock %}
 </div>
 {% endblock %}

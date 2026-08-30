@@ -1030,9 +1030,11 @@ body.loaded .animate-sequence {
   }
 }
 
-/* Apply safe-area paddings for full-bleed UIs */
+/* Apply safe-area paddings for full-bleed UIs.
+   The top inset is deliberately NOT applied here: the fixed navbar already
+   pads itself by `--safe-top`, and `.main-content` already offsets by it, so
+   adding it to the body too pushed every page down by a third notch. */
 body {
-  padding-top: max(0px, var(--safe-top));
   padding-right: max(0px, var(--safe-right));
   padding-bottom: max(0px, var(--safe-bottom));
   padding-left: max(0px, var(--safe-left));
@@ -1329,4 +1331,195 @@ button:focus-visible,
 [role="button"]:focus-visible {
   outline: 2px solid var(--primary-500);
   outline-offset: 2px;
+}
+
+/* ===================================================================
+   MOBILE SECTION NAVIGATION
+   A single bottom tab bar per section, replacing the mini side rail and
+   the pill scroller that used to sit on top of each other. It mirrors the
+   renovation module's `.r-tabbar`, so every section of the site navigates
+   the same way on a phone. Sections set `--m-accent` to colour it.
+   =================================================================== */
+:root {
+  --m-accent: var(--primary-600);
+  --m-accent-soft: var(--primary-50);
+  --m-tabbar-height: 62px;
+  /* Where the sticky section sub-header sits, and where content stuck below
+     it has to start. Defined once so templates stop hard-coding pixel sums
+     that drift whenever the header padding changes. */
+  --m-subheader-top: calc(64px + 0.5rem + env(safe-area-inset-top, 0px));
+  --m-subheader-height: 42px;
+  --m-below-subheader: calc(var(--m-subheader-top) + var(--m-subheader-height));
+}
+
+.m-tabbar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 400;
+  display: flex;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+  box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.08);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.m-tab {
+  /* Up to five tabs share a 320px phone, so each has to be allowed to
+     shrink below the width of its own label. */
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: var(--m-tabbar-height);
+  padding: 0 0.15rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #9ca3af;
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.m-tab > span:last-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-tab-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.m-tab.is-active {
+  color: var(--m-accent);
+  font-weight: 700;
+}
+
+.m-tab.is-active .m-tab-icon {
+  transform: translateY(-2px) scale(1.1);
+}
+
+/* ---- "More" sheet: the section links that do not fit in the bar ---- */
+.m-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  z-index: 450;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.m-sheet {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 460;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 40px rgba(15, 23, 42, 0.2);
+  padding: 0.5rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  transform: translateY(100%);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 75vh;
+  overflow-y: auto;
+}
+
+.m-sheet-open .m-sheet { transform: translateY(0); }
+.m-sheet-open .m-sheet-backdrop { opacity: 1; pointer-events: auto; }
+
+.m-sheet-grip {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: #d1d5db;
+  margin: 0.5rem auto 0.75rem;
+}
+
+.m-sheet-link {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  /* Comfortably above the 44px minimum touch target. */
+  min-height: 52px;
+  padding: 0 0.75rem;
+  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #374151;
+  text-decoration: none;
+}
+
+.m-sheet-link .m-tab-icon { font-size: 1.25rem; }
+.m-sheet-link:active { background: #f3f4f6; }
+
+.m-sheet-link.is-active {
+  background: var(--m-accent-soft);
+  color: var(--m-accent);
+  font-weight: 700;
+}
+
+/* Content has to clear the fixed bar, and the FAB has to sit above it. */
+body.has-tabbar {
+  padding-bottom: calc(var(--m-tabbar-height) + env(safe-area-inset-bottom, 0px));
+}
+
+body.has-tabbar .fab-button {
+  bottom: calc(var(--m-tabbar-height) + 1rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* The bar is a phone pattern; on desktop the section sidebar takes over. */
+@media (min-width: 1024px) {
+  .m-tabbar,
+  .m-sheet,
+  .m-sheet-backdrop { display: none; }
+
+  body.has-tabbar { padding-bottom: 0; }
+
+  body.has-tabbar .fab-button {
+    bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ===================================================================
+   TOUCH TARGETS
+   Below the desktop breakpoint every control a finger has to hit gets at
+   least the 44px recommended by both the iOS and Android guidelines. The
+   dense `btn-xs`/`btn-sm` paddings were tuned for a mouse and left several
+   buttons at 33-39px.
+   =================================================================== */
+@media (max-width: 1023px) {
+  .btn,
+  button:not(.m-tab):not(.m-sheet-link),
+  select,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  a.btn {
+    min-height: 44px;
+  }
+
+  /* Anchors styled as buttons rather than carrying `.btn`. */
+  a[class*="rounded"][class*="px-"][class*="py-"] {
+    min-height: 44px;
+  }
+
+  .btn,
+  a.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  textarea { min-height: 88px; }
 }

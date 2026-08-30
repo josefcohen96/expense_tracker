@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="/static/css/renovation.css?v=20260809-journal">
+    <link rel="stylesheet" href="/static/css/renovation.css?v=20260830-mobilenav">
     {% block reno_head %}{% endblock %}
 </head>
 
@@ -35,6 +35,9 @@
                     {% endif %}
                     <button type="button" class="r-help-btn" onclick="renoTourOpen(0)"
                             aria-label="איך משתמשים באתר">?</button>
+                    {% if show_site_link %}
+                    <a href="/finances" class="r-nav-link" aria-label="חזרה לשאר האתר">↩︎</a>
+                    {% endif %}
                     <a href="/logout" class="r-nav-link">יציאה</a>
                 </div>
             </div>

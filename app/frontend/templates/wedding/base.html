@@ -2,11 +2,14 @@
 
 {% block title %}{% block wedding_title %}חתונה{% endblock %} - המנביטים{% endblock %}
 
-{% block body_class %}has-side-navigation{% endblock %}
+{% block body_class %}has-side-navigation has-tabbar{% endblock %}
 
 {% block content %}
 <!-- Hide the base layout FAB on wedding pages -->
-<style>.fab-button { display: none !important; }</style>
+<style>
+    .fab-button { display: none !important; }
+    body { --m-accent: #e11d48; --m-accent-soft: #fff1f2; }
+</style>
 
 <!-- Desktop Only: Persistent Sidebar -->
 <aside class="hidden lg:flex lg:flex-col fixed bg-white border-l border-gray-200 shadow-lg overflow-y-auto"
@@ -193,73 +196,53 @@
     </div>
 </div>
 
-<!-- Mobile Only: Fixed Left Mini Sidebar -->
-<nav class="lg:hidden fixed left-0 z-[150] bg-white border-r border-gray-200 shadow-md flex flex-col items-center overflow-y-auto"
-     style="top: calc(124px + 0.5rem + env(safe-area-inset-top, 0px)); bottom: env(safe-area-inset-bottom, 16px); width: 52px; padding-bottom: env(safe-area-inset-bottom, 0px);">
-
-    <a href="/wedding" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if request.path == '/wedding' %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">🏠</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if request.path == '/wedding' %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">בית</span>
+<!-- Mobile Only: bottom tab bar (the one section navigation on a phone) -->
+<nav class="m-tabbar lg:hidden" aria-label="ניווט חתונה" dir="rtl">
+    <a href="/wedding" class="m-tab {% if request.path == '/wedding' %}is-active{% endif %}">
+        <span class="m-tab-icon">🏠</span><span>בית</span>
     </a>
-
-    <a href="/wedding/vendors" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'vendors' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">🏢</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'vendors' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">ספקים</span>
+    <a href="/wedding/vendors" class="m-tab {% if 'vendors' in request.path %}is-active{% endif %}">
+        <span class="m-tab-icon">🏢</span><span>ספקים</span>
     </a>
-
-    <a href="/wedding/guests" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'guests' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">👥</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'guests' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">מוזמנים</span>
+    <a href="/wedding/guests" class="m-tab {% if 'guests' in request.path %}is-active{% endif %}">
+        <span class="m-tab-icon">👥</span><span>מוזמנים</span>
     </a>
-
-    <a href="/wedding/budget" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'budget' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">💰</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'budget' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">תקציב</span>
+    <a href="/wedding/budget" class="m-tab {% if 'budget' in request.path %}is-active{% endif %}">
+        <span class="m-tab-icon">💰</span><span>תקציב</span>
     </a>
-
-    <a href="/wedding/tasks" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'tasks' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">✅</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'tasks' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">משימות</span>
-    </a>
-
-    <a href="/wedding/notes" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'notes' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">📝</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'notes' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">לזכור</span>
-    </a>
-
-    <a href="/wedding/ideas" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'ideas' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">💡</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'ideas' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">רעיונות</span>
-    </a>
-
-    <a href="/wedding/seating" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'seating' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">🪑</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'seating' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">הושבות</span>
-    </a>
-
-    <a href="/wedding/timeline" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'timeline' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">📅</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'timeline' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">לו"ז</span>
-    </a>
-
-    <a href="/wedding/lodging" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'lodging' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">🏡</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'lodging' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">לינה</span>
-    </a>
+    <button type="button" class="m-tab" id="wed-more-btn"
+            aria-controls="wed-more-sheet" aria-expanded="false"
+            {% if ('tasks' in request.path) or ('notes' in request.path) or ('ideas' in request.path) or ('seating' in request.path) or ('timeline' in request.path) or ('lodging' in request.path) %}data-active="1"{% endif %}>
+        <span class="m-tab-icon">☰</span><span>עוד</span>
+    </button>
 </nav>
 
+<div class="m-sheet-backdrop lg:hidden" id="wed-more-backdrop"></div>
+<div class="m-sheet lg:hidden" id="wed-more-sheet" role="dialog" aria-modal="true"
+     aria-label="עוד עמודי חתונה" dir="rtl">
+    <div class="m-sheet-grip"></div>
+    <a href="/wedding/tasks" class="m-sheet-link {% if 'tasks' in request.path %}is-active{% endif %}">
+        <span class="m-tab-icon">✅</span><span>משימות</span>
+    </a>
+    <a href="/wedding/notes" class="m-sheet-link {% if 'notes' in request.path %}is-active{% endif %}">
+        <span class="m-tab-icon">📝</span><span>לזכור</span>
+    </a>
+    <a href="/wedding/ideas" class="m-sheet-link {% if 'ideas' in request.path %}is-active{% endif %}">
+        <span class="m-tab-icon">💡</span><span>רעיונות</span>
+    </a>
+    <a href="/wedding/seating" class="m-sheet-link {% if 'seating' in request.path %}is-active{% endif %}">
+        <span class="m-tab-icon">🪑</span><span>הושבות</span>
+    </a>
+    <a href="/wedding/timeline" class="m-sheet-link {% if 'timeline' in request.path %}is-active{% endif %}">
+        <span class="m-tab-icon">📅</span><span>לוח זמנים</span>
+    </a>
+    <a href="/wedding/lodging" class="m-sheet-link {% if 'lodging' in request.path %}is-active{% endif %}">
+        <span class="m-tab-icon">🏡</span><span>לינה</span>
+    </a>
+</div>
+
 <!-- Page Content: pushed right on desktop to clear the sidebar -->
-<div class="bg-gray-50 min-h-screen p-4 sm:p-6 lg:p-8 pb-10 lg:mr-64 ml-[52px] lg:ml-0" dir="rtl">
+<div class="bg-gray-50 min-h-screen p-4 sm:p-6 lg:p-8 pb-10 lg:mr-64" dir="rtl">
     <!-- Desktop Only: action button row -->
     <div class="hidden lg:flex justify-end mb-4">
         {{ self.wedding_header_action() }}

@@ -7,24 +7,30 @@
   --font-heading: 'Heebo', sans-serif;
   --font-mono: 'JetBrains Mono', 'Courier New', monospace;
 
-  /* Primary Brand Colors */
-  --primary-50: #f5f3ff;
-  --primary-100: #ede9fe;
-  --primary-200: #ddd6fe;
-  --primary-300: #c4b5fd;
-  --primary-400: #a78bfa;
-  --primary-500: #667eea;
-  --primary-600: #5a67d8;
-  --primary-700: #4c51bf;
-  --primary-800: #434190;
-  --primary-900: #3c366b;
+  /* Primary Brand Colors — aligned with Tailwind indigo so custom CSS
+     and utility classes (indigo/purple) finally share one palette */
+  --primary-50: #eef2ff;
+  --primary-100: #e0e7ff;
+  --primary-200: #c7d2fe;
+  --primary-300: #a5b4fc;
+  --primary-400: #818cf8;
+  --primary-500: #6366f1;
+  --primary-600: #4f46e5;
+  --primary-700: #4338ca;
+  --primary-800: #3730a3;
+  --primary-900: #312e81;
 
-  /* Semantic Colors - Success (Income) */
-  --success-50: #f0fdf4;
-  --success-100: #dcfce7;
-  --success-200: #bbf7d0;
-  --success-300: #86efac;
-  --success-400: #4ade80;
+  /* Brand accent (violet) — the second stop of every brand gradient */
+  --accent-500: #8b5cf6;
+  --accent-600: #7c3aed;
+  --accent-700: #6d28d9;
+
+  /* Semantic Colors - Success (Income) — Tailwind emerald */
+  --success-50: #ecfdf5;
+  --success-100: #d1fae5;
+  --success-200: #a7f3d0;
+  --success-300: #6ee7b7;
+  --success-400: #34d399;
   --success-500: #10b981;
   --success-600: #059669;
   --success-700: #047857;
@@ -79,21 +85,21 @@
   --gray-800: #1f2937;
   --gray-900: #111827;
 
-  /* Gradients - Modernized */
-  --primary-gradient: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-700) 100%);
-  --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  /* Gradients - one brand gradient (indigo → violet) everywhere */
+  --primary-gradient: linear-gradient(135deg, var(--primary-600) 0%, var(--accent-600) 100%);
+  --secondary-gradient: linear-gradient(135deg, #ec4899 0%, var(--accent-500) 100%);
   --success-gradient: linear-gradient(135deg, var(--success-400) 0%, var(--success-600) 100%);
   --warning-gradient: linear-gradient(135deg, var(--warning-400) 0%, var(--warning-600) 100%);
   --danger-gradient: linear-gradient(135deg, var(--danger-400) 0%, var(--danger-600) 100%);
-  --dark-gradient: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  --dark-gradient: linear-gradient(135deg, #1e293b 0%, #334155 100%);
 
   /* Shadows - Soft & layered (cooler, indigo-tinted) */
-  --shadow-sm: 0 1px 2px 0 rgba(76, 81, 191, 0.06), 0 1px 3px 0 rgba(15, 23, 42, 0.05);
-  --shadow-md: 0 2px 4px -1px rgba(76, 81, 191, 0.06), 0 8px 16px -4px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 4px 10px -2px rgba(76, 81, 191, 0.08), 0 16px 30px -8px rgba(15, 23, 42, 0.12);
-  --shadow-xl: 0 8px 20px -4px rgba(76, 81, 191, 0.10), 0 24px 48px -12px rgba(15, 23, 42, 0.16);
+  --shadow-sm: 0 1px 2px 0 rgba(67, 56, 202, 0.06), 0 1px 3px 0 rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 2px 4px -1px rgba(67, 56, 202, 0.06), 0 8px 16px -4px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 4px 10px -2px rgba(67, 56, 202, 0.08), 0 16px 30px -8px rgba(15, 23, 42, 0.12);
+  --shadow-xl: 0 8px 20px -4px rgba(67, 56, 202, 0.10), 0 24px 48px -12px rgba(15, 23, 42, 0.16);
   --shadow-2xl: 0 30px 60px -15px rgba(15, 23, 42, 0.25);
-  --shadow-primary: 0 8px 24px -6px rgba(102, 126, 234, 0.45);
+  --shadow-primary: 0 8px 24px -6px rgba(99, 102, 241, 0.45);
 
   /* Border Radius */
   --border-radius: 0.5rem;
@@ -119,9 +125,9 @@ body {
   color: var(--gray-700);
   background-color: #eef1f8;
   background-image:
-    radial-gradient(at 0% 0%, rgba(102, 126, 234, 0.12) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(118, 75, 162, 0.10) 0px, transparent 50%),
-    radial-gradient(at 80% 100%, rgba(99, 179, 237, 0.10) 0px, transparent 50%);
+    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.12) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(124, 58, 237, 0.10) 0px, transparent 50%),
+    radial-gradient(at 80% 100%, rgba(96, 165, 250, 0.10) 0px, transparent 50%);
   background-attachment: fixed;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
@@ -220,7 +226,7 @@ h6 {
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 28px -6px rgba(102, 126, 234, 0.55);
+  box-shadow: 0 12px 28px -6px rgba(99, 102, 241, 0.55);
 }
 
 .btn-secondary {
@@ -382,7 +388,7 @@ h6 {
 .icon-chip-success { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); color: var(--success-600); }
 .icon-chip-danger  { background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); color: var(--danger-600); }
 .icon-chip-info    { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); color: var(--info-600); }
-.icon-chip-accent  { background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); color: #7c3aed; }
+.icon-chip-accent  { background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); color: var(--accent-600); }
 
 /* Surface panel — a cleaner replacement for ad-hoc "bg-white p-4 rounded shadow" */
 .panel {
@@ -646,7 +652,7 @@ h6 {
   outline: none;
   border-color: var(--primary-500);
   background: white;
-  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.12);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
   transform: translateY(-1px);
 }
 
@@ -666,7 +672,7 @@ h6 {
   outline: none;
   border-color: var(--primary-500);
   background: white;
-  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.12);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
 }
 
 /* Table Styles - PERFORMANCE OPTIMIZED */
@@ -684,7 +690,7 @@ h6 {
 }
 
 .table th {
-  background: linear-gradient(135deg, #5b6ee0 0%, #6f4aa0 100%);
+  background: var(--primary-gradient);
   color: rgba(255, 255, 255, 0.95);
   padding: 0.9rem 1rem;
   text-align: right;
@@ -772,13 +778,13 @@ h6 {
 }
 
 .sidebar-item:hover {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary-gradient);
   color: white;
   transform: translateX(5px);
 }
 
 .sidebar-item.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary-gradient);
   color: white;
   box-shadow: var(--shadow-md);
 }
@@ -890,12 +896,12 @@ h6 {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+  background: linear-gradient(135deg, #4f46e5 0%, #6d28d9 100%);
 }
 
 /* Utility Classes */

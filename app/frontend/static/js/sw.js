@@ -1,9 +1,9 @@
 // Service Worker for Performance Optimization and Caching
 
 // Bump versions to force update on clients
-const CACHE_NAME = 'expense-tracker-v1.0.9';
-const STATIC_CACHE = 'static-v1.0.9';
-const DYNAMIC_CACHE = 'dynamic-v1.0.9';
+const CACHE_NAME = 'expense-tracker-v1.1.0';
+const STATIC_CACHE = 'static-v1.1.0';
+const DYNAMIC_CACHE = 'dynamic-v1.1.0';
 
 // Track login time to avoid intercepting requests immediately after login
 let lastLoginTime = 0;

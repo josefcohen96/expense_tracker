@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from ..db import get_db_conn
+from ..services.uploads import sniff_mime as _sniff_mime
 
 router = APIRouter(prefix="/api/wedding", tags=["wedding"])
 
@@ -21,29 +22,6 @@ _UPLOADS_DIR = Path(__file__).resolve().parents[3] / "uploads" / "vendor_files"
 _ALLOWED_MIME = {"application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"}
 _ALLOWED_EXT  = {".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp"}
 _MAX_SIZE_MB  = 15
-
-# Magic bytes for file-type sniffing (defense-in-depth alongside extension check)
-_MAGIC_BYTES = {
-    "application/pdf": [b"%PDF-"],
-    "image/jpeg":      [b"\xff\xd8\xff"],
-    "image/png":       [b"\x89PNG\r\n\x1a\n"],
-    "image/gif":       [b"GIF87a", b"GIF89a"],
-    "image/webp":      [b"RIFF"],  # also has "WEBP" at offset 8
-}
-
-def _sniff_mime(content: bytes) -> Optional[str]:
-    if not content:
-        return None
-    for mime, signatures in _MAGIC_BYTES.items():
-        for sig in signatures:
-            if content.startswith(sig):
-                # Extra check for WebP: "WEBP" marker at offset 8
-                if mime == "image/webp":
-                    if len(content) >= 12 and content[8:12] == b"WEBP":
-                        return mime
-                else:
-                    return mime
-    return None
 
 
 # ─── Schemas ────────────────────────────────────────────────────────────────

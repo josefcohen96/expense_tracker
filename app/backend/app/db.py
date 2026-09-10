@@ -591,24 +591,165 @@ def initialise_database() -> None:
     except Exception:
         pass
 
-    # Seed default rooms from venue if table is empty
+    # Default rooms for the venue: 3 caravans of 4, 3 tents of 10, 8 double rooms
+    default_rooms = (
+        [(f"קרוואן {i}", "קרוואן", 4) for i in range(1, 4)]
+        + [(f"אוהל {i}", "אוהל", 10) for i in range(1, 4)]
+        + [(f"חדר {i}", "זוגי", 2) for i in range(1, 9)]
+    )
+
+    # Names of the previous venue's default rooms — used to detect an
+    # untouched old seed so it can be replaced with the current one.
+    _old_default_room_names = {
+        "בית התה", "בית המטפל", "בית הסופר", "בית הנווד",
+        "בית אברהם", "בית המרפא", "בית שחרות", "בית השחר",
+    }
+
     try:
-        if not cur.execute("SELECT COUNT(*) FROM wedding_rooms").fetchone()[0]:
-            default_rooms = [
-                ("בית התה", "לינה משותפת", 30),
-                ("בית המטפל", "זוגי-מיטה זוגית", 2),
-                ("בית הסופר", "זוגי-מ. זוגית+1", 3),
-                ("בית הנווד", "זוגי-מיטה זוגית", 2),
-                ("בית אברהם", "יחידים", 7),
-                ("בית המרפא", "יחידים", 6),
-                ("בית שחרות", "משפחתי 3+2", 5),
-                ("בית השחר", "משפחתי 3+2", 5),
-            ]
+        existing_names = {
+            r[0] for r in cur.execute("SELECT name FROM wedding_rooms").fetchall()
+        }
+        if existing_names == _old_default_room_names:
+            # DB still holds the old venue's stock rooms — replace them.
+            # Room assignments to the old rooms are dropped; affected guests
+            # reappear in the "waiting for a room" list on the lodging page.
+            cur.execute(
+                "DELETE FROM wedding_room_assignments WHERE room_id IN "
+                "(SELECT id FROM wedding_rooms)"
+            )
+            cur.execute("DELETE FROM wedding_rooms")
+            existing_names = set()
+        if not existing_names:
             for name, room_type, capacity in default_rooms:
                 cur.execute(
                     "INSERT INTO wedding_rooms (name, room_type, max_capacity) VALUES (?,?,?)",
                     (name, room_type, capacity)
                 )
+        conn.commit()
+    except Exception:
+        pass
+
+    # --- Home Renovation Module Tables ---
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS renovation_rooms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            icon TEXT DEFAULT '🏠',
+            notes TEXT,
+            image_url TEXT,
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS renovation_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            room_id INTEGER REFERENCES renovation_rooms(id) ON DELETE SET NULL,
+            status TEXT NOT NULL DEFAULT 'todo',
+            priority TEXT NOT NULL DEFAULT 'medium',
+            due_date TEXT,
+            notes TEXT,
+            link_url TEXT,
+            created_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS renovation_ideas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT,
+            room_id INTEGER REFERENCES renovation_rooms(id) ON DELETE SET NULL,
+            status TEXT NOT NULL DEFAULT 'new',
+            color TEXT NOT NULL DEFAULT 'white',
+            image_url TEXT,
+            link_url TEXT,
+            created_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Equipment/materials needed for a task or a room ("ציוד"). Rows survive the
+    # task or room they belong to — the shopping list matters more than the link.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS renovation_supplies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            quantity TEXT,
+            status TEXT NOT NULL DEFAULT 'needed',
+            room_id INTEGER REFERENCES renovation_rooms(id) ON DELETE SET NULL,
+            task_id INTEGER REFERENCES renovation_tasks(id) ON DELETE SET NULL,
+            notes TEXT,
+            link_url TEXT,
+            created_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Before/after journal. An entry usually starts life with only a "before"
+    # photo — the "after" one lands weeks later — so both photo columns are
+    # nullable and hold the stored (UUID) filename, never a user-supplied name.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS renovation_journal (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            room_id INTEGER REFERENCES renovation_rooms(id) ON DELETE SET NULL,
+            entry_date TEXT,
+            notes TEXT,
+            before_photo TEXT,
+            after_photo TEXT,
+            created_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Seed a starter set of rooms so the site is usable from the first visit.
+    try:
+        has_rooms = cur.execute("SELECT COUNT(*) FROM renovation_rooms").fetchone()[0]
+        if not has_rooms:
+            for idx, (room_name, room_icon) in enumerate([
+                ("סלון", "🛋️"),
+                ("מטבח", "🍳"),
+                ("חדר שינה", "🛏️"),
+                ("חדר אמבטיה", "🛁"),
+                ("שירותים", "🚽"),
+                ("מרפסת", "🪴"),
+                ("מסדרון", "🚪"),
+            ]):
+                cur.execute(
+                    "INSERT INTO renovation_rooms (name, icon, sort_order) VALUES (?,?,?)",
+                    (room_name, room_icon, idx),
+                )
+    except Exception:
+        pass
+
+    # One-time: the original seed shipped a catch-all "כללי" room, which is
+    # redundant now that a task can simply have no room. Turn it into a real
+    # room instead, keeping anything already filed under it. Guarded by a
+    # settings flag so a room the user creates later with that name is left be.
+    try:
+        done = cur.execute(
+            "SELECT 1 FROM system_settings WHERE key='renovation_general_room_replaced'"
+        ).fetchone()
+        if not done:
+            general = cur.execute("SELECT id FROM renovation_rooms WHERE name='כללי'").fetchone()
+            taken = cur.execute("SELECT 1 FROM renovation_rooms WHERE name='מסדרון'").fetchone()
+            if general and not taken:
+                cur.execute(
+                    "UPDATE renovation_rooms SET name='מסדרון', icon='🚪' WHERE id=?",
+                    (general[0],),
+                )
+            cur.execute(
+                "INSERT OR REPLACE INTO system_settings (key, value) VALUES "
+                "('renovation_general_room_replaced', '1')"
+            )
     except Exception:
         pass
 

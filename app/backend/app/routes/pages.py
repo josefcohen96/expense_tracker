@@ -1,5 +1,6 @@
 from __future__ import annotations
 import sqlite3
+import hmac
 import os
 import logging
 import time
@@ -19,6 +20,7 @@ from urllib.parse import unquote_plus
 
 from ..db import get_db_conn
 from .. import db as _db
+from ..services.access import home_path_for, password_env_var
 import logging
 logger = logging.getLogger(__name__)
 
@@ -134,8 +136,8 @@ async def login_page(request: Request) -> HTMLResponse:
             logger.info("User already authenticated, redirecting to dashboard", extra={
                 "username": user_obj.get("username") if isinstance(user_obj, dict) else None,
             })
-            return RedirectResponse(url="/finances", status_code=status.HTTP_302_FOUND)
-            
+            return RedirectResponse(url=home_path_for(user_obj), status_code=status.HTTP_302_FOUND)
+
     except Exception:
         logger.exception("Failed logging login_page context")
         
@@ -176,13 +178,16 @@ async def login_post(request: Request):
         "timestamp": datetime.now().isoformat(),
     })
 
-    # Credentials must come from environment. Missing env vars => 500 instead of
+    # Credentials must come from environment. A missing env var => 500 instead of
     # falling back to a hardcoded password — better to fail loud than to ship the
-    # default password publicly via the repo.
-    karina_pw = os.environ.get("USER_PASSWORD_KARINA")
-    yosef_pw = os.environ.get("USER_PASSWORD_YOSEF")
-    if not karina_pw or not yosef_pw:
-        logger.error("LOGIN misconfigured: USER_PASSWORD_* env var is missing")
+    # default password publicly via the repo. Only the attempted user's variable
+    # is required, so adding a new user never locks out the existing ones.
+    # case-insensitive username match
+    user_key = username.upper()
+    env_var = password_env_var(user_key)
+    expected_pw = os.environ.get(env_var) if env_var else None
+    if env_var and not expected_pw:
+        logger.error("LOGIN misconfigured: password env var is missing", extra={"env_var": env_var})
         return templates.TemplateResponse(
             "pages/login.html",
             {
@@ -192,10 +197,10 @@ async def login_post(request: Request):
             },
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
-    valid_users = {"KARINA": karina_pw, "YOSEF": yosef_pw}
-    # case-insensitive username match
-    user_key = username.upper()
-    if user_key in valid_users and password == valid_users[user_key]:
+    # Compare as bytes: compare_digest rejects non-ASCII str, and a password
+    # with Hebrew or accented characters would otherwise raise instead of just
+    # failing the check.
+    if expected_pw and hmac.compare_digest(password.encode("utf-8"), expected_pw.encode("utf-8")):
         logger.info("LOGIN success", extra={"username": user_key, "ip": client_ip})
 
         try:
@@ -214,7 +219,7 @@ async def login_post(request: Request):
                 "error_type": type(e).__name__,
             })
 
-        response = RedirectResponse(url="/finances", status_code=status.HTTP_303_SEE_OTHER)
+        response = RedirectResponse(url=home_path_for(user_key), status_code=status.HTTP_303_SEE_OTHER)
 
         # Also set a signed fallback cookie for auth in case session cookie is blocked by the platform
         try:
@@ -336,8 +341,9 @@ async def logout(request: Request) -> RedirectResponse:
 
 
 @router.get("/", response_class=HTMLResponse)
-async def index(_: Request) -> RedirectResponse:
-    return RedirectResponse(url="/finances", status_code=status.HTTP_302_FOUND)
+async def index(request: Request) -> RedirectResponse:
+    user_obj = getattr(request.state, "user", None) or request.session.get("user")
+    return RedirectResponse(url=home_path_for(user_obj), status_code=status.HTTP_302_FOUND)
 
 
 @router.get("/sw.js")
@@ -1686,6 +1692,36 @@ async def finances_backup(request: Request) -> HTMLResponse:
 # Wedding Module
 # ==============================
 
+def _wedding_total_budget(db_conn: sqlite3.Connection) -> tuple[float, float, float, float]:
+    """Total budget = guest count × avg per guest + our addition.
+
+    Falls back to the legacy manually-entered 'total_budget' setting when
+    none of the formula fields have been set yet.
+    Returns (total, guest_count, avg_per_guest, our_addition).
+    """
+    rows = db_conn.execute(
+        "SELECT key, value FROM wedding_settings WHERE key IN "
+        "('budget_guest_count','budget_avg_per_guest','budget_our_addition','total_budget')"
+    ).fetchall()
+    settings = {r["key"]: r["value"] for r in rows}
+
+    def _num(key: str) -> float:
+        try:
+            return float(settings.get(key) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    guest_count = _num("budget_guest_count")
+    avg_per_guest = _num("budget_avg_per_guest")
+    our_addition = _num("budget_our_addition")
+
+    if guest_count or avg_per_guest or our_addition:
+        total = guest_count * avg_per_guest + our_addition
+    else:
+        total = _num("total_budget")
+    return total, guest_count, avg_per_guest, our_addition
+
+
 @router.get("/wedding", response_class=HTMLResponse)
 async def wedding_dashboard(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     # Total expected attendance excludes declined guests so the cards sum back to total.
@@ -1708,9 +1744,8 @@ async def wedding_dashboard(request: Request, db_conn: sqlite3.Connection = Depe
     open_tasks   = db_conn.execute("SELECT COUNT(*) FROM wedding_tasks WHERE completed=0").fetchone()[0]
     urgent_tasks = db_conn.execute("SELECT COUNT(*) FROM wedding_tasks WHERE completed=0 AND priority='high'").fetchone()[0]
 
-    # Use manually-set total budget from settings
-    setting_row = db_conn.execute("SELECT value FROM wedding_settings WHERE key='total_budget'").fetchone()
-    total_budget = float(setting_row["value"]) if setting_row else 0.0
+    # Total budget derived from guests × avg per guest + our addition
+    total_budget, _, _, _ = _wedding_total_budget(db_conn)
 
     # Committed = only closed-deal vendors + manual actuals
     closed_vendors_total = db_conn.execute(
@@ -1877,11 +1912,9 @@ async def wedding_tasks_page(request: Request, db_conn: sqlite3.Connection = Dep
 
 @router.get("/wedding/budget", response_class=HTMLResponse)
 async def wedding_budget_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
-    # Load user-defined total budget
-    setting = db_conn.execute(
-        "SELECT value FROM wedding_settings WHERE key='total_budget'"
-    ).fetchone()
-    total_budget = float(setting["value"]) if setting else 0.0
+    # Load user-defined total budget (guests × avg per guest + our addition)
+    total_budget, budget_guest_count, budget_avg_per_guest, budget_our_addition = \
+        _wedding_total_budget(db_conn)
 
     # Vendor-derived rows — only vendors with a closed deal enter the budget
     vendor_rows = db_conn.execute(
@@ -1929,6 +1962,9 @@ async def wedding_budget_page(request: Request, db_conn: sqlite3.Connection = De
         "grand_committed": grand_committed,
         "grand_paid": grand_paid,
         "grand_left": grand_left,
+        "budget_guest_count": budget_guest_count,
+        "budget_avg_per_guest": budget_avg_per_guest,
+        "budget_our_addition": budget_our_addition,
     })
 
 

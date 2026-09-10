@@ -8,6 +8,10 @@ services:
       # Persist the sqlite database using a bind mount
       # Maps host folder (relative to docker-compose.yml) to container folder
       - ./budget.db:/app/app/backend/data/budget.db
+      # Uploaded files (renovation journal photos, wedding vendor documents)
+      # live on disk rather than in the database, so they need their own mount
+      # or they disappear the next time the image is rebuilt.
+      - ./uploads:/app/app/uploads
     environment:
       # Use development settings for HTTP (non-SSL) access so cookies work
       - ENVIRONMENT=development
@@ -19,4 +23,6 @@ services:
       - SESSION_SECRET_KEY=${SESSION_SECRET_KEY:?SESSION_SECRET_KEY must be set (generate with: python -c "import secrets; print(secrets.token_urlsafe(64))")}
       - USER_PASSWORD_YOSEF=${USER_PASSWORD_YOSEF:?USER_PASSWORD_YOSEF must be set}
       - USER_PASSWORD_KARINA=${USER_PASSWORD_KARINA:?USER_PASSWORD_KARINA must be set}
+      # Renovation module user (Tsahala). Only this user and Yosef can open it.
+      - USER_PASSWORD_TSAHALA=${USER_PASSWORD_TSAHALA:?USER_PASSWORD_TSAHALA must be set}
     restart: unless-stopped

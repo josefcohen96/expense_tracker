@@ -1,0 +1,246 @@
+{% extends "renovation/base.html" %}
+
+{% block reno_title %}רעיונות{% endblock %}
+{% block reno_subtitle %}השראה לשיפוץ{% endblock %}
+
+{% block reno_content %}
+
+<div class="r-section-head">
+    <h1 class="r-page-title">רעיונות</h1>
+    {% if can_edit %}
+    <button onclick="openIdeaModal()" class="r-btn r-btn-primary r-btn-sm">➕ רעיון חדש</button>
+    {% endif %}
+</div>
+
+{% set room_q = '&room=' ~ room_filter if room_filter else '' %}
+{% set status_q = 'status=' ~ status_filter if status_filter else 'status=' %}
+<div class="r-chips">
+    <a href="?status={{ room_q }}" class="r-chip {% if not status_filter %}is-active{% endif %}">הכל</a>
+    <a href="?status=new{{ room_q }}" class="r-chip {% if status_filter == 'new' %}is-active{% endif %}">✨ חדש</a>
+    <a href="?status=considering{{ room_q }}" class="r-chip {% if status_filter == 'considering' %}is-active{% endif %}">🤔 שוקלים</a>
+    <a href="?status=approved{{ room_q }}" class="r-chip {% if status_filter == 'approved' %}is-active{% endif %}">✅ אושר</a>
+    <a href="?status=rejected{{ room_q }}" class="r-chip {% if status_filter == 'rejected' %}is-active{% endif %}">❌ לא מתאים</a>
+</div>
+
+{% if rooms %}
+<div class="r-chips" style="margin-top: .5rem;">
+    <a href="?{{ status_q }}" class="r-chip {% if not room_filter %}is-active{% endif %}">כל החדרים</a>
+    {% for room in rooms %}
+    <a href="?{{ status_q }}&room={{ room.id }}" class="r-chip {% if room_filter == room.id %}is-active{% endif %}">
+        <span>{{ room.icon or '🏠' }}</span>{{ room.name }}
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if ideas %}
+{% set status_badge = {
+    'new':         ('r-badge-sky', '✨ חדש'),
+    'considering': ('r-badge-amber', '🤔 שוקלים'),
+    'approved':    ('r-badge-green', '✅ אושר'),
+    'rejected':    ('', '❌ לא מתאים'),
+} %}
+<div class="r-grid r-grid-2 r-grid-3" style="margin-top: 1.25rem;">
+    {% for idea in ideas %}
+    {% set badge = status_badge.get(idea.status, status_badge['new']) %}
+    <div class="r-card r-card-flush {% if idea.color and idea.color != 'white' %}r-tint-{{ idea.color }}{% endif %}">
+        {% if idea.image_url %}
+        <a href="{{ idea.link_url or idea.image_url }}" target="_blank" rel="noopener noreferrer">
+            <img src="{{ idea.image_url }}" alt="{{ idea.title }}" loading="lazy" class="r-card-image"
+                 onerror="this.closest('a').remove()">
+        </a>
+        {% endif %}
+
+        <div class="r-card-body">
+            <div class="r-row" style="align-items: flex-start; gap: .5rem;">
+                <h2 class="r-heading r-grow">{{ idea.title }}</h2>
+                <span class="r-badge {{ badge[0] }} r-shrink-0">{{ badge[1] }}</span>
+            </div>
+
+            {% if idea.description %}
+            <p class="r-text r-pre-line" style="margin-top: .5rem;">{{ idea.description }}</p>
+            {% endif %}
+
+            {% if idea.link_url %}
+            <a href="{{ idea.link_url }}" target="_blank" rel="noopener noreferrer"
+               class="r-link" style="display: inline-block; margin-top: .5rem;">🔗 לפתיחת הקישור</a>
+            {% endif %}
+
+            <div class="r-row-between" style="margin-top: .85rem; padding-top: .7rem; border-top: 1px solid rgba(0,0,0,.06);">
+                <span class="r-muted r-truncate">
+                    {% if idea.room_name %}{{ idea.room_icon or '🏠' }} {{ idea.room_name }}{% else %}כללי{% endif %}
+                </span>
+                {% if can_edit %}
+                <span class="r-row r-shrink-0" style="gap: .25rem;">
+                    <button class="r-icon-btn" aria-label="עריכת הרעיון" onclick='openIdeaModal({{ idea | tojson }})'>✏️</button>
+                    <button class="r-icon-btn r-icon-btn-danger" aria-label="מחיקת הרעיון" onclick="deleteIdea({{ idea.id }})">🗑️</button>
+                </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="r-empty">
+    <div class="r-empty-icon">💡</div>
+    <h2 class="r-empty-title">אין כאן רעיונות</h2>
+    <p class="r-empty-text">
+        {% if status_filter or room_filter %}נסו לשנות את הסינון למעלה.{% else %}שמרו כאן השראה — תמונות, קישורים ורעיונות לכל חדר.{% endif %}
+    </p>
+    {% if can_edit and not status_filter and not room_filter %}
+    <button onclick="openIdeaModal()" class="r-btn r-btn-primary">➕ רעיון ראשון</button>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if can_edit %}
+<div id="idea-modal" class="r-modal" role="dialog" aria-modal="true" aria-labelledby="idea-modal-title">
+    <div class="r-modal-backdrop" onclick="renoCloseModal('idea-modal')"></div>
+    <div class="r-modal-card">
+        <h2 id="idea-modal-title" class="r-modal-title">רעיון חדש</h2>
+
+        <div class="r-field">
+            <label class="r-label" for="idea-title">הרעיון</label>
+            <input id="idea-title" type="text" class="r-input" placeholder="למשל: מטבח בגוון עץ בהיר">
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="idea-desc">פרטים</label>
+            <textarea id="idea-desc" class="r-input" rows="3" placeholder="למה זה מוצא חן, כמה זה עולה, איפה ראינו..."></textarea>
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="idea-room">לאיזה חדר</label>
+            <select id="idea-room" class="r-input">
+                <option value="">כללי</option>
+                {% for room in rooms %}
+                <option value="{{ room.id }}">{{ room.icon or '🏠' }} {{ room.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="idea-image">קישור לתמונה</label>
+            <input id="idea-image" type="url" class="r-input" placeholder="https://... (תמונה מהאינטרנט)" dir="ltr">
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="idea-link">קישור לאתר</label>
+            <input id="idea-link" type="url" class="r-input" placeholder="https://" dir="ltr">
+        </div>
+
+        <div class="r-field">
+            <span class="r-label">סטטוס</span>
+            <div class="r-chips r-chips-wrap">
+                <button type="button" data-status="new" onclick="setIdeaStatus('new')" class="idea-status-btn r-chip">✨ חדש</button>
+                <button type="button" data-status="considering" onclick="setIdeaStatus('considering')" class="idea-status-btn r-chip">🤔 שוקלים</button>
+                <button type="button" data-status="approved" onclick="setIdeaStatus('approved')" class="idea-status-btn r-chip">✅ אושר</button>
+                <button type="button" data-status="rejected" onclick="setIdeaStatus('rejected')" class="idea-status-btn r-chip">❌ לא מתאים</button>
+            </div>
+        </div>
+
+        <div class="r-field">
+            <span class="r-label">צבע הכרטיס</span>
+            <div class="r-chips r-chips-wrap">
+                {% for color in ['white', 'amber', 'orange', 'green', 'teal', 'blue', 'purple', 'pink'] %}
+                <button type="button" data-color="{{ color }}" onclick="setIdeaColor('{{ color }}')"
+                        aria-label="צבע כרטיס" class="idea-color-btn r-swatch r-swatch-{{ color }}"></button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <input type="hidden" id="idea-id">
+        <input type="hidden" id="idea-status" value="new">
+        <input type="hidden" id="idea-color" value="white">
+
+        <div class="r-modal-actions">
+            <button onclick="saveIdea()" id="idea-save-btn" class="r-btn r-btn-primary r-grow">שמירה</button>
+            <button onclick="renoCloseModal('idea-modal')" class="r-btn r-btn-ghost">ביטול</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block reno_scripts %}
+{% if can_edit %}
+<script>
+    function setIdeaStatus(status) {
+        document.getElementById('idea-status').value = status;
+        document.querySelectorAll('.idea-status-btn').forEach(b => {
+            b.classList.toggle('is-active', b.dataset.status === status);
+        });
+    }
+
+    function setIdeaColor(color) {
+        document.getElementById('idea-color').value = color;
+        document.querySelectorAll('.idea-color-btn').forEach(b => {
+            b.classList.toggle('is-active', b.dataset.color === color);
+        });
+    }
+
+    function openIdeaModal(idea) {
+        document.getElementById('idea-modal-title').textContent = idea ? 'עריכת רעיון' : 'רעיון חדש';
+        document.getElementById('idea-id').value = idea ? idea.id : '';
+        document.getElementById('idea-title').value = idea ? idea.title : '';
+        document.getElementById('idea-desc').value = idea && idea.description ? idea.description : '';
+        document.getElementById('idea-room').value = idea && idea.room_id ? String(idea.room_id) : '';
+        document.getElementById('idea-image').value = idea && idea.image_url ? idea.image_url : '';
+        document.getElementById('idea-link').value = idea && idea.link_url ? idea.link_url : '';
+        setIdeaStatus(idea ? idea.status : 'new');
+        setIdeaColor(idea && idea.color ? idea.color : 'white');
+        renoOpenModal('idea-modal');
+        setTimeout(() => document.getElementById('idea-title').focus(), 60);
+    }
+
+    async function saveIdea() {
+        const id = document.getElementById('idea-id').value;
+        const title = document.getElementById('idea-title').value.trim();
+        if (!title) {
+            renoToast('צריך לכתוב את הרעיון', true);
+            document.getElementById('idea-title').focus();
+            return;
+        }
+        const roomValue = document.getElementById('idea-room').value;
+        const body = {
+            title,
+            description: document.getElementById('idea-desc').value.trim() || null,
+            room_id: roomValue ? Number(roomValue) : null,
+            status: document.getElementById('idea-status').value,
+            color: document.getElementById('idea-color').value,
+            image_url: document.getElementById('idea-image').value.trim() || null,
+            link_url: document.getElementById('idea-link').value.trim() || null,
+        };
+
+        const saveBtn = document.getElementById('idea-save-btn');
+        saveBtn.disabled = true;
+        const result = await renoApi(
+            id ? `/api/renovation/ideas/${id}` : '/api/renovation/ideas',
+            id ? 'PUT' : 'POST',
+            body,
+        );
+        saveBtn.disabled = false;
+        if (!result) return;
+        renoCloseModal('idea-modal');
+        window.location.reload();
+    }
+
+    async function deleteIdea(id) {
+        if (!confirm('למחוק את הרעיון?')) return;
+        const result = await renoApi(`/api/renovation/ideas/${id}`, 'DELETE');
+        if (result) window.location.reload();
+    }
+
+    // Same deep link as the tasks page: ?new=1 opens the form, then the flag is
+    // dropped so reloading after a save does not reopen it.
+    if (new URLSearchParams(window.location.search).get('new') === '1') {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('new');
+        window.history.replaceState({}, '', url);
+        openIdeaModal();
+    }
+</script>
+{% endif %}
+{% endblock %}

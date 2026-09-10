@@ -37,7 +37,7 @@
         <div class="flex items-center justify-between">
             <div>
                 <div class="text-sm font-semibold text-gray-800">תקציב כולל לחתונה</div>
-                <div class="text-xs text-gray-400 mt-0.5">הסכום ההתחלתי שהגדרתם לחתונה</div>
+                <div class="text-xs text-gray-400 mt-0.5">מחושב לפי מספר מוזמנים × ממוצע למוזמן + תוספת שלנו</div>
             </div>
             <button onclick="openModal('budget-total-modal')"
                     class="text-rose-600 hover:text-rose-800 text-sm font-medium px-3 py-2 min-h-[44px] flex items-center gap-1.5 rounded-lg hover:bg-rose-50 transition-colors">
@@ -50,6 +50,13 @@
         </div>
         {% if total_budget > 0 %}
         <div class="text-3xl font-bold text-gray-900 mt-3" dir="ltr">₪{{ "{:,.0f}".format(total_budget) }}</div>
+        {% if budget_guest_count > 0 or budget_avg_per_guest > 0 or budget_our_addition > 0 %}
+        <div class="text-xs text-gray-500 mt-2">
+            {{ "{:,.0f}".format(budget_guest_count) }} מוזמנים
+            × ₪{{ "{:,.0f}".format(budget_avg_per_guest) }} למוזמן
+            + ₪{{ "{:,.0f}".format(budget_our_addition) }} תוספת שלנו
+        </div>
+        {% endif %}
         {% else %}
         <div class="text-gray-400 text-sm mt-3 italic">לא הוגדר תקציב עדיין — לחץ "הגדר" כדי להתחיל</div>
         {% endif %}
@@ -367,12 +374,37 @@
             </button>
         </div>
         <div class="px-5 py-5">
-            <label class="block text-sm font-medium text-gray-700 mb-1.5">סכום התקציב הכולל (₪)</label>
-            <input type="number" id="total-budget-input"
-                   value="{{ total_budget if total_budget > 0 else '' }}"
-                   class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
-                   placeholder="לדוגמה: 120000" dir="ltr" inputmode="numeric">
-            <p class="text-xs text-gray-400 mt-2">כל ספק שסטטוסו "נסגרה עסקה" ירד אוטומטית מהתקציב הזה.</p>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">מספר מוזמנים</label>
+                    <input type="number" id="guest-count-input"
+                           value="{{ '{:g}'.format(budget_guest_count) if budget_guest_count > 0 else '' }}"
+                           oninput="updateBudgetPreview()"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
+                           placeholder="לדוגמה: 300" dir="ltr" inputmode="numeric">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">ממוצע כסף למוזמן (₪)</label>
+                    <input type="number" id="avg-per-guest-input"
+                           value="{{ '{:g}'.format(budget_avg_per_guest) if budget_avg_per_guest > 0 else '' }}"
+                           oninput="updateBudgetPreview()"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
+                           placeholder="לדוגמה: 400" dir="ltr" inputmode="numeric">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">תוספת שלנו (₪)</label>
+                    <input type="number" id="our-addition-input"
+                           value="{{ '{:g}'.format(budget_our_addition) if budget_our_addition > 0 else '' }}"
+                           oninput="updateBudgetPreview()"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
+                           placeholder="לדוגמה: 20000" dir="ltr" inputmode="numeric">
+                </div>
+                <div class="bg-rose-50 rounded-xl px-4 py-3 flex items-center justify-between">
+                    <span class="text-sm font-medium text-gray-700">תקציב כולל</span>
+                    <span id="budget-preview" class="text-lg font-bold text-rose-700" dir="ltr">₪0</span>
+                </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">התקציב מחושב: מספר מוזמנים × ממוצע למוזמן + תוספת שלנו. כל ספק שסטטוסו "נסגרה עסקה" ירד אוטומטית מהתקציב הזה.</p>
             <div class="flex gap-3 mt-5">
                 <button onclick="closeModal('budget-total-modal')"
                         class="flex-1 py-3.5 text-gray-600 bg-gray-100 rounded-xl text-sm font-medium min-h-[48px] active:bg-gray-200">ביטול</button>
@@ -455,18 +487,37 @@ function closeModal(id) {
     }
 }
 
+function budgetFormValues() {
+    const guests = parseFloat(document.getElementById('guest-count-input').value) || 0;
+    const avg = parseFloat(document.getElementById('avg-per-guest-input').value) || 0;
+    const addition = parseFloat(document.getElementById('our-addition-input').value) || 0;
+    return {guests, avg, addition, total: guests * avg + addition};
+}
+
+function updateBudgetPreview() {
+    const {total} = budgetFormValues();
+    document.getElementById('budget-preview').textContent = '₪' + total.toLocaleString('en-US', {maximumFractionDigits: 0});
+}
+
 function saveTotalBudget() {
-    const val = parseFloat(document.getElementById('total-budget-input').value);
-    if (isNaN(val) || val < 0) { alert('יש להזין סכום תקין'); return; }
-    fetch('/api/wedding/settings', {
+    const {guests, avg, addition, total} = budgetFormValues();
+    if (guests < 0 || avg < 0 || addition < 0) { alert('יש להזין ערכים תקינים'); return; }
+    const settings = [
+        {key: 'budget_guest_count', value: String(guests)},
+        {key: 'budget_avg_per_guest', value: String(avg)},
+        {key: 'budget_our_addition', value: String(addition)},
+        {key: 'total_budget', value: String(total)},
+    ];
+    Promise.all(settings.map(s => fetch('/api/wedding/settings', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({key: 'total_budget', value: String(val)})
-    })
-    .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+        body: JSON.stringify(s)
+    }).then(r => { if (!r.ok) throw new Error(); })))
     .then(() => location.reload())
     .catch(() => alert('שגיאה בשמירה'));
 }
+
+updateBudgetPreview();
 
 function editItem(item) {
     document.getElementById('item-modal-title').textContent = 'עריכת הוצאה';

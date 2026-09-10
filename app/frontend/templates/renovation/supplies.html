@@ -1,0 +1,266 @@
+{% extends "renovation/base.html" %}
+
+{% block reno_title %}ציוד{% endblock %}
+{% block reno_subtitle %}מה צריך לקנות{% endblock %}
+
+{% block reno_content %}
+
+<div class="r-section-head">
+    <h1 class="r-page-title">ציוד</h1>
+    {% if can_edit %}
+    <button onclick="openSupplyModal()" class="r-btn r-btn-primary r-btn-sm">➕ פריט חדש</button>
+    {% endif %}
+</div>
+
+{% if missing_total %}
+<div class="r-notice">
+    <span>🧰</span>
+    <span>{% if missing_total == 1 %}חסר פריט אחד{% else %}חסרים {{ missing_total }} פריטים{% endif %}. סמנו ✓ על מה שכבר קניתם.</span>
+</div>
+{% endif %}
+
+{% set room_q = '&room=' ~ room_filter if room_filter else '' %}
+{% set status_q = 'status=' ~ status_filter if status_filter else 'status=all' %}
+<div class="r-chips">
+    <a href="?status=needed{{ room_q }}" class="r-chip {% if status_filter == 'needed' %}is-active{% endif %}">🧰 חסר</a>
+    <a href="?status=bought{{ room_q }}" class="r-chip {% if status_filter == 'bought' %}is-active{% endif %}">✅ יש</a>
+    <a href="?status=all{{ room_q }}" class="r-chip {% if status_filter not in ['needed', 'bought'] %}is-active{% endif %}">הכל</a>
+</div>
+
+{% if rooms %}
+<div class="r-chips" style="margin-top: .5rem;">
+    <a href="?{{ status_q }}" class="r-chip {% if not room_filter %}is-active{% endif %}">כל החדרים</a>
+    {% for room in rooms %}
+    <a href="?{{ status_q }}&room={{ room.id }}" class="r-chip {% if room_filter == room.id %}is-active{% endif %}">
+        <span>{{ room.icon or '🚪' }}</span>{{ room.name }}
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if groups %}
+<div class="r-stack-lg" style="margin-top: 1.25rem;">
+    {% for group in groups %}
+    <section>
+        <h2 class="r-title" style="margin-bottom: .75rem;">
+            {% if group.room %}{{ group.room.icon or '🚪' }} {{ group.room.name }}{% else %}📦 בלי חדר מסוים{% endif %}
+        </h2>
+        <div class="r-stack">
+            {% for item in group['items'] %}
+            {% set is_bought = item.status == 'bought' %}
+            <div class="r-card {% if is_bought %}r-card-dim{% endif %}">
+                <div class="r-row" style="align-items: flex-start;">
+                    <button type="button"
+                            class="r-check {% if is_bought %}is-done{% endif %}"
+                            {% if can_edit %}onclick="toggleSupply({{ item.id }}, {{ 'true' if is_bought else 'false' }})"{% else %}disabled{% endif %}
+                            aria-label="{% if is_bought %}סימון כחסר{% else %}סימון שנקנה{% endif %}">✓</button>
+
+                    <div class="r-grow">
+                        <div class="r-row" style="align-items: flex-start; gap: .5rem;">
+                            <h3 class="r-heading r-grow {% if is_bought %}r-done-text{% endif %}">{{ item.name }}</h3>
+                            {% if item.quantity %}
+                            <span class="r-badge r-shrink-0">{{ item.quantity }}</span>
+                            {% endif %}
+                        </div>
+
+                        {% if item.task_title %}
+                        <div class="r-meta"><span>📋 {{ item.task_title }}</span></div>
+                        {% endif %}
+
+                        {% if item.notes %}
+                        <p class="r-text r-pre-line" style="margin-top: .5rem;">{{ item.notes }}</p>
+                        {% endif %}
+
+                        {% if item.link_url %}
+                        <a href="{{ item.link_url }}" target="_blank" rel="noopener noreferrer"
+                           class="r-link" style="display: inline-block; margin-top: .5rem;">🔗 איפה קונים</a>
+                        {% endif %}
+                    </div>
+
+                    {% if can_edit %}
+                    <div class="r-shrink-0" style="display: flex; flex-direction: column; gap: .25rem;">
+                        <button class="r-icon-btn" aria-label="עריכת הפריט"
+                                onclick='openSupplyModal({{ item | tojson }})'>✏️</button>
+                        <button class="r-icon-btn r-icon-btn-danger" aria-label="מחיקת הפריט"
+                                onclick="deleteSupply({{ item.id }})">🗑️</button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endfor %}
+</div>
+{% else %}
+<div class="r-empty">
+    <div class="r-empty-icon">🧰</div>
+    <h2 class="r-empty-title">
+        {% if status_filter == 'needed' %}לא חסר כלום{% else %}אין כאן פריטים{% endif %}
+    </h2>
+    <p class="r-empty-text">
+        {% if room_filter or task_filter %}נסו לשנות את הסינון למעלה.
+        {% elif status_filter == 'needed' %}כל הציוד שרשום כבר נקנה.
+        {% else %}הוסיפו ציוד שצריך לקנות — לכל חדר או לכל משימה.{% endif %}
+    </p>
+    {% if can_edit %}
+    <button onclick="openSupplyModal()" class="r-btn r-btn-primary">➕ פריט ראשון</button>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if can_edit %}
+<div id="supply-modal" class="r-modal" role="dialog" aria-modal="true" aria-labelledby="supply-modal-title">
+    <div class="r-modal-backdrop" onclick="renoCloseModal('supply-modal')"></div>
+    <div class="r-modal-card">
+        <h2 id="supply-modal-title" class="r-modal-title">פריט חדש</h2>
+
+        <div class="r-field">
+            <label class="r-label" for="supply-name">מה צריך?</label>
+            <input id="supply-name" type="text" class="r-input" placeholder="למשל: צבע לבן, מברשות, ברז">
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="supply-quantity">כמות</label>
+            <input id="supply-quantity" type="text" class="r-input" placeholder="למשל: 2 פחים, 5 מטר">
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="supply-room">לאיזה חדר</label>
+            <select id="supply-room" class="r-input">
+                <option value="">בלי חדר מסוים</option>
+                {% for room in rooms %}
+                <option value="{{ room.id }}">{{ room.icon or '🚪' }} {{ room.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="supply-task">שייך למשימה (לא חובה)</label>
+            <select id="supply-task" class="r-input">
+                <option value="">בלי משימה</option>
+                {% for task in tasks %}
+                <option value="{{ task.id }}">{{ task.title }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="r-field">
+            <span class="r-label">מצב</span>
+            <div class="r-chips r-chips-wrap">
+                <button type="button" data-status="needed" onclick="setSupplyStatus('needed')" class="supply-status-btn r-chip">🧰 חסר</button>
+                <button type="button" data-status="bought" onclick="setSupplyStatus('bought')" class="supply-status-btn r-chip">✅ יש</button>
+            </div>
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="supply-link">קישור (איפה קונים)</label>
+            <input id="supply-link" type="url" class="r-input" placeholder="https://" dir="ltr">
+        </div>
+
+        <div class="r-field">
+            <label class="r-label" for="supply-notes">הערות</label>
+            <textarea id="supply-notes" class="r-input" rows="2" placeholder="מידה, גוון, שם החנות..."></textarea>
+        </div>
+
+        <input type="hidden" id="supply-id">
+        <input type="hidden" id="supply-status" value="needed">
+
+        <div class="r-modal-actions">
+            <button onclick="saveSupply()" id="supply-save-btn" class="r-btn r-btn-primary r-grow">שמירה</button>
+            <button onclick="renoCloseModal('supply-modal')" class="r-btn r-btn-ghost">ביטול</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block reno_scripts %}
+{% if can_edit %}
+<script>
+    function setSupplyStatus(status) {
+        document.getElementById('supply-status').value = status;
+        document.querySelectorAll('.supply-status-btn').forEach(b => {
+            b.classList.toggle('is-active', b.dataset.status === status);
+        });
+    }
+
+    function openSupplyModal(item) {
+        document.getElementById('supply-modal-title').textContent = item ? 'עריכת פריט' : 'פריט חדש';
+        document.getElementById('supply-id').value = item ? item.id : '';
+        document.getElementById('supply-name').value = item ? item.name : '';
+        document.getElementById('supply-quantity').value = item && item.quantity ? item.quantity : '';
+        document.getElementById('supply-link').value = item && item.link_url ? item.link_url : '';
+        document.getElementById('supply-notes').value = item && item.notes ? item.notes : '';
+        document.getElementById('supply-task').value = item && item.task_id ? String(item.task_id) : '';
+
+        // A new item lands in whichever room the list is filtered to.
+        const params = new URLSearchParams(window.location.search);
+        const roomFromFilter = params.get('room') || '';
+        const taskFromFilter = params.get('task') || '';
+        document.getElementById('supply-room').value =
+            item && item.room_id ? String(item.room_id) : (item ? '' : roomFromFilter);
+        if (!item && taskFromFilter) document.getElementById('supply-task').value = taskFromFilter;
+
+        setSupplyStatus(item ? item.status : 'needed');
+        renoOpenModal('supply-modal');
+        setTimeout(() => document.getElementById('supply-name').focus(), 60);
+    }
+
+    async function saveSupply() {
+        const id = document.getElementById('supply-id').value;
+        const name = document.getElementById('supply-name').value.trim();
+        if (!name) {
+            renoToast('צריך לכתוב מה צריך לקנות', true);
+            document.getElementById('supply-name').focus();
+            return;
+        }
+        const roomValue = document.getElementById('supply-room').value;
+        const taskValue = document.getElementById('supply-task').value;
+        const body = {
+            name,
+            quantity: document.getElementById('supply-quantity').value.trim() || null,
+            status: document.getElementById('supply-status').value,
+            room_id: roomValue ? Number(roomValue) : null,
+            task_id: taskValue ? Number(taskValue) : null,
+            link_url: document.getElementById('supply-link').value.trim() || null,
+            notes: document.getElementById('supply-notes').value.trim() || null,
+        };
+
+        const saveBtn = document.getElementById('supply-save-btn');
+        saveBtn.disabled = true;
+        const result = await renoApi(
+            id ? `/api/renovation/supplies/${id}` : '/api/renovation/supplies',
+            id ? 'PUT' : 'POST',
+            body,
+        );
+        saveBtn.disabled = false;
+        if (!result) return;
+        renoCloseModal('supply-modal');
+        window.location.reload();
+    }
+
+    async function toggleSupply(id, isBought) {
+        const result = await renoApi(`/api/renovation/supplies/${id}`, 'PUT', {
+            status: isBought ? 'needed' : 'bought',
+        });
+        if (result) window.location.reload();
+    }
+
+    async function deleteSupply(id) {
+        if (!confirm('למחוק את הפריט?')) return;
+        const result = await renoApi(`/api/renovation/supplies/${id}`, 'DELETE');
+        if (result) window.location.reload();
+    }
+
+    // ?new=1 (from a task or room card) opens the form straight away.
+    if (new URLSearchParams(window.location.search).get('new') === '1') {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('new');
+        window.history.replaceState({}, '', url);
+        openSupplyModal();
+    }
+</script>
+{% endif %}
+{% endblock %}

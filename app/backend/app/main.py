@@ -85,14 +85,12 @@ if SESSION_COOKIE_DOMAIN:
 # Log session configuration shape for debugging — never the secret_key itself.
 print(f"Session configuration: https_only={HTTPS_ONLY}, same_site={COOKIE_SAMESITE}, domain={SESSION_COOKIE_DOMAIN}, is_production={is_production}")
 
-# Add SessionMiddleware - this must be added before AuthMiddleware
-try:
-    app.add_middleware(SessionMiddleware, **session_kwargs)
-    print("SessionMiddleware added successfully")
-except Exception as e:
-    print(f"Failed to add SessionMiddleware: {e}")
-    # Fallback with minimal configuration
-    app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
+# NOTE: SessionMiddleware is registered further down (after AuthMiddleware).
+# Starlette's add_middleware() inserts each new middleware at the front of the
+# stack, so the LAST middleware registered ends up outermost and runs FIRST on
+# every request. AuthMiddleware reads request.session, so SessionMiddleware
+# must be added after it — otherwise Auth runs before Session has decoded the
+# cookie and request.session access fails.
 
 from .services.logging_service import configure_logging, redirect_prints_to_logs
 from .services.production_logging import setup_production_logging, log_environment_info
@@ -151,14 +149,25 @@ app.include_router(renovation_api)
 # Build public route matchers from routes decorated with @public
 PUBLIC_ROUTE_MATCHERS = build_public_route_matchers(app)
 
-# --- auth middleware (must be added AFTER session middleware) ---
+# --- auth middleware ---
 auth_enabled_env = os.environ.get("AUTH_ENABLED", "1")
 running_pytest = os.environ.get("PYTEST_CURRENT_TEST") is not None
 # Allow disabling auth only under pytest
 auth_enabled = not (auth_enabled_env != "1" and running_pytest)
 
-# Add AuthMiddleware - this must be after SessionMiddleware
+# Add AuthMiddleware BEFORE SessionMiddleware (see note above) so that, once
+# both are registered, Session ends up outermost and runs first per request.
 app.add_middleware(AuthMiddleware, public_route_matchers=PUBLIC_ROUTE_MATCHERS, auth_enabled=auth_enabled)
+
+# Add SessionMiddleware last so it wraps AuthMiddleware and populates
+# request.session before AuthMiddleware's dispatch runs.
+try:
+    app.add_middleware(SessionMiddleware, **session_kwargs)
+    print("SessionMiddleware added successfully")
+except Exception as e:
+    print(f"Failed to add SessionMiddleware: {e}")
+    # Fallback with minimal configuration
+    app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
 
 # Redirect root to expenses if needed (handled in pages router too)
 @app.get("/health")

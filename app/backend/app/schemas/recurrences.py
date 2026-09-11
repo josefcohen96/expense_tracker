@@ -10,7 +10,6 @@ class RecurrenceBase(BaseModel):
     day_of_month: Optional[int] = None
     weekday: Optional[int] = None
     next_charge_date: Optional[str] = None  # ISO date for next due; server sets default
-    custom_cron: Optional[str] = None
     account_id: Optional[int] = None
     active: bool = True
 
@@ -26,7 +25,6 @@ class RecurrenceUpdate(BaseModel):
     day_of_month: Optional[int] = None
     weekday: Optional[int] = None
     next_charge_date: Optional[str] = None
-    custom_cron: Optional[str] = None
     account_id: Optional[int] = None
     active: Optional[bool] = None
 

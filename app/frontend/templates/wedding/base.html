@@ -10,7 +10,7 @@
 
 <!-- Desktop Only: Persistent Sidebar -->
 <aside class="hidden lg:flex lg:flex-col fixed bg-white border-l border-gray-200 shadow-lg overflow-y-auto"
-       style="right: 0; top: calc(64px + 0.5rem + env(safe-area-inset-top, 0px)); bottom: 0; width: 16rem; z-index: 50;"
+       style="right: 0; top: calc(64px + env(safe-area-inset-top, 0px)); bottom: 0; width: 16rem; z-index: 50;"
        dir="rtl">
 
     <!-- Sidebar Header -->
@@ -182,84 +182,204 @@
 
 <!-- Mobile Only: Section Sub-header -->
 <div class="lg:hidden section-subheader bg-white border-b border-gray-200 shadow-sm" dir="rtl">
-    <div class="flex items-center justify-between px-4 py-3">
+    <div class="flex items-center justify-between px-4 py-2.5">
         <div class="flex items-center gap-2 min-w-0">
             <span class="text-sm flex-shrink-0">💍</span>
             <span class="font-semibold text-gray-800 text-sm truncate">{% block wedding_breadcrumb %}חתונה{% endblock %}</span>
         </div>
-        <div class="flex items-center gap-3 flex-shrink-0">
+        <div class="flex items-center gap-2 flex-shrink-0">
             {% block wedding_header_action %}{% endblock %}
+            <button id="wedding-nav-btn"
+                    aria-label="פתיחת ניווט חתונה"
+                    aria-expanded="false"
+                    aria-controls="wedding-nav-drawer"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 text-xs font-semibold active:bg-rose-100">
+                <i class="fas fa-th-list text-xs"></i>
+                <span>תפריט</span>
+            </button>
         </div>
+    </div>
+    <!-- Scrollable quick-access pill tabs -->
+    <div class="overflow-x-auto whitespace-nowrap px-3 pb-2.5" dir="rtl" style="scrollbar-width: none; -ms-overflow-style: none;">
+        <a href="/wedding" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold ml-1.5 min-h-[36px]
+           {% if request.path == '/wedding' %}bg-rose-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
+            <span>🏠</span><span>דשבורד</span>
+        </a>
+        <a href="/wedding/vendors" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold ml-1.5 min-h-[36px]
+           {% if 'vendors' in request.path %}bg-rose-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
+            <span>🏢</span><span>ספקים</span>
+        </a>
+        <a href="/wedding/guests" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold ml-1.5 min-h-[36px]
+           {% if 'guests' in request.path %}bg-rose-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
+            <span>👥</span><span>מוזמנים</span>
+        </a>
+        <a href="/wedding/budget" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold ml-1.5 min-h-[36px]
+           {% if 'budget' in request.path %}bg-rose-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
+            <span>💰</span><span>תקציב</span>
+        </a>
+        <a href="/wedding/tasks" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold ml-1.5 min-h-[36px]
+           {% if 'tasks' in request.path %}bg-rose-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
+            <span>✅</span><span>משימות</span>
+        </a>
+        <a href="/wedding/notes" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold ml-1.5 min-h-[36px]
+           {% if 'notes' in request.path %}bg-rose-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
+            <span>📝</span><span>לזכור</span>
+        </a>
+        <a href="/wedding/ideas" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold ml-1.5 min-h-[36px]
+           {% if 'ideas' in request.path %}bg-rose-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
+            <span>💡</span><span>רעיונות</span>
+        </a>
+        <a href="/wedding/seating" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold ml-1.5 min-h-[36px]
+           {% if 'seating' in request.path %}bg-rose-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
+            <span>🪑</span><span>הושבות</span>
+        </a>
+        <a href="/wedding/timeline" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold ml-1.5 min-h-[36px]
+           {% if 'timeline' in request.path %}bg-rose-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
+            <span>📅</span><span>לו"ז</span>
+        </a>
+        <a href="/wedding/lodging" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold ml-1.5 min-h-[36px]
+           {% if 'lodging' in request.path %}bg-rose-600 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
+            <span>🏡</span><span>לינה</span>
+        </a>
     </div>
 </div>
 
-<!-- Mobile Only: Fixed Left Mini Sidebar -->
-<nav class="lg:hidden fixed left-0 z-[150] bg-white border-r border-gray-200 shadow-md flex flex-col items-center overflow-y-auto"
-     style="top: calc(124px + 0.5rem + env(safe-area-inset-top, 0px)); bottom: env(safe-area-inset-bottom, 16px); width: 52px; padding-bottom: env(safe-area-inset-bottom, 0px);">
+<!-- Mobile Nav Drawer overlay -->
+<div id="wedding-nav-overlay"
+     class="lg:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[400] hidden"
+     onclick="closeWeddingNav()"></div>
 
-    <a href="/wedding" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if request.path == '/wedding' %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">🏠</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if request.path == '/wedding' %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">בית</span>
-    </a>
+<!-- Mobile Nav Drawer (slides in from the right) -->
+<nav id="wedding-nav-drawer"
+     dir="rtl"
+     role="dialog"
+     aria-modal="true"
+     aria-label="ניווט חתונה"
+     class="lg:hidden fixed top-0 right-0 h-full w-72 max-w-[85vw] bg-white shadow-2xl z-[410]
+            translate-x-full transition-transform duration-300 ease-in-out overflow-y-auto">
 
-    <a href="/wedding/vendors" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'vendors' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">🏢</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'vendors' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">ספקים</span>
-    </a>
+    <!-- Drawer header -->
+    <div class="flex items-center justify-between p-5 bg-gradient-to-l from-rose-600 to-rose-900 flex-shrink-0"
+         style="padding-top: calc(1.25rem + env(safe-area-inset-top, 0px));">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0 text-xl">💍</div>
+            <div>
+                <p class="text-lg font-bold text-white leading-tight">חתונה</p>
+                <p class="text-rose-200 text-xs">תכנון החתונה</p>
+            </div>
+        </div>
+        <button onclick="closeWeddingNav()"
+                aria-label="סגירת תפריט"
+                class="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center text-white active:bg-white/30">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
 
-    <a href="/wedding/guests" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'guests' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">👥</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'guests' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">מוזמנים</span>
-    </a>
-
-    <a href="/wedding/budget" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'budget' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">💰</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'budget' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">תקציב</span>
-    </a>
-
-    <a href="/wedding/tasks" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'tasks' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">✅</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'tasks' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">משימות</span>
-    </a>
-
-    <a href="/wedding/notes" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'notes' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">📝</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'notes' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">לזכור</span>
-    </a>
-
-    <a href="/wedding/ideas" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'ideas' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">💡</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'ideas' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">רעיונות</span>
-    </a>
-
-    <a href="/wedding/seating" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'seating' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">🪑</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'seating' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">הושבות</span>
-    </a>
-
-    <a href="/wedding/timeline" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'timeline' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">📅</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'timeline' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">לו"ז</span>
-    </a>
-
-    <a href="/wedding/lodging" class="w-full flex flex-col items-center justify-center py-2 border-r-2 min-h-[44px] active:bg-gray-50
-       {% if 'lodging' in request.path %}bg-rose-50 border-rose-500{% else %}border-transparent{% endif %}">
-        <span class="text-lg leading-none">🏡</span>
-        <span class="text-[9px] mt-0.5 leading-none {% if 'lodging' in request.path %}text-rose-600 font-semibold{% else %}text-gray-400{% endif %}">לינה</span>
-    </a>
+    <!-- Drawer links -->
+    <div class="p-3 space-y-0.5">
+        <a href="/wedding" onclick="closeWeddingNav()"
+           class="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium min-h-[52px]
+                  {% if request.path == '/wedding' %}bg-rose-50 text-rose-700{% else %}text-gray-700 active:bg-gray-100{% endif %}">
+            <div class="w-9 h-9 rounded-lg {% if request.path == '/wedding' %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0 text-lg">🏠</div>
+            <span class="flex-1">דשבורד</span>
+            {% if request.path == '/wedding' %}<i class="fas fa-check text-rose-500 text-xs"></i>{% endif %}
+        </a>
+        <a href="/wedding/vendors" onclick="closeWeddingNav()"
+           class="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium min-h-[52px]
+                  {% if 'vendors' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 active:bg-gray-100{% endif %}">
+            <div class="w-9 h-9 rounded-lg {% if 'vendors' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0 text-lg">🏢</div>
+            <span class="flex-1">ספקים</span>
+            {% if 'vendors' in request.path %}<i class="fas fa-check text-rose-500 text-xs"></i>{% endif %}
+        </a>
+        <a href="/wedding/guests" onclick="closeWeddingNav()"
+           class="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium min-h-[52px]
+                  {% if 'guests' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 active:bg-gray-100{% endif %}">
+            <div class="w-9 h-9 rounded-lg {% if 'guests' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0 text-lg">👥</div>
+            <span class="flex-1">מוזמנים</span>
+            {% if 'guests' in request.path %}<i class="fas fa-check text-rose-500 text-xs"></i>{% endif %}
+        </a>
+        <a href="/wedding/budget" onclick="closeWeddingNav()"
+           class="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium min-h-[52px]
+                  {% if 'budget' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 active:bg-gray-100{% endif %}">
+            <div class="w-9 h-9 rounded-lg {% if 'budget' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0 text-lg">💰</div>
+            <span class="flex-1">תקציב</span>
+            {% if 'budget' in request.path %}<i class="fas fa-check text-rose-500 text-xs"></i>{% endif %}
+        </a>
+        <a href="/wedding/tasks" onclick="closeWeddingNav()"
+           class="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium min-h-[52px]
+                  {% if 'tasks' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 active:bg-gray-100{% endif %}">
+            <div class="w-9 h-9 rounded-lg {% if 'tasks' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0 text-lg">✅</div>
+            <span class="flex-1">משימות</span>
+            {% if 'tasks' in request.path %}<i class="fas fa-check text-rose-500 text-xs"></i>{% endif %}
+        </a>
+        <a href="/wedding/notes" onclick="closeWeddingNav()"
+           class="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium min-h-[52px]
+                  {% if 'notes' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 active:bg-gray-100{% endif %}">
+            <div class="w-9 h-9 rounded-lg {% if 'notes' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0 text-lg">📝</div>
+            <span class="flex-1">לזכור</span>
+            {% if 'notes' in request.path %}<i class="fas fa-check text-rose-500 text-xs"></i>{% endif %}
+        </a>
+        <a href="/wedding/ideas" onclick="closeWeddingNav()"
+           class="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium min-h-[52px]
+                  {% if 'ideas' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 active:bg-gray-100{% endif %}">
+            <div class="w-9 h-9 rounded-lg {% if 'ideas' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0 text-lg">💡</div>
+            <span class="flex-1">רעיונות</span>
+            {% if 'ideas' in request.path %}<i class="fas fa-check text-rose-500 text-xs"></i>{% endif %}
+        </a>
+        <a href="/wedding/seating" onclick="closeWeddingNav()"
+           class="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium min-h-[52px]
+                  {% if 'seating' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 active:bg-gray-100{% endif %}">
+            <div class="w-9 h-9 rounded-lg {% if 'seating' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0 text-lg">🪑</div>
+            <span class="flex-1">הושבות</span>
+            {% if 'seating' in request.path %}<i class="fas fa-check text-rose-500 text-xs"></i>{% endif %}
+        </a>
+        <a href="/wedding/timeline" onclick="closeWeddingNav()"
+           class="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium min-h-[52px]
+                  {% if 'timeline' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 active:bg-gray-100{% endif %}">
+            <div class="w-9 h-9 rounded-lg {% if 'timeline' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0 text-lg">📅</div>
+            <span class="flex-1">לוח זמנים</span>
+            {% if 'timeline' in request.path %}<i class="fas fa-check text-rose-500 text-xs"></i>{% endif %}
+        </a>
+        <a href="/wedding/lodging" onclick="closeWeddingNav()"
+           class="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium min-h-[52px]
+                  {% if 'lodging' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 active:bg-gray-100{% endif %}">
+            <div class="w-9 h-9 rounded-lg {% if 'lodging' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0 text-lg">🏡</div>
+            <span class="flex-1">לינה</span>
+            {% if 'lodging' in request.path %}<i class="fas fa-check text-rose-500 text-xs"></i>{% endif %}
+        </a>
+    </div>
 </nav>
 
-<!-- Page Content: pushed right on desktop to clear the sidebar -->
-<div class="bg-gray-50 min-h-screen p-4 sm:p-6 lg:p-8 pb-10 lg:mr-64 ml-[52px] lg:ml-0" dir="rtl">
+<script>
+(function () {
+    var btn     = document.getElementById('wedding-nav-btn');
+    var drawer  = document.getElementById('wedding-nav-drawer');
+    var overlay = document.getElementById('wedding-nav-overlay');
+
+    function openWeddingNav() {
+        drawer.classList.remove('translate-x-full');
+        overlay.classList.remove('hidden');
+        btn.setAttribute('aria-expanded', 'true');
+        document.body.style.overflow = 'hidden';
+    }
+
+    window.closeWeddingNav = function () {
+        drawer.classList.add('translate-x-full');
+        overlay.classList.add('hidden');
+        btn.setAttribute('aria-expanded', 'false');
+        document.body.style.overflow = '';
+    };
+
+    if (btn) btn.addEventListener('click', openWeddingNav);
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') window.closeWeddingNav();
+    });
+})();
+</script>
+
+<!-- Page Content: full width on mobile, offset on desktop for sidebar -->
+<div class="bg-gray-50 min-h-screen p-4 sm:p-6 lg:p-8 pb-10 lg:mr-64" dir="rtl">
     <!-- Desktop Only: action button row -->
     <div class="hidden lg:flex justify-end mb-4">
         {{ self.wedding_header_action() }}

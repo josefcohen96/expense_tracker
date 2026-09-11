@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from ..db import get_db_conn
 from ..services.cache_service import cache_service
-from datetime import datetime, timedelta
+from ..api.transactions import INCOME_CATEGORIES
+from datetime import date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from typing import Dict, Any, List
 import sqlite3
@@ -16,20 +17,36 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/statistics", tags=["statistics"])
 
+# Cache key for the full statistics payload
+_STATS_CACHE_KEY = "statistics_full"
+_STATS_CACHE_TTL = 300  # 5 minutes
+
+# SQL-compatible income category exclusion clause — always matches INCOME_CATEGORIES constant.
+# Keep this in sync with INCOME_CATEGORIES in api/transactions.py.
+_INCOME_EXCL = "c.name NOT IN ({})".format(
+    ", ".join("?" * len(INCOME_CATEGORIES))
+)
+
+
 def get_last_6_months() -> List[str]:
-    """Get the last 6 months as YYYY-MM format strings."""
-    today = datetime.today().replace(day=1)
+    """Get the last 6 months as YYYY-MM strings, matching the SQL date('now','-6 months') window."""
+    today = date.today()
     months = []
     for i in range(5, -1, -1):
-        month = (today - relativedelta(months=i)).strftime('%Y-%m')
-        months.append(month)
+        d = today - relativedelta(months=i)
+        months.append(d.strftime('%Y-%m'))
     return months
 
 @router.get("")
 def statistics(db_conn=Depends(get_db_conn)):
     """Main statistics data endpoint - returns JSON with all statistics data."""
+    # Serve from cache when available (invalidated on writes via clear_statistics_cache)
+    cached = cache_service.get(_STATS_CACHE_KEY)
+    if cached is not None:
+        return JSONResponse(cached)
+
     cur = db_conn.cursor()
-    
+
     # Get last 6 months as strings
     last_6_months = get_last_6_months()
 
@@ -125,7 +142,8 @@ def statistics(db_conn=Depends(get_db_conn)):
             AND c.name NOT IN ('משכורת', 'קליניקה')
             AND COALESCE(c.is_saving, 0) = 0
         """).fetchone()
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to query current_month_expenses")
         current_month_expenses = {'total': 0}
 
     try:
@@ -136,7 +154,8 @@ def statistics(db_conn=Depends(get_db_conn)):
             WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
             AND COALESCE(c.is_saving, 0) = 1
         """).fetchone()
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to query current_month_savings")
         current_month_savings = {'total': 0}
 
     try:
@@ -148,7 +167,8 @@ def statistics(db_conn=Depends(get_db_conn)):
             AND c.name NOT IN ('משכורת', 'קליניקה')
             AND COALESCE(c.is_saving, 0) = 0
         """).fetchone()
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to query previous_month_expenses")
         previous_month_expenses = {'total': 0}
 
     # Get total expenses for last 6 months (excluding income and savings)
@@ -161,7 +181,8 @@ def statistics(db_conn=Depends(get_db_conn)):
             AND c.name NOT IN ('משכורת', 'קליניקה')
             AND COALESCE(c.is_saving, 0) = 0
         """).fetchone()
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to query total_expenses_6months")
         total_expenses_6months = {'total': 0}
 
     try:
@@ -172,7 +193,8 @@ def statistics(db_conn=Depends(get_db_conn)):
             WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
             AND c.name IN ('משכורת', 'קליניקה')
         """).fetchone()
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to query current_month_income")
         current_month_income = {'total': 0}
 
     try:
@@ -183,7 +205,8 @@ def statistics(db_conn=Depends(get_db_conn)):
             WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now', '-1 month')
             AND c.name IN ('משכורת', 'קליניקה')
         """).fetchone()
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to query previous_month_income")
         previous_month_income = {'total': 0}
 
     # Get transaction count for current month (excluding income and savings)
@@ -196,7 +219,8 @@ def statistics(db_conn=Depends(get_db_conn)):
             AND c.name NOT IN ('משכורת', 'קליניקה')
             AND COALESCE(c.is_saving, 0) = 0
         """).fetchone()
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to query current_month_transactions")
         current_month_transactions = {'total': 0}
 
     # Get regular transactions count for current month (excluding recurring, income and savings)
@@ -210,7 +234,8 @@ def statistics(db_conn=Depends(get_db_conn)):
             AND COALESCE(c.is_saving, 0) = 0
             AND t.recurrence_id IS NULL
         """).fetchone()
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to query current_month_regular")
         current_month_regular = {'total': 0}
 
     # Get recurring transactions count for current month (excluding savings)
@@ -224,7 +249,8 @@ def statistics(db_conn=Depends(get_db_conn)):
             AND COALESCE(c.is_saving, 0) = 0
             AND t.recurrence_id IS NOT NULL
         """).fetchone()
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to query current_month_recurring")
         current_month_recurring = {'total': 0}
 
     # Count active expense categories this month (excluding income and savings)
@@ -237,9 +263,10 @@ def statistics(db_conn=Depends(get_db_conn)):
             AND c.name NOT IN ('משכורת', 'קליניקה')
             AND COALESCE(c.is_saving, 0) = 0
         """).fetchone()
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to query categories_count")
         categories_count = {'count': 0}
-    
+
     # Calculate changes
     try:
         expenses_change = 0
@@ -255,6 +282,7 @@ def statistics(db_conn=Depends(get_db_conn)):
         if (previous_month_income['total'] - previous_month_expenses['total']) > 0:
             balance_change = ((balance_month - (previous_month_income['total'] - previous_month_expenses['total'])) / (previous_month_income['total'] - previous_month_expenses['total'])) * 100
     except Exception as e:
+        logger.exception("Failed to calculate monthly change percentages")
         expenses_change = 0
         income_change = 0
         balance_month = 0
@@ -282,6 +310,7 @@ def statistics(db_conn=Depends(get_db_conn)):
         "categories_count": categories_count['count'],
     }
     logger.info("Statistics data computed")
+    cache_service.set(_STATS_CACHE_KEY, payload, ttl_seconds=_STATS_CACHE_TTL)
     return JSONResponse(payload)
 
 def _get_top_expenses(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
@@ -467,6 +496,7 @@ def _get_cash_vs_credit_data(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
 def clear_statistics_cache():
     """Clear statistics cache when new data is added."""
     cache_service.invalidate("top_expenses_3months")
+    cache_service.invalidate(_STATS_CACHE_KEY)
     return JSONResponse({"message": "Cache cleared successfully"})
 
 @router.get("/cache-stats")

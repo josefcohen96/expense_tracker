@@ -10,9 +10,6 @@ import zipfile
 import logging
 import shutil
 import os
-import sys
-import traceback
-import json
 
 from .. import schemas
 from ..services.backup_service import list_backup_files, restore_from_file, create_monthly_backup

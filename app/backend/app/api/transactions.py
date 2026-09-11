@@ -10,6 +10,15 @@ from openpyxl import Workbook
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 
+# Single source of truth for income category names (Hebrew).
+# Statistics queries and the transactions API both use this to identify income vs expense.
+INCOME_CATEGORIES: tuple[str, ...] = ("משכורת", "קליניקה")
+
+# Keep this import lazy to avoid circular imports — statistics imports INCOME_CATEGORIES from here.
+def _invalidate_stats_cache() -> None:
+    cache_service.invalidate("top_expenses_3months")
+    cache_service.invalidate("statistics_full")
+
 
 def _is_income_category(db_conn: sqlite3.Connection, category_id: Optional[int]) -> bool:
     """Return True if the category id corresponds to an income category."""
@@ -18,8 +27,7 @@ def _is_income_category(db_conn: sqlite3.Connection, category_id: Optional[int])
     row = db_conn.execute("SELECT name FROM categories WHERE id = ?", (category_id,)).fetchone()
     if not row:
         return False
-    name = row[0]
-    return name in ("משכורת", "קליניקה")
+    return row[0] in INCOME_CATEGORIES
 
 def _is_saving_category(db_conn: sqlite3.Connection, category_id: Optional[int]) -> bool:
     """Return True if the category is marked as a savings category."""
@@ -95,7 +103,7 @@ async def api_create_transaction(
     tr_dict['amount'] = amount
     return schemas.Transaction(id=new_id, **tr_dict)
 
-@router.put("/{tx_id}", response_model=schemas.Transaction)
+@router.patch("/{tx_id}", response_model=schemas.Transaction)
 async def api_update_transaction(
     tx_id: int,
     update: schemas.TransactionUpdate,
@@ -143,7 +151,9 @@ async def api_delete_transaction(
         "SELECT recurrence_id, period_key FROM transactions WHERE id = ?",
         (tx_id,),
     ).fetchone()
-    if row and row["recurrence_id"] and row["period_key"]:
+    if not row:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    if row["recurrence_id"] and row["period_key"]:
         db_conn.execute(
             "INSERT OR IGNORE INTO recurrence_skips (recurrence_id, period_key) VALUES (?, ?)",
             (row["recurrence_id"], row["period_key"]),

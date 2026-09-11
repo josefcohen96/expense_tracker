@@ -149,23 +149,27 @@
         .mobile-menu-link {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 0.875rem;
+            /* 52px min-height — comfortable thumb tap */
+            min-height: 52px;
             padding: 0.75rem 1rem;
             border-radius: 0.75rem;
             font-size: 1rem;
             font-weight: 500;
             color: #ffffff;
-            transition: background-color 0.2s ease, transform 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .mobile-menu-link i {
             color: rgba(255, 255, 255, 0.85);
-            width: 1.25rem;
+            width: 1.375rem;
             text-align: center;
+            font-size: 1.05rem;
+            flex-shrink: 0;
         }
 
-        .mobile-menu-link:hover {
-            background: rgba(255, 255, 255, 0.12);
+        .mobile-menu-link:active {
+            background: rgba(255, 255, 255, 0.18);
         }
 
         .mobile-menu-link.is-active {
@@ -173,11 +177,17 @@
             font-weight: 600;
         }
 
-        /* Mobile menu button: clearer hover/focus states */
+        /* Mobile menu button: large 44×44 tap target */
         #mobile-menu-button {
-            padding: 0.5rem;
+            padding: 0.625rem;
             border-radius: 0.5rem;
+            min-width: 44px;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             transition: background-color 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
         }
 
         #mobile-menu-button:hover,
@@ -186,30 +196,34 @@
             outline: none;
         }
 
+        #mobile-menu-button:active {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
         /* ===== FLOATING ACTION BUTTON (z-index: 300-350) ===== */
         .fab-button {
             position: fixed;
-            bottom: calc(30px + env(safe-area-inset-bottom));
-            right: calc(30px + env(safe-area-inset-right));
-            width: 60px;
-            height: 60px;
+            bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+            right: calc(1.5rem + env(safe-area-inset-right, 0px));
+            width: 56px;
+            height: 56px;
             border-radius: 50%;
             background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
             color: white;
             border: none;
             cursor: pointer;
             box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
-            transition: all 0.3s ease;
             z-index: 300;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-size: 1.375rem;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
         }
 
-        .fab-button:hover {
-            transform: scale(1.1) rotate(180deg);
-            box-shadow: 0 6px 30px rgba(99, 102, 241, 0.6);
+        .fab-button:active {
+            transform: scale(0.93);
         }
 
         /* ===== SIDEBAR LAYER (z-index: 100-150) ===== */
@@ -271,31 +285,18 @@
         .main-content {
             flex: 1;
             min-height: 100vh;
-            margin-top: calc(64px + 0.5rem + env(safe-area-inset-top));
+            /* Sits exactly below the 64px fixed navbar */
+            margin-top: calc(64px + env(safe-area-inset-top, 0px));
             z-index: 10;
             position: relative;
         }
 
         /* ===== RESPONSIVE DESIGN ===== */
         @media (max-width: 768px) {
-
             /* Mobile: Full width content */
             .main-content {
                 width: 100%;
-                margin-top: calc(64px + 0.5rem + env(safe-area-inset-top));
-            }
-
-            /* Mobile: Adjust navbar */
-            .nav-gradient {
-                padding: 0.5rem 1rem;
-            }
-
-            /* Mobile: Smaller FAB - positioned above browser bottom bar */
-            .fab-button {
-                width: 50px;
-                height: 50px;
-                bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
-                right: 20px;
+                margin-top: calc(64px + env(safe-area-inset-top, 0px));
             }
         }
 
@@ -383,16 +384,12 @@
             -webkit-backdrop-filter: blur(4px);
             z-index: 500;
             display: none;
+            /* Default: centred on desktop */
             align-items: center;
             justify-content: center;
         }
 
         /* Show modal when active */
-        .modal-overlay.active {
-            display: flex;
-        }
-
-        /* Ensure modal becomes visible when activated */
         .modal-overlay.active {
             display: flex;
         }
@@ -406,6 +403,13 @@
             max-width: 90vw;
             max-height: 90vh;
             overflow: auto;
+        }
+
+        /* On mobile: bottom-sheet — overlay anchors to bottom, content slides up */
+        @media (max-width: 639px) {
+            .modal-overlay {
+                align-items: flex-end;
+            }
         }
 
         /* ===== TOAST/NOTIFICATION LAYER (z-index: 700-800) ===== */
@@ -480,7 +484,8 @@
         }
         .section-subheader {
             position: sticky;
-            top: calc(64px + 0.5rem + env(safe-area-inset-top, 0px));
+            /* Flush against the bottom of the fixed 64px navbar */
+            top: calc(64px + env(safe-area-inset-top, 0px));
             z-index: 30;
         }
 
@@ -490,19 +495,12 @@
             border-top: 1px solid #e5e7eb;
             position: relative;
             overflow: hidden;
-            transition: margin 0.2s ease-out;
         }
 
-        /* Push the footer so it sits next to the fixed side navigation
-           instead of being overlapped by it (wedding / finances pages). */
-        body.has-side-navigation .footer {
-            margin-left: 52px; /* clear mobile mini-sidebar on the left */
-        }
-
+        /* Desktop: push footer clear of the right-side desktop sidebar */
         @media (min-width: 1024px) {
             body.has-side-navigation .footer {
-                margin-left: 0;
-                margin-right: 16rem; /* clear desktop sidebar on the right (RTL) */
+                margin-right: 16rem;
             }
         }
 
@@ -550,13 +548,7 @@
             }
         }
 
-        /* Responsive Design */
-        @media (max-width: 768px) {
-            .nav-link {
-                margin: 2px;
-                padding: 8px 12px;
-            }
-        }
+        /* nav-link hover: desktop only (handled above) */
     </style>
 
     {% block head %}{% endblock %}
@@ -639,9 +631,10 @@
             </div>
         </div>
 
-        <!-- Mobile menu -->
+        <!-- Mobile menu — slides down from navbar, closes on outside tap -->
         <div id="mobile-menu" class="hidden md:hidden border-t border-white/10 mobile-menu-panel">
-            <div class="px-3 py-3 space-y-1">
+            <div class="px-3 py-3 space-y-0.5"
+                 style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));">
                 <a href="/finances"
                     class="mobile-menu-link {% if request.path.startswith('/finances') %}is-active{% endif %}">
                     <i class="fas fa-wallet"></i>
@@ -649,7 +642,7 @@
                 </a>
                 <a href="/wedding"
                     class="mobile-menu-link {% if request.path.startswith('/wedding') %}is-active{% endif %}">
-                    <span class="text-base">💍</span>
+                    <span class="text-lg leading-none w-5 text-center flex-shrink-0">💍</span>
                     <span>חתונה</span>
                 </a>
                 <a href="/workouts"
@@ -660,13 +653,13 @@
                 {% if show_renovation %}
                 <a href="/renovation"
                     class="mobile-menu-link {% if request.path.startswith('/renovation') %}is-active{% endif %}">
-                    <span class="text-base">🏡</span>
+                    <span class="text-lg leading-none w-5 text-center flex-shrink-0">🏡</span>
                     <span>שיפוץ</span>
                 </a>
                 {% endif %}
-                <div class="border-t border-white/10 my-2"></div>
+                <div class="border-t border-white/10 my-1.5 mx-1"></div>
                 {% if request.session.get('user') %}
-                <div class="px-4 py-2 text-sm text-white/80">
+                <div class="px-4 py-2 text-sm text-white/70 font-medium">
                     מחובר כ-{{ request.session.get('user', {}).get('username') }}
                 </div>
                 <a href="/logout" class="mobile-menu-link">
@@ -690,9 +683,12 @@
     </div>
 
     <!-- Footer -->
-    <footer class="footer text-gray-700 py-10 mt-auto relative">
+    <footer class="footer text-gray-700 mt-auto relative"
+            style="padding: 2rem 0 max(1.5rem, env(safe-area-inset-bottom, 1.5rem));">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 text-center md:text-right">
+
+            <!-- Desktop: 3-col grid / Mobile: brand + copyright only -->
+            <div class="hidden sm:grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 text-center md:text-right">
                 <!-- Brand -->
                 <div class="animate-sequence">
                     <div class="flex items-center gap-3 justify-center md:justify-start mb-3">
@@ -757,7 +753,15 @@
                 </div>
             </div>
 
-            <div class="border-t border-gray-200 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-gray-500">
+            <!-- Mobile-only: compact brand row -->
+            <div class="flex sm:hidden items-center gap-3 mb-4">
+                <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-seedling text-purple-600 text-sm"></i>
+                </div>
+                <p class="text-sm text-gray-600 leading-snug">פלטפורמה לניהול חיים מאוזנים</p>
+            </div>
+
+            <div class="border-t border-gray-200 pt-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs sm:text-sm text-gray-500">
                 <p>&copy; <span id="footer-year">2026</span> המנביטים. כל הזכויות שמורות.</p>
                 <p class="text-xs">נבנה באהבה ❤️</p>
             </div>

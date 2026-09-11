@@ -188,6 +188,8 @@ h6 {
   justify-content: center;
   gap: 0.4rem;
   padding: 0.7rem 1.5rem;
+  /* Minimum 44px tall for touch — Apple HIG */
+  min-height: 44px;
   border-radius: var(--border-radius-lg);
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -199,6 +201,9 @@ h6 {
   overflow: hidden;
   /* Performance optimizations */
   will-change: transform, box-shadow;
+  /* Prevent iOS text highlight on tap */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .btn::before {
@@ -944,7 +949,7 @@ h6 {
   transition: all var(--transition-normal);
 }
 
-/* PERFORMANCE OPTIMIZATIONS */
+/* ===== PERFORMANCE OPTIMIZATIONS ===== */
 /* Reduce repaints and reflows */
 .performance-optimized {
   contain: layout style paint;
@@ -993,232 +998,262 @@ body.loaded .animate-sequence {
   contain: layout;
 }
 
-/* Optimize for mobile */
+/* ===== MOBILE OPTIMIZATIONS (handled in dedicated sections below) ===== */
 @media (max-width: 768px) {
   .mobile-optimized {
     contain: layout style paint;
   }
-
-  /* Reduce animations on mobile for better performance */
-  .btn,
-  .card,
-  .sidebar-item {
-    transition: none;
-  }
-
-  .btn:hover,
-  .card:hover,
-  .sidebar-item:hover {
-    transform: none;
-  }
-}
-
-/* iOS safe areas and dynamic viewport support */
-:root {
-  --safe-top: env(safe-area-inset-top);
-  --safe-right: env(safe-area-inset-right);
-  --safe-bottom: env(safe-area-inset-bottom);
-  --safe-left: env(safe-area-inset-left);
-}
-
-/* Prefer modern viewport units when supported */
-@supports (height: 100dvh) {
-
-  html,
-  body {
-    min-height: 100dvh;
-  }
-}
-
-/* Apply safe-area paddings for full-bleed UIs */
-body {
-  padding-top: max(0px, var(--safe-top));
-  padding-right: max(0px, var(--safe-right));
-  padding-bottom: max(0px, var(--safe-bottom));
-  padding-left: max(0px, var(--safe-left));
-}
-
-/* Ensure fixed navbar respects safe area */
-.nav-gradient {
-  padding-top: calc(0.5rem + var(--safe-top));
-}
-
-/* FAB should float above home indicator */
-.fab-button {
-  bottom: calc(30px + var(--safe-bottom));
-  right: calc(30px + var(--safe-right));
-}
-
-/* Modal viewport within dynamic viewport on iOS */
-@supports (height: 100dvh) {
-  .modal-content {
-    max-height: calc(100dvh - 2rem - var(--safe-top) - var(--safe-bottom));
-  }
-}
-
-/* Utility: full screen container that avoids notch */
-.full-viewport-safe {
-  min-height: 100vh;
-}
-
-@supports (min-height: 100dvh) {
-  .full-viewport-safe {
-    min-height: 100dvh;
-  }
-}
-
-/* Critical CSS for above-the-fold content */
-.critical {
-  contain: layout style paint;
-  will-change: auto;
-}
-
-/* Metric Card Enhancements */
-.hover\:scale-105:hover {
-  transform: scale(1.05);
-}
-
-/* Number Animation */
-@keyframes countUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-count {
-  animation: countUp 0.5s ease-out;
-}
-
-/* Icon Pulse Animation */
-@keyframes iconPulse {
-
-  0%,
-  100% {
-    transform: scale(1);
-  }
-
-  50% {
-    transform: scale(1.1);
-  }
-}
-
-.icon-pulse {
-  animation: iconPulse 2s ease-in-out infinite;
 }
 
 /* Button sizes */
 .btn-sm {
-  padding: 0.4rem 0.75rem;
-  font-size: 0.8rem;
-  border-radius: 6px;
+  padding: 0.45rem 0.875rem;
+  font-size: 0.85rem;
+  border-radius: 8px;
+  min-height: 38px;
 }
 
 .btn-xs {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
-  border-radius: 4px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+  border-radius: 6px;
+  min-height: 34px;
 }
 
 /* ===== MOBILE TABLE: card-style layout ===== */
-@media (max-width: 640px) {
-  /* Disable transitions on mobile for perf */
-  .btn, .card, .sidebar-item {
-    transition: none !important;
+@media (max-width: 768px) {
+  .table-container {
+    background: transparent;
+    box-shadow: none;
+    overflow-x: visible;
   }
 
-  /* Keep action buttons compact on mobile */
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+    width: 100%;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table tr {
+    background: white;
+    margin-bottom: 0.875rem;
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 0.875rem 1rem;
+    border: 1px solid #e5e7eb;
+  }
+
+  .table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f3f4f6;
+    min-height: 40px;
+  }
+
+  .table td:last-child {
+    border-bottom: none;
+    justify-content: flex-end;
+    min-height: unset;
+    padding-top: 0.625rem;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin-left: 0.75rem;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .table td:last-child::before {
+    display: none;
+  }
+
+  .table td .view-mode,
+  .table td .edit-mode {
+    text-align: left;
+    width: auto;
+  }
+
+  /* Table action buttons: compact, never full-width */
+  .table .btn,
+  .table .btn-xs,
   .table .btn-sm {
-    padding: 0.35rem 0.6rem;
-    font-size: 0.75rem;
+    width: auto;
+    flex-shrink: 0;
   }
 
-  /* Smaller headings on mobile */
+  /* Non-table buttons: full width */
+  .btn {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+
+  /* But buttons inside flex/grid rows shouldn't stretch */
+  .flex .btn,
+  .inline-flex .btn,
+  [class*="gap"] > .btn {
+    width: auto;
+    margin-bottom: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  /* ===== TYPOGRAPHY ===== */
   h1 { font-size: 1.5rem; }
   h2 { font-size: 1.25rem; }
   h3 { font-size: 1.1rem; }
 
-  /* Full-width form elements */
+  /* ===== FORMS ===== */
   .form-group { margin-bottom: 1rem; }
-  .form-input, .form-select {
-    font-size: 16px; /* Prevents iOS zoom on focus */
-    padding: 0.6rem 0.875rem;
+
+  /* 16px prevents iOS auto-zoom on focus */
+  .form-input,
+  .form-select {
+    font-size: 16px;
+    padding: 0.7rem 0.875rem;
+    /* Taller inputs = easier tap */
+    min-height: 48px;
   }
 
-  /* Cards: tighter padding */
-  .card-header, .card-body, .card-footer {
-    padding: 0.875rem 1rem;
+  textarea.form-input {
+    min-height: unset;
   }
 
-  /* Stat cards side by side on small screens */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.75rem;
+  /* ===== CARDS ===== */
+  .card-header { padding: 0.875rem 1rem; }
+  .card-body   { padding: 1rem; }
+  .card-footer { padding: 0.75rem 1rem; }
+  .panel-body  { padding: 0.875rem 1rem; }
+  .panel-header { padding: 0.875rem 1rem; }
+
+  /* No lift animation on touch devices */
+  .card:hover,
+  .stat-card:hover {
+    transform: none;
+    box-shadow: var(--shadow-md);
   }
 
-  .stats-grid .card .font-mono.text-3xl {
-    font-size: 1.4rem;
-  }
-
-  /* Modal: full-screen style on mobile */
-  .modal-content {
-    max-height: 95vh;
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    border-radius: 20px 20px 0 0;
-    max-width: 100% !important;
-    width: 100% !important;
-    margin: 0 !important;
-  }
-
-  /* Reduce chart heights on mobile */
-  canvas {
-    max-height: 220px !important;
-  }
-}
-
-/* ===== DASHBOARD STATS: 2-column on mobile ===== */
-@media (max-width: 640px) {
-  /* Force 2-col stats grid */
-  .grid.grid-cols-1.md\:grid-cols-4 {
+  /* ===== STAT CARDS: 2-col grid on mobile ===== */
+  .grid.grid-cols-1.md\:grid-cols-4,
+  .grid.grid-cols-1.sm\:grid-cols-3 {
     grid-template-columns: 1fr 1fr !important;
     gap: 0.75rem;
   }
 
-  .grid.grid-cols-1.md\:grid-cols-4 .card .text-3xl {
-    font-size: 1.3rem;
+  /* Scale down large numbers inside stat cards */
+  .stat-card .text-3xl { font-size: 1.5rem; }
+  .stat-card .text-2xl { font-size: 1.25rem; }
+
+  /* ===== MODAL: full-width bottom sheet ===== */
+  .modal-content {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    border-radius: 20px 20px 0 0;
+    max-height: 92vh;
+    max-height: 92dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+    /* Drag handle hint */
+    padding-top: 1.25rem;
+  }
+
+  /* Visual drag handle on bottom-sheet modals */
+  .modal-content::before {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 4px;
+    background: #d1d5db;
+    border-radius: 99px;
+    margin: -0.5rem auto 1rem;
+  }
+
+  /* ===== CHARTS ===== */
+  canvas {
+    max-height: 220px !important;
+  }
+
+  /* ===== TRANSITIONS: disable on mobile for perf ===== */
+  .btn,
+  .card,
+  .sidebar-item {
+    transition: none !important;
+  }
+
+  /* Active state feedback instead of hover */
+  .btn:active   { opacity: 0.82; }
+  .card:active  { opacity: 0.95; }
+
+  /* ===== ACTION BUTTONS IN TABLE ROWS ===== */
+  .table td .flex.items-center.gap-2,
+  .table td .flex.items-center {
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+
+  .table td .btn-xs,
+  .table td .btn-sm {
+    width: auto;
+    flex-shrink: 0;
+    /* Bigger touch area */
+    min-height: 38px;
+    min-width: 38px;
+  }
+
+  /* ===== PAGINATION ===== */
+  .pagination-wrapper {
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+  }
+
+  .pagination-numbers {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  /* Pagination page-number buttons: large tap target */
+  .pagination-numbers a,
+  .pagination-numbers span {
+    min-width: 40px;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
-/* ===== TRANSACTIONS TABLE: responsive columns ===== */
-/* Already handled in HTML with hidden sm/md/lg classes */
-
-/* Overflow table wrapper */
-.table-wrapper {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  border-radius: 8px;
-}
-
 /* ===== FORM IMPROVEMENTS ===== */
-/* Ensure date/month inputs always show dark text regardless of browser/OS theme */
+/* Ensure date/month inputs always show dark text regardless of OS theme */
 input[type="date"],
 input[type="month"] {
   color: #1f2937;
   color-scheme: light;
 }
 
-/* Prevent iOS zoom on focus (requires font-size: 16px) */
+/* Prevent iOS zoom on focus — font-size must be ≥16px */
 @media (max-width: 767px) {
   input[type="text"],
   input[type="number"],
@@ -1234,11 +1269,38 @@ input[type="month"] {
   }
 }
 
-/* ===== CARD HOVER: only on desktop ===== */
+/* ===== TABLE WRAPPER ===== */
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+}
+
+/* ===== CARD HOVER: pointer devices only ===== */
 @media (hover: none) {
-  .card:hover {
+  .card:hover,
+  .stat-card:hover {
     transform: none;
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-md);
+  }
+}
+
+/* ===== CHECKBOX / RADIO TOUCH TARGETS ===== */
+input[type="checkbox"],
+input[type="radio"] {
+  min-width: 20px;
+  min-height: 20px;
+}
+
+/* ===== FAB: well above home indicator ===== */
+@media (max-width: 768px) {
+  .fab-button {
+    /* Push further from the screen edges on iPhone */
+    bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+    right: calc(1rem + env(safe-area-inset-right, 0px));
+    width: 52px;
+    height: 52px;
+    font-size: 1.25rem;
   }
 }
 
@@ -1272,42 +1334,18 @@ input[type="month"] {
   }
 }
 
-/* ===== PAGINATION: wrap on mobile ===== */
-@media (max-width: 640px) {
-  .pagination-wrapper {
-    flex-direction: column;
-    gap: 0.5rem;
-    text-align: center;
-  }
-
-  .pagination-numbers {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 4px;
+/* ===== FOOTER: no side-nav offset on mobile ===== */
+@media (max-width: 1023px) {
+  body.has-side-navigation .footer {
+    /* No more fixed mini-sidebar to clear */
+    margin-left: 0;
   }
 }
 
-/* ===== TABLE ACTIONS COLUMN ===== */
-@media (max-width: 640px) {
-  .table td .flex.items-center.gap-2 {
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  /* Ensure action buttons don't stretch full width inside table cards */
-  .table td .btn-xs,
-  .table td .btn-sm {
-    width: auto;
-    flex-shrink: 0;
-  }
-}
-
-/* ===== IMPROVE CHECKBOX AND TOGGLE TOUCH TARGETS ===== */
-input[type="checkbox"],
-input[type="radio"] {
-  min-width: 20px;
-  min-height: 20px;
+/* ===== SECTION SUBHEADER: ensure it's below the sticky navbar ===== */
+.section-subheader {
+  /* Reuse the nav height calc — no magic pixel values */
+  top: calc(64px + env(safe-area-inset-top, 0px));
 }
 
 /* ===== ACCESSIBILITY: respect reduced-motion preference ===== */
@@ -1330,3 +1368,57 @@ button:focus-visible,
   outline: 2px solid var(--primary-500);
   outline-offset: 2px;
 }
+
+/* ===== iOS SAFE AREA / DYNAMIC VIEWPORT ===== */
+:root {
+  --safe-top:    env(safe-area-inset-top);
+  --safe-right:  env(safe-area-inset-right);
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-left:   env(safe-area-inset-left);
+}
+
+@supports (height: 100dvh) {
+  html, body { min-height: 100dvh; }
+
+  .modal-content {
+    max-height: calc(92dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  }
+}
+
+body {
+  padding-top:    max(0px, var(--safe-top));
+  padding-right:  max(0px, var(--safe-right));
+  padding-bottom: max(0px, var(--safe-bottom));
+  padding-left:   max(0px, var(--safe-left));
+}
+
+.nav-gradient {
+  padding-top: calc(0.5rem + var(--safe-top));
+}
+
+.fab-button {
+  bottom: calc(30px + var(--safe-bottom));
+  right:  calc(30px + var(--safe-right));
+}
+
+/* Utility: full screen container that avoids notch */
+.full-viewport-safe { min-height: 100vh; }
+
+@supports (min-height: 100dvh) {
+  .full-viewport-safe { min-height: 100dvh; }
+}
+
+/* ===== MISC ===== */
+.critical { contain: layout style paint; will-change: auto; }
+
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-count { animation: countUp 0.5s ease-out; }
+
+@keyframes iconPulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.1); }
+}
+.icon-pulse { animation: iconPulse 2s ease-in-out infinite; }

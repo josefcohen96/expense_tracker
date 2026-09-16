@@ -20,7 +20,11 @@ from urllib.parse import unquote_plus
 
 from ..db import get_db_conn
 from .. import db as _db
-from ..services.access import home_path_for, password_env_var
+from ..services.access import RENOVATION_ONLY_USERS, home_path_for, normalise_username, password_env_var
+from ..services import hebrew_dates as hd
+from ..services import wedding_plan
+from ..services.people import household
+from ..services.today import build_today
 import logging
 logger = logging.getLogger(__name__)
 
@@ -81,6 +85,24 @@ STATIC_DIR = FRONTEND_DIR / "static"
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 router = APIRouter(tags=["pages"])
+
+
+def _wedding_header() -> dict:
+    """Countdown + open-task count for the wedding section header (called from wedding/base.html)."""
+    conn = _db.get_connection()
+    try:
+        info = wedding_plan.countdown(conn)
+        info["planning_counts"] = {
+            "/wedding/tasks": info["open"],
+        }
+        return info
+    except sqlite3.Error:
+        return {"days_left": None, "planning_counts": {}}
+    finally:
+        conn.close()
+
+
+templates.env.globals["wedding_header"] = _wedding_header
 
 # public decorator is imported from ..auth
 
@@ -341,14 +363,25 @@ async def logout(request: Request) -> RedirectResponse:
 
 
 @router.get("/", response_class=HTMLResponse)
-async def index(request: Request) -> RedirectResponse:
+async def index(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    """היום — the cross-module action queue (mobile home; desktop forwards to /finances)."""
     user_obj = getattr(request.state, "user", None) or request.session.get("user")
-    return RedirectResponse(url=home_path_for(user_obj), status_code=status.HTTP_302_FOUND)
+    if normalise_username(user_obj) in RENOVATION_ONLY_USERS:
+        return RedirectResponse(url=home_path_for(user_obj), status_code=status.HTTP_302_FOUND)
+    return templates.TemplateResponse("pages/today.html", {
+        "request": request,
+        "today": build_today(db_conn, user_obj),
+        "people": household(db_conn),
+    })
 
 
 @router.get("/more", response_class=HTMLResponse)
-async def more_page(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("pages/more.html", {"request": request})
+async def more_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
+    return templates.TemplateResponse("pages/more.html", {
+        "request": request,
+        "wedding_date": wedding_plan.get_setting(db_conn, "wedding_date") or "",
+        "venue_capacity": wedding_plan.get_setting(db_conn, "venue_capacity") or "",
+    })
 
 
 @router.get("/sw.js")
@@ -431,14 +464,16 @@ async def finances_dashboard(
             SUM(CASE WHEN t.amount < 0 AND c.name NOT IN ('משכורת', 'קליניקה') AND COALESCE(c.is_saving, 0) = 0
                      THEN ABS(t.amount) ELSE 0 END) as total_expenses,
             SUM(CASE WHEN t.amount > 0 AND c.name IN ('משכורת', 'קליניקה')
-                     THEN t.amount ELSE 0 END) as total_income
+                     THEN t.amount ELSE 0 END) as total_income,
+            SUM(CASE WHEN t.amount < 0 AND COALESCE(c.is_saving, 0) = 1
+                     THEN ABS(t.amount) ELSE 0 END) as total_savings
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
         WHERE strftime('%Y-%m', t.date) = ?
           AND t.user_id IN ({user_ids})
         """,
         (prev_ym,),
-    ).fetchone() or {"total_expenses": 0, "total_income": 0}
+    ).fetchone() or {"total_expenses": 0, "total_income": 0, "total_savings": 0}
 
     def pct_change(cur_val: float, prev_val: float) -> float:
         if not prev_val:
@@ -452,7 +487,8 @@ async def finances_dashboard(
     # Recent transactions (latest 5) in selected month
     recent = db_conn.execute(
         f"""
-        SELECT t.id, t.date, t.amount, c.name as category, u.name as user, a.name as account, t.notes
+        SELECT t.id, t.date, t.amount, c.name as category, u.name as user, a.name as account, t.notes,
+               t.user_id
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
         LEFT JOIN users u ON t.user_id = u.id
@@ -533,6 +569,95 @@ async def finances_dashboard(
             })
     upcoming = sorted(upcoming, key=lambda x: x["date"])[:5]
 
+    # --- Mobile סקירה (< lg): month chips, balance card, top categories, recent rows ---
+    def month_delta(cur_val: float, prev_val: float, up_color: str, down_color: str) -> Optional[Dict[str, str]]:
+        """'▲ 4.2%' vs the previous month; None when there is nothing to compare with."""
+        if not prev_val:
+            return None
+        change = (cur_val - prev_val) / prev_val * 100.0
+        if abs(change) < 0.05:
+            return {"text": "קבוע", "color": "#9ca3af"}
+        arrow = "▲" if change > 0 else "▼"
+        return {"text": f"{arrow} {abs(change):.1f}%", "color": up_color if change > 0 else down_color}
+
+    chip_months = []
+    chip_y, chip_m = today.year, today.month
+    for _ in range(3):
+        chip_months.append((chip_y, chip_m))
+        chip_y, chip_m = (chip_y, chip_m - 1) if chip_m > 1 else (chip_y - 1, 12)
+    if (sel_year, sel_month) not in chip_months:
+        chip_months.append((sel_year, sel_month))
+        chip_months.sort(reverse=True)
+    month_chips = [
+        {
+            "label": hd.HEBREW_MONTHS[chip_m - 1] + ("" if chip_y == today.year else f" {chip_y}"),
+            "href": f"/finances?month={chip_y:04d}-{chip_m:02d}",
+            "active": (chip_y, chip_m) == (sel_year, sel_month),
+        }
+        for chip_y, chip_m in chip_months
+    ]
+
+    balance_bar = None
+    if cur_income > 0:
+        expenses_pct = min(100.0, cur_expenses / cur_income * 100.0)
+        savings_pct = min(100.0 - expenses_pct, cur_savings / cur_income * 100.0)
+        balance_bar = {"expenses": round(expenses_pct, 1), "savings": round(savings_pct, 1)}
+
+    where_rows = db_conn.execute(
+        f"""
+        SELECT c.name AS category, SUM(ABS(t.amount)) AS total
+        FROM transactions t
+        JOIN categories c ON t.category_id = c.id
+        WHERE strftime('%Y-%m', t.date) = ? AND t.amount < 0
+          AND c.name NOT IN ('משכורת', 'קליניקה')
+          AND COALESCE(c.is_saving, 0) = 0
+          AND t.user_id IN ({user_ids})
+        GROUP BY c.name
+        ORDER BY total DESC
+        LIMIT 3
+        """,
+        (selected_ym,),
+    ).fetchall()
+    rank_colors = ("#2563eb", "#7c3aed", "#d97706")
+    where_money_went = []
+    for row in where_rows:
+        cat_total = float(row["total"] or 0)
+        if row["category"] == "חתונה":
+            color = "#e11d48"
+        else:
+            color = rank_colors[sum(1 for w in where_money_went if w["name"] != "חתונה")]
+        where_money_went.append({
+            "name": row["category"],
+            "total": cat_total,
+            "share": round(min(100.0, cat_total / cur_expenses * 100.0), 1) if cur_expenses else 0.0,
+            "color": color,
+        })
+
+    display_by_id = {p["id"]: p["display"] for p in household(db_conn)}
+    recent_rows = []
+    for t in recent:
+        amount = float(t["amount"] or 0)
+        when = hd.parse_iso(t["date"])
+        meta = [t["category"], display_by_id.get(t["user_id"]), hd.relative_day(when, today) if when else None]
+        recent_rows.append({
+            "name": (t["notes"] or "").strip() or t["category"] or "",
+            "meta": " · ".join(part for part in meta if part),
+            "amount": abs(amount),
+            "is_income": amount > 0,
+        })
+
+    mobile = {
+        "month_chips": month_chips,
+        "balance_bar": balance_bar,
+        "deltas": {
+            "expenses": month_delta(cur_expenses, float(prev["total_expenses"] or 0), "#dc2626", "#16a34a"),
+            "income": month_delta(cur_income, float(prev["total_income"] or 0), "#16a34a", "#dc2626"),
+            "savings": month_delta(cur_savings, float(prev["total_savings"] or 0), "#0d9488", "#0d9488"),
+        },
+        "where_money_went": where_money_went,
+        "recent": recent_rows,
+    }
+
     return templates.TemplateResponse(
         "finances/index.html",
         {
@@ -550,6 +675,7 @@ async def finances_dashboard(
             "top_categories": top_categories,
             "upcoming_recurrences": upcoming,
             "recent_transactions": recent,
+            "mobile": mobile,
         },
     )
 
@@ -1540,6 +1666,118 @@ async def finances_statistics(
     if len(savings_trend) >= 2 and savings_trend[-2]["total"] > 0:
         savings_change = ((savings_trend[-1]["total"] - savings_trend[-2]["total"]) / savings_trend[-2]["total"]) * 100
 
+    # --- Mobile מגמות (< lg): 6 months ending at the selected month ---
+    sel_y, sel_m = map(int, selected_ym.split("-"))
+    trend_months: List[str] = []
+    ty, tm = sel_y, sel_m
+    for _ in range(6):
+        trend_months.append(f"{ty:04d}-{tm:02d}")
+        ty, tm = (ty, tm - 1) if tm > 1 else (ty - 1, 12)
+    trend_months.reverse()
+    window_end = date(sel_y + (1 if sel_m == 12 else 0), 1 if sel_m == 12 else sel_m + 1, 1)
+    trend_rows = db_conn.execute(
+        f"""
+        SELECT strftime('%Y-%m', t.date) AS month,
+               SUM(CASE WHEN t.amount < 0 AND c.name NOT IN ('משכורת', 'קליניקה') AND COALESCE(c.is_saving, 0) = 0
+                        THEN ABS(t.amount) ELSE 0 END) AS total
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        WHERE t.date >= ? AND t.date < ?
+          AND t.user_id IN ({user_ids})
+        GROUP BY month
+        """,
+        (f"{trend_months[0]}-01", window_end.isoformat()),
+    ).fetchall()
+    trend_lookup = {row["month"]: float(row["total"] or 0) for row in trend_rows}
+    trend_values = [trend_lookup.get(ym, 0.0) for ym in trend_months]
+    trend_peak = max(trend_values)
+    peak_index = trend_values.index(trend_peak) if trend_peak > 0 else None
+    months_with_data = [v for v in trend_values if v > 0]
+    # Months with nothing recorded (before the app was in use) would drag the average down.
+    trend_average = sum(months_with_data) / len(months_with_data) if months_with_data else 0.0
+    selected_total = trend_values[-1]
+
+    average_delta = None
+    if trend_average > 0:
+        vs_average = (selected_total - trend_average) / trend_average * 100.0
+        if abs(vs_average) >= 0.05:
+            average_delta = {
+                "text": f"{'▲' if vs_average > 0 else '▼'} {abs(vs_average):.1f}%",
+                "color": "#dc2626" if vs_average > 0 else "#16a34a",
+            }
+
+    trend_bars = []
+    for idx, ym in enumerate(trend_months):
+        value = trend_values[idx]
+        is_selected = idx == len(trend_months) - 1
+        trend_bars.append({
+            "month": ym,
+            "label": hd.HEBREW_MONTHS_SHORT[int(ym[5:7]) - 1],
+            "total": value,
+            "height": round(value / trend_peak * 100.0, 1) if trend_peak > 0 else 0.0,
+            "selected": is_selected,
+            "color": "#2563eb" if is_selected else ("#93c5fd" if idx == peak_index else "#dbeafe"),
+            "href": f"/finances/statistics?month={ym}",
+        })
+
+    prev_trend_ym = trend_months[-2]
+    biggest_rows = db_conn.execute(
+        f"""
+        SELECT c.name AS category,
+               SUM(CASE WHEN strftime('%Y-%m', t.date) = ? THEN ABS(t.amount) ELSE 0 END) AS total,
+               SUM(CASE WHEN strftime('%Y-%m', t.date) = ? THEN 1 ELSE 0 END) AS tx_count,
+               SUM(CASE WHEN strftime('%Y-%m', t.date) = ? THEN ABS(t.amount) ELSE 0 END) AS prev_total
+        FROM transactions t
+        JOIN categories c ON t.category_id = c.id
+        WHERE t.amount < 0
+          AND c.name NOT IN ('משכורת', 'קליניקה')
+          AND COALESCE(c.is_saving, 0) = 0
+          AND t.user_id IN ({user_ids})
+          AND strftime('%Y-%m', t.date) IN (?, ?)
+        GROUP BY c.name
+        HAVING total > 0
+        ORDER BY total DESC
+        LIMIT 3
+        """,
+        (selected_ym, selected_ym, prev_trend_ym, selected_ym, prev_trend_ym),
+    ).fetchall()
+    category_emoji = {
+        "סופר": "🛒", "חתונה": "💍", "רכב": "🚗", "אוכל בחוץ": "🍽️", "הוצאות בית": "🏠",
+        "בריאות": "🩺", "פנאי": "🎉", "תחבורה": "🚌", "שיפוץ": "🏡",
+    }
+    tile_colors = ("#dbeafe", "#ffe4e6", "#ede9fe")
+    biggest_categories = []
+    for rank, row in enumerate(biggest_rows):
+        cat_total = float(row["total"] or 0)
+        prev_total = float(row["prev_total"] or 0)
+        tx_count = int(row["tx_count"] or 0)
+        delta = None
+        if prev_total > 0:
+            change = (cat_total - prev_total) / prev_total * 100.0
+            if round(abs(change)) == 0:
+                delta = {"text": "קבוע", "color": "#9ca3af"}
+            else:
+                delta = {
+                    "text": f"{'▲' if change > 0 else '▼'} {abs(change):.0f}%",
+                    "color": "#dc2626" if change > 0 else "#16a34a",
+                }
+        biggest_categories.append({
+            "name": row["category"],
+            "emoji": category_emoji.get(row["category"], "💳"),
+            "tile": tile_colors[rank],
+            "total": cat_total,
+            "count_label": "עסקה אחת" if tx_count == 1 else f"{tx_count} עסקאות",
+            "delta": delta,
+        })
+
+    mobile = {
+        "month_label": f"{hd.HEBREW_MONTHS[sel_m - 1]} {sel_y}",
+        "average": trend_average,
+        "average_delta": average_delta,
+        "bars": trend_bars,
+        "biggest": biggest_categories,
+    }
+
     return templates.TemplateResponse(
         "finances/statistics.html",
         {
@@ -1566,6 +1804,7 @@ async def finances_statistics(
             "savings_change": savings_change,
             "savings_deductions": savings_deductions,
             "show_sidebar": True,
+            "mobile": mobile,
         },
     )
 
@@ -1781,7 +2020,26 @@ async def wedding_dashboard(request: Request, db_conn: sqlite3.Connection = Depe
         "grand_committed": grand_committed,
         "wedding_date": wedding_date,
         "recent_tasks": recent_tasks,
+        **_wedding_hero(db_conn),
     })
+
+
+def _wedding_hero(db_conn: sqlite3.Connection) -> dict:
+    """Countdown hero, next milestone and a four-row timeline for the mobile overview."""
+    view = wedding_plan.list_milestones(db_conn)
+    milestones = view["milestones"]
+    # One finished milestone for context, then what's coming.
+    done = [m for m in milestones if m["status"] == "done"]
+    ahead = [m for m in milestones if m["status"] != "done"]
+    timeline = (done[-1:] + ahead)[:4]
+    next_m = view["next"]
+    return {
+        "countdown": wedding_plan.countdown(db_conn),
+        "vendor_progress": wedding_plan.vendor_progress(db_conn),
+        "next_milestone": next_m,
+        "next_milestone_offset": wedding_plan.milestone_weeks_before(next_m) if next_m else "",
+        "mini_timeline": timeline,
+    }
 
 
 @router.get("/wedding/vendors", response_class=HTMLResponse)
@@ -1815,6 +2073,75 @@ async def wedding_vendor_detail_page(vendor_id: int, request: Request, db_conn: 
         "quote_items": quote_items,
         "vendor_files": vendor_files,
     })
+
+
+def _guest_count_engine(db_conn: sqlite3.Connection, pending_invitations: int) -> dict:
+    """What the confirmed headcount drives: cost per guest, seats, catering portions.
+
+    Each card is None when its inputs are missing or there is no gap to show.
+    """
+    people = wedding_plan.headcount(db_conn)
+    confirmed = people["confirmed"]
+    engine = {
+        "people": people,
+        "cost": None,
+        "seats": None,
+        "catering": None,
+        "pending_invitations": pending_invitations,
+        "pending_with_phone": 0,
+    }
+
+    committed = wedding_plan.committed_total(db_conn)
+    if committed > 0 and confirmed > 0:
+        engine["cost"] = {
+            "committed": committed,
+            "per_guest": committed / confirmed,
+            "per_guest_if_maybe": committed / (confirmed + people["maybe"]) if people["maybe"] else None,
+        }
+
+    capacity = None
+    raw_capacity = (wedding_plan.get_setting(db_conn, "venue_capacity") or "").strip()
+    if raw_capacity.isdigit():
+        capacity = int(raw_capacity)
+    else:
+        tables, seats = db_conn.execute(
+            "SELECT COUNT(*), COALESCE(SUM(capacity), 0) FROM wedding_seating_tables"
+        ).fetchone()
+        if tables:
+            capacity = int(seats or 0)
+    if capacity and confirmed > 0 and confirmed != capacity:
+        engine["seats"] = {
+            "capacity": capacity,
+            "free": capacity - confirmed,
+            "pct": min(confirmed * 100 / capacity, 100),
+        }
+
+    placeholders = ",".join("?" for _ in wedding_plan.CHOSEN_VENDOR_STATUSES)
+    vendor = db_conn.execute(
+        f"SELECT id, portions_ordered FROM wedding_vendors WHERE category='catering' "
+        f"AND status IN ({placeholders}) ORDER BY COALESCE(price_quoted, 0) DESC, id LIMIT 1",
+        wedding_plan.CHOSEN_VENDOR_STATUSES,
+    ).fetchone()
+    if vendor and vendor["portions_ordered"] is not None and confirmed > 0 \
+            and vendor["portions_ordered"] != confirmed:
+        deadline = next(
+            (m["date_label"] for m in wedding_plan.list_milestones(db_conn)["milestones"]
+             if m["kind"] == "headcount" and not m["completed"]),
+            "",
+        )
+        engine["catering"] = {
+            "vendor_id": vendor["id"],
+            "portions": vendor["portions_ordered"],
+            "diff": confirmed - vendor["portions_ordered"],
+            "deadline": deadline,
+        }
+
+    if pending_invitations:
+        engine["pending_with_phone"] = db_conn.execute(
+            "SELECT COUNT(*) FROM wedding_guests WHERE status='pending' "
+            "AND phone IS NOT NULL AND TRIM(phone) != ''"
+        ).fetchone()[0]
+    return engine
 
 
 @router.get("/wedding/guests", response_class=HTMLResponse)
@@ -1866,8 +2193,11 @@ async def wedding_guests_page(request: Request, db_conn: sqlite3.Connection = De
         "SELECT DISTINCT group_name FROM wedding_guests WHERE group_name IS NOT NULL AND group_name!='' ORDER BY group_name"
     ).fetchall()]
 
+    engine = _guest_count_engine(db_conn, pending)
+
     return templates.TemplateResponse("wedding/guests.html", {
         "request": request,
+        "engine": engine,
         "guests": guests,
         "group_filter": group_filter,
         "status_filter": status_filter,
@@ -1912,7 +2242,64 @@ async def wedding_tasks_page(request: Request, db_conn: sqlite3.Connection = Dep
         "show_completed": show_completed,
         "total_open": total_open,
         "total_done": total_done,
+        **_mobile_task_board(request, db_conn),
     })
+
+
+# Mobile task list sections, in display order: (key, heading, heading color).
+_TASK_GROUPS = (
+    ("overdue", "באיחור", "#b91c1c"),
+    ("week", "השבוע", "#6b7280"),
+    ("later", "בהמשך", "#6b7280"),
+    ("nodate", "ללא תאריך", "#6b7280"),
+    ("done", "הושלמו", "#9ca3af"),
+)
+_TASK_CATEGORY_LABELS = {
+    "venue": "מקום", "vendors": "ספקים", "guests": "מוזמנים",
+    "logistics": "לוגיסטיקה", "attire": "לבוש", "general": "כללי",
+}
+
+
+def _mobile_task_board(request: Request, db_conn: sqlite3.Connection) -> dict:
+    """Every wedding task grouped by urgency, with owners, for the mobile list."""
+    from ..services.people import find_person
+    from ..services.today import task_group, urgency
+
+    today = date.today()
+    people = household(db_conn)
+    me = find_person(people, getattr(request.state, "user", None) or request.session.get("user"))
+    by_name = {p["name"]: p for p in people}
+
+    rows = [dict(t) for t in db_conn.execute(
+        "SELECT * FROM wedding_tasks ORDER BY completed, "
+        "COALESCE(NULLIF(due_date, ''), '9999-12-31'), "
+        "CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, id"
+    ).fetchall()]
+    groups = {key: [] for key, _, _ in _TASK_GROUPS}
+    for t in rows:
+        due = hd.parse_iso(t.get("due_date"))
+        t["open_group"] = task_group({**t, "completed": 0}, today)
+        t["urgency"] = urgency(due, today)
+        t["due_label"] = hd.due_label(due, today) if due else ""
+        t["category_label"] = _TASK_CATEGORY_LABELS.get(t.get("category"), t.get("category") or "")
+        t["person"] = by_name.get(t.get("owner"))
+        groups[task_group(t, today)].append(t)
+    # Most recently finished first; completed rows carry no timestamp, so newest id first.
+    groups["done"].sort(key=lambda t: t["id"], reverse=True)
+
+    open_tasks = [t for t in rows if not t["completed"]]
+    owner_counts = {p["name"]: sum(1 for t in open_tasks if t.get("owner") == p["name"]) for p in people}
+    return {
+        "people": people,
+        "me": me,
+        "task_groups": [
+            {"key": key, "label": label, "color": color, "tasks": groups[key]}
+            for key, label, color in _TASK_GROUPS
+        ],
+        "owner_counts": owner_counts,
+        "open_count": len(open_tasks),
+        "unassigned_count": sum(1 for t in open_tasks if not t["person"]),
+    }
 
 
 @router.get("/wedding/budget", response_class=HTMLResponse)
@@ -2146,4 +2533,22 @@ async def wedding_timeline_page(request: Request, db_conn: sqlite3.Connection = 
     return templates.TemplateResponse("wedding/timeline.html", {
         "request": request,
         "events": [dict(e) for e in events],
+    })
+
+
+@router.get("/wedding/milestones", response_class=HTMLResponse)
+async def wedding_milestones_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    view = wedding_plan.list_milestones(db_conn)
+    for m in view["milestones"]:
+        # How the row reads when not completed, so un-ticking a done row can
+        # render immediately; the page re-fetch then settles which one is next.
+        late = m["days_until"] is not None and m["days_until"] < 0
+        if m["status"] != "done":
+            m["open_status"] = m["status"]
+        else:
+            m["open_status"] = "overdue" if late else "future"
+        m["late_label"] = hd.overdue_label(-m["days_until"]) if late else ""
+    return templates.TemplateResponse("wedding/milestones.html", {
+        "request": request,
+        "view": view,
     })

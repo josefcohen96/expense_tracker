@@ -2,12 +2,131 @@
 
 {% block finances_title %}סטטיסטיקות{% endblock %}
 
+{% block head %}
+<style>
+  /* Mobile מגמות (< lg). fx- classes only exist inside the lg:hidden block, except .fx-charts. */
+  .fx-trends { display: flex; flex-direction: column; }
+  .fx-picker { position: relative; align-self: flex-start; display: inline-flex; margin: 4px 2px 6px; }
+  .fx-month-label {
+    position: relative; display: inline-flex; align-items: center; gap: 4px;
+    padding: 0; border: 0; background: none; cursor: pointer;
+    font: 600 12px var(--font-primary); color: #6b7280; -webkit-tap-highlight-color: transparent;
+  }
+  /* Hit area grows downwards: above the label sits the fixed section header. */
+  .fx-month-label::after { content: ""; position: absolute; inset: -11px -10px -19px; }
+  .fx-caret { font-size: 9px; color: #9ca3af; }
+  .fx-month-input {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0; pointer-events: none; border: 0; padding: 0;
+  }
+  .fx-summary { padding: 0 2px 14px; }
+  .fx-summary-label { font: 500 12px var(--font-primary); color: #6b7280; }
+  .fx-summary-row { display: flex; align-items: baseline; gap: 9px; margin-top: 3px; }
+  .fx-summary-value { font: 700 30px/1.2 var(--font-mono); color: #111827; }
+  .fx-summary-delta { font: 600 12px var(--font-primary); }
+  .fx-chart {
+    display: flex; align-items: stretch; gap: 8px;
+    height: 186px; margin: 0 -16px; padding: 0 10px;
+  }
+  .fx-col {
+    flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    text-decoration: none; -webkit-tap-highlight-color: transparent;
+  }
+  .fx-plot { position: relative; flex: 1; width: 100%; margin-top: 28px; }
+  .fx-bar { position: absolute; bottom: 0; left: 0; right: 0; min-height: 2px; border-radius: 8px 8px 0 0; }
+  .fx-bar.is-zero { height: 2px !important; }
+  .fx-col:active .fx-bar { opacity: .8; }
+  .fx-tip {
+    position: absolute; top: -26px; left: 50%; transform: translateX(-50%);
+    background: #111827; color: #fff; border-radius: 6px; padding: 3px 7px;
+    font: 600 10px/14px var(--font-mono); white-space: nowrap;
+  }
+  .fx-col-label { font: 500 10px/12px var(--font-primary); color: #9ca3af; white-space: nowrap; }
+  .fx-col.is-selected .fx-col-label { font-weight: 700; color: #1d4ed8; }
+  .fx-biggest { margin-top: 20px; padding: 0 2px; }
+  .fx-h { font: 700 13px var(--font-heading); color: #111827; margin: 0 0 10px; }
+  .fx-list { margin: 0; padding: 0; list-style: none; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(17,24,39,.07); }
+  .fx-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; }
+  .fx-row + .fx-row { border-top: 1px solid #f9fafb; }
+  .fx-row-start { display: flex; align-items: center; gap: 11px; min-width: 0; }
+  .fx-tile { flex: none; width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 15px; line-height: 1; }
+  .fx-row-text { min-width: 0; }
+  .fx-row-name { font: 500 13px var(--font-primary); color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fx-row-meta { font: 400 11px var(--font-primary); color: #9ca3af; }
+  .fx-row-end { flex: none; text-align: left; }
+  .fx-row-amount { font: 600 14px var(--font-mono); color: #111827; }
+  .fx-row-delta { font: 500 10px var(--font-primary); }
+  @media (max-width: 1023.98px) {
+    /* The full-width HTML chart above replaces the Chart.js monthly bar chart on mobile. */
+    .fx-charts > div:has(#monthly-category),
+    .fx-charts > h2:has(+ div > #monthly-chart),
+    .fx-charts > div:has(> #monthly-chart) { display: none; }
+  }
+</style>
+{% endblock %}
+
 {% block finances_content %}
+<!-- ===== Mobile מגמות (< lg) ===== -->
+<div class="lg:hidden">
+  <div class="fx-trends">
+    <span class="fx-picker">
+      <button type="button" class="fx-month-label" data-fx-month-picker>{{ mobile.month_label }} <span class="fx-caret" aria-hidden="true">▾</span></button>
+      <input type="month" class="fx-month-input" value="{{ selected_month }}" data-fx-href="/finances/statistics?month=" tabindex="-1" aria-hidden="true">
+    </span>
+
+    {% if mobile.average > 0 %}
+    <div class="fx-summary">
+      <div class="fx-summary-label">הוצאה חודשית ממוצעת</div>
+      <div class="fx-summary-row">
+        <span class="fx-summary-value" dir="ltr">₪{{ "{:,.0f}".format(mobile.average) }}</span>
+        {% if mobile.average_delta %}<span class="fx-summary-delta" style="color:{{ mobile.average_delta.color }}">{{ mobile.average_delta.text }}</span>{% endif %}
+      </div>
+    </div>
+
+    <div class="fx-chart">
+      {% for bar in mobile.bars %}
+      <a href="{{ bar.href }}" class="fx-col{% if bar.selected %} is-selected{% endif %}"{% if bar.selected %} aria-current="page"{% endif %}>
+        <div class="fx-plot">
+          <div class="fx-bar{% if bar.total <= 0 %} is-zero{% endif %}" style="height:{{ bar.height }}%;background:{{ bar.color }}">
+            {% if bar.selected %}<div class="fx-tip" dir="ltr">₪{{ "{:,.0f}".format(bar.total) }}</div>{% endif %}
+          </div>
+        </div>
+        <span class="fx-col-label">{{ bar.label }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if mobile.biggest %}
+    <section class="fx-biggest">
+      <h2 class="fx-h">הגדול ביותר החודש</h2>
+      <ul class="fx-list">
+        {% for c in mobile.biggest %}
+        <li class="fx-row">
+          <div class="fx-row-start">
+            <span class="fx-tile" style="background:{{ c.tile }}" aria-hidden="true">{{ c.emoji }}</span>
+            <div class="fx-row-text">
+              <div class="fx-row-name">{{ c.name }}</div>
+              <div class="fx-row-meta">{{ c.count_label }}</div>
+            </div>
+          </div>
+          <div class="fx-row-end">
+            <div class="fx-row-amount" dir="ltr">₪{{ "{:,.0f}".format(c.total) }}</div>
+            {% if c.delta %}<div class="fx-row-delta" style="color:{{ c.delta.color }}">{{ c.delta.text }}</div>{% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </div>
+</div>
+
 <div class="space-y-6">
-  <h1 class="text-2xl font-bold">סטטיסטיקות</h1>
+  <h1 class="text-2xl font-bold hidden lg:block">סטטיסטיקות</h1>
 
   <!-- Global month filter -->
-  <div class="card mb-6">
+  <div class="card mb-6 hidden lg:block">
     <div class="card-body">
       <form method="get" class="flex items-center gap-4">
         <div class="flex items-center gap-2">
@@ -301,7 +420,7 @@
     </div>
 
     <!-- Right column: charts (monthly + donut) -->
-    <div>
+    <div class="fx-charts">
       {% include 'partials/stats/charts.html' ignore missing %}
     </div>
   </div>
@@ -314,6 +433,29 @@
 {% block scripts %}
 <!-- Chart.js -->
 <script src="/static/js/vendor/chart.umd.min.js"></script>
+
+<script>
+  // Mobile month label: open the native month picker, navigate on pick.
+  (function () {
+    document.querySelectorAll('[data-fx-month-picker]').forEach(function (button) {
+      var input = button.parentNode.querySelector('.fx-month-input');
+      if (!input) return;
+      button.addEventListener('click', function () {
+        try {
+          if (typeof input.showPicker === 'function') { input.showPicker(); return; }
+        } catch (err) { /* fall through to focus */ }
+        input.style.pointerEvents = 'auto';
+        input.focus();
+        input.click();
+      });
+      input.addEventListener('change', function () {
+        if (/^\d{4}-\d{2}$/.test(input.value)) {
+          window.location.href = input.getAttribute('data-fx-href') + encodeURIComponent(input.value);
+        }
+      });
+    });
+  })();
+</script>
 
 <!-- Inline JSON data for charts -->
 <script id="monthly-data" type="application/json">{{ monthly_data | tojson }}</script>

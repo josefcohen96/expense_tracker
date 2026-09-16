@@ -7,12 +7,15 @@ import sqlite3
 import uuid
 import os
 from pathlib import Path
+from datetime import date
 from typing import Optional
 from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from fastapi.responses import FileResponse
 from ..db import get_db_conn
 from ..services.uploads import sniff_mime as _sniff_mime
+from ..services import wedding_plan
+from ..services.people import valid_owner
 from ..schemas.wedding import (
     VendorCreate, VendorUpdate, QuoteItem,
     GuestCreate, GuestUpdate,
@@ -23,6 +26,7 @@ from ..schemas.wedding import (
     NoteCreate, NoteUpdate,
     IdeaCreate, IdeaUpdate,
     TimelineEventCreate, TimelineEventUpdate,
+    MilestoneCreate, MilestoneUpdate,
     SeatingTableCreate, SeatingTableUpdate,
     SeatingTablePositions, SeatingAssign,
 )
@@ -50,12 +54,13 @@ async def create_vendor(body: VendorCreate, db_conn: sqlite3.Connection = Depend
         """INSERT INTO wedding_vendors
            (name, category, contact_name, phone, price_quoted, what_included,
             status, deposit_amount, deposit_paid_date, notes,
-            instagram_url, facebook_url, location, inclusions)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            instagram_url, facebook_url, location, inclusions, portions_ordered)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (body.name, body.category, body.contact_name, body.phone,
          body.price_quoted, body.what_included, body.status,
          body.deposit_amount, body.deposit_paid_date, body.notes,
-         body.instagram_url, body.facebook_url, body.location, body.inclusions),
+         body.instagram_url, body.facebook_url, body.location, body.inclusions,
+         body.portions_ordered),
     )
     db_conn.commit()
     row = db_conn.execute("SELECT * FROM wedding_vendors WHERE id=?", (cur.lastrowid,)).fetchone()
@@ -313,11 +318,22 @@ async def list_tasks(db_conn: sqlite3.Connection = Depends(get_db_conn)):
     return [dict(r) for r in rows]
 
 
+def _task_owner(db_conn: sqlite3.Connection, owner: Optional[str]) -> Optional[str]:
+    try:
+        return valid_owner(db_conn, owner)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="אחראי לא מוכר")
+
+
 @router.post("/tasks", status_code=201)
 async def create_task(body: TaskCreate, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(status_code=422, detail="יש להזין כותרת")
     cur = db_conn.execute(
-        "INSERT INTO wedding_tasks (title, category, due_date, priority, notes) VALUES (?,?,?,?,?)",
-        (body.title, body.category, body.due_date, body.priority, body.notes),
+        "INSERT INTO wedding_tasks (title, category, due_date, priority, notes, owner) VALUES (?,?,?,?,?,?)",
+        (title, body.category, body.due_date or None, body.priority, body.notes,
+         _task_owner(db_conn, body.owner)),
     )
     db_conn.commit()
     return dict(db_conn.execute("SELECT * FROM wedding_tasks WHERE id=?", (cur.lastrowid,)).fetchone())
@@ -331,6 +347,8 @@ async def update_task(task_id: int, body: TaskUpdate, db_conn: sqlite3.Connectio
     updates = body.model_dump(exclude_unset=True)
     if not updates:
         return dict(existing)
+    if "owner" in updates:
+        updates["owner"] = _task_owner(db_conn, updates["owner"])
     set_clause = ", ".join(f"{k}=?" for k in updates)
     db_conn.execute(
         f"UPDATE wedding_tasks SET {set_clause} WHERE id=?",
@@ -397,10 +415,21 @@ async def get_settings(db_conn: sqlite3.Connection = Depends(get_db_conn)):
 
 @router.post("/settings")
 async def upsert_setting(body: SettingUpsert, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    if body.key == "wedding_date":
+        try:
+            date.fromisoformat(body.value)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="תאריך לא תקין")
+    elif body.key == "venue_capacity" and body.value != "":
+        if not body.value.isdigit():
+            raise HTTPException(status_code=422, detail="קיבולת חייבת להיות מספר")
     db_conn.execute(
         "INSERT INTO wedding_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAMP",
         (body.key, body.value),
     )
+    if body.key == "wedding_date":
+        # Milestone dates are offsets from this date, so they move with it.
+        wedding_plan.seed_default_milestones(db_conn)
     db_conn.commit()
     return {"key": body.key, "value": body.value}
 
@@ -637,6 +666,68 @@ async def update_timeline_event(event_id: int, body: TimelineEventUpdate, db_con
 @router.delete("/timeline-events/{event_id}", status_code=204)
 async def delete_timeline_event(event_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     db_conn.execute("DELETE FROM wedding_timeline_events WHERE id=?", (event_id,))
+    db_conn.commit()
+
+
+# ─── Milestones ──────────────────────────────────────────────────────────────
+
+def _milestone_view(db_conn: sqlite3.Connection, milestone_id: int) -> dict:
+    view = wedding_plan.list_milestones(db_conn)
+    return next(m for m in view["milestones"] if m["id"] == milestone_id)
+
+
+@router.get("/milestones")
+async def list_milestones(db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    """Milestones with dates computed from the wedding date (custom_date wins)."""
+    return wedding_plan.list_milestones(db_conn)
+
+
+@router.post("/milestones", status_code=201)
+async def create_milestone(body: MilestoneCreate, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(status_code=422, detail="יש להזין שם")
+    kind = body.kind if body.kind in wedding_plan.MILESTONE_KINDS else "general"
+    next_order = db_conn.execute("SELECT COALESCE(MAX(sort_order), -1) + 1 FROM wedding_milestones").fetchone()[0]
+    cur = db_conn.execute(
+        "INSERT INTO wedding_milestones (title, offset_days, kind, sort_order) VALUES (?,?,?,?)",
+        (title, body.offset_days, kind, next_order),
+    )
+    db_conn.commit()
+    return _milestone_view(db_conn, cur.lastrowid)
+
+
+@router.put("/milestones/{milestone_id}")
+async def update_milestone(milestone_id: int, body: MilestoneUpdate, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    if not db_conn.execute("SELECT 1 FROM wedding_milestones WHERE id=?", (milestone_id,)).fetchone():
+        raise HTTPException(status_code=404, detail="Milestone not found")
+    updates = body.model_dump(exclude_unset=True)
+    if "title" in updates:
+        updates["title"] = (updates["title"] or "").strip()
+        if not updates["title"]:
+            raise HTTPException(status_code=422, detail="יש להזין שם")
+    if "completed" in updates:
+        updates["completed"] = 1 if updates["completed"] else 0
+    if updates.get("custom_date"):
+        try:
+            date.fromisoformat(updates["custom_date"])
+        except ValueError:
+            raise HTTPException(status_code=422, detail="תאריך לא תקין")
+    elif "custom_date" in updates:
+        updates["custom_date"] = None
+    if updates:
+        set_clause = ", ".join(f"{k}=?" for k in updates)
+        db_conn.execute(
+            f"UPDATE wedding_milestones SET {set_clause} WHERE id=?",
+            (*updates.values(), milestone_id),
+        )
+        db_conn.commit()
+    return _milestone_view(db_conn, milestone_id)
+
+
+@router.delete("/milestones/{milestone_id}", status_code=204)
+async def delete_milestone(milestone_id: int, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    db_conn.execute("DELETE FROM wedding_milestones WHERE id=?", (milestone_id,))
     db_conn.commit()
 
 

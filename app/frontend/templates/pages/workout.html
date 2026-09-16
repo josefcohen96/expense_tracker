@@ -3,808 +3,698 @@
 {% block title %}מעקב אימונים - המנביטים{% endblock %}
 
 {% block head %}
-<style>
-    /* Premium style details */
-    .digital-timer {
-        font-family: 'JetBrains Mono', monospace;
-        font-variant-numeric: tabular-nums;
-    }
-    .exercise-card {
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .exercise-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
-    }
-    /* ===== SET ROWS — mobile-first, big touch targets ===== */
-    .set-row {
-        display: flex;
-        align-items: center;
-        gap: 0.375rem;
-        padding: 0.5rem;
-        background: #ffffff;
-        border: 1px solid #e5e7eb;
-        border-radius: 0.875rem;
-        transition: background-color 0.25s ease, border-color 0.25s ease;
-    }
-    .set-row.is-done {
-        background-color: #ecfdf5;
-        border-color: #a7f3d0;
-    }
-    .set-row.is-done .stepper-input {
-        color: #047857;
-    }
-    /* Stepper: − [value] + — replaces bare number inputs */
-    .stepper-group {
-        flex: 1;
-        min-width: 0;
-        display: flex;
-        align-items: stretch;
-        background: #f9fafb;
-        border: 1px solid #e5e7eb;
-        border-radius: 0.75rem;
-        overflow: hidden;
-    }
-    .set-row.is-done .stepper-group {
-        background: #ffffff;
-        border-color: #a7f3d0;
-    }
-    .stepper-btn {
-        width: 2.1rem;
-        min-height: 2.75rem;
-        flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #7c3aed;
-        font-size: 0.75rem;
-        touch-action: manipulation;
-        -webkit-user-select: none;
-        user-select: none;
-        transition: background-color 0.15s ease;
-    }
-    .stepper-btn:active {
-        background-color: #f5f3ff;
-    }
-    /* 16px prevents iOS auto-zoom on focus */
-    .stepper-input {
-        width: 100%;
-        min-width: 1.75rem;
-        border: none;
-        background: transparent;
-        text-align: center;
-        font-size: 16px;
-        font-weight: 700;
-        color: #1f2937;
-        padding: 0;
-    }
-    .stepper-input:focus {
-        outline: none;
-        background: #ffffff;
-    }
-    .stepper-input::-webkit-outer-spin-button,
-    .stepper-input::-webkit-inner-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
-    }
-    .stepper-input[type=number] {
-        -moz-appearance: textfield;
-        appearance: textfield;
-    }
-    /* Big "done" toggle button */
-    .set-done-btn {
-        width: 2.75rem;
-        height: 2.75rem;
-        flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 2px solid #d1d5db;
-        border-radius: 0.75rem;
-        color: #d1d5db;
-        font-size: 1rem;
-        background: #ffffff;
-        transition: all 0.2s ease;
-        touch-action: manipulation;
-    }
-    .set-done-btn:active {
-        transform: scale(0.9);
-    }
-    .set-row.is-done .set-done-btn {
-        background: #10b981;
-        border-color: #10b981;
-        color: #ffffff;
-        box-shadow: 0 4px 10px -2px rgba(16, 185, 129, 0.5);
-    }
-    .set-del-btn {
-        width: 2rem;
-        height: 2.75rem;
-        flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #9ca3af;
-        border-radius: 0.5rem;
-        touch-action: manipulation;
-        transition: color 0.15s ease;
-    }
-    .set-del-btn:active {
-        color: #ef4444;
-        transform: scale(0.9);
-    }
-    /* Smooth modal transition */
-    .modal-backdrop {
-        transition: opacity 0.3s ease;
-    }
-    /* Prevent background scroll when modal is open (iOS-compatible) */
-    body.modal-open {
-        overflow: hidden;
-        position: fixed;
-        width: 100%;
-    }
-    /* Rest timer hourglass slow spin */
-    @keyframes spin-slow {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }
-    .animate-spin-slow {
-        animation: spin-slow 3s linear infinite;
-    }
-    /* Safe padding for fixed rest banner + safe area (iPhone X+) */
-    .workout-container {
-        padding-bottom: max(100px, calc(80px + env(safe-area-inset-bottom, 0px)));
-    }
-    /* Rest timer banner respects iPhone home bar */
-    #rest-timer-banner {
-        padding-bottom: max(1rem, calc(0.5rem + env(safe-area-inset-bottom, 0px)));
-    }
-    /* Rest banner "time's up" state — toggled by class, keeps layout intact */
-    #rest-timer-banner.timer-finished {
-        background-color: rgba(220, 38, 38, 0.96);
-        border-color: #f87171;
-        animation: banner-pulse 1s ease-in-out infinite;
-    }
-    @keyframes banner-pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.85; }
-    }
-
-    /* ===== GAMIFICATION ===== */
-    /* XP bar animated shine sweep */
-    .xp-bar-fill {
-        position: relative;
-        overflow: hidden;
-        transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-    .xp-bar-fill::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.45) 50%, transparent 70%);
-        animation: xp-shine 2.5s ease-in-out infinite;
-    }
-    @keyframes xp-shine {
-        0% { transform: translateX(100%); }
-        60%, 100% { transform: translateX(-100%); }
-    }
-    /* Level badge glow */
-    .level-badge {
-        box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.25), 0 0 20px rgba(250, 204, 21, 0.4);
-    }
-    /* Floating +XP particle rising from a completed set */
-    .xp-float {
-        position: fixed;
-        z-index: 900;
-        pointer-events: none;
-        font-weight: 900;
-        color: #16a34a;
-        text-shadow: 0 1px 3px rgba(255,255,255,0.9);
-        animation: xp-float-up 1.2s ease-out forwards;
-    }
-    @keyframes xp-float-up {
-        0% { opacity: 0; transform: translateY(0) scale(0.6); }
-        15% { opacity: 1; transform: translateY(-10px) scale(1.15); }
-        100% { opacity: 0; transform: translateY(-70px) scale(1); }
-    }
-    /* Combo flame pop */
-    .combo-pop {
-        animation: combo-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-    }
-    @keyframes combo-pop {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.35); }
-        100% { transform: scale(1); }
-    }
-    /* Session score bump */
-    .score-bump {
-        animation: score-bump 0.35s ease-out;
-    }
-    @keyframes score-bump {
-        0% { transform: scale(1); color: #facc15; }
-        50% { transform: scale(1.25); color: #fde047; }
-        100% { transform: scale(1); }
-    }
-    /* Victory modal entrance */
-    #victory-modal.active { display: flex; }
-    #victory-modal { display: none; }
-    .victory-card {
-        animation: victory-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-    }
-    @keyframes victory-in {
-        0% { opacity: 0; transform: scale(0.7) translateY(40px); }
-        100% { opacity: 1; transform: scale(1) translateY(0); }
-    }
-    /* Victory stars staggered pop */
-    .victory-star { opacity: 0; transform: scale(0); }
-    .victory-star.earned {
-        animation: star-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-    }
-    @keyframes star-pop {
-        0% { opacity: 0; transform: scale(0) rotate(-40deg); }
-        70% { opacity: 1; transform: scale(1.3) rotate(8deg); }
-        100% { opacity: 1; transform: scale(1) rotate(0); }
-    }
-    /* Level-up banner pulse */
-    .levelup-banner {
-        animation: levelup-glow 1.2s ease-in-out infinite alternate;
-    }
-    @keyframes levelup-glow {
-        from { box-shadow: 0 0 12px rgba(250, 204, 21, 0.5); }
-        to { box-shadow: 0 0 32px rgba(250, 204, 21, 0.95); }
-    }
-    /* Confetti pieces */
-    .confetti-piece {
-        position: fixed;
-        top: -20px;
-        z-index: 950;
-        pointer-events: none;
-        animation: confetti-fall linear forwards;
-    }
-    @keyframes confetti-fall {
-        0% { transform: translateY(0) rotate(0deg); opacity: 1; }
-        100% { transform: translateY(105vh) rotate(720deg); opacity: 0.4; }
-    }
-    /* Achievement badges */
-    .achievement-locked {
-        filter: grayscale(1);
-        opacity: 0.45;
-    }
-    /* Quest stage map states */
-    .stage-node { transition: all 0.25s ease; }
-    .stage-completed .stage-dot { background: #22c55e; border-color: #86efac; }
-    .stage-current .stage-dot {
-        background: #a855f7;
-        border-color: #e9d5ff;
-        animation: stage-pulse 1.6s ease-in-out infinite;
-    }
-    .stage-locked { opacity: 0.55; }
-    .stage-locked .stage-dot { background: #d1d5db; border-color: #e5e7eb; }
-    .stage-current .stage-card { border-color: #c084fc; box-shadow: 0 4px 14px -4px rgba(168, 85, 247, 0.35); }
-    .stage-completed .stage-card { background: #f0fdf4; border-color: #bbf7d0; }
-    @keyframes stage-pulse {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.5); }
-        50% { box-shadow: 0 0 0 6px rgba(168, 85, 247, 0); }
-    }
-</style>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/workout.css?v=20260917-arena">
 {% endblock %}
 
-{% block body_class %}has-section-header{% endblock %}
+{% block body_class %}has-section-header workouts-page{% endblock %}
+
+{#- Hebrew count phrase: 'אימון אחד' / '5 אימונים' -#}
+{% macro count(n, one, many) -%}
+{%- if n == 1 %}{{ one }}{% else %}<span class="wk-num" dir="ltr">{{ n }}</span> {{ many }}{% endif -%}
+{%- endmacro %}
+
+{% macro num(value) -%}<span class="wk-num" dir="ltr">{{ value }}</span>{%- endmacro %}
+
+{% macro level_pill() -%}
+<a href="#profile" class="wk-level-pill" aria-label="הפרופיל שלי — שלב {{ game.level }}">
+    <span class="wk-level-pill-level">שלב {{ game.level }}</span>
+    <span class="wk-level-pill-xp" dir="ltr">{{ "{:,}".format(game.total_xp) }} XP</span>
+</a>
+{%- endmacro %}
+
+{% set type_labels = {'Calisthenics': 'קליסטניקס', 'Push': 'דחיפה', 'Pull': 'משיכה', 'Core': 'ליבה', 'Legs': 'רגליים', 'Full Body': 'גוף מלא'} %}
+{% set view_tabs = [] if first_workout else [('home', 'אימון', '#home'), ('map', 'מסלול', '#map'), ('profile', 'פרופיל', '#profile'), ('history', 'היסטוריה', '#history')] %}
 
 {% block content %}
 {% from "layout/_mobile_nav.html" import section_header %}
-{{ section_header('אימונים') }}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 workout-container" dir="rtl">
-    <!-- Header Summary -->
-    <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-            <span class="px-3 py-1 text-xs font-semibold bg-purple-100 text-purple-800 rounded-full">כושר ואימונים</span>
-            <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight mt-1 flex items-center gap-2">
-                <i class="fas fa-dumbbell text-purple-600"></i>
-                מעקב אימוני קליסטניקס
-            </h1>
-            <p class="text-sm text-gray-600 mt-1">כל סט שווה נקודות. תתאמן, תצבור XP, תעלה שלב ותפתח הישגים.</p>
-        </div>
-    </div>
+{% call section_header('אימונים', 'arena', view_tabs, 'home') %}{% if not first_workout %}{{ level_pill() }}{% endif %}{% endcall %}
 
-    <!-- ===== PLAYER CARD (Gamification profile) ===== -->
-    <div class="mb-8 bg-gradient-to-l from-gray-900 via-purple-950 to-indigo-950 rounded-2xl border border-purple-800/40 shadow-xl p-5 sm:p-6 text-white relative overflow-hidden">
-        <!-- Decorative glow -->
-        <div class="absolute -top-16 -left-16 w-48 h-48 bg-purple-600/20 rounded-full blur-3xl pointer-events-none"></div>
+<div id="wk-page" class="wk-page{% if first_workout %} is-first{% endif %}" dir="rtl">
+    <main class="wk-panel">
+        <header class="wk-desk-head">
+            <h1>אימונים</h1>
+            {% if view_tabs %}
+            <nav class="wk-desk-tabs" aria-label="אימונים">
+                {% for key, label, href in view_tabs %}
+                <a href="{{ href }}" class="wk-desk-tab{% if key == 'home' %} is-active{% endif %}" data-desk-tab>{{ label }}</a>
+                {% endfor %}
+            </nav>
+            {{ level_pill() }}
+            {% endif %}
+        </header>
 
-        <div class="flex flex-col sm:flex-row sm:items-center gap-5 relative">
-            <!-- Level badge -->
-            <div class="flex items-center gap-4 flex-shrink-0">
-                <div class="level-badge w-20 h-20 rounded-2xl bg-gradient-to-br from-yellow-400 to-amber-600 flex flex-col items-center justify-center text-gray-900 flex-shrink-0">
-                    <span class="text-[10px] font-black uppercase tracking-wider leading-none">שלב</span>
-                    <span id="player-level" class="text-3xl font-black leading-none digital-timer">{{ game.level }}</span>
-                </div>
-                <div>
-                    <div class="flex items-center gap-2">
-                        <i class="fas {{ game.rank.icon }} text-yellow-400"></i>
-                        <h2 class="text-lg font-black">{{ game.rank.title }}</h2>
-                    </div>
-                    {% if game.next_rank %}
-                    <p class="text-[11px] text-purple-300 mt-0.5">הדרגה הבאה: {{ game.next_rank.title }} (שלב {{ game.next_rank.level }})</p>
-                    {% else %}
-                    <p class="text-[11px] text-yellow-300 mt-0.5"><i class="fas fa-crown"></i> הגעת לדרגה הגבוהה ביותר!</p>
-                    {% endif %}
-                    <!-- Streak flame -->
-                    <div class="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-500/20 border border-orange-400/30 rounded-full text-xs font-bold text-orange-300">
-                        <i class="fas fa-fire {{ 'animate-pulse' if game.streak >= 3 else '' }}"></i>
-                        רצף: {{ game.streak }} {{ 'ימים' if game.streak != 1 else 'יום' }}
-                    </div>
-                </div>
-            </div>
-
-            <!-- XP progress -->
-            <div class="flex-1 min-w-0">
-                <div class="flex justify-between items-baseline mb-1.5 text-xs">
-                    <span class="font-bold text-purple-200">
-                        <i class="fas fa-star text-yellow-400 ml-1"></i>
-                        <span id="player-total-xp">{{ "{:,}".format(game.total_xp) }}</span> XP סה"כ
+        {% if first_workout %}
+        <!-- ===== EMPTY STATE: first workout (2c) ===== -->
+        <section class="wk-view wk-empty" data-view="home">
+            <div class="wk-empty-tile" aria-hidden="true">🗺️</div>
+            <h2>המסע מתחיל בשלב 1</h2>
+            <p>בחר מסלול אחד להתחיל איתו. אפשר להחליף בכל רגע — ההתקדמות נשמרת לכל מסלול בנפרד.</p>
+            <div class="wk-empty-paths">
+                {% for p in paths if p.unlocked %}
+                <button type="button" class="wk-path-card{% if loop.first %} is-first{% endif %}" data-start-path="{{ p.key }}">
+                    <span class="wk-path-tile" style="background: {{ p.tint }}" aria-hidden="true">{{ p.icon }}</span>
+                    <span class="wk-path-text">
+                        <span class="wk-path-card-name">מסלול {{ p.name }}</span>
+                        <span class="wk-path-sub">{{ num(p.total) }} תחנות · עד {{ p.goal.hebrew }}</span>
                     </span>
-                    <span class="text-purple-300 digital-timer">{{ game.xp_in_level }} / {{ game.xp_for_next }}</span>
-                </div>
-                <div class="h-4 bg-white/10 rounded-full overflow-hidden border border-white/10">
-                    <div id="player-xp-bar" class="xp-bar-fill h-full bg-gradient-to-l from-yellow-400 to-amber-500 rounded-full" style="width: {{ game.progress_pct }}%;"></div>
-                </div>
-                <p class="text-[11px] text-purple-300 mt-1.5">עוד <span class="font-bold text-white">{{ game.xp_for_next - game.xp_in_level }} XP</span> לשלב {{ game.level + 1 }} 🚀</p>
+                    <span class="wk-path-go">התחל</span>
+                </button>
+                {% endfor %}
+            </div>
+            <div class="wk-first-xp">
+                <span>האימון הראשון שווה</span>
+                <span class="wk-num" dir="ltr">+{{ first_workout_xp }} XP</span>
+            </div>
+            <button type="button" class="wk-free-link" data-start-free>או התחל אימון חופשי בלי מסלול</button>
+        </section>
+        {% else %}
 
-                <!-- Career stats chips -->
-                <div class="flex flex-wrap gap-2 mt-3">
-                    <span class="px-2.5 py-1 bg-white/10 rounded-lg text-[11px] font-bold"><i class="fas fa-dumbbell text-purple-300 ml-1"></i>{{ game.total_workouts }} אימונים</span>
-                    <span class="px-2.5 py-1 bg-white/10 rounded-lg text-[11px] font-bold"><i class="fas fa-layer-group text-purple-300 ml-1"></i>{{ game.total_sets }} סטים</span>
-                    <span class="px-2.5 py-1 bg-white/10 rounded-lg text-[11px] font-bold"><i class="fas fa-bolt text-purple-300 ml-1"></i>{{ "{:,}".format(game.total_reps) }} חזרות</span>
-                    <span class="px-2.5 py-1 bg-white/10 rounded-lg text-[11px] font-bold"><i class="fas fa-medal text-yellow-400 ml-1"></i>{{ game.unlocked_count }}/{{ game.achievements|length }} הישגים</span>
+        <!-- ===== QUEST SELECT (1a · 1) ===== -->
+        <section class="wk-view" data-view="home">
+            {% for p in paths if p.unlocked %}
+            <article class="wk-mission" data-mission="{{ p.key }}"{% if p.key != default_path %} hidden{% endif %}>
+                <div class="wk-mission-sheen" aria-hidden="true"></div>
+                <div class="wk-mission-body">
+                    <div class="wk-mission-top">
+                        <span class="wk-eyebrow">המשימה של היום</span>
+                        <a href="#map" class="wk-mission-link">מפת המסלול ←</a>
+                    </div>
+                    <h2 class="wk-mission-title">מסלול {{ p.name }} · {% if p.complete %}הושלם{% else %}תחנה {{ num(p.position) }}{% endif %}</h2>
+                    <div class="wk-mission-station">{{ p.plan.exercises[0].title }}</div>
+                    <div class="wk-mission-sub">{{ num(p.plan.exercises|length) }} תרגילים · {{ num(p.plan.sets) }} סטים · בערך {{ num(p.plan.minutes) }} דקות</div>
+                    {% if p.current %}
+                    <div class="wk-segs" role="img" aria-label="{{ p.current.in_range }} מתוך {{ sessions_to_conquer }} אימונים לכיבוש התחנה">
+                        {% for i in range(sessions_to_conquer) %}<span{% if i < p.current.in_range %} class="is-on"{% endif %}></span>{% endfor %}
+                    </div>
+                    {% endif %}
+                    <div class="wk-mission-meta">
+                        <span class="wk-reward-pill"><span>שכר צפוי</span><span class="wk-num" dir="ltr">+{{ p.plan.xp }} XP</span></span>
+                        {% if p.last_ago %}<span class="wk-mission-last">האחרון: {{ p.last_ago }}</span>{% endif %}
+                    </div>
+                    <button type="button" class="wk-cta" data-start-path="{{ p.key }}">
+                        <span>כניסה לזירה</span><span class="wk-cta-chev" aria-hidden="true">‹</span>
+                    </button>
+                </div>
+            </article>
+            {% endfor %}
+
+            <div class="wk-block">
+                <div class="wk-block-head"><h3>מסלולים אחרים</h3></div>
+                <div class="wk-path-list">
+                    {% for p in paths %}
+                    {% if p.unlocked %}
+                    <button type="button" class="wk-path-row" data-path-row="{{ p.key }}" data-choose-path="{{ p.key }}"{% if p.key == default_path %} hidden{% endif %}>
+                        <span class="wk-path-tile" style="background: {{ p.tint }}" aria-hidden="true">{{ p.icon }}</span>
+                        <span class="wk-path-text">
+                            <span class="wk-path-name">מסלול {{ p.name }} · {% if p.complete %}הושלם{% else %}תחנה {{ num(p.position) }}{% endif %}</span>
+                            <span class="wk-path-sub">{{ num(p.plan.sets) }} סטים · <span class="wk-num" dir="ltr">+{{ p.plan.xp }} XP</span></span>
+                        </span>
+                        <span class="wk-path-action">בחר</span>
+                    </button>
+                    {% else %}
+                    <div class="wk-path-row is-locked" data-path-row="{{ p.key }}" aria-disabled="true">
+                        <span class="wk-path-tile" aria-hidden="true">🔒</span>
+                        <span class="wk-path-text">
+                            <span class="wk-path-name">מסלול {{ p.name }}</span>
+                            <span class="wk-path-sub">נפתח בשלב {{ num(p.unlock_level) }}</span>
+                        </span>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
                 </div>
             </div>
-        </div>
-    </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        
-        <!-- Active Workout Session Area (Takes 2/3 of space on desktop) -->
-        <div class="lg:col-span-2 space-y-6">
-            <!-- Start Workout Button Container -->
-            <div id="start-session-container" class="bg-white border border-gray-200 shadow-md rounded-2xl p-8 text-center py-16">
-                <div class="w-20 h-20 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-                    <i class="fas fa-dumbbell text-3xl animate-bounce"></i>
+            <div class="wk-card wk-streak">
+                <div class="wk-streak-head">
+                    <span class="wk-streak-title">🔥
+                        {% if game.current_streak == 1 %}רצף של יום אחד
+                        {% elif game.current_streak %}רצף {{ num(game.current_streak) }} ימים
+                        {% else %}רצף חדש מתחיל באימון הבא{% endif %}
+                    </span>
+                    <span class="wk-streak-sub">{{ num(game.week_count) }} מתוך 7 הימים האחרונים</span>
                 </div>
-                <h2 class="text-2xl font-black text-gray-900 mb-2">אימון חדש</h2>
-                <p class="text-gray-600 text-sm max-w-sm mx-auto mb-8">מוכן להתחיל להתאמן? לחץ על הכפתור כדי להתחיל אימון חדש, להפעיל את שעון המנוחה ולתעד את הסטים שלך.</p>
-                <button onclick="startWorkoutSession()" 
-                        class="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-lg rounded-2xl shadow-lg hover:shadow-purple-100 transition-all active:scale-95 animate-pulse">
-                    <i class="fas fa-play-circle text-xl"></i>
-                    התחל אימון חדש
+                <div class="wk-week" role="img" aria-label="ימי אימון בשבוע האחרון: {{ game.week_count }} מתוך 7">
+                    {% for d in game.week %}<span class="wk-day{% if d.trained %} is-on{% elif d.is_today %} is-today{% endif %}" title="{{ d.date }}"></span>{% endfor %}
+                </div>
+            </div>
+
+            <button type="button" class="wk-free-link" data-start-free>או התחל אימון חופשי בלי מסלול</button>
+        </section>
+
+        <!-- ===== QUEST MAP (2b) ===== -->
+        <section class="wk-view" data-view="map" hidden>
+            <nav class="wk-chips" aria-label="מסלולים">
+                {% for p in paths %}
+                <button type="button" class="wk-chip{% if p.key == default_path %} is-active{% endif %}" data-map-chip="{{ p.key }}"
+                        aria-pressed="{{ 'true' if p.key == default_path else 'false' }}"{% if not p.unlocked %} disabled{% endif %}>
+                    <span aria-hidden="true">{{ p.icon }}</span>{{ p.name }}{% if not p.unlocked %} · שלב {{ p.unlock_level }}{% endif %}
+                </button>
+                {% endfor %}
+            </nav>
+
+            {% for p in paths if p.unlocked %}
+            <div class="wk-map" data-map="{{ p.key }}"{% if p.key != default_path %} hidden{% endif %}>
+                <div class="wk-view-head">
+                    <h2>מסלול {{ p.name }}</h2>
+                    <span class="wk-view-count wk-num" dir="ltr">{{ p.position }} / {{ p.total }}</span>
+                </div>
+
+                <div class="wk-goal">
+                    <span class="wk-goal-tile" aria-hidden="true">👑</span>
+                    <div class="wk-goal-text">
+                        <div class="wk-goal-title">יעד המסלול · {{ p.goal.hebrew }}</div>
+                        <div class="wk-goal-sub">
+                            {%- if p.complete %}המסלול הושלם — כל התחנות נכבשו
+                            {%- elif p.stations_to_goal == 0 %}זו תחנת היעד
+                            {%- else %}{{ count(p.stations_to_goal, 'תחנה אחת', 'תחנות') }} משם{% endif %}
+                            {%- if p.eta %} · לפי הקצב שלך, {{ p.eta }}{% endif -%}
+                        </div>
+                    </div>
+                </div>
+
+                <ol class="wk-stations">
+                    {% for st in p.stations %}
+                    <li class="wk-station is-{{ st.state }}">
+                        {% if st.state == 'conquered' %}
+                        <span class="wk-st-tile" aria-hidden="true">✓</span>
+                        <div class="wk-st-body">
+                            <div class="wk-st-name">{{ st.hebrew }}</div>
+                            <div class="wk-st-sub">נכבש{% if st.sessions %} · {{ count(st.sessions, 'אימון אחד', 'אימונים') }}{% endif %}</div>
+                        </div>
+                        {% elif st.state == 'current' %}
+                        <span class="wk-st-tile" aria-hidden="true">🧍</span>
+                        <div class="wk-st-card">
+                            <div class="wk-st-card-head">
+                                <span class="wk-st-name">{{ st.hebrew }}</span>
+                                <span class="wk-here">אתה כאן</span>
+                            </div>
+                            <div class="wk-st-sub">{{ num(st.in_range) }} מתוך {{ num(sessions_to_conquer) }} אימונים לכיבוש · {{ num(st.rep_label) }} חזרות</div>
+                            <div class="wk-segs" aria-hidden="true">
+                                {% for i in range(sessions_to_conquer) %}<span{% if i < st.in_range %} class="is-on"{% endif %}></span>{% endfor %}
+                            </div>
+                            <button type="button" class="wk-cta wk-cta--sm" data-start-path="{{ p.key }}">
+                                <span>כניסה לזירה</span><span class="wk-cta-xp" dir="ltr">+{{ p.plan.xp }} XP</span>
+                            </button>
+                        </div>
+                        {% elif st.state == 'next' %}
+                        <span class="wk-st-tile wk-num" dir="ltr" aria-hidden="true">{{ st.number }}</span>
+                        <div class="wk-st-body">
+                            <div class="wk-st-name">{{ st.hebrew }}</div>
+                            <div class="wk-st-sub">נפתח אחרי {{ count(p.current.remaining, 'אימון אחד נוסף', 'אימונים נוספים') }}</div>
+                        </div>
+                        {% else %}
+                        <span class="wk-st-tile" aria-hidden="true">🔒</span>
+                        <div class="wk-st-body">
+                            <div class="wk-st-name">{{ st.hebrew }}</div>
+                        </div>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ol>
+
+                {% if p.complete %}
+                <button type="button" class="wk-cta" data-start-path="{{ p.key }}">
+                    <span>אימון שימור ביעד</span><span class="wk-cta-xp" dir="ltr">+{{ p.plan.xp }} XP</span>
+                </button>
+                {% endif %}
+
+                <details class="wk-card wk-cues">
+                    <summary>דגשים ביומכניים <span aria-hidden="true">⌄</span></summary>
+                    <div class="wk-cues-meta">{{ p.difficulty }}<br>{{ p.muscles }}<br>{{ p.warmup }}</div>
+                    <ul>{% for cue in p.cues %}<li>{{ cue }}</li>{% endfor %}</ul>
+                </details>
+
+                <div class="wk-card wk-coach">
+                    <div class="wk-coach-eyebrow">מהמאמן</div>
+                    <p>תחנה נכבשת כשהשלמת {{ sessions_to_conquer }} אימונים איתה בטווח החזרות — לא צריך לסמן כלום ידנית.</p>
+                </div>
+            </div>
+            {% endfor %}
+        </section>
+
+        <!-- ===== PLAYER PROFILE (2a) ===== -->
+        <section class="wk-view" data-view="profile" hidden>
+            <div class="wk-profile-head">
+                <div class="wk-profile-top">
+                    <h2>הפרופיל שלי</h2>
+                    <a href="#history" class="wk-link">היסטוריה ←</a>
+                </div>
+                <div class="wk-profile-main">
+                    <div class="wk-level-ring" style="--pct: {{ game.progress_pct }}%">
+                        <div class="wk-level-disc">
+                            <span class="wk-level-label">שלב</span>
+                            <span id="player-level" class="wk-level-num" dir="ltr">{{ game.level }}</span>
+                        </div>
+                    </div>
+                    <div class="wk-profile-info">
+                        <div class="wk-rank-title"><i class="fas {{ game.rank.icon }}" aria-hidden="true"></i>{{ game.rank.title }}</div>
+                        <div class="wk-rank-sub">
+                            {% if game.next_rank %}עוד <span class="wk-num" dir="ltr">{{ "{:,}".format(game.next_rank.xp_needed) }} XP</span> לדרגת {{ game.next_rank.title }}
+                            {% else %}הגעת לדרגה הגבוהה ביותר{% endif %}
+                        </div>
+                        <div class="wk-bar"><span style="width: {{ game.progress_pct }}%"></span></div>
+                        <div class="wk-bar-labels">
+                            <span>שלב {{ game.level }} ← {{ game.level + 1 }}</span>
+                            <span class="wk-num" dir="ltr">{{ "{:,}".format(game.xp_in_level) }} / {{ "{:,}".format(game.xp_for_next) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="wk-stats">
+                <div class="wk-stat"><div class="wk-stat-label">אימונים</div><div class="wk-stat-value" dir="ltr">{{ "{:,}".format(game.total_workouts) }}</div></div>
+                <div class="wk-stat"><div class="wk-stat-label">סטים</div><div class="wk-stat-value" dir="ltr">{{ "{:,}".format(game.total_sets) }}</div></div>
+                <div class="wk-stat"><div class="wk-stat-label">חזרות</div><div class="wk-stat-value" dir="ltr">{{ "{:,}".format(game.total_reps) }}</div></div>
+                <div class="wk-stat is-streak"><div class="wk-stat-label">הרצף הארוך</div><div class="wk-stat-value" dir="ltr">{{ game.best_streak }}</div></div>
+            </div>
+
+            <div class="wk-block">
+                <div class="wk-block-head">
+                    <h3>סולם הדרגות</h3>
+                    <span class="wk-block-count" dir="ltr">{{ game.rank_position }} / {{ game.ranks|length }}</span>
+                </div>
+                <ol class="wk-ladder" data-ladder>
+                    {% for r in game.ranks %}
+                    <li class="wk-rank is-{{ r.state }}"{% if r.state == 'current' %} data-current-rank{% endif %}>
+                        <i class="fas {{ r.icon }} wk-rank-icon" aria-hidden="true"></i>
+                        <span class="wk-rank-name">{{ r.title }} · שלב {{ r.level }}</span>
+                        <span class="wk-rank-state">
+                            {%- if r.state == 'achieved' %}הושג
+                            {%- elif r.state == 'current' %}הדרגה שלך
+                            {%- elif r.state == 'next' %}עוד <span class="wk-num" dir="ltr">{{ "{:,}".format(r.xp_needed) }} XP</span>
+                            {%- else %}<i class="fas fa-lock" aria-label="נעול"></i>{% endif -%}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ol>
+            </div>
+
+            <div class="wk-block">
+                <div class="wk-block-head">
+                    <h3>הישגים</h3>
+                    <span class="wk-block-count" dir="ltr">{{ game.unlocked_count }} / {{ game.achievements|length }}</span>
+                </div>
+                <div class="wk-badges">
+                    {% for a in game.achievements %}
+                    <button type="button" class="wk-badge{% if a.unlocked %} is-unlocked{% endif %}" data-badge
+                            data-title="{{ a.title }}" data-desc="{{ a.desc }}" data-current="{{ a.current }}" data-target="{{ a.target }}"
+                            data-unlocked="{{ '1' if a.unlocked else '0' }}" aria-label="{{ a.title }}{% if not a.unlocked %} — נעול{% endif %}">
+                        {% if a.unlocked %}
+                        <i class="fas {{ a.icon }}" aria-hidden="true"></i>
+                        {% else %}
+                        <i class="fas fa-lock" aria-hidden="true"></i>
+                        <span class="wk-num" dir="ltr">{% if a.target >= 1000 %}{{ (a.current * 100 // a.target) }}%{% else %}{{ a.current }}/{{ a.target }}{% endif %}</span>
+                        {% endif %}
+                    </button>
+                    {% endfor %}
+                </div>
+                <div class="wk-badge-detail" data-badge-detail aria-live="polite"></div>
+            </div>
+        </section>
+
+        <!-- ===== HISTORY ===== -->
+        <section class="wk-view" data-view="history" hidden>
+            <div class="wk-view-head">
+                <h2>היסטוריה</h2>
+                <span class="wk-block-count" dir="ltr">{{ history|length }}</span>
+            </div>
+            <div class="wk-history">
+                {% for session in history %}
+                <article class="wk-card wk-session">
+                    <div class="wk-session-head">
+                        <div>
+                            <div class="wk-session-type">{{ type_labels.get(session.workout_type, session.workout_type) }}</div>
+                            <div class="wk-session-date">{{ session.ago }} · {{ num(session.date) }}</div>
+                        </div>
+                        <span class="wk-chip-sm">{{ num(session.total_duration) }} דק׳</span>
+                    </div>
+                    <ul class="wk-session-ex">
+                        {% for ex in session.exercises %}
+                        <li><span>{{ ex.title }}</span><span>{{ num(ex.sets) }} סטים · {{ num(ex.reps) }} חזרות</span></li>
+                        {% endfor %}
+                    </ul>
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+    </main>
+
+    <!-- ===== DESKTOP SIDEBAR: history + skill guide ===== -->
+    <aside class="wk-side">
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-md p-6">
+            <div class="flex border-b border-gray-200 mb-4">
+                <button id="tab-history" type="button" onclick="switchSidebarTab('history')"
+                        class="flex-1 pb-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 transition-all text-center focus:outline-none">
+                    <i class="fas fa-history ml-1.5"></i>
+                    היסטוריה
+                </button>
+                <button id="tab-skills" type="button" onclick="switchSidebarTab('skills')"
+                        class="flex-1 pb-3 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition-all text-center focus:outline-none">
+                    <i class="fas fa-map ml-1.5"></i>
+                    מסע מיומנויות
                 </button>
             </div>
 
-            <!-- Active Workout Card (Hidden by default) -->
-            <div id="active-workout-session" class="hidden bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
-                <!-- Session Controller Header -->
-                <div class="bg-gradient-to-l from-purple-800 to-indigo-900 p-4 sm:p-6 text-white">
-                    <!-- Row 1: Timer + Session Score HUD -->
-                    <div class="flex items-center justify-between gap-3 mb-4">
-                        <div class="flex items-center gap-3">
-                            <div class="w-11 h-11 bg-white/10 rounded-xl flex items-center justify-center text-xl shadow-inner animate-pulse flex-shrink-0">
-                                <i class="fas fa-stopwatch text-purple-300"></i>
-                            </div>
+            <div id="sidebar-history-content" class="space-y-4 max-h-[600px] overflow-y-auto pr-1">
+                {% if history %}
+                    {% for session in history %}
+                    <div class="p-4 bg-gray-50 border border-gray-200 rounded-xl hover:border-indigo-300 transition-all">
+                        <div class="flex justify-between items-start mb-2">
                             <div>
-                                <span class="text-xs text-purple-200 uppercase tracking-wider font-semibold">משך זמן האימון</span>
-                                <div id="workout-timer" class="text-3xl font-black digital-timer text-white leading-none">00:00</div>
+                                <h3 class="font-bold text-gray-800">{{ type_labels.get(session.workout_type, session.workout_type) }}</h3>
+                                <span class="text-xs text-gray-500" dir="ltr">{{ session.date }}</span>
                             </div>
-                        </div>
-                        <!-- Live game HUD -->
-                        <div class="text-left flex-shrink-0">
-                            <div class="flex items-center justify-end gap-1.5">
-                                <span id="session-score" class="text-3xl font-black digital-timer text-yellow-400 leading-none">0</span>
-                                <i class="fas fa-star text-yellow-400 text-sm"></i>
-                            </div>
-                            <span class="text-xs text-purple-200 uppercase tracking-wider font-semibold">XP באימון</span>
-                            <div id="combo-indicator" class="hidden mt-1 inline-flex items-center gap-1 px-2 py-0.5 bg-orange-500/30 border border-orange-400/40 rounded-full text-[11px] font-black text-orange-300">
-                                <i class="fas fa-fire"></i>
-                                קומבו x<span id="combo-count">0</span>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Row 2: Workout details — full width inputs on mobile -->
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="flex flex-col">
-                            <label for="workout-date" class="text-xs text-purple-200 mb-1">תאריך</label>
-                            <input type="date" id="workout-date"
-                                   class="bg-white/10 border border-white/20 text-white text-base rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-400 focus:outline-none w-full"
-                                   style="color-scheme: dark;"
-                                   value="">
-                        </div>
-                        <div class="flex flex-col">
-                            <label for="workout-type" class="text-xs text-purple-200 mb-1">סוג אימון</label>
-                            <select id="workout-type"
-                                    class="bg-white/10 border border-white/20 text-white text-base rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-400 focus:outline-none cursor-pointer w-full"
-                                    style="color-scheme: dark;">
-                                <option value="Calisthenics" class="text-gray-800 bg-white">קליסטניקס</option>
-                                <option value="Push" class="text-gray-800 bg-white">Push (דחיפה)</option>
-                                <option value="Pull" class="text-gray-800 bg-white">Pull (משיכה)</option>
-                                <option value="Core" class="text-gray-800 bg-white">Core (בטן)</option>
-                                <option value="Legs" class="text-gray-800 bg-white">Legs (רגליים)</option>
-                                <option value="Full Body" class="text-gray-800 bg-white">גוף מלא</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Active Workout Exercises List -->
-                <div class="p-4 sm:p-6">
-                    <!-- Empty State — lives OUTSIDE the render container so re-renders never delete it -->
-                    <div id="empty-state" class="text-center py-12 px-4 border-2 border-dashed border-gray-300 rounded-xl">
-                        <div class="w-16 h-16 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <i class="fas fa-dumbbell text-2xl"></i>
-                        </div>
-                        <h3 class="text-lg font-bold text-gray-800 mb-1">האימון ריק</h3>
-                        <p class="text-gray-600 text-sm max-w-sm mx-auto mb-6">לחץ על הוספת תרגיל כדי לבחור מרשימת תרגילי קליסטניקס מובנים או להוסיף תרגיל מותאם אישית.</p>
-                        <button onclick="openExerciseModal()" class="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl shadow-md transition-all active:scale-95">
-                            <i class="fas fa-plus"></i>
-                            הוסף תרגיל לאימון
-                        </button>
-                    </div>
-
-                    <div id="active-exercises" class="space-y-4"></div>
-
-                    <!-- Action Buttons at bottom of Active Workout -->
-                    <div id="workout-actions" class="hidden mt-6 pt-5 border-t border-gray-200 space-y-3">
-                        <button onclick="openExerciseModal()"
-                                class="w-full inline-flex items-center justify-center gap-2 px-5 py-3 border-2 border-dashed border-purple-300 text-purple-700 font-bold rounded-xl hover:bg-purple-50 transition-all active:scale-[0.98]">
-                            <i class="fas fa-plus"></i>
-                            הוסף תרגיל נוסף
-                        </button>
-                        <button id="finish-workout-btn" onclick="finishWorkout()"
-                                class="w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-l from-green-600 to-emerald-500 hover:from-green-700 hover:to-emerald-600 text-white font-black text-lg rounded-2xl shadow-lg hover:shadow-green-100 transition-all active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none">
-                            <i class="fas fa-check-circle"></i>
-                            סיום אימון ושמירה
-                        </button>
-                        <button onclick="cancelWorkout()"
-                                class="w-full py-2 text-sm text-gray-400 hover:text-red-500 font-semibold transition-colors">
-                            <i class="fas fa-times ml-1"></i>
-                            ביטול האימון הנוכחי
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Sidebar: History & Skill progressions (Takes 1/3 of space on desktop) -->
-        <div class="lg:col-span-1 space-y-6">
-            <div class="bg-white rounded-2xl border border-gray-200 shadow-md p-6">
-                <!-- Tabs Selector -->
-                <div class="flex border-b border-gray-200 mb-4">
-                    <button id="tab-history" onclick="switchSidebarTab('history')"
-                            class="flex-1 pb-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 transition-all text-center focus:outline-none">
-                        <i class="fas fa-history ml-1.5"></i>
-                        היסטוריה
-                    </button>
-                    <button id="tab-skills" onclick="switchSidebarTab('skills')"
-                            class="flex-1 pb-3 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition-all text-center focus:outline-none">
-                        <i class="fas fa-map ml-1.5"></i>
-                        מסע מיומנויות
-                    </button>
-                    <button id="tab-achievements" onclick="switchSidebarTab('achievements')"
-                            class="flex-1 pb-3 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition-all text-center focus:outline-none">
-                        <i class="fas fa-medal ml-1.5"></i>
-                        הישגים
-                    </button>
-                </div>
-
-                <!-- Tab content: History -->
-                <div id="sidebar-history-content" class="space-y-4 max-h-[600px] overflow-y-auto pr-1">
-                    {% if history %}
-                        {% for session in history %}
-                        <div class="p-4 bg-gray-50 border border-gray-200 rounded-xl hover:border-indigo-300 transition-all">
-                            <div class="flex justify-between items-start mb-2">
-                                <div>
-                                    <h3 class="font-bold text-gray-800">{{ session.workout_type }}</h3>
-                                    <span class="text-xs text-gray-500">{{ session.date }}</span>
-                                </div>
-                                <span class="px-2 py-1 text-[11px] font-semibold bg-indigo-100 text-indigo-800 rounded">
-                                    <i class="far fa-clock ml-1"></i>
-                                    {{ session.total_duration }} דק'
-                                </span>
-                            </div>
-                            <!-- Exercises Summary -->
-                            <div class="mt-3 pt-3 border-t border-gray-200/60 space-y-1">
-                                {% for ex in session.exercises %}
-                                <div class="flex justify-between text-xs text-gray-700">
-                                    <span class="font-medium">{{ ex.name }}</span>
-                                    <span class="text-gray-500">{{ ex.sets }} סטים × {{ ex.reps }} חזרות</span>
-                                </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="text-center py-8 text-gray-500">
-                            <i class="fas fa-info-circle text-2xl mb-2 text-gray-300"></i>
-                            <p class="text-sm">לא נמצאו אימונים קודמים.</p>
-                        </div>
-                    {% endif %}
-                </div>
-
-                <!-- Tab content: Achievements (Badges) -->
-                <div id="sidebar-achievements-content" class="hidden max-h-[600px] overflow-y-auto pr-1">
-                    <p class="text-xs text-gray-500 mb-4">
-                        <i class="fas fa-medal text-yellow-500 ml-1"></i>
-                        פתחת <span class="font-black text-gray-800">{{ game.unlocked_count }}</span> מתוך {{ game.achievements|length }} הישגים
-                    </p>
-                    <div class="grid grid-cols-2 gap-3">
-                        {% for ach in game.achievements %}
-                        <div class="p-3 rounded-xl border text-center {{ 'bg-gradient-to-b from-yellow-50 to-amber-50 border-yellow-300 shadow-sm' if ach.unlocked else 'bg-gray-50 border-gray-200 achievement-locked' }}">
-                            <div class="w-12 h-12 mx-auto rounded-full flex items-center justify-center text-xl mb-2 {{ 'bg-gradient-to-br from-yellow-400 to-amber-500 text-white shadow-md' if ach.unlocked else 'bg-gray-200 text-gray-400' }}">
-                                <i class="fas {{ ach.icon if ach.unlocked else 'fa-lock' }}"></i>
-                            </div>
-                            <h4 class="text-xs font-black text-gray-800">{{ ach.title }}</h4>
-                            <p class="text-[10px] text-gray-500 mt-0.5 leading-snug">{{ ach.desc }}</p>
-                            {% if ach.unlocked %}
-                            <span class="inline-block mt-1.5 px-2 py-0.5 bg-green-100 text-green-700 text-[9px] font-black rounded-full">
-                                <i class="fas fa-check ml-0.5"></i>הושג!
+                            <span class="px-2 py-1 text-[11px] font-semibold bg-indigo-100 text-indigo-800 rounded">
+                                <i class="far fa-clock ml-1"></i>
+                                {{ session.total_duration }} דק'
                             </span>
-                            {% else %}
-                            <div class="mt-2">
-                                <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                    <div class="h-full bg-purple-400 rounded-full" style="width: {{ (ach.current * 100 / ach.target)|round|int }}%;"></div>
-                                </div>
-                                <span class="text-[9px] text-gray-400 font-bold">{{ ach.current }} / {{ ach.target }}</span>
-                            </div>
-                            {% endif %}
                         </div>
-                        {% endfor %}
-                    </div>
-                </div>
-
-                <!-- Tab content: Skills Progression Guide -->
-                <div id="sidebar-skills-content" class="hidden space-y-4 max-h-[600px] overflow-y-auto pr-1">
-                    <!-- Skills selector drop-down -->
-                    <div class="mb-4">
-                        <label for="skill-select" class="block text-xs font-bold text-gray-500 mb-1.5">בחר מיומנות יעד</label>
-                        <select id="skill-select" onchange="displaySkillData(this.value)" 
-                                class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-purple-500 focus:outline-none cursor-pointer font-bold">
-                            {% for skill_key, skill in skills_guide.items() %}
-                            <option value="{{ skill_key }}">{{ skill.title }}</option>
+                        <div class="mt-3 pt-3 border-t border-gray-200/60 space-y-1">
+                            {% for ex in session.exercises %}
+                            <div class="flex justify-between gap-2 text-xs text-gray-700">
+                                <span class="font-medium">{{ ex.title }}</span>
+                                <span class="text-gray-500 flex-shrink-0">{{ ex.sets }} סטים · {{ ex.reps }} חזרות</span>
+                            </div>
                             {% endfor %}
-                        </select>
-                    </div>
-
-                    <!-- Skills Data Render Containers -->
-                    {% for skill_key, skill in skills_guide.items() %}
-                    <div id="skill-details-{{ skill_key }}" class="skill-detail-block hidden space-y-4">
-                        <!-- Badges/Specs -->
-                        <div class="p-3 bg-purple-50/50 border border-purple-100 rounded-xl space-y-1.5 text-xs text-purple-900">
-                            <div class="flex items-center gap-1.5">
-                                <i class="fas fa-star text-[10px]"></i>
-                                <span class="font-bold">{{ skill.difficulty }}</span>
-                            </div>
-                            <div class="flex items-center gap-1.5">
-                                <i class="fas fa-dumbbell text-[10px]"></i>
-                                <span class="font-medium">{{ skill.muscles }}</span>
-                            </div>
-                            <div class="flex items-center gap-1.5">
-                                <i class="fas fa-clock text-[10px]"></i>
-                                <span class="font-medium">{{ skill.warmup }}</span>
-                            </div>
-                        </div>
-
-                        <!-- Accordion Cues -->
-                        <div class="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                            <button onclick="toggleCuesAccordion('{{ skill_key }}')" 
-                                    class="w-full bg-gray-50 hover:bg-gray-100/70 p-3 text-right text-xs font-bold text-gray-700 flex justify-between items-center transition-all focus:outline-none">
-                                <span>דגשים ביומכניים ומפתח להצלחה</span>
-                                <i id="accordion-icon-{{ skill_key }}" class="fas fa-chevron-down text-gray-400 text-[10px] transition-transform"></i>
-                            </button>
-                            <div id="accordion-content-{{ skill_key }}" class="hidden p-3.5 bg-white text-xs text-gray-600 space-y-2 leading-relaxed border-t border-gray-150">
-                                {% for cue in skill.cues %}
-                                <div class="flex items-start gap-2">
-                                    <span class="text-purple-600 font-extrabold mt-0.5">•</span>
-                                    <span>{{ cue }}</span>
-                                </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-
-                        <!-- Quest Stage Map (Progressions as game levels) -->
-                        <div class="space-y-3">
-                            <div class="flex justify-between items-center pr-1">
-                                <h4 class="text-xs font-bold text-gray-500">מפת השלבים במסע</h4>
-                                <span class="text-[10px] font-black text-purple-600 digital-timer" id="quest-progress-{{ skill_key }}"></span>
-                            </div>
-                            <!-- Quest map progress bar -->
-                            <div class="h-2 bg-gray-100 rounded-full overflow-hidden mx-1">
-                                <div id="quest-bar-{{ skill_key }}" class="h-full bg-gradient-to-l from-purple-500 to-indigo-500 rounded-full transition-all duration-700" style="width: 0%;"></div>
-                            </div>
-                            <div class="relative border-r-2 border-gray-200 mr-3 pr-5 space-y-4">
-                                {% for step in skill.progressions %}
-                                <div id="stage-{{ skill_key }}-{{ loop.index0 }}" class="stage-node relative" data-skill="{{ skill_key }}" data-stage="{{ loop.index0 }}">
-                                    <!-- Stage number dot -->
-                                    <div class="stage-dot absolute right-[-33px] top-2 w-6 h-6 rounded-full bg-gray-300 border-2 border-white shadow flex items-center justify-center text-[10px] font-black text-white">
-                                        <span class="stage-dot-label">{{ loop.index }}</span>
-                                    </div>
-
-                                    <!-- Stage card -->
-                                    <div class="stage-card p-3 bg-white border border-gray-200 rounded-xl shadow-sm transition-all text-right">
-                                        <div class="flex justify-between items-start gap-2">
-                                            <div>
-                                                <h5 class="text-xs font-bold text-gray-800 flex items-center gap-1.5">
-                                                    <span class="stage-status-icon"></span>
-                                                    {{ step.hebrew }}
-                                                </h5>
-                                                <p class="text-[10px] text-gray-400 mt-0.5">{{ step.name }}</p>
-                                            </div>
-                                            <span class="px-1.5 py-0.5 text-[9px] bg-gray-100 text-gray-600 rounded flex-shrink-0">
-                                                {{ step.reps }} חזרות
-                                            </span>
-                                        </div>
-                                        <div class="mt-2.5 pt-2 border-t border-gray-50 flex justify-between items-center text-[10px]">
-                                            <span class="text-gray-400">מנוחה: {{ step.rest }} ש'</span>
-                                            <div class="flex items-center gap-1.5">
-                                                <button onclick="toggleStageComplete('{{ skill_key }}', {{ loop.index0 }})"
-                                                        class="stage-conquer-btn px-2.5 py-1 bg-green-100 hover:bg-green-200 text-green-700 font-bold rounded-lg transition-all active:scale-95 flex items-center gap-1 focus:outline-none"
-                                                        title="סמן שכבשת את השלב">
-                                                    <i class="fas fa-flag-checkered text-[8px]"></i>
-                                                    <span class="stage-conquer-label">כבשתי!</span>
-                                                </button>
-                                                <button onclick="addSkillProgression('{{ step.name }}', '{{ step.hebrew }}', {{ step.reps }}, {{ step.rest }})"
-                                                        class="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold rounded-lg transition-all active:scale-95 flex items-center gap-1 focus:outline-none">
-                                                    <i class="fas fa-plus text-[8px]"></i>
-                                                    אימון
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                {% endfor %}
-                            </div>
                         </div>
                     </div>
                     {% endfor %}
+                {% else %}
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-info-circle text-2xl mb-2 text-gray-300"></i>
+                        <p class="text-sm">לא נמצאו אימונים קודמים.</p>
+                    </div>
+                {% endif %}
+            </div>
+
+            <div id="sidebar-skills-content" class="hidden space-y-4 max-h-[600px] overflow-y-auto pr-1">
+                <div class="mb-4">
+                    <label for="skill-select" class="block text-xs font-bold text-gray-500 mb-1.5">בחר מיומנות יעד</label>
+                    <select id="skill-select" onchange="displaySkillData(this.value)"
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-purple-500 focus:outline-none cursor-pointer font-bold">
+                        {% for skill_key, skill in skills_guide.items() %}
+                        <option value="{{ skill_key }}"{% if skill_key == default_path %} selected{% endif %}>{{ skill.title }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
+
+                {% for skill_key, skill in skills_guide.items() %}
+                {% set path = paths_by_key[skill_key] %}
+                <div id="skill-details-{{ skill_key }}" class="skill-detail-block hidden space-y-4">
+                    <div class="p-3 bg-purple-50/50 border border-purple-100 rounded-xl space-y-1.5 text-xs text-purple-900">
+                        <div class="flex items-center gap-1.5"><i class="fas fa-star text-[10px]"></i><span class="font-bold">{{ skill.difficulty }}</span></div>
+                        <div class="flex items-center gap-1.5"><i class="fas fa-dumbbell text-[10px]"></i><span class="font-medium">{{ skill.muscles }}</span></div>
+                        <div class="flex items-center gap-1.5"><i class="fas fa-clock text-[10px]"></i><span class="font-medium">{{ skill.warmup }}</span></div>
+                    </div>
+
+                    <div class="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <button type="button" onclick="toggleCuesAccordion('{{ skill_key }}')"
+                                class="w-full bg-gray-50 hover:bg-gray-100/70 p-3 text-right text-xs font-bold text-gray-700 flex justify-between items-center transition-all focus:outline-none">
+                            <span>דגשים ביומכניים ומפתח להצלחה</span>
+                            <i id="accordion-icon-{{ skill_key }}" class="fas fa-chevron-down text-gray-400 text-[10px] transition-transform"></i>
+                        </button>
+                        <div id="accordion-content-{{ skill_key }}" class="hidden p-3.5 bg-white text-xs text-gray-600 space-y-2 leading-relaxed border-t border-gray-150">
+                            {% for cue in skill.cues %}
+                            <div class="flex items-start gap-2">
+                                <span class="text-purple-600 font-extrabold mt-0.5">•</span>
+                                <span>{{ cue }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center pr-1">
+                            <h4 class="text-xs font-bold text-gray-500">מפת השלבים במסע</h4>
+                            <span class="text-[10px] font-black text-purple-600 digital-timer">{{ path.conquered_count }}/{{ path.total }} תחנות</span>
+                        </div>
+                        <div class="h-2 bg-gray-100 rounded-full overflow-hidden mx-1">
+                            <div class="h-full bg-gradient-to-l from-purple-500 to-indigo-500 rounded-full" style="width: {{ (path.conquered_count * 100 // path.total) }}%;"></div>
+                        </div>
+                        <div class="relative border-r-2 border-gray-200 mr-3 pr-5 space-y-4">
+                            {% for st in path.stations %}
+                            {% set stage_class = 'stage-completed' if st.state == 'conquered' else ('stage-current' if st.state == 'current' else 'stage-locked') %}
+                            <div class="stage-node relative {{ stage_class }}">
+                                <div class="stage-dot absolute right-[-33px] top-2 w-6 h-6 rounded-full border-2 border-white shadow flex items-center justify-center text-[10px] font-black text-white">
+                                    {% if st.state == 'conquered' %}<i class="fas fa-check"></i>{% elif st.state == 'current' %}{{ st.number }}{% else %}<i class="fas fa-lock text-[8px]"></i>{% endif %}
+                                </div>
+                                <div class="stage-card p-3 bg-white border border-gray-200 rounded-xl shadow-sm transition-all text-right">
+                                    <div class="flex justify-between items-start gap-2">
+                                        <div>
+                                            <h5 class="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                                {% if st.state == 'conquered' %}<i class="fas fa-star text-yellow-500 text-[10px]"></i>{% elif st.state == 'current' %}<i class="fas fa-location-arrow text-purple-500 text-[10px]"></i>{% endif %}
+                                                {{ st.hebrew }}
+                                            </h5>
+                                            <p class="text-[10px] text-gray-400 mt-0.5">{{ st.name }}</p>
+                                        </div>
+                                        <span class="px-1.5 py-0.5 text-[9px] bg-gray-100 text-gray-600 rounded flex-shrink-0">{{ st.rep_label }} חזרות</span>
+                                    </div>
+                                    <div class="mt-2.5 pt-2 border-t border-gray-50 flex justify-between items-center text-[10px]">
+                                        <span class="text-gray-400">
+                                            {% if st.state == 'conquered' %}נכבש{% else %}{{ st.in_range }}/{{ sessions_to_conquer }} אימונים לכיבוש{% endif %}
+                                            · מנוחה {{ st.rest }} ש'
+                                        </span>
+                                        <button type="button" data-add-station="{{ skill_key }}" data-stage="{{ st.index }}"
+                                                class="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold rounded-lg transition-all active:scale-95 flex items-center gap-1 focus:outline-none">
+                                            <i class="fas fa-plus text-[8px]"></i>
+                                            אימון
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </aside>
+</div>
+
+<!-- ================= ARENA (full-screen workout: set / rest / reward) ================= -->
+<div id="arena" class="arena" data-phase="set" role="dialog" aria-modal="true" aria-label="אימון פעיל" tabindex="-1" dir="rtl" hidden>
+    <div class="arena-col">
+
+        <!-- SET (1a · 2) -->
+        <section class="arena-phase arena-set" data-phase-panel="set" data-state="active">
+            <div class="arena-status">
+                <span class="arena-status-meta"><span id="arena-ex-count"></span> · <span id="workout-timer" class="wk-num" dir="ltr">00:00</span></span>
+                <span class="arena-xp" aria-label="XP באימון"><span id="session-score" class="arena-xp-value" dir="ltr">0</span><span aria-hidden="true">⭐</span></span>
+            </div>
+            <div id="arena-rail" class="arena-rail" aria-hidden="true"></div>
+
+            <div class="arena-stage">
+                <div id="arena-set-label" class="arena-set-label"></div>
+                <div id="arena-ring" class="arena-ring" style="--pct: 0%">
+                    <div class="arena-ring-disc">
+                        <span id="arena-reps" class="arena-reps" dir="ltr">0</span>
+                        <span id="arena-reps-label" class="arena-reps-label">חזרות</span>
+                    </div>
+                    <span id="arena-set-xp" class="arena-ring-pill" dir="ltr"></span>
+                </div>
+                <div id="arena-ex-name" class="arena-ex-name"></div>
+                <div id="arena-compare" class="arena-compare" hidden></div>
+                <div class="arena-steppers" data-when="active">
+                    <button type="button" class="arena-step" onclick="arenaStepReps(-1)" aria-label="הפחת חזרה">−</button>
+                    <span class="arena-step-label">כוונון חזרות</span>
+                    <button type="button" class="arena-step" onclick="arenaStepReps(1)" aria-label="הוסף חזרה">+</button>
+                </div>
+                <div class="arena-empty" data-when="empty">
+                    <div class="wk-empty-tile" aria-hidden="true">🏋️</div>
+                    <h2>אימון חופשי</h2>
+                    <p>הוסף תרגיל ראשון — כל תרגיל נפתח עם 3 סטים שאפשר לשנות.</p>
+                </div>
+            </div>
+
+            <div class="arena-foot">
+                <div id="combo-indicator" class="arena-combo" hidden><span aria-hidden="true">🔥</span><span>קומבו ×<span id="combo-count" class="wk-num">0</span></span></div>
+                <button type="button" id="arena-done-btn" class="arena-primary" data-when="active" onclick="completeCurrentSet()">
+                    <span aria-hidden="true">✓</span><span>סיימתי את הסט</span>
+                </button>
+                <button type="button" id="finish-workout-btn" class="arena-primary" data-when="complete" onclick="finishWorkout()">
+                    <span aria-hidden="true">🏁</span><span>סיום ושמירה</span>
+                </button>
+                <button type="button" class="arena-primary is-light" data-when="empty" onclick="openExerciseModal()">
+                    <span aria-hidden="true">+</span><span>הוסף תרגיל</span>
+                </button>
+                <div class="arena-secondary-row">
+                    <button type="button" data-when="active" onclick="skipCurrentSet()">דילוג על הסט</button>
+                    <button type="button" data-when="complete" onclick="openExerciseModal()">הוסף תרגיל</button>
+                    <button type="button" data-when="empty" onclick="cancelWorkout()">ביטול</button>
+                    <button type="button" data-when="active complete" onclick="openArenaSheet(this)">כל התרגילים</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- REST (1a · 3) -->
+        <section class="arena-phase arena-rest" data-phase-panel="rest">
+            <div class="rest-top">
+                <div class="rest-eyebrow">מנוחה</div>
+                <div id="rest-ring" class="rest-ring" style="--pct: 100%" role="timer" aria-live="off">
+                    <div class="rest-ring-disc">
+                        <span id="timer-banner-clock" class="rest-clock" dir="ltr">0:00</span>
+                        <span id="rest-ring-label" class="rest-ring-label">עד הסט הבא</span>
+                    </div>
+                </div>
+                <div class="rest-controls">
+                    <button type="button" onclick="adjustRestTimer(-10)" dir="ltr">−10s</button>
+                    <button type="button" onclick="adjustRestTimer(10)" dir="ltr">+10s</button>
+                    <button type="button" class="rest-ready" onclick="skipRestTimer()">אני מוכן</button>
+                </div>
+                <div id="rest-combo-line" class="rest-combo-line" hidden>שמור על הקומבו — התחל את הסט הבא תוך 90 שניות</div>
+            </div>
+
+            <div class="rest-foot">
+                <div class="rest-card">
+                    <div class="rest-card-eyebrow">הבא בתור</div>
+                    <div class="rest-next">
+                        <span id="rest-next-tile" class="rest-next-tile" aria-hidden="true"></span>
+                        <div class="rest-next-text">
+                            <div id="rest-next-title" class="rest-next-title"></div>
+                            <div id="rest-next-sub" class="rest-next-sub"></div>
+                        </div>
+                        <span id="rest-next-xp" class="rest-next-xp" dir="ltr"></span>
+                    </div>
+                </div>
+                <div class="rest-card rest-coach">
+                    <div class="rest-card-eyebrow">מהמאמן</div>
+                    <p id="rest-coach-tip"></p>
+                </div>
+                <div class="rest-strip">
+                    <span>האימון עד עכשיו</span>
+                    <span class="rest-strip-values">
+                        <span id="rest-strip-xp" class="rest-strip-xp" dir="ltr"></span>
+                        <span id="rest-strip-sets" class="rest-strip-sets"></span>
+                    </span>
+                </div>
+            </div>
+        </section>
+
+        <!-- REWARD (1a · 4) -->
+        <section class="arena-phase arena-reward" data-phase-panel="reward">
+            <div class="reward-confetti" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+            <div class="reward-head">
+                <div class="reward-trophy" aria-hidden="true">🏆</div>
+                <h2 class="reward-title">האימון הושלם</h2>
+                <div id="reward-summary" class="reward-summary"></div>
+                <div class="reward-stars" id="victory-stars">
+                    <span class="reward-star" aria-hidden="true">⭐</span>
+                    <span class="reward-star" aria-hidden="true">⭐</span>
+                    <span class="reward-star" aria-hidden="true">⭐</span>
+                </div>
+                <div id="reward-star-hints" class="reward-hints"></div>
+            </div>
+
+            <div class="reward-foot">
+                <div class="reward-xp-card">
+                    <div class="reward-xp-row">
+                        <span id="victory-xp" class="reward-xp" dir="ltr">+0 XP</span>
+                        <span id="reward-total" class="reward-total"></span>
+                    </div>
+                    <div class="reward-level-line">
+                        <span id="victory-level"></span>
+                        <span id="victory-xp-label" class="wk-num" dir="ltr"></span>
+                    </div>
+                    <div class="reward-bar"><span id="victory-xp-bar" style="width: 0%"></span></div>
+                    <div id="reward-next-rank" class="reward-next-rank"></div>
+                </div>
+                <div id="victory-levelup" class="reward-levelup" hidden></div>
+                <div id="victory-achievements" class="reward-rows" hidden></div>
+                <div id="reward-stations" class="reward-rows" hidden></div>
+                <div id="reward-records" class="reward-rows" hidden></div>
+                <button type="button" id="reward-home-btn" class="reward-home" onclick="closeVictoryModal()">חזרה למפת המסע</button>
+            </div>
+        </section>
+
+        <!-- LAYER: personal-record toast (2d) -->
+        <div id="arena-pr-layer" class="arena-layer" hidden>
+            <div class="arena-scrim"></div>
+            <button type="button" class="arena-pr" id="arena-pr" aria-live="assertive">
+                <span class="arena-pr-tile" aria-hidden="true">📈</span>
+                <span class="arena-pr-text">
+                    <span class="arena-pr-title">שיא אישי חדש</span>
+                    <span id="arena-pr-detail" class="arena-pr-detail"></span>
+                </span>
+                <span id="arena-pr-delta" class="arena-pr-delta" dir="ltr"></span>
+            </button>
+        </div>
+
+        <!-- LAYER: exercise sheet (2d) -->
+        <div id="arena-sheet-layer" class="arena-layer" hidden>
+            <div class="arena-scrim" data-sheet-close></div>
+            <div id="arena-sheet" class="arena-sheet" role="dialog" aria-modal="true" aria-labelledby="arena-sheet-title" tabindex="-1">
+                <div class="arena-sheet-handle" data-sheet-handle aria-hidden="true"><span></span></div>
+                <div class="arena-sheet-head">
+                    <h3 id="arena-sheet-title">האימון של היום</h3>
+                    <button type="button" class="arena-sheet-close" data-sheet-close>סגור</button>
+                </div>
+                <div class="arena-sheet-scroll">
+                    <div id="arena-sheet-list" class="arena-sheet-list"></div>
+                    <details class="arena-sheet-meta">
+                        <summary>פרטי האימון <span aria-hidden="true">⌄</span></summary>
+                        <div class="arena-sheet-fields">
+                            <label>
+                                <span>תאריך</span>
+                                <input type="date" id="workout-date" value="">
+                            </label>
+                            <label>
+                                <span>סוג אימון</span>
+                                <select id="workout-type">
+                                    {% for value, label in type_labels.items() %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </label>
+                        </div>
+                    </details>
+                </div>
+                <div class="arena-sheet-actions">
+                    <button type="button" class="arena-btn" onclick="openExerciseModal()">הוסף תרגיל</button>
+                    <button type="button" id="arena-finish-early" class="arena-btn is-danger" onclick="finishEarly()">סיום מוקדם</button>
+                </div>
+                <button type="button" class="arena-sheet-cancel" onclick="cancelWorkout()">ביטול האימון</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- ================= MODAL: ADD EXERCISE ================= -->
-<div id="exercise-modal" class="modal-overlay" onclick="closeExerciseModalOnBackdrop(event)">
-    <div class="modal-content w-full max-w-xl mx-4 rounded-2xl border border-gray-200 bg-white shadow-2xl p-6 overflow-hidden flex flex-col max-h-[85vh]">
-        <!-- Modal Header -->
-        <div class="flex justify-between items-center pb-4 border-b border-gray-200">
-            <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <i class="fas fa-dumbbell text-purple-600"></i>
-                בחר תרגיל לאימון
-            </h3>
-            <button onclick="closeExerciseModal()" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 transition-colors">
-                <i class="fas fa-times"></i>
-            </button>
+<!-- ================= EXERCISE PICKER ================= -->
+<div id="exercise-modal" class="modal-overlay wk-picker" onclick="closeExerciseModalOnBackdrop(event)" dir="rtl">
+    <div class="modal-content wk-picker-card" role="dialog" aria-modal="true" aria-labelledby="exercise-modal-title">
+        <div class="wk-picker-head">
+            <h3 id="exercise-modal-title">בחר תרגיל לאימון</h3>
+            <button type="button" onclick="closeExerciseModal()" class="wk-picker-close" aria-label="סגירה">✕</button>
         </div>
-
-        <!-- Modal Body (Scrollable) -->
-        <div class="overflow-y-auto py-4 flex-1 space-y-6">
-            <!-- Tabs / Categories -->
+        <div class="wk-picker-body">
             {% for category, exercises in default_exercises.items() %}
             <div>
-                <h4 class="text-sm font-bold text-gray-500 mb-2.5 border-r-2 border-purple-500 pr-2">{{ category }}</h4>
-                <div class="grid grid-cols-2 gap-2">
+                <h4 class="wk-picker-group">{{ category }}</h4>
+                <div class="wk-picker-grid">
                     {% for ex in exercises %}
-                    <button onclick="addExercise('{{ ex.name }}')" 
-                            class="text-right p-3 bg-gray-50 hover:bg-purple-50 hover:text-purple-700 border border-gray-200 hover:border-purple-300 rounded-xl transition-all font-medium text-sm text-gray-700 flex justify-between items-center group active:scale-[0.98]">
+                    <button type="button" class="wk-picker-item" data-add-exercise="{{ ex.name }}">
                         <span>{{ ex.hebrew }}</span>
-                        <span class="text-xs text-gray-400 font-normal group-hover:text-purple-500">{{ ex.name }}</span>
+                        <span class="wk-picker-en" dir="ltr">{{ ex.name }}</span>
                     </button>
                     {% endfor %}
                 </div>
             </div>
             {% endfor %}
-
-            <!-- Custom Exercise Form -->
-            <div class="pt-4 border-t border-gray-200">
-                <h4 class="text-sm font-bold text-gray-500 mb-2">תרגיל מותאם אישית</h4>
-                <div class="flex gap-2">
-                    <input type="text" id="custom-exercise-name" 
-                           class="flex-1 border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none" 
-                           placeholder="הקלד שם תרגיל מותאם אישית...">
-                    <button onclick="addCustomExercise()"
-                            class="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-sm transition-all active:scale-95">
-                        הוסף
-                    </button>
+            <div class="wk-picker-custom">
+                <h4 class="wk-picker-group">תרגיל מותאם אישית</h4>
+                <div class="wk-picker-custom-row">
+                    <input type="text" id="custom-exercise-name" placeholder="הקלד שם תרגיל..." enterkeyhint="done">
+                    <button type="button" onclick="addCustomExercise()">הוסף</button>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- ================= STICKY TIMER BANNER ================= -->
-<div id="rest-timer-banner" class="fixed bottom-0 left-0 right-0 z-[400] bg-gray-900/95 text-white border-t border-gray-800 shadow-2xl pt-3 px-4 translate-y-full transition-transform duration-300 ease-out">
-    <!-- Countdown progress rail -->
-    <div class="absolute top-0 left-0 right-0 h-1 bg-white/10 overflow-hidden">
-        <div id="timer-banner-progress" class="h-full bg-gradient-to-l from-purple-400 to-indigo-400" style="width: 0%; transition: width 0.25s linear;"></div>
-    </div>
-    <div class="max-w-xl mx-auto flex items-center justify-between gap-3">
-        <!-- Timer Display -->
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-purple-600/30 text-purple-400 rounded-full flex items-center justify-center text-lg flex-shrink-0" id="timer-banner-icon">
-                <i class="fas fa-hourglass-half animate-spin-slow"></i>
-            </div>
-            <div>
-                <p class="text-xs text-gray-400 leading-none">זמן מנוחה</p>
-                <div class="text-2xl font-black digital-timer mt-0.5" id="timer-banner-clock">00:00</div>
-            </div>
-        </div>
-
-        <!-- Timer Controls — min 44px touch targets -->
-        <div class="flex items-center gap-2">
-            <button onclick="adjustRestTimer(-10)" class="w-11 h-11 border border-gray-700 bg-gray-800 hover:bg-gray-700 active:scale-90 text-sm font-bold rounded-xl transition-all">
-                -10s
-            </button>
-            <button onclick="adjustRestTimer(10)" class="w-11 h-11 border border-gray-700 bg-gray-800 hover:bg-gray-700 active:scale-90 text-sm font-bold rounded-xl transition-all">
-                +10s
-            </button>
-            <button onclick="skipRestTimer()" class="px-4 h-11 bg-purple-600 hover:bg-purple-700 active:scale-95 text-sm font-bold rounded-xl transition-all">
-                דילוג
-            </button>
-        </div>
-    </div>
-    <!-- Safe area spacer for iPhone X+ home bar -->
-    <div style="height: env(safe-area-inset-bottom, 0px);"></div>
-</div>
-
-<!-- ================= VICTORY MODAL (Workout complete rewards) ================= -->
-<div id="victory-modal" class="fixed inset-0 z-[600] bg-gray-950/85 items-center justify-center p-4">
-    <div class="victory-card w-full max-w-md bg-gradient-to-b from-gray-900 via-purple-950 to-indigo-950 border border-purple-700/50 rounded-3xl shadow-2xl p-6 sm:p-8 text-center text-white relative overflow-hidden">
-        <!-- Glow decoration -->
-        <div class="absolute -top-20 left-1/2 -translate-x-1/2 w-64 h-64 bg-yellow-400/10 rounded-full blur-3xl pointer-events-none"></div>
-
-        <!-- Trophy -->
-        <div class="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center text-4xl text-white shadow-lg level-badge mb-3 relative">
-            <i class="fas fa-trophy"></i>
-        </div>
-        <h2 class="text-2xl font-black mb-1">אימון הושלם! 🎉</h2>
-        <p class="text-sm text-purple-300 mb-4">כל הכבוד, לוחם. הנקודות נזקפו לזכותך.</p>
-
-        <!-- Stars -->
-        <div class="flex justify-center gap-3 text-4xl mb-5" id="victory-stars">
-            <i class="victory-star fas fa-star text-yellow-400" style="animation-delay: 0.2s;"></i>
-            <i class="victory-star fas fa-star text-yellow-400" style="animation-delay: 0.5s;"></i>
-            <i class="victory-star fas fa-star text-yellow-400" style="animation-delay: 0.8s;"></i>
-        </div>
-
-        <!-- XP earned counter -->
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-4 mb-4">
-            <div class="text-4xl font-black digital-timer text-yellow-400">
-                +<span id="victory-xp">0</span> XP
-            </div>
-            <div class="mt-3">
-                <div class="flex justify-between text-[11px] text-purple-300 mb-1">
-                    <span>שלב <span id="victory-level">1</span></span>
-                    <span id="victory-xp-label"></span>
-                </div>
-                <div class="h-3 bg-white/10 rounded-full overflow-hidden">
-                    <div id="victory-xp-bar" class="xp-bar-fill h-full bg-gradient-to-l from-yellow-400 to-amber-500 rounded-full" style="width: 0%;"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Level up banner (hidden unless leveled up) -->
-        <div id="victory-levelup" class="hidden levelup-banner bg-gradient-to-l from-yellow-500 to-amber-500 text-gray-900 rounded-2xl px-4 py-3 mb-4 font-black text-lg">
-            <i class="fas fa-angles-up ml-1"></i>
-            עלית שלב! ברוך הבא לשלב <span id="victory-new-level"></span>
-        </div>
-
-        <!-- New achievements (hidden unless unlocked) -->
-        <div id="victory-achievements" class="hidden space-y-2 mb-4 text-right"></div>
-
-        <button onclick="closeVictoryModal()"
-                class="w-full py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 font-black text-lg rounded-2xl shadow-lg transition-all active:scale-95">
-            <i class="fas fa-check ml-1"></i>
-            מעולה, נתראה באימון הבא!
-        </button>
-    </div>
-</div>
-
-<!-- Scripts -->
-<script src="/static/js/workout.js" defer></script>
+<script type="application/json" id="workout-data">{{ client_data|tojson }}</script>
+<script src="/static/js/workout.js?v=20260917-arena" defer></script>
 {% endblock %}

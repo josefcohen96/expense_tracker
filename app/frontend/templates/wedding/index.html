@@ -2,10 +2,79 @@
 {% block wedding_title %}דשבורד חתונה{% endblock %}
 
 {% block wedding_content %}
+{% set cd = countdown %}
+<!-- Mobile: countdown hero + next milestone + mini timeline (< lg) -->
+<div class="wh lg:hidden" dir="rtl">
+    {% if cd.days_left is none %}
+    <button type="button" class="wh-cta" onclick="setWeddingDate()">
+        <span class="wh-cta-icon" aria-hidden="true">💍</span>
+        <span class="wh-cta-text">הגדירו תאריך כדי לראות לו״ז</span>
+        <span aria-hidden="true">←</span>
+    </button>
+    {% elif cd.days_left >= 0 %}
+    <div class="wh-hero">
+        <div class="wh-hero-row">
+            <span class="wh-hero-title">החתונה שלנו</span>
+            <span class="wh-hero-date"><span dir="ltr">{{ cd.date_label }}</span> · {{ cd.weekday }}</span>
+        </div>
+        <div class="wh-hero-body">
+            <div class="wh-ring" style="--pct: {{ cd.pct }}%" role="img"
+                 aria-label="{{ cd.days_left }} ימים לחתונה, {{ cd.pct }}% מהמשימות הושלמו">
+                <div class="wh-ring-core">
+                    <span class="wh-ring-days" dir="ltr">{{ cd.days_left }}</span>
+                    <span class="wh-ring-label">{{ 'היום!' if cd.days_left == 0 else 'ימים' }}</span>
+                </div>
+            </div>
+            <div class="wh-hero-text">
+                <div class="wh-hero-weeks">{{ cd.weeks_label if cd.days_left else 'היום מתחתנים 🎉' }}</div>
+                <div class="wh-hero-lines">
+                    {% if cd.total %}<div>{{ cd.pct }}% מהמשימות הושלמו</div>{% endif %}
+                    {% if vendor_progress.total %}<div>{{ vendor_progress.chosen }} מתוך {{ vendor_progress.total }} ספקים חתומים</div>{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="wh-cards">
+        {% if next_milestone %}
+        {% set nm = next_milestone %}
+        {% set urgent = nm.status == 'overdue' or (nm.days_until is not none and nm.days_until <= 7) %}
+        <a href="/wedding/milestones" class="wh-card wh-next">
+            <div class="wh-eyebrow">אבן הדרך הבאה</div>
+            <div class="wh-next-title">{{ nm.title }}</div>
+            <div class="wh-next-meta">
+                <span class="wh-pill{% if not urgent %} is-calm{% endif %}">{{ nm.when_label }}</span>
+                <span class="wh-next-when"><span dir="ltr">{{ nm.date_label }}</span> · {{ next_milestone_offset }}</span>
+            </div>
+        </a>
+        {% endif %}
+
+        {% if mini_timeline %}
+        <div class="wh-card">
+            <div class="wh-card-head">
+                <span class="wh-card-title">ציר הזמן</span>
+                <a href="/wedding/milestones" class="wh-link">הכל ←</a>
+            </div>
+            <ul class="wh-timeline">
+                {% for m in mini_timeline %}
+                {% set state = 'done' if m.status == 'done' else ('current' if m.status in ['next', 'overdue'] else 'future') %}
+                <li class="wh-tl is-{{ state }}">
+                    <span class="wh-tl-dot" aria-hidden="true"></span>
+                    <span class="wh-tl-label">{{ m.title }}</span>
+                    <span class="wh-tl-offset" dir="ltr">{{ m.offset_short }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
 <div class="space-y-6" dir="rtl">
 
     <!-- Header -->
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="hidden lg:flex flex-wrap items-center justify-between gap-3">
         <h1 class="text-xl sm:text-2xl font-bold text-gray-900">תכנון החתונה שלנו 💍</h1>
         {% if wedding_date %}
         <div class="bg-rose-50 border border-rose-200 rounded-lg px-4 py-2 text-rose-700 font-medium text-sm">
@@ -115,8 +184,8 @@
     </div>
     {% endif %}
 
-    <!-- Quick nav -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <!-- Quick nav (desktop; the section tabs cover it on mobile) -->
+    <div class="hidden lg:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <a href="/wedding/vendors"
            class="bg-white rounded-xl shadow p-5 hover:shadow-md transition-shadow flex items-center gap-3">
             <div class="w-11 h-11 bg-blue-100 rounded-full flex items-center justify-center text-xl flex-shrink-0">🏢</div>
@@ -153,7 +222,7 @@
 </div>
 
 <!-- Set wedding date modal -->
-<div id="date-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center" dir="rtl"
+<div id="date-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 max-lg:z-[500] flex items-center justify-center" dir="rtl"
      role="dialog" aria-modal="true" aria-labelledby="date-modal-title" onclick="if(event.target===this)closeDateModal()">
     <div class="bg-white rounded-xl shadow-xl p-5 sm:p-6 w-full max-w-sm mx-4">
         <h3 id="date-modal-title" class="text-lg font-bold mb-4">קביעת תאריך חתונה</h3>

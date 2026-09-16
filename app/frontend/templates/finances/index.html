@@ -2,11 +2,73 @@
 
 {% block finances_title %}לוח בקרה{% endblock %}
 
-{% block finances_content %}
-<div class="space-y-5">
+{% block head %}
+<style>
+  /* Mobile סקירה (< lg). Every rule is scoped to fx- classes that only exist inside the lg:hidden block. */
+  .fx-screen { display: flex; flex-direction: column; gap: 12px; }
+  .fx-months {
+    display: flex; gap: 7px; overflow-x: auto; overscroll-behavior-x: contain;
+    margin: -7px -16px; padding: 7px 16px;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .fx-months::-webkit-scrollbar { display: none; }
+  .fx-chip {
+    position: relative; flex: none; display: inline-flex; align-items: center;
+    height: 30px; padding: 0 13px; border-radius: 999px;
+    background: #fff; border: 1px solid #e5e7eb; color: #4b5563;
+    font: 500 11px/1 var(--font-primary); white-space: nowrap; text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .fx-chip::after { content: ""; position: absolute; inset: -8px -3px; }
+  .fx-chip.is-active { background: #2563eb; border-color: #2563eb; color: #fff; font-weight: 600; }
+  .fx-chip:active { opacity: .8; }
+  .fx-picker { position: relative; flex: none; display: inline-flex; }
+  .fx-chip-cal { padding: 0 11px; color: #6b7280; cursor: pointer; }
+  .fx-chip-cal::after { inset: -8px -4px; }
+  .fx-month-input {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0; pointer-events: none; border: 0; padding: 0;
+  }
+  .fx-card { background: #fff; border-radius: 18px; box-shadow: 0 1px 3px rgba(17,24,39,.07); }
+  .fx-balance { padding: 18px; }
+  .fx-balance-label { font: 500 12px var(--font-primary); color: #6b7280; }
+  .fx-balance-value { font: 700 38px/1.1 var(--font-mono); color: #111827; margin-top: 4px; text-align: left; }
+  .fx-balance-value.is-negative { color: #dc2626; }
+  .fx-stack { display: flex; height: 8px; margin-top: 14px; border-radius: 999px; background: #f3f4f6; overflow: hidden; }
+  .fx-stack > span { display: block; height: 100%; }
+  .fx-stats { display: flex; justify-content: space-between; margin-top: 12px; }
+  .fx-stat-label { font: 400 10px var(--font-primary); color: #6b7280; }
+  .fx-stat-value { font: 600 15px var(--font-mono); text-align: right; }
+  .fx-delta { font: 500 10px var(--font-primary); }
+  .fx-where { padding: 16px 18px; }
+  .fx-card-head, .fx-recent-head { display: flex; align-items: center; justify-content: space-between; }
+  .fx-card-head { margin-bottom: 12px; }
+  .fx-recent-head { padding: 0 2px; margin-bottom: 8px; }
+  .fx-h { font: 700 13px var(--font-heading); color: #111827; margin: 0; }
+  .fx-link { position: relative; font: 600 11px var(--font-primary); color: #2563eb; text-decoration: none; white-space: nowrap; }
+  .fx-link::after { content: ""; position: absolute; inset: -16px -8px; }
+  .fx-cats { display: flex; flex-direction: column; gap: 11px; }
+  .fx-cat-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+  .fx-cat-name { font: 500 12px var(--font-primary); color: #374151; }
+  .fx-cat-amount { font: 600 12px var(--font-mono); color: #111827; }
+  .fx-track { height: 6px; border-radius: 999px; background: #f3f4f6; }
+  .fx-fill { height: 6px; border-radius: 999px; }
+  .fx-list { margin: 0 -16px; padding: 0; list-style: none; background: #fff; }
+  .fx-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; }
+  .fx-row + .fx-row { border-top: 1px solid #f9fafb; }
+  .fx-row-text { min-width: 0; flex: 1; }
+  .fx-row-name { font: 500 13px var(--font-primary); color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fx-row-meta { font: 400 11px var(--font-primary); color: #9ca3af; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fx-row-amount { flex: none; font: 600 15px var(--font-mono); }
+  .fx-empty { margin: 0; padding: 0 2px; font: 400 13px var(--font-primary); color: #9ca3af; }
+</style>
+{% endblock %}
 
-  <!-- ===== Page header + month filter ===== -->
-  <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 animate-sequence">
+{% block finances_content %}
+<div class="space-y-3 lg:space-y-5">
+
+  <!-- ===== Page header + month filter (desktop; mobile uses month chips) ===== -->
+  <div class="hidden lg:flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 animate-sequence">
     <div>
       <h1 class="text-xl sm:text-2xl font-bold heading-accent">לוח בקרה</h1>
       <p class="text-gray-500 text-xs sm:text-sm mt-1">סקירת ההכנסות וההוצאות שלך לחודש הנבחר</p>
@@ -35,7 +97,7 @@
   </div>
 
   <!-- ===== Stat cards — 2-col on mobile, 4-col on desktop ===== -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+  <div class="hidden lg:grid grid-cols-2 md:grid-cols-4 gap-3">
 
     <!-- Expenses -->
     <div class="stat-card stat-expense animate-sequence">
@@ -104,8 +166,97 @@
     </div>
   </div>
 
+  <!-- ===== Mobile סקירה (< lg) ===== -->
+  <div class="lg:hidden">
+    <div class="fx-screen">
+
+      <!-- Month chips -->
+      <nav class="fx-months" aria-label="חודש">
+        {% for chip in mobile.month_chips %}
+        <a href="{{ chip.href }}" class="fx-chip{% if chip.active %} is-active{% endif %}"{% if chip.active %} aria-current="page"{% endif %}>{{ chip.label }}</a>
+        {% endfor %}
+        <span class="fx-picker">
+          <button type="button" class="fx-chip fx-chip-cal" data-fx-month-picker aria-label="חודש אחר">📅</button>
+          <input type="month" class="fx-month-input" value="{{ selected_month }}" data-fx-href="/finances?month=" tabindex="-1" aria-hidden="true">
+        </span>
+      </nav>
+
+      <!-- Balance -->
+      {%- set fx_balance = balance | round(0) -%}
+      {%- set fx_deltas = mobile.deltas -%}
+      <section class="fx-card fx-balance">
+        <div class="fx-balance-label">נותר החודש</div>
+        <div class="fx-balance-value{% if fx_balance < 0 %} is-negative{% endif %}" dir="ltr">{% if fx_balance < 0 %}-{% endif %}₪{{ "{:,.0f}".format(fx_balance | abs) }}</div>
+        {% if mobile.balance_bar %}
+        <div class="fx-stack" aria-hidden="true">
+          <span style="width:{{ mobile.balance_bar.expenses }}%;background:#dc2626"></span>
+          <span style="width:{{ mobile.balance_bar.savings }}%;background:#0d9488"></span>
+        </div>
+        {% endif %}
+        <div class="fx-stats">
+          {% for label, value, color, delta in [
+              ('הוצאות', total_expenses, '#dc2626', fx_deltas.expenses),
+              ('הכנסות', total_income, '#16a34a', fx_deltas.income),
+              ('חיסכון', total_savings, '#0d9488', fx_deltas.savings),
+          ] %}
+          <div>
+            <div class="fx-stat-label">{{ label }}</div>
+            <div class="fx-stat-value" dir="ltr" style="color:{{ color }}">₪{{ "{:,.0f}".format(value) }}</div>
+            {% if delta %}<div class="fx-delta" style="color:{{ delta.color }}">{{ delta.text }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <!-- Where the money went -->
+      {% if mobile.where_money_went %}
+      <section class="fx-card fx-where">
+        <div class="fx-card-head">
+          <h2 class="fx-h">לאן הלך הכסף</h2>
+          <a href="/finances/statistics?month={{ selected_month }}" class="fx-link">מגמות ←</a>
+        </div>
+        <div class="fx-cats">
+          {% for c in mobile.where_money_went %}
+          <div>
+            <div class="fx-cat-row">
+              <span class="fx-cat-name">{{ c.name }}</span>
+              <span class="fx-cat-amount" dir="ltr">₪{{ "{:,.0f}".format(c.total) }}</span>
+            </div>
+            <div class="fx-track"><div class="fx-fill" style="width:{{ c.share }}%;background:{{ c.color }}"></div></div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
+      <!-- Recent -->
+      <section>
+        <div class="fx-recent-head">
+          <h2 class="fx-h">אחרונות</h2>
+          <a href="/finances/transactions" class="fx-link">הצג הכל ←</a>
+        </div>
+        {% if mobile.recent %}
+        <ul class="fx-list">
+          {% for r in mobile.recent %}
+          <li class="fx-row">
+            <div class="fx-row-text">
+              <div class="fx-row-name">{{ r.name }}</div>
+              {% if r.meta %}<div class="fx-row-meta">{{ r.meta }}</div>{% endif %}
+            </div>
+            <span class="fx-row-amount" dir="ltr" style="color:{{ '#16a34a' if r.is_income else '#dc2626' }}">{% if r.is_income %}+{% endif %}₪{{ "{:,.0f}".format(r.amount) }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="fx-empty">אין עסקאות החודש</p>
+        {% endif %}
+      </section>
+
+    </div>
+  </div>
+
   <!-- ===== Recent transactions ===== -->
-  <div class="panel animate-sequence">
+  <div class="panel animate-sequence hidden lg:block">
     <div class="panel-header justify-between">
       <span class="flex items-center gap-2.5">
         <i class="fas fa-clock-rotate-left"></i>עסקאות אחרונות
@@ -180,7 +331,7 @@
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
     <!-- Top categories -->
-    <div class="panel animate-sequence">
+    <div class="panel animate-sequence hidden lg:block">
       <div class="panel-header">
         <i class="fas fa-tags"></i>קטגוריות עיקריות ({{ selected_month or 'חודש נוכחי' }})
       </div>
@@ -222,4 +373,29 @@
 
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Mobile month chip "📅": open the native month picker, navigate on pick.
+  (function () {
+    document.querySelectorAll('[data-fx-month-picker]').forEach(function (button) {
+      var input = button.parentNode.querySelector('.fx-month-input');
+      if (!input) return;
+      button.addEventListener('click', function () {
+        try {
+          if (typeof input.showPicker === 'function') { input.showPicker(); return; }
+        } catch (err) { /* fall through to focus */ }
+        input.style.pointerEvents = 'auto';
+        input.focus();
+        input.click();
+      });
+      input.addEventListener('change', function () {
+        if (/^\d{4}-\d{2}$/.test(input.value)) {
+          window.location.href = input.getAttribute('data-fx-href') + encodeURIComponent(input.value);
+        }
+      });
+    });
+  })();
+</script>
 {% endblock %}

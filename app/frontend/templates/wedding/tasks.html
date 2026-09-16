@@ -26,7 +26,87 @@
     'low':    'bg-gray-100 text-gray-500'
 } %}
 
-<div dir="rtl">
+{% from "layout/_mobile_nav.html" import avatar %}
+{% macro task_row(t) -%}
+<div class="tb-row{% if t.completed %} is-done{% elif not t.person %} is-unassigned{% endif %}{% if t.urgency == 'overdue' %} is-overdue{% endif %}"
+     data-task-id="{{ t.id }}" data-owner="{{ t.person.name if t.person else '' }}"
+     data-open-group="{{ t.open_group }}" data-due="{{ t.due_date or '9999-12-31' }}"
+     data-task='{{ t | tojson }}'>
+    <div class="tb-swipe-bg" aria-hidden="true">✓ בוצע</div>
+    <div class="tb-row-inner">
+        <button type="button" class="tb-check" role="checkbox" aria-checked="{{ 'true' if t.completed else 'false' }}"
+                aria-label="בוצע: {{ t.title }}"><span class="tb-box" aria-hidden="true">✓</span></button>
+        <button type="button" class="tb-body" data-edit>
+            <span class="tb-title">{{ t.title }}</span>
+            <span class="tb-meta tb-meta-open">{{ [t.due_label, t.category_label] | select | join(' · ') }}</span>
+            <span class="tb-meta tb-meta-unassigned">אף אחד לא לקח את זה{% if t.due_label %} · {{ t.due_label }}{% endif %}</span>
+        </button>
+        <div class="tb-owner" data-owner-cell>
+            {% if t.person %}{{ avatar(t.person, 28) }}{% endif %}
+            {% for p in people %}
+            <button type="button" class="tb-claim" data-claim="{{ p.name }}"
+                    style="background:{{ p.tint }};color:{{ p.color }}" aria-label="{{ p.display }} לוקח/ת את המשימה">{{ p.initial }}</button>
+            {% endfor %}
+        </div>
+    </div>
+    <p class="tb-row-error" role="alert" hidden></p>
+</div>
+{%- endmacro %}
+
+<!-- Mobile: tasks grouped by urgency, filtered by owner (< lg) -->
+<div class="tb lg:hidden" id="task-board" dir="rtl" data-me="{{ me.name if me else '' }}">
+    <nav class="tb-filters" aria-label="סינון לפי אחראי">
+        {% if me %}
+        <button type="button" class="tb-filter is-active" data-filter="mine" aria-pressed="true">
+            שלי <span data-filter-count>{{ owner_counts[me.name] }}</span>{{ avatar(me, 20) }}
+        </button>
+        {% endif %}
+        {% for p in people if not me or p.name != me.name %}
+        <button type="button" class="tb-filter" data-filter="{{ p.name }}" aria-pressed="false">
+            {{ p.display }} <span data-filter-count>{{ owner_counts[p.name] }}</span>{{ avatar(p, 20) }}
+        </button>
+        {% endfor %}
+        <button type="button" class="tb-filter{% if not me %} is-active{% endif %}" data-filter="all" aria-pressed="{{ 'false' if me else 'true' }}">
+            הכל <span data-filter-count>{{ open_count }}</span>
+        </button>
+        <button type="button" class="tb-filter tb-filter-none" data-filter="none" aria-pressed="false"{% if not unassigned_count %} hidden{% endif %}>
+            <span data-filter-count>{{ unassigned_count }}</span> ללא
+        </button>
+    </nav>
+
+    {% for g in task_groups %}
+    <section class="tb-group" data-group="{{ g.key }}"{% if not g.tasks %} hidden{% endif %}>
+        <h2 class="tb-group-title" style="color:{{ g.color }}">{{ g.label }} · <span data-group-count>{{ g.tasks | length }}</span></h2>
+        <div class="tb-rows" data-rows>
+            {% for t in g.tasks %}{{ task_row(t) }}{% endfor %}
+        </div>
+        {% if g.key == 'done' %}
+        <button type="button" class="tb-more" data-show-more hidden></button>
+        {% endif %}
+    </section>
+    {% endfor %}
+
+    <p class="tb-empty" data-empty hidden>אין כאן משימות פתוחות.</p>
+    <button type="button" class="tb-add" data-open-quick-add="task"><span aria-hidden="true">+</span> הוסף משימה</button>
+
+    {% set assigned_total = owner_counts.values() | sum %}
+    <div class="tb-split" data-split{% if not assigned_total %} hidden{% endif %}>
+        <div class="tb-split-title">חלוקת העומס</div>
+        <div class="tb-split-bar">
+            {% for p in people %}
+            <div data-split-bar="{{ p.name }}" style="background:{{ p.color }};width:{{ (owner_counts[p.name] * 100 / assigned_total) if assigned_total else 0 }}%"></div>
+            {% endfor %}
+        </div>
+        <div class="tb-split-labels">
+            {% for p in people %}
+            <span style="color:{{ p.color }}">{{ p.display }} · <span data-split-count="{{ p.name }}">{{ owner_counts[p.name] }}</span></span>
+            {% endfor %}
+        </div>
+    </div>
+    <script type="application/json" id="task-people">{{ people | tojson }}</script>
+</div>
+
+<div class="hidden lg:block" dir="rtl">
 
     <!-- Header -->
     <div class="mb-6">
@@ -39,63 +119,6 @@
 
         <!-- Sidebar: Filters -->
         <aside class="w-full md:w-56 flex-shrink-0">
-            <!-- Mobile: collapsible filter (below md) -->
-            <div class="md:hidden">
-                <button onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.chevron').classList.toggle('rotate-180')"
-                        class="w-full bg-white rounded-xl shadow px-4 py-3 flex items-center justify-between mb-2">
-                    <div class="flex items-center gap-2">
-                        <span class="text-sm font-semibold text-gray-700">סינון ונתונים</span>
-                        {% if category_filter or show_completed == '1' %}
-                        <span class="w-2 h-2 rounded-full bg-rose-500"></span>
-                        {% endif %}
-                    </div>
-                    <svg class="chevron w-5 h-5 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                    </svg>
-                </button>
-                <div class="hidden space-y-3 mb-4">
-                    <form method="get" class="bg-white rounded-xl shadow p-4 space-y-4">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-600 mb-1">קטגוריה</label>
-                            <select name="category" class="border border-gray-200 rounded-lg px-3 py-2.5 text-base w-full bg-white">
-                                <option value="">הכל</option>
-                                {% for k, v in CATEGORY_LABELS.items() %}
-                                <option value="{{ k }}" {% if category_filter == k %}selected{% endif %}>{{ v }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <label class="flex items-center gap-3 cursor-pointer min-h-[44px]">
-                            <input type="checkbox" name="show_completed" value="1"
-                                   {% if show_completed == '1' %}checked{% endif %}
-                                   class="w-5 h-5 accent-rose-500 rounded">
-                            <span class="text-sm text-gray-600">הצג שהושלמו</span>
-                        </label>
-                        <div class="flex gap-2">
-                            <button type="submit" class="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-medium min-h-[44px]">סנן</button>
-                            {% if category_filter or show_completed == '1' %}
-                            <a href="/wedding/tasks" class="flex-1 text-center px-3 py-2.5 text-sm text-gray-500 hover:bg-gray-100 rounded-lg min-h-[44px] flex items-center justify-center">איפוס</a>
-                            {% endif %}
-                        </div>
-                    </form>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="bg-white rounded-xl shadow p-3 flex items-center gap-3">
-                            <div class="w-9 h-9 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 text-lg flex-shrink-0">📋</div>
-                            <div>
-                                <p class="text-lg font-bold text-gray-800">{{ total_open }}</p>
-                                <p class="text-xs text-gray-500">פתוחות</p>
-                            </div>
-                        </div>
-                        <div class="bg-white rounded-xl shadow p-3 flex items-center gap-3">
-                            <div class="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-lg flex-shrink-0">✅</div>
-                            <div>
-                                <p class="text-lg font-bold text-gray-800">{{ total_done }}</p>
-                                <p class="text-xs text-gray-500">הושלמו</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Desktop: always visible filter (md+) -->
             <div class="hidden md:block">
                 <form method="get" class="bg-white rounded-xl shadow p-4 space-y-4">
@@ -145,50 +168,9 @@
         <!-- Main: Task List -->
         <div class="flex-1 min-w-0 w-full">
             {% if tasks %}
-            <div class="space-y-2">
+            {#- pt-2: the first row used to follow a hidden mobile card and got space-y's margin. -#}
+            <div class="space-y-2 pt-2">
                 {% for task in tasks %}
-                <!-- Mobile task card (below md) -->
-                <div class="md:hidden bg-white rounded-xl shadow px-4 py-3.5 {% if task.completed %}opacity-60{% endif %}"
-                     id="task-m-{{ task.id }}">
-                    <div class="flex items-start gap-3">
-                        <button onclick="toggleTask({{ task.id }}, {{ task.completed }})"
-                                class="w-6 h-6 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors mt-0.5
-                                       {% if task.completed %}bg-green-500 border-green-500 text-white{% else %}border-gray-300 active:border-rose-400{% endif %}">
-                            {% if task.completed %}<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
-                            </svg>{% endif %}
-                        </button>
-                        <div class="flex-1 min-w-0">
-                            <span class="font-medium text-gray-900 text-sm {% if task.completed %}line-through text-gray-400{% endif %}">
-                                {{ task.title }}
-                            </span>
-                            <div class="flex flex-wrap gap-1.5 mt-2">
-                                <span class="text-xs px-2 py-0.5 rounded-full {{ PRIORITY_COLORS.get(task.priority, 'bg-gray-100 text-gray-500') }}">
-                                    {{ PRIORITY_LABELS.get(task.priority, task.priority) }}
-                                </span>
-                                {% if task.category %}
-                                <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
-                                    {{ CATEGORY_LABELS.get(task.category, task.category) }}
-                                </span>
-                                {% endif %}
-                                {% if task.due_date %}
-                                <span class="text-xs text-gray-400">📅 {{ task.due_date }}</span>
-                                {% endif %}
-                            </div>
-                            {% if task.notes %}
-                            <div class="text-xs text-gray-400 mt-1.5">{{ task.notes }}</div>
-                            {% endif %}
-                            <div class="flex gap-2 mt-2.5 border-t border-gray-100 pt-2.5">
-                                <button data-task='{{ task | tojson }}'
-                                        onclick="editTask(JSON.parse(this.dataset.task))"
-                                        class="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-xs font-medium min-h-[36px]">ערוך</button>
-                                <button onclick="deleteTask({{ task.id }})"
-                                        class="px-3 py-1.5 rounded-lg bg-red-50 text-red-500 text-xs font-medium min-h-[36px]">מחק</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Desktop task row -->
                 <div class="hidden md:flex bg-white rounded-xl shadow px-5 py-4 items-center gap-4 {% if task.completed %}opacity-60{% endif %} hover:shadow-md transition-shadow"
                      id="task-{{ task.id }}">
@@ -281,6 +263,15 @@
                     <input type="date" id="t-due-date" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400">
                 </div>
                 <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">אחראי</label>
+                    <select id="t-owner" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400">
+                        <option value="">ללא</option>
+                        {% for p in people %}
+                        <option value="{{ p.name }}">{{ p.display }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1.5">הערות</label>
                     <input type="text" id="t-notes" class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400" placeholder="הערה...">
                 </div>
@@ -315,6 +306,7 @@ function closeModal(id) {
     ['t-title','t-due-date','t-notes'].forEach(f => document.getElementById(f).value = '');
     document.getElementById('t-category').value = 'general';
     document.getElementById('t-priority').value = 'medium';
+    document.getElementById('t-owner').value = {{ (me.name if me else '') | tojson }};
 }
 
 function editTask(t) {
@@ -325,6 +317,7 @@ function editTask(t) {
     document.getElementById('t-priority').value = t.priority || 'medium';
     document.getElementById('t-due-date').value = t.due_date || '';
     document.getElementById('t-notes').value = t.notes || '';
+    document.getElementById('t-owner').value = t.owner || '';
     openModal('add-task-modal');
 }
 
@@ -336,6 +329,7 @@ function saveTask() {
         priority: document.getElementById('t-priority').value,
         due_date: document.getElementById('t-due-date').value || null,
         notes: document.getElementById('t-notes').value.trim() || null,
+        owner: document.getElementById('t-owner').value || null,
     };
     if (!payload.title) { alert('יש להזין כותרת'); return; }
 
@@ -364,5 +358,233 @@ function deleteTask(id) {
         .then(r => { if (!r.ok) throw new Error(); location.reload(); })
         .catch(() => alert('שגיאה במחיקת המשימה'));
 }
+</script>
+<script>
+// Mobile task board: owner filter, optimistic completion with undo, swipe to complete, one-tap claim.
+(function () {
+    var board = document.getElementById('task-board');
+    if (!board) return;
+    var me = board.getAttribute('data-me');
+    var people = JSON.parse(document.getElementById('task-people').textContent || '[]');
+    var filter = me ? 'mine' : 'all';
+    var DONE_PREVIEW = 5;
+    var showAllDone = false;
+
+    function rows() { return Array.prototype.slice.call(board.querySelectorAll('.tb-row')); }
+    function groupEl(key) { return board.querySelector('.tb-group[data-group="' + key + '"]'); }
+    function isOpen(row) { return !row.classList.contains('is-done'); }
+    function owner(row) { return row.getAttribute('data-owner'); }
+
+    function matches(row) {
+        var o = owner(row);
+        if (filter === 'all') return true;
+        if (filter === 'none') return !o;
+        if (filter === 'mine') return o === me || !o;
+        return o === filter;
+    }
+
+    function refresh() {
+        var all = rows();
+        var anyOpenVisible = false;
+        board.querySelectorAll('.tb-group').forEach(function (group) {
+            var visible = 0;
+            var isDone = group.getAttribute('data-group') === 'done';
+            group.querySelectorAll('.tb-row').forEach(function (row) {
+                var show = matches(row);
+                if (show) visible++;
+                row.hidden = !show || (isDone && !showAllDone && visible > DONE_PREVIEW);
+            });
+            group.hidden = visible === 0;
+            group.querySelector('[data-group-count]').textContent = visible;
+            if (!isDone && visible) anyOpenVisible = true;
+            var more = group.querySelector('[data-show-more]');
+            if (more) {
+                more.hidden = showAllDone || visible <= DONE_PREVIEW;
+                more.textContent = 'הצג עוד ' + (visible - DONE_PREVIEW);
+            }
+        });
+        board.querySelector('[data-empty]').hidden = anyOpenVisible;
+
+        // Chip and load-split counts count open tasks only.
+        var open = all.filter(isOpen);
+        var counts = { all: open.length, none: 0 };
+        people.forEach(function (p) { counts[p.name] = 0; });
+        open.forEach(function (row) {
+            var o = owner(row);
+            if (!o) counts.none++; else if (o in counts) counts[o]++;
+        });
+        counts.mine = me ? counts[me] : 0;
+        board.querySelectorAll('.tb-filter').forEach(function (chip) {
+            var key = chip.getAttribute('data-filter');
+            chip.querySelector('[data-filter-count]').textContent = counts[key] || 0;
+            if (key === 'none') chip.hidden = !counts.none && filter !== 'none';
+        });
+        var assigned = people.reduce(function (sum, p) { return sum + counts[p.name]; }, 0);
+        board.querySelector('[data-split]').hidden = !assigned;
+        people.forEach(function (p) {
+            var bar = board.querySelector('[data-split-bar="' + p.name + '"]');
+            if (bar) bar.style.width = (assigned ? counts[p.name] * 100 / assigned : 0) + '%';
+            var label = board.querySelector('[data-split-count="' + p.name + '"]');
+            if (label) label.textContent = counts[p.name];
+        });
+    }
+
+    function placeRow(row) {
+        var target = isOpen(row) ? row.getAttribute('data-open-group') : 'done';
+        var list = groupEl(target).querySelector('[data-rows]');
+        if (target === 'done') {
+            list.insertBefore(row, list.firstChild);
+            return;
+        }
+        var due = row.getAttribute('data-due');
+        var next = Array.prototype.find.call(list.children, function (other) {
+            return other !== row && other.getAttribute('data-due') > due;
+        });
+        list.insertBefore(row, next || null);
+    }
+
+    function setDoneState(row, done) {
+        row.classList.toggle('is-done', done);
+        row.classList.toggle('is-unassigned', !done && !owner(row));
+        row.querySelector('.tb-check').setAttribute('aria-checked', done ? 'true' : 'false');
+        var inner = row.querySelector('.tb-row-inner');
+        inner.style.transition = 'none';
+        inner.style.transform = '';
+        row.classList.remove('is-swiping');
+        placeRow(row);
+        refresh();
+    }
+
+    function rowError(row, message) {
+        var el = row.querySelector('.tb-row-error');
+        el.textContent = message;
+        el.hidden = !message;
+    }
+
+    function putTask(row, body) {
+        return fetch('/api/wedding/tasks/' + row.getAttribute('data-task-id'), {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+    }
+
+    function setCompleted(row, done, withUndo) {
+        rowError(row, '');
+        setDoneState(row, done);
+        putTask(row, { completed: done ? 1 : 0 }).then(function () {
+            if (withUndo && done && window.AppToast) {
+                window.AppToast('המשימה סומנה כבוצעה', 'ביטול', function () { setCompleted(row, false, false); }, 4000);
+            }
+        }).catch(function () {
+            setDoneState(row, !done);
+            rowError(row, 'לא נשמר — נסו שוב');
+        });
+    }
+
+    function claim(row, name) {
+        var person = people.filter(function (p) { return p.name === name; })[0];
+        if (!person) return;
+        var cell = row.querySelector('[data-owner-cell]');
+        var avatar = document.createElement('span');
+        avatar.className = 'person-avatar';
+        avatar.style.cssText = 'width:28px;height:28px;background:' + person.color;
+        avatar.textContent = person.initial;
+        avatar.setAttribute('aria-hidden', 'true');
+        rowError(row, '');
+        row.setAttribute('data-owner', name);
+        row.classList.remove('is-unassigned');
+        cell.insertBefore(avatar, cell.firstChild);
+        refresh();
+        putTask(row, { owner: name }).catch(function () {
+            row.setAttribute('data-owner', '');
+            row.classList.add('is-unassigned');
+            avatar.remove();
+            refresh();
+            rowError(row, 'לא נשמר — נסו שוב');
+        });
+    }
+
+    board.addEventListener('click', function (e) {
+        var chip = e.target.closest('.tb-filter');
+        if (chip) {
+            filter = chip.getAttribute('data-filter');
+            board.querySelectorAll('.tb-filter').forEach(function (c) {
+                var on = c === chip;
+                c.classList.toggle('is-active', on);
+                c.setAttribute('aria-pressed', on ? 'true' : 'false');
+            });
+            refresh();
+            return;
+        }
+        if (e.target.closest('[data-show-more]')) {
+            showAllDone = true;
+            refresh();
+            return;
+        }
+        var row = e.target.closest('.tb-row');
+        if (!row) return;
+        if (row.getAttribute('data-swiped')) {
+            row.removeAttribute('data-swiped');
+            return;
+        }
+        if (e.target.closest('.tb-check')) {
+            setCompleted(row, isOpen(row), true);
+        } else if (e.target.closest('[data-claim]')) {
+            claim(row, e.target.closest('[data-claim]').getAttribute('data-claim'));
+        } else if (e.target.closest('[data-edit]')) {
+            editTask(JSON.parse(row.getAttribute('data-task')));
+        }
+    });
+
+    // Swipe start→end (right to left in RTL) completes an open task.
+    board.querySelectorAll('.tb-row').forEach(function (row) {
+        var inner = row.querySelector('.tb-row-inner');
+        var startX = 0, startY = 0, dx = 0, axis = null, tracking = false;
+        inner.addEventListener('touchstart', function (e) {
+            if (!isOpen(row) || e.touches.length !== 1) return;
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            dx = 0;
+            axis = null;
+            tracking = true;
+            inner.style.transition = 'none';
+        }, { passive: true });
+        inner.addEventListener('touchmove', function (e) {
+            if (!tracking) return;
+            var mx = e.touches[0].clientX - startX;
+            var my = e.touches[0].clientY - startY;
+            if (!axis) {
+                if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
+                axis = Math.abs(mx) > Math.abs(my) ? 'x' : 'y';
+            }
+            if (axis !== 'x') { tracking = false; return; }
+            if (e.cancelable) e.preventDefault();
+            dx = Math.min(0, mx);
+            row.classList.toggle('is-swiping', dx < 0);
+            inner.style.transform = 'translateX(' + dx + 'px)';
+        }, { passive: false });
+        function end() {
+            if (!tracking) return;
+            tracking = false;
+            if (axis !== 'x') return;
+            row.setAttribute('data-swiped', '1');
+            setTimeout(function () { row.removeAttribute('data-swiped'); }, 350);
+            inner.style.transition = 'transform 180ms cubic-bezier(.4,0,.2,1)';
+            if (-dx > row.offsetWidth * 0.4) {
+                inner.style.transform = 'translateX(-100%)';
+                setTimeout(function () { setCompleted(row, true, true); }, 180);
+            } else {
+                inner.style.transform = '';
+                setTimeout(function () { row.classList.remove('is-swiping'); }, 180);
+            }
+        }
+        inner.addEventListener('touchend', end);
+        inner.addEventListener('touchcancel', end);
+    });
+
+    refresh();
+})();
 </script>
 {% endblock %}

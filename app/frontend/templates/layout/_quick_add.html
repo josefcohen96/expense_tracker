@@ -1,0 +1,88 @@
+{#- Quick-add bottom sheet, opened by the tab bar's "+" (static/js/components/quick-add.js).
+    Starts as a task on היום/חתונה/עוד and as an expense on כספים. -#}
+<div id="quick-add" class="qa-root" dir="rtl" hidden
+     data-context="{{ 'renovation' if request.path.startswith('/renovation') else mobile_tab }}"
+     data-reload-on="{{ 'task' if request.path in ['/', '/wedding/tasks', '/renovation', '/renovation/tasks'] else '' }} {{ 'expense' if request.path == '/' or (request.path.startswith('/finances') and not request.path.startswith('/finances/backup')) else '' }}">
+    <div class="qa-scrim fixed inset-0" data-qa-close></div>
+    <div class="qa-sheet" role="dialog" aria-modal="true" aria-labelledby="qa-title" tabindex="-1">
+        <div class="qa-handle" data-qa-handle aria-hidden="true"><span></span></div>
+
+        <div class="qa-head">
+            <div class="qa-head-start">
+                <h2 id="qa-title" class="qa-title"></h2>
+                <button type="button" class="qa-switch" data-qa-switch></button>
+            </div>
+            <button type="button" class="qa-cancel" data-qa-close>ביטול</button>
+        </div>
+
+        {#- Expense: amount keypad → category → save -#}
+        <section class="qa-panel" data-qa-panel="expense" hidden>
+            <div class="qa-amount" dir="ltr" aria-live="polite">
+                <span data-qa-amount>₪0</span><span class="qa-caret" aria-hidden="true">|</span>
+            </div>
+            <div class="qa-tokens">
+                <button type="button" class="qa-token" data-qa-token="date"></button>
+                <span aria-hidden="true">·</span>
+                <button type="button" class="qa-token" data-qa-token="payer"></button>
+                <span aria-hidden="true">·</span>
+                <button type="button" class="qa-token" data-qa-token="account"></button>
+                <input type="date" class="qa-date-input" data-qa-date tabindex="-1" aria-label="תאריך">
+            </div>
+            <input type="text" class="qa-note" data-qa-note maxlength="120" enterkeyhint="done"
+                   placeholder="על מה? (לא חובה)" aria-label="הערה">
+
+            <div class="qa-label">קטגוריה — לפי השימוש שלך</div>
+            <div class="qa-chips" data-qa-categories role="radiogroup" aria-label="קטגוריה">
+                <span class="qa-chip is-loading"></span><span class="qa-chip is-loading"></span><span class="qa-chip is-loading"></span>
+            </div>
+
+            <p class="qa-error" data-qa-error role="alert"></p>
+            <button type="button" class="qa-primary" data-qa-save>שמור הוצאה</button>
+
+            <div class="qa-keypad" data-qa-keypad aria-label="מקלדת סכום">
+                {% for key in ['1','2','3','4','5','6','7','8','9','.','0','⌫'] %}
+                <button type="button" class="qa-key" data-key="{{ 'back' if key == '⌫' else key }}"
+                        {% if key == '⌫' %}aria-label="מחיקה"{% endif %}>{{ key }}</button>
+                {% endfor %}
+            </div>
+        </section>
+
+        {#- Task: title → owner / when → save -#}
+        <section class="qa-panel" data-qa-panel="task" hidden>
+            <input type="text" class="qa-task-input" data-qa-task-title maxlength="200" enterkeyhint="done"
+                   placeholder="מה צריך לעשות?" aria-label="שם המשימה">
+
+            <div data-qa-module-row hidden>
+                <div class="qa-label">איפה</div>
+                <div class="qa-chips" data-qa-modules role="radiogroup" aria-label="מודול">
+                    <button type="button" class="qa-chip" data-value="wedding" role="radio">💍 חתונה</button>
+                    <button type="button" class="qa-chip" data-value="renovation" role="radio">🏡 שיפוץ</button>
+                </div>
+            </div>
+
+            <div data-qa-owner-row>
+                <div class="qa-label">מי לוקח</div>
+                <div class="qa-chips" data-qa-owners role="radiogroup" aria-label="אחראי"></div>
+            </div>
+
+            <div class="qa-label">מתי</div>
+            <div class="qa-chips" data-qa-due role="radiogroup" aria-label="תאריך יעד">
+                <button type="button" class="qa-chip" data-value="none" role="radio">בלי תאריך</button>
+                <button type="button" class="qa-chip" data-value="0" role="radio">היום</button>
+                <button type="button" class="qa-chip" data-value="1" role="radio">מחר</button>
+                <button type="button" class="qa-chip" data-value="7" role="radio">בעוד שבוע</button>
+                <button type="button" class="qa-chip" data-value="pick" role="radio">📅 <span data-qa-due-label>תאריך</span></button>
+                <input type="date" class="qa-date-input" data-qa-due-input tabindex="-1" aria-label="תאריך יעד">
+            </div>
+
+            <div data-qa-category-row>
+                <div class="qa-label">נושא</div>
+                <div class="qa-chips" data-qa-task-categories role="radiogroup" aria-label="נושא"></div>
+            </div>
+
+            <p class="qa-error" data-qa-error role="alert"></p>
+            <button type="button" class="qa-primary" data-qa-save>שמור משימה</button>
+        </section>
+    </div>
+</div>
+<div id="qa-toast" class="qa-toast" role="status" aria-live="polite" hidden></div>

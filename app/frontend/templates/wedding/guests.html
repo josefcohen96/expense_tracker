@@ -2,7 +2,7 @@
 {% block wedding_title %}מוזמנים{% endblock %}
 
 {% block wedding_header_action %}
-<button data-quick-add onclick="openGuestModal()"
+<button data-quick-add="+ מוזמן" onclick="openGuestModal()"
         class="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-3 py-2 rounded-xl text-sm font-medium shadow-sm min-h-[36px]">
     + הוסף מוזמן
 </button>
@@ -185,6 +185,180 @@ textarea.inline-edit-input {
 .phone-placeholder { color: #9ca3af; font-style: italic; }
 </style>
 
+<style>
+/* ===== Mobile: guest count as the engine (gc-) ===== */
+.gc-engine { display: flex; flex-direction: column; gap: 12px; }
+.gc-head {
+    background: #fff; border-radius: 18px; padding: 17px 18px;
+    box-shadow: 0 1px 4px rgba(17, 24, 39, .09);
+}
+.gc-head-row { display: flex; align-items: baseline; gap: 8px; }
+.gc-head-num { font: 800 40px/1 var(--font-mono); color: #111827; }
+.gc-head-of { font: 600 13px var(--font-primary); color: #6b7280; }
+.gc-bar {
+    display: flex; height: 9px; margin-top: 13px; border-radius: 999px;
+    overflow: hidden; background: #f3f4f6;
+}
+.gc-bar-confirmed { background: #16a34a; }
+.gc-bar-maybe { background: #facc15; }
+.gc-bar-declined { background: #dc2626; }
+.gc-legend {
+    display: flex; justify-content: space-between; gap: 6px; margin-top: 9px;
+    font: 500 11px var(--font-primary);
+}
+.gc-legend-confirmed { color: #15803d; }
+.gc-legend-maybe { color: #a16207; }
+.gc-legend-declined { color: #b91c1c; }
+.gc-legend-pending { color: #9ca3af; }
+.gc-label { font: 700 11px var(--font-primary); color: #9ca3af; letter-spacing: .06em; }
+.gc-card {
+    background: #fff; border-radius: 16px; padding: 15px 16px;
+    box-shadow: 0 1px 3px rgba(17, 24, 39, .07);
+    border-inline-start: 3px solid transparent;
+}
+.gc-card-cost { border-inline-start-color: #2563eb; }
+.gc-card-seats { border-inline-start-color: #d97706; }
+.gc-card-catering { border-inline-start-color: #dc2626; }
+.gc-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gc-card-title { font: 600 13px var(--font-primary); color: #111827; }
+.gc-cost-value { font: 700 19px var(--font-mono); color: #111827; }
+.gc-sub { margin-top: 5px; font: 400 11px var(--font-primary); color: #6b7280; }
+.gc-seats-value { font: 700 15px var(--font-mono); color: #a16207; }
+.gc-progress { margin-top: 9px; height: 6px; border-radius: 999px; background: #f3f4f6; overflow: hidden; }
+.gc-progress span { display: block; height: 6px; border-radius: 999px; background: #d97706; }
+.gc-seats-sub { margin-top: 7px; font: 400 11px var(--font-primary); color: #a16207; }
+.gc-over .gc-progress span { background: #dc2626; }
+.gc-over .gc-seats-sub { color: #dc2626; }
+.gc-alert { font: 700 13px var(--font-primary); color: #b91c1c; }
+.gc-cat-body { margin-top: 5px; font: 400 11px/1.5 var(--font-primary); color: #6b7280; }
+.gc-cat-body strong { color: #111827; }
+.gc-actions { display: flex; align-items: center; gap: 7px; margin-top: 10px; }
+.gc-btn {
+    position: relative; display: inline-flex; align-items: center; height: 30px;
+    padding: 0 12px; border: 0; border-radius: 9px; white-space: nowrap;
+    text-decoration: none; cursor: pointer;
+}
+.gc-btn::after { content: ''; position: absolute; inset: -7px -3px; }  /* 44px tap area */
+.gc-btn-primary { background: #111827; color: #fff; font: 600 11px var(--font-primary); }
+.gc-btn-secondary { background: #f3f4f6; color: #4b5563; font: 500 11px var(--font-primary); }
+.gc-btn:disabled { opacity: .6; cursor: default; }
+.gc-error { margin-top: 8px; font: 500 11px var(--font-primary); color: #b91c1c; }
+.gc-error[hidden] { display: none; }
+.gc-nudge {
+    display: flex; align-items: center; gap: 11px; min-height: 44px;
+    background: #fff; border-radius: 16px; padding: 14px 16px;
+    box-shadow: 0 1px 3px rgba(17, 24, 39, .07); text-decoration: none;
+}
+.gc-nudge:active { background: #f9fafb; }
+.gc-nudge-icon { flex: 0 0 auto; font-size: 16px; line-height: 1; }
+.gc-nudge-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.gc-nudge-title { font: 600 12.5px var(--font-primary); color: #111827; }
+.gc-nudge-sub { margin-top: 2px; font: 400 11px var(--font-primary); color: #9ca3af; }
+.gc-nudge-cta { flex: 0 0 auto; font: 600 11px var(--font-primary); color: #be123c; }
+.gc-btn:focus-visible, .gc-nudge:focus-visible { outline: 2px solid #e11d48; outline-offset: 2px; }
+</style>
+
+{#- Mobile: the confirmed headcount and what it drives (cost per guest, seats, catering). -#}
+{%- set hc = engine.people -%}
+{%- if hc.total > 0 or engine.pending_invitations > 0 %}
+<div class="lg:hidden mb-3 sm:mb-4" dir="rtl">
+<div class="gc-engine">
+    {% if hc.total > 0 %}
+    <section class="gc-head" aria-label="מספר המוזמנים">
+        <div class="gc-head-row">
+            <span class="gc-head-num" dir="ltr">{{ hc.confirmed }}</span>
+            <span class="gc-head-of">אישרו מתוך <bdi dir="ltr">{{ hc.total }}</bdi></span>
+        </div>
+        <div class="gc-bar" role="img"
+             aria-label="{{ hc.confirmed }} מאושרים, {{ hc.maybe }} אולי, {{ hc.declined }} לא, {{ hc.pending }} ממתינים">
+            {%- for key in ('confirmed', 'maybe', 'declined') if hc[key] > 0 -%}
+            <span class="gc-bar-{{ key }}" style="width:{{ '%.2f'|format(hc[key] * 100 / hc.total) }}%"></span>
+            {%- endfor -%}
+        </div>
+        <div class="gc-legend">
+            {% if hc.confirmed %}<span class="gc-legend-confirmed"><bdi dir="ltr">{{ hc.confirmed }}</bdi> מאושרים</span>{% endif %}
+            {% if hc.maybe %}<span class="gc-legend-maybe"><bdi dir="ltr">{{ hc.maybe }}</bdi> אולי</span>{% endif %}
+            {% if hc.declined %}<span class="gc-legend-declined"><bdi dir="ltr">{{ hc.declined }}</bdi> לא</span>{% endif %}
+            {% if hc.pending %}<span class="gc-legend-pending"><bdi dir="ltr">{{ hc.pending }}</bdi> ממתינים</span>{% endif %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if engine.cost or engine.seats or engine.catering %}
+    <div class="gc-label">מה המספר הזה מזיז</div>
+    {% endif %}
+
+    {% if engine.cost %}
+    {%- set cost = engine.cost -%}
+    <section class="gc-card gc-card-cost">
+        <div class="gc-card-top">
+            <span class="gc-card-title">עלות למוזמן</span>
+            <span class="gc-cost-value" dir="ltr">{{ "₪{:,.0f}".format(cost.per_guest) }}</span>
+        </div>
+        <div class="gc-sub">
+            <bdi dir="ltr">{{ "₪{:,.0f}".format(cost.committed) }}</bdi> מחויב ÷ <bdi dir="ltr">{{ hc.confirmed }}</bdi>
+            {%- if cost.per_guest_if_maybe %} · יורד ל-<bdi dir="ltr">{{ "₪{:,.0f}".format(cost.per_guest_if_maybe) }}</bdi> אם כל ה"אולי" יגיעו{% endif %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if engine.seats %}
+    {%- set seats = engine.seats -%}
+    {%- set over = seats.free < 0 -%}
+    <section class="gc-card gc-card-seats{% if over %} gc-over{% endif %}">
+        <div class="gc-card-top">
+            <span class="gc-card-title">הושבות</span>
+            <span class="gc-seats-value" dir="ltr">{{ hc.confirmed }} / {{ seats.capacity }}</span>
+        </div>
+        <div class="gc-progress"><span style="width:{{ '%.2f'|format(seats.pct) }}%"></span></div>
+        <div class="gc-seats-sub">
+            {%- if over -%}
+            חסרים <bdi dir="ltr">{{ -seats.free }}</bdi> מקומות
+            {%- else -%}
+            <bdi dir="ltr">{{ seats.free }}</bdi> מקומות פנויים
+            {%- endif -%}
+            {%- if hc.pending %} · <bdi dir="ltr">{{ hc.pending }}</bdi> עוד לא ענו{% endif -%}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if engine.catering %}
+    {%- set cat = engine.catering -%}
+    <section class="gc-card gc-card-catering" id="gc-catering">
+        <div class="gc-card-top">
+            <span class="gc-card-title">קייטרינג</span>
+            <span class="gc-alert">דרוש אישור</span>
+        </div>
+        <div class="gc-cat-body">
+            התפריט נסגר על <strong><bdi dir="ltr">{{ cat.portions }}</bdi></strong> מנות.
+            <bdi dir="ltr">{{ cat.diff|abs }}</bdi> {{ 'מעל' if cat.diff > 0 else 'מתחת' }}
+            {%- if cat.deadline %} — עדכון עד <bdi dir="ltr">{{ cat.deadline }}</bdi>{% endif %}.
+        </div>
+        <div class="gc-actions">
+            <button type="button" class="gc-btn gc-btn-primary"
+                    onclick="gcUpdatePortions(this, {{ cat.vendor_id }}, {{ hc.confirmed }})">עדכן ל-<bdi dir="ltr">{{ hc.confirmed }}</bdi></button>
+            <a class="gc-btn gc-btn-secondary" href="/wedding/vendors/{{ cat.vendor_id }}">פתח ספק</a>
+        </div>
+        <div class="gc-error" id="gc-catering-error" role="alert" hidden></div>
+    </section>
+    {% endif %}
+
+    {% if engine.pending_invitations > 0 %}
+    <a class="gc-nudge" href="/wedding/guests?status=pending">
+        <span class="gc-nudge-icon" aria-hidden="true">📨</span>
+        <span class="gc-nudge-text">
+            <span class="gc-nudge-title"><bdi dir="ltr">{{ engine.pending_invitations }}</bdi> ממתינים לתשובה</span>
+            {% if engine.pending_with_phone %}
+            <span class="gc-nudge-sub"><bdi dir="ltr">{{ engine.pending_with_phone }}</bdi> עם מספר טלפון</span>
+            {% endif %}
+        </span>
+        <span class="gc-nudge-cta">שלח ←</span>
+    </a>
+    {% endif %}
+</div>
+</div>
+{% endif %}
+
 <div class="space-y-3 sm:space-y-4" dir="rtl">
 
     <!-- Search -->
@@ -203,48 +377,8 @@ textarea.inline-edit-input {
         </button>
     </div>
 
-    <!-- Stats (collapsible on mobile) -->
-    <div class="sm:hidden">
-        <button onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.chevron').classList.toggle('rotate-180')"
-                class="w-full bg-white rounded-xl shadow px-4 py-3 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <span class="text-2xl font-bold text-rose-600">{{ total_people }}</span>
-                <span class="text-sm text-gray-500">מוזמנים</span>
-                <span class="text-xs text-gray-400">({{ total_invitations }} הזמנות)</span>
-            </div>
-            <svg class="chevron w-5 h-5 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-            </svg>
-        </button>
-        <div class="hidden grid grid-cols-3 gap-2 mt-2">
-            <div class="bg-white rounded-lg shadow-sm p-2.5 text-center border-r-4 border-green-500">
-                <div class="text-lg font-bold text-green-600">{{ confirmed }}</div>
-                <div class="text-[11px] text-gray-500">מאושר</div>
-            </div>
-            <div class="bg-white rounded-lg shadow-sm p-2.5 text-center border-r-4 border-yellow-400">
-                <div class="text-lg font-bold text-yellow-600">{{ maybe_count }}</div>
-                <div class="text-[11px] text-gray-500">אולי</div>
-            </div>
-            <div class="bg-white rounded-lg shadow-sm p-2.5 text-center border-r-4 border-gray-300">
-                <div class="text-lg font-bold text-gray-500">{{ pending }}</div>
-                <div class="text-[11px] text-gray-500">ממתין</div>
-            </div>
-            <div class="bg-white rounded-lg shadow-sm p-2.5 text-center border-r-4 border-red-400">
-                <div class="text-lg font-bold text-red-500">{{ declined }}</div>
-                <div class="text-[11px] text-gray-500">לא מגיע</div>
-            </div>
-            <div class="bg-white rounded-lg shadow-sm p-2.5 text-center border-r-4 border-indigo-400">
-                <div class="text-lg font-bold text-indigo-600">{{ plus_ones }}</div>
-                <div class="text-[11px] text-gray-500">+1</div>
-            </div>
-            <div class="bg-white rounded-lg shadow-sm p-2.5 text-center border-r-4 border-blue-400">
-                <div class="text-lg font-bold text-blue-600">{{ needs_transport }}</div>
-                <div class="text-[11px] text-gray-500">הסעה</div>
-            </div>
-        </div>
-    </div>
     <!-- Desktop stats -->
-    <div class="hidden sm:grid grid-cols-4 lg:grid-cols-7 gap-2">
+    <div class="hidden lg:grid grid-cols-4 lg:grid-cols-7 gap-2">
         <div class="bg-white rounded-xl shadow p-3 text-center col-span-2 border-t-4 border-rose-500">
             <div class="text-2xl font-bold text-rose-600">{{ total_people }}</div>
             <div class="text-xs text-gray-500 mt-0.5">סה"כ אנשים</div>
@@ -914,6 +1048,26 @@ function filterGuests(query) {
 function reloadWithScroll() {
     sessionStorage.setItem('guestScrollPos', window.scrollY);
     location.reload();
+}
+
+// ===== Guest-count engine (mobile) =====
+// Sets the catering vendor's portions to the confirmed headcount.
+function gcUpdatePortions(btn, vendorId, confirmed) {
+    var err = document.getElementById('gc-catering-error');
+    err.hidden = true;
+    btn.disabled = true;
+    fetch('/api/wedding/vendors/' + vendorId, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({portions_ordered: confirmed})
+    }).then(function(r) {
+        if (!r.ok) throw new Error();
+        location.reload();
+    }).catch(function() {
+        btn.disabled = false;
+        err.textContent = 'שגיאה בעדכון, נסו שוב';
+        err.hidden = false;
+    });
 }
 
 // ===== Guest Modal =====

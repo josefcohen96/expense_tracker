@@ -45,7 +45,8 @@ expense_tracker/
 │   │   │   │   ├── recurrences.py   # CRUD + apply-once
 │   │   │   │   ├── statistics.py    # Aggregated stats
 │   │   │   │   ├── backup.py        # ZIP + Excel backup
-│   │   │   │   └── wedding.py       # Full wedding module API
+│   │   │   │   ├── wedding.py       # Full wedding module API (incl. milestones)
+│   │   │   │   └── today.py         # /api/today aggregate + /api/quick-add/options
 │   │   │   ├── routes/              # HTML page routes (Jinja2 rendering)
 │   │   │   │   ├── pages.py         # All page views, login/logout, dashboard
 │   │   │   │   ├── partials.py      # HTMX-style partial HTML fragments
@@ -60,6 +61,10 @@ expense_tracker/
 │   │   │       ├── auth_middleware.py     # AuthMiddleware class
 │   │   │       ├── backup_service.py     # ZIP/Excel backup implementation
 │   │   │       ├── cache_service.py      # In-memory stats cache
+│   │   │       ├── hebrew_dates.py       # Hebrew relative-date labels (באיחור ביומיים, בעוד 4 ימים)
+│   │   │       ├── people.py             # Household users (Yosef/Karina) with display names + colors
+│   │   │       ├── today.py              # היום queue: urgent tasks across modules + month totals
+│   │   │       ├── wedding_plan.py       # Countdown, date-anchored milestones, headcount, committed money
 │   │   │       ├── cron_service.py       # APScheduler background jobs
 │   │   │       ├── logging_service.py    # configure_logging(), print redirect
 │   │   │       └── production_logging.py # Railway-specific logging
@@ -134,6 +139,9 @@ All tables in a single SQLite file at `app/backend/data/budget.db`. Connection u
 - `wedding_notes`, `wedding_ideas`, `wedding_timeline_events`
 - `wedding_seating_tables`, `wedding_seating_assignments`
 - `wedding_rooms`, `wedding_room_assignments`
+- `wedding_milestones` — `id, title, offset_days, kind, completed, custom_date, sort_order`. Dates are always computed as `wedding_date + offset_days` (so changing the wedding date moves them) unless `custom_date` pins one. 12 defaults are seeded once, the first time a wedding date exists (flag `wedding_milestones_seeded` in `system_settings`).
+- `wedding_tasks.owner` — nullable `users.name` of the household member who took the task (same list as the finances payer).
+- `wedding_vendors.portions_ordered` — meals booked with the catering vendor; `wedding_settings.venue_capacity` — seats at the venue.
 
 **Workouts table:**
 - `workouts` — `id, user_id (FK), date, workout_type, total_duration, exercise_name, total_sets, total_reps`
@@ -199,8 +207,19 @@ Lives in `recurrence.py`. Uses a **catch-up / materialization** model — not re
 | `wedding_api` | `/api/wedding` | Full wedding module CRUD |
 | `workouts_router` | (no prefix) | Workouts page + data |
 | `debug_logs_router` | (no prefix) | Debug log viewer |
+| `today_api` | `/api` | `GET /today` (היום aggregate), `GET /quick-add/options` |
 
 ---
+
+## Mobile shell (< 1024px)
+
+Below `lg` the app uses a bottom tab bar (היום · חתונה · + · כספים · עוד) and a fixed per-module section header
+(`layout/_mobile_nav.html`); desktop keeps the purple navbar and module sidebars and must look unchanged.
+- `/` renders `pages/today.html` (היום); on desktop it forwards to `/finances`. Renovation-only users are redirected.
+- The tab-bar "+" opens the quick-add sheet (`layout/_quick_add.html` + `static/js/components/quick-add.js`):
+  an expense on כספים pages, a task elsewhere. `window.AppToast(msg, actionLabel, onAction)` shows the undo pill.
+- A page's own primary action marked `data-quick-add="+ מוזמן"` is lifted into the section header's end slot.
+- New mobile-only UI goes in `lg:hidden` containers; old blocks it replaces become `hidden lg:block`.
 
 ## Services
 

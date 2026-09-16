@@ -89,7 +89,7 @@
             <h1 class="text-xl sm:text-2xl font-bold text-gray-900">ספקים 🏢</h1>
             <p class="text-xs text-gray-500 mt-0.5">נהלו הצעות מחיר, השוו ספקים וסמנו מה כלול</p>
         </div>
-        <button data-quick-add onclick="openAddModal(null)"
+        <button data-quick-add="+ ספק" onclick="openAddModal(null)"
                 class="hidden sm:inline-flex items-center bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-4 py-2.5 rounded-xl text-sm font-semibold min-h-[44px] shadow-sm">
             + הוסף ספק
         </button>
@@ -433,6 +433,13 @@
                     <input type="url" id="v-instagram"
                            class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300"
                            placeholder="https://instagram.com/..." dir="ltr">
+                </div>
+                <!-- Catering only: meals booked, compared with confirmed guests on the guests page -->
+                <div id="v-portions-wrap" class="hidden">
+                    <label for="v-portions" class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">מספר מנות שהוזמנו</label>
+                    <input type="number" id="v-portions" min="0" step="1"
+                           class="border border-gray-200 rounded-xl px-4 py-3 w-full text-base focus:outline-none focus:ring-2 focus:ring-rose-300"
+                           placeholder="0" dir="ltr" inputmode="numeric">
                 </div>
             </div>
 
@@ -960,6 +967,21 @@ let modalInc = {};
 function onCategoryChange() {
     const cat = document.getElementById('v-category').value;
     renderInclusionCheckboxes(cat, modalInc);
+    togglePortionsField();
+}
+
+/* Portions ordered only applies to catering vendors. */
+function togglePortionsField() {
+    const isCatering = document.getElementById('v-category').value === 'catering';
+    document.getElementById('v-portions-wrap').classList.toggle('hidden', !isCatering);
+}
+
+/* '' → null; a non-negative integer → that number; anything else → undefined (invalid). */
+function parsePortions(raw) {
+    const text = String(raw ?? '').trim();
+    if (!text) return null;
+    const n = Number(text);
+    return Number.isInteger(n) && n >= 0 ? n : undefined;
 }
 
 function incBtnClasses(selected, kind) {
@@ -1021,12 +1043,13 @@ function openAddModal(category) {
     document.getElementById('modal-title').textContent = 'הוספת ספק';
     document.getElementById('vendor-id').value = '';
     document.getElementById('open-tour-from-modal').classList.add('hidden');
-    ['v-name','v-contact-name','v-phone','v-price-quoted','v-deposit-amount','v-deposit-date','v-notes','v-location','v-instagram'].forEach(id => {
+    ['v-name','v-contact-name','v-phone','v-price-quoted','v-deposit-amount','v-deposit-date','v-notes','v-location','v-instagram','v-portions'].forEach(id => {
         document.getElementById(id).value = '';
     });
     document.getElementById('v-category').value = category || 'venue';
     document.getElementById('v-status').value = 'not_contacted';
     renderInclusionCheckboxes(category || 'venue', {});
+    togglePortionsField();
     document.getElementById('vendor-modal').classList.remove('hidden');
     lockScroll(true);
     document.getElementById('v-name').focus();
@@ -1053,9 +1076,11 @@ function openEditModal(v) {
     document.getElementById('v-notes').value = v.notes || '';
     document.getElementById('v-location').value = v.location || '';
     document.getElementById('v-instagram').value = v.instagram_url || '';
+    document.getElementById('v-portions').value = v.portions_ordered ?? '';
     let inc = {};
     try { inc = JSON.parse(v.inclusions || '{}'); } catch {}
     renderInclusionCheckboxes(v.category || 'other', inc);
+    togglePortionsField();
     const tourBtn = document.getElementById('open-tour-from-modal');
     tourBtn.classList.toggle('hidden', !(CATEGORY_INCLUSIONS[v.category] || []).length);
     document.getElementById('vendor-modal').classList.remove('hidden');
@@ -1091,8 +1116,11 @@ function saveVendor() {
         location:          document.getElementById('v-location').value.trim() || null,
         instagram_url:     document.getElementById('v-instagram').value.trim() || null,
         inclusions:        JSON.stringify(inclusions),
+        portions_ordered:  document.getElementById('v-category').value === 'catering'
+                               ? parsePortions(document.getElementById('v-portions').value) : null,
     };
     if (!payload.name) { alert('יש להזין שם ספק'); return; }
+    if (payload.portions_ordered === undefined) { alert('מספר מנות לא תקין'); return; }
 
     const url    = id ? `/api/wedding/vendors/${id}` : '/api/wedding/vendors';
     const method = id ? 'PUT' : 'POST';

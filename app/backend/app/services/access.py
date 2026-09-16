@@ -21,6 +21,13 @@ USER_TSAHALA = "TSAHALA"
 
 ALL_USERNAMES = (USER_YOSEF, USER_KARINA, USER_TSAHALA)
 
+# Hebrew display names, keyed by canonical username.
+USER_DISPLAY_NAMES = {
+    USER_YOSEF: "יוסף",
+    USER_TSAHALA: "צהלה",
+    USER_KARINA: "קארינה",
+}
+
 # Who may open the renovation module at all.
 RENOVATION_USERS = frozenset({USER_YOSEF, USER_TSAHALA})
 
@@ -81,7 +88,14 @@ def home_path_for(user: Any) -> str:
     """The landing page a user should be sent to after login / from '/'."""
     if normalise_username(user) in RENOVATION_ONLY_USERS:
         return "/renovation"
-    return "/finances"
+    # The היום screen; on desktop it forwards to /finances.
+    return "/"
+
+
+def display_name(user: Any) -> str:
+    """Hebrew display name for a session user, username or users.name value."""
+    key = normalise_username(user)
+    return USER_DISPLAY_NAMES.get(key, key.title())
 
 
 def password_env_var(username: str) -> Optional[str]:

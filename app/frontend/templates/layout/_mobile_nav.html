@@ -1,9 +1,16 @@
 {#- Mobile (< lg) navigation chrome shared by module layouts. Styles live in main.css. -#}
 
-{% macro section_header(title, theme='app', sections=[], active='') -%}
-<header id="mobile-section-header" class="mobile-section-header" data-theme="{{ theme }}" dir="rtl">
+{#- End-side content comes from a {% call %} block; without one, base.html fills the slot
+    with the page's labelled [data-quick-add] action. `back` turns the header into a drill-down. -#}
+{% macro section_header(title, theme='app', sections=[], active='', back=none, badge=none) -%}
+<header id="mobile-section-header" class="mobile-section-header{% if back %} is-drilldown{% endif %}" data-theme="{{ theme }}" dir="rtl">
     <div class="msh-title-row">
-        <span class="msh-title">{{ title }}</span>
+        <div class="msh-start">
+            {% if back %}<a href="{{ back }}" class="msh-back" aria-label="חזרה">→</a>{% endif %}
+            <span class="msh-title">{{ title }}</span>
+            {% if badge %}<span class="msh-badge">{{ badge }}</span>{% endif %}
+        </div>
+        <div class="msh-end" data-msh-end>{% if caller %}{{ caller() }}{% endif %}</div>
     </div>
     {% if sections %}
     <nav class="msh-tabs" aria-label="{{ title }}">
@@ -13,16 +20,22 @@
     </nav>
     {% endif %}
 </header>
-<div class="msh-spacer{% if sections %} has-tabs{% endif %}" aria-hidden="true"></div>
+<div class="msh-spacer{% if sections %} has-tabs{% endif %}{% if back %} is-drilldown{% endif %}" aria-hidden="true"></div>
 {%- endmacro %}
 
-{#- chips: list of (label, href, is_active) -#}
+{#- chips: list of (label, href, is_active) or (label, href, is_active, count) -#}
 {% macro section_chips(chips) -%}
 {% if chips %}
 <nav class="section-chips" dir="rtl">
-    {% for label, href, is_active in chips %}
-    <a href="{{ href }}" class="section-chip{% if is_active %} is-active{% endif %}"{% if is_active %} aria-current="page"{% endif %}><span>{{ label }}</span></a>
+    {% for chip in chips %}
+    {% set label, href, is_active = chip[0], chip[1], chip[2] %}
+    <a href="{{ href }}" class="section-chip{% if is_active %} is-active{% endif %}"{% if is_active %} aria-current="page"{% endif %}><span>{{ label }}{% if chip|length > 3 and chip[3] %} <b class="chip-count">{{ chip[3] }}</b>{% endif %}</span></a>
     {% endfor %}
 </nav>
 {% endif %}
+{%- endmacro %}
+
+{#- A household member's avatar circle. size: px. -#}
+{% macro avatar(person, size=28, cls='') -%}
+<span class="person-avatar {{ cls }}" style="width:{{ size }}px;height:{{ size }}px;background:{{ person.color }}" title="{{ person.display }}" aria-hidden="true">{{ person.initial }}</span>
 {%- endmacro %}

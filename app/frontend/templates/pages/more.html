@@ -7,45 +7,101 @@
 {% block content %}
 {% from "layout/_mobile_nav.html" import section_header %}
 {{ section_header('עוד') }}
-<div class="max-w-lg mx-auto px-4 pt-3 pb-6 lg:pt-8" dir="rtl">
+<div class="max-w-lg mx-auto px-4 pt-3 pb-6 lg:pt-8 more-page" dir="rtl">
     <h1 class="hidden lg:block text-xl font-bold text-gray-900 mb-4">עוד</h1>
+
+    <h2 class="more-label">מודולים</h2>
     <div class="space-y-2">
-        <a href="/workouts"
-           class="flex items-center gap-3 bg-white rounded-xl px-4 py-3.5 shadow-sm border border-gray-100 min-h-[52px]">
-            <span class="text-xl w-8 text-center flex-shrink-0">🏋️</span>
+        <a href="/workouts" class="more-row">
+            <span class="more-icon">🏋️</span>
             <span class="font-medium text-gray-800 flex-1">אימונים</span>
             <i class="fas fa-chevron-left text-gray-300 text-xs"></i>
         </a>
         {% if show_renovation %}
-        <a href="/renovation"
-           class="flex items-center gap-3 bg-white rounded-xl px-4 py-3.5 shadow-sm border border-gray-100 min-h-[52px]">
-            <span class="text-xl w-8 text-center flex-shrink-0">🏡</span>
+        <a href="/renovation" class="more-row">
+            <span class="more-icon">🏡</span>
             <span class="font-medium text-gray-800 flex-1">שיפוץ</span>
             <i class="fas fa-chevron-left text-gray-300 text-xs"></i>
         </a>
         {% endif %}
-        <a href="/finances/backup"
-           class="flex items-center gap-3 bg-white rounded-xl px-4 py-3.5 shadow-sm border border-gray-100 min-h-[52px]">
-            <span class="text-xl w-8 text-center flex-shrink-0">💾</span>
+    </div>
+
+    <h2 class="more-label">הגדרות החתונה</h2>
+    <div class="space-y-2" id="more-settings">
+        <label class="more-row">
+            <span class="more-icon">💍</span>
+            <span class="flex-1 min-w-0">
+                <span class="block font-medium text-gray-800">תאריך החתונה</span>
+                <span class="block text-xs text-gray-500">כל אבני הדרך נגזרות ממנו</span>
+            </span>
+            <input type="date" class="more-input" data-setting="wedding_date" value="{{ wedding_date }}" aria-label="תאריך החתונה">
+        </label>
+        <label class="more-row">
+            <span class="more-icon">🪑</span>
+            <span class="flex-1 min-w-0">
+                <span class="block font-medium text-gray-800">קיבולת המקום</span>
+                <span class="block text-xs text-gray-500">להשוואה מול מספר המאשרים</span>
+            </span>
+            <input type="number" min="0" inputmode="numeric" class="more-input more-input-num" data-setting="venue_capacity"
+                   value="{{ venue_capacity }}" placeholder="—" aria-label="קיבולת המקום" dir="ltr">
+        </label>
+        <p class="more-status" role="status" aria-live="polite"></p>
+    </div>
+
+    <h2 class="more-label">נתונים</h2>
+    <div class="space-y-2">
+        <a href="/finances/backup" class="more-row">
+            <span class="more-icon">💾</span>
             <span class="font-medium text-gray-800 flex-1">גיבוי</span>
             <i class="fas fa-chevron-left text-gray-300 text-xs"></i>
         </a>
+    </div>
+
+    <h2 class="more-label">חשבון</h2>
+    <div class="space-y-2">
         {% if request.session.get('user') %}
-        <a href="/logout"
-           class="flex items-center gap-3 bg-white rounded-xl px-4 py-3.5 shadow-sm border border-gray-100 min-h-[52px]">
-            <span class="text-xl w-8 text-center flex-shrink-0"><i class="fas fa-sign-out-alt text-gray-500"></i></span>
+        <a href="/logout" class="more-row">
+            <span class="more-icon"><i class="fas fa-sign-out-alt text-gray-500"></i></span>
             <span class="flex-1 min-w-0">
                 <span class="block font-medium text-gray-800">יציאה</span>
                 <span class="block text-xs text-gray-500 truncate">מחובר כ-{{ request.session.get('user', {}).get('username') }}</span>
             </span>
         </a>
         {% else %}
-        <a href="/login"
-           class="flex items-center gap-3 bg-white rounded-xl px-4 py-3.5 shadow-sm border border-gray-100 min-h-[52px]">
-            <span class="text-xl w-8 text-center flex-shrink-0"><i class="fas fa-sign-in-alt text-gray-500"></i></span>
+        <a href="/login" class="more-row">
+            <span class="more-icon"><i class="fas fa-sign-in-alt text-gray-500"></i></span>
             <span class="font-medium text-gray-800 flex-1">התחברות</span>
         </a>
         {% endif %}
     </div>
 </div>
+
+<script>
+// Settings save as soon as they change.
+(function () {
+    var box = document.getElementById('more-settings');
+    if (!box) return;
+    var status = box.querySelector('.more-status');
+    box.addEventListener('change', function (e) {
+        var input = e.target.closest('[data-setting]');
+        if (!input) return;
+        var key = input.getAttribute('data-setting');
+        if (key === 'wedding_date' && !input.value) return;
+        status.textContent = 'שומר…';
+        status.classList.remove('is-error');
+        fetch('/api/wedding/settings', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: key, value: input.value.trim() }),
+        }).then(function (r) {
+            if (!r.ok) throw new Error(r.status);
+            status.textContent = 'נשמר ✓';
+        }).catch(function () {
+            status.textContent = 'השמירה נכשלה. נסו שוב.';
+            status.classList.add('is-error');
+        });
+    });
+})();
+</script>
 {% endblock %}

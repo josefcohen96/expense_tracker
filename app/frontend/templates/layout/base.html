@@ -18,7 +18,7 @@
     <script src="/static/js/vendor/htmx.min.js" defer></script>
 
     <!-- Custom CSS - PERFORMANCE OPTIMIZED -->
-    <link rel="stylesheet" href="/static/css/main.css?v=20260916">
+    <link rel="stylesheet" href="/static/css/main.css?v=20260917">
 
     <!-- Font Awesome - PERFORMANCE OPTIMIZED -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
@@ -580,10 +580,10 @@
         ] %}
         {% if key == 'fab' %}
         <div class="tab-fab-cell">
-            {#- Opens the page's own [data-quick-add] action when there is one (see script below). -#}
+            {#- Opens the quick-add sheet (static/js/components/quick-add.js); the href is the no-JS fallback. -#}
             <a id="mobile-fab" href="{{ '/finances/transactions?new=1' if mobile_tab == 'finances' else '/wedding/tasks?new=1' }}"
                class="mobile-fab {% if mobile_tab == 'wedding' %}mobile-fab-wedding{% elif mobile_tab == 'finances' %}mobile-fab-finances{% endif %}"
-               aria-label="{{ 'הוצאה חדשה' if mobile_tab == 'finances' else 'משימה חדשה' }}">
+               aria-label="{{ 'הוצאה חדשה' if mobile_tab == 'finances' else 'משימה חדשה' }}" aria-haspopup="dialog">
                 <span aria-hidden="true">+</span>
             </a>
         </div>
@@ -597,6 +597,7 @@
         {% endif %}
         {% endfor %}
     </nav>
+    {% include "layout/_quick_add.html" %}
     {% endif %}
 
     <!-- Main Content Area -->
@@ -876,13 +877,40 @@
                 : (path.indexOf('/finances') === 0 && path.indexOf('/finances/backup') !== 0) ? 'finances'
                 : null;
 
-            // Remember the last page per module so its tab returns there.
+            // Remember the last page (and its query, e.g. the selected month) per module
+            // so its tab returns there.
             if (current) {
                 var state = readNav();
                 state.lastPath = state.lastPath || {};
-                state.lastPath[current] = path;
+                state.lastPath[current] = path + location.search.replace(/([?&])new=1(&|$)/, '$1').replace(/[?&]$/, '');
                 writeNav(state);
             }
+
+            // Returning to a tab restores where that page was scrolled to (this tab session only).
+            var SCROLL_KEY = 'et.mobile.scroll';
+            var here = path + location.search;
+            function readScroll() {
+                try { return JSON.parse(sessionStorage.getItem(SCROLL_KEY)) || {}; } catch (e) { return {}; }
+            }
+            window.addEventListener('pagehide', function () {
+                var saved = readScroll();
+                saved[here] = Math.round(window.scrollY);
+                try { sessionStorage.setItem(SCROLL_KEY, JSON.stringify(saved)); } catch (e) { /* storage unavailable */ }
+            });
+            try {
+                if (sessionStorage.getItem('et.mobile.fromTab') === here) {
+                    sessionStorage.removeItem('et.mobile.fromTab');
+                    var y = readScroll()[here];
+                    if (y) window.addEventListener('load', function () { window.scrollTo(0, y); });
+                }
+            } catch (e) { /* storage unavailable */ }
+
+            document.querySelectorAll('#mobile-tab-bar [data-nav-module]').forEach(function (tab) {
+                tab.addEventListener('click', function () {
+                    var target = tab.getAttribute('data-nav-target') || tab.getAttribute('href');
+                    try { sessionStorage.setItem('et.mobile.fromTab', target); } catch (e) { /* storage unavailable */ }
+                });
+            });
 
             document.querySelectorAll('#mobile-tab-bar [data-nav-module]').forEach(function (tab) {
                 var module = tab.getAttribute('data-nav-module');
@@ -902,15 +930,17 @@
                 return document.querySelector('[data-quick-add]');
             }
 
-            var fab = document.getElementById('mobile-fab');
-            if (fab) {
-                fab.addEventListener('click', function (e) {
-                    var source = quickAddSource();
-                    if (source) {
-                        e.preventDefault();
-                        source.click();
-                    }
-                });
+            // A page's own labelled primary action ([data-quick-add="+ מוזמן"]) goes in the
+            // section header's end slot; the tab-bar "+" opens the global quick-add sheet.
+            var endSlot = document.querySelector('#mobile-section-header [data-msh-end]');
+            var pageAction = document.querySelector('[data-quick-add]:not([data-quick-add=""])');
+            if (endSlot && pageAction && !endSlot.children.length) {
+                var headerAction = document.createElement('button');
+                headerAction.type = 'button';
+                headerAction.className = 'msh-action';
+                headerAction.textContent = pageAction.getAttribute('data-quick-add');
+                headerAction.addEventListener('click', function () { pageAction.click(); });
+                endSlot.appendChild(headerAction);
             }
 
             // Pages open dialogs in many ways; hide the tab bar whenever any full-screen overlay is visible
@@ -936,7 +966,7 @@
                         overlayQueued = true;
                         requestAnimationFrame(syncOverlay);
                     }
-                }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] });
+                }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
             }
 
             // ?new=1 (from the FAB on pages without their own add action) opens the add dialog once.
@@ -987,6 +1017,9 @@
         })();
     </script>
 
+    {% if show_tab_bar %}
+    <script src="/static/js/components/quick-add.js?v=20260917" defer></script>
+    {% endif %}
     {% block scripts %}{% endblock %}
 </body>
 

@@ -1,14 +1,17 @@
+import json
+import math
 import sqlite3
 import logging
 from datetime import date as date_cls, timedelta
-from typing import Dict, List, Any
+from statistics import median
+from typing import Dict, List, Any, Iterable, Optional, Set, Tuple
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path as FSPath
 
 from ..db import get_db_conn
-from ..schemas.workouts import WorkoutCreateSchema
+from ..schemas.workouts import WorkoutCreateSchema, WorkoutLegacyProgressSchema
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +172,48 @@ SKILL_PROGRESSIONS = {
     }
 }
 
+# ====================== QUEST PATHS ======================
+# Every SKILL_PROGRESSIONS entry is a path and its progressions are the stations.
+# A station is conquered by completing STATION_SESSIONS_TO_CONQUER workouts with it
+# in its rep range — counted from history, never marked by hand.
+
+STATION_SESSIONS_TO_CONQUER = 5
+STATION_REP_FLOOR = 0.8     # a session counts once its average set reaches 80% of the target
+PLAN_FOCUS_SETS = 4         # sets of the station being conquered
+PLAN_SUPPORT_SETS = 3       # sets of each earlier station, trained as volume
+PLAN_SUPPORT_STATIONS = 2
+PLAN_SECONDS_PER_SET = 40   # work time on top of the station's rest
+PLAN_DURATION_SAMPLE = 5    # recent path sessions the time estimate is taken from
+ETA_MIN_SESSIONS = 3        # below this the pace is a guess, so no estimate is shown
+
+# Emoji are the icon language of paths/stations; ranks and achievements keep their fa-* icons.
+PATHS = {
+    "muscle_up": {"name": "עליית כוח", "icon": "🧗", "tint": "rgba(79,70,229,.36)", "unlock_level": 1, "workout_type": "Pull"},
+    "hspu": {"name": "עמידת ידיים", "icon": "🤸", "tint": "rgba(124,58,237,.35)", "unlock_level": 1, "workout_type": "Push"},
+    "front_lever": {"name": "סמיכה קדמית", "icon": "🦅", "tint": "rgba(13,148,136,.32)", "unlock_level": 1, "workout_type": "Pull"},
+    "human_flag": {"name": "דגל אנושי", "icon": "🚩", "tint": "rgba(2,132,199,.32)", "unlock_level": 5, "workout_type": "Core"},
+    "planche": {"name": "פלאנץ'", "icon": "✈️", "tint": "rgba(217,119,6,.32)", "unlock_level": 10, "workout_type": "Push"},
+}
+
+
+def station_exercise_name(step: Dict[str, Any]) -> str:
+    """The exercise name a station is saved under (the format the page has always sent)."""
+    return f"{step['hebrew']} ({step['name']})"
+
+
+# Rows saved before skill_key existed are matched back to their station by name.
+STATION_BY_NAME: Dict[str, Tuple[str, int]] = {}
+for _skill_key, _skill in SKILL_PROGRESSIONS.items():
+    for _idx, _step in enumerate(_skill["progressions"]):
+        STATION_BY_NAME.setdefault(station_exercise_name(_step), (_skill_key, _idx))
+
+# Hebrew title + coach-tip category for the free-workout exercise list
+EXERCISE_CATALOG = {
+    ex["name"]: {"title": ex["hebrew"], "category": category.split(" ")[0].lower()}
+    for category, exercises in DEFAULT_EXERCISES.items()
+    for ex in exercises
+}
+
 # ====================== GAMIFICATION ENGINE ======================
 # XP is derived deterministically from workout history, so no schema change
 # is needed — every saved workout "earns" points retroactively as well.
@@ -237,14 +282,48 @@ def _next_rank_for_level(level: int) -> Dict[str, Any]:
     return {}
 
 
+def _total_xp_for_level(level: int) -> int:
+    """Total XP at which the given level starts."""
+    return sum(_xp_needed_for_level(lvl) for lvl in range(1, level))
+
+
+def _rank_ladder(level: int, total_xp: int) -> List[Dict[str, Any]]:
+    """Every rank with its state for this player: achieved / current / next / locked."""
+    current_idx = max(i for i, (min_level, _, _) in enumerate(RANKS) if level >= min_level)
+    ladder = []
+    for i, (min_level, rank_title, rank_icon) in enumerate(RANKS):
+        if i < current_idx:
+            state = "achieved"
+        elif i == current_idx:
+            state = "current"
+        elif i == current_idx + 1:
+            state = "next"
+        else:
+            state = "locked"
+        ladder.append({
+            "title": rank_title,
+            "icon": rank_icon,
+            "level": min_level,
+            "state": state,
+            "xp_needed": max(0, _total_xp_for_level(min_level) - total_xp),
+        })
+    return ladder
+
+
+def _parse_day(value: Any) -> Optional[date_cls]:
+    try:
+        return date_cls.fromisoformat(str(value)[:10])
+    except (ValueError, TypeError):
+        return None
+
+
+def _workout_days(dates: Iterable[str]) -> Set[date_cls]:
+    return {d for d in (_parse_day(v) for v in dates) if d}
+
+
 def _compute_streak(dates: List[str]) -> int:
     """Longest run of consecutive workout days ending at the most recent workout."""
-    day_set = set()
-    for d in dates:
-        try:
-            day_set.add(date_cls.fromisoformat(d[:10]))
-        except (ValueError, TypeError):
-            continue
+    day_set = _workout_days(dates)
     if not day_set:
         return 0
     streak = 1
@@ -255,8 +334,65 @@ def _compute_streak(dates: List[str]) -> int:
     return streak
 
 
-def compute_gamification(history: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _current_streak(day_set: Set[date_cls], today: date_cls) -> int:
+    """Run of workout days that is still alive (trained today or yesterday)."""
+    day = today if today in day_set else today - timedelta(days=1)
+    streak = 0
+    while day in day_set:
+        streak += 1
+        day -= timedelta(days=1)
+    return streak
+
+
+def _best_streak(day_set: Set[date_cls]) -> int:
+    best = 0
+    for day in day_set:
+        if day - timedelta(days=1) in day_set:
+            continue  # not the start of a run
+        length = 1
+        while day + timedelta(days=length) in day_set:
+            length += 1
+        best = max(best, length)
+    return best
+
+
+def _ago_label(days: int) -> str:
+    """'לפני 9 ימים' — how long ago something happened."""
+    if days <= 0:
+        return "היום"
+    if days == 1:
+        return "אתמול"
+    if days == 2:
+        return "לפני יומיים"
+    if days < 14:
+        return f"לפני {days} ימים"
+    if days < 21:
+        return "לפני שבועיים"
+    if days < 60:
+        return f"לפני {days // 7} שבועות"
+    if days < 365:
+        months = days // 30
+        return "לפני חודשיים" if months == 2 else f"לפני {months} חודשים"
+    return "לפני יותר משנה"
+
+
+def _eta_label(weeks: float) -> str:
+    """'בערך 4 חודשים' — a rough time-to-goal."""
+    if weeks < 1.5:
+        return "בערך שבוע"
+    if weeks < 2.5:
+        return "בערך שבועיים"
+    if weeks < 7:
+        return f"בערך {round(weeks)} שבועות"
+    months = round(weeks / 4.345)
+    if months >= 24:
+        return "יותר משנתיים"
+    return "בערך חודשיים" if months == 2 else f"בערך {months} חודשים"
+
+
+def compute_gamification(history: List[Dict[str, Any]], today: Optional[date_cls] = None) -> Dict[str, Any]:
     """Aggregate workout history into the full player-profile game state."""
+    today = today or date_cls.today()
     total_workouts = len(history)
     total_sets = 0
     total_reps = 0
@@ -307,6 +443,18 @@ def compute_gamification(history: List[Dict[str, Any]]) -> Dict[str, Any]:
         for a_id, icon, title, desc, current, target in achievement_defs
     ]
 
+    next_rank = _next_rank_for_level(level)
+    if next_rank:
+        next_rank["xp_needed"] = max(0, _total_xp_for_level(next_rank["level"]) - total_xp)
+    ranks = _rank_ladder(level, total_xp)
+
+    # Last 7 days, oldest first — the streak strip on the quest-select screen
+    days = _workout_days(s["date"] for s in history)
+    week = [
+        {"date": d.isoformat(), "trained": d in days, "is_today": d == today}
+        for d in (today - timedelta(days=offset) for offset in range(6, -1, -1))
+    ]
+
     return {
         "total_xp": total_xp,
         "level": level,
@@ -314,8 +462,14 @@ def compute_gamification(history: List[Dict[str, Any]]) -> Dict[str, Any]:
         "xp_for_next": level_info["xp_for_next"],
         "progress_pct": level_info["progress_pct"],
         "rank": _rank_for_level(level),
-        "next_rank": _next_rank_for_level(level),
+        "next_rank": next_rank,
+        "ranks": ranks,
+        "rank_position": next(i for i, r in enumerate(ranks) if r["state"] == "current") + 1,
         "streak": streak,
+        "current_streak": _current_streak(days, today),
+        "best_streak": _best_streak(days),
+        "week": week,
+        "week_count": sum(1 for d in week if d["trained"]),
         "total_workouts": total_workouts,
         "total_sets": total_sets,
         "total_reps": total_reps,
@@ -323,6 +477,223 @@ def compute_gamification(history: List[Dict[str, Any]]) -> Dict[str, Any]:
         "achievements": achievements,
         "unlocked_count": sum(1 for a in achievements if a["unlocked"]),
     }
+
+
+def _rep_range(target: int) -> Tuple[int, int]:
+    return max(1, math.ceil(target * STATION_REP_FLOOR)), target
+
+
+def _station_for(skill_key: Optional[str], stage_index: Optional[int], exercise_name: str) -> Optional[Tuple[str, int]]:
+    """The station an exercise row trained: its stored key when valid, else a match by name."""
+    skill = SKILL_PROGRESSIONS.get(skill_key or "")
+    if skill and stage_index is not None and 0 <= stage_index < len(skill["progressions"]):
+        return (skill_key, stage_index)
+    return STATION_BY_NAME.get(exercise_name)
+
+
+def _exercise_title(exercise_name: str, station: Optional[Tuple[str, int]]) -> str:
+    """Hebrew display name for a saved exercise."""
+    if station:
+        return SKILL_PROGRESSIONS[station[0]]["progressions"][station[1]]["hebrew"]
+    if exercise_name in EXERCISE_CATALOG:
+        return EXERCISE_CATALOG[exercise_name]["title"]
+    return exercise_name
+
+
+def _best_set(exercise: Dict[str, Any]) -> int:
+    """Best single set of a saved exercise; rows from before max_reps fall back to the average set."""
+    if exercise.get("max_reps") is not None:
+        return exercise["max_reps"]
+    return exercise["reps"] // exercise["sets"] if exercise["sets"] else 0
+
+
+def compute_records(history: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """Per exercise name: best single set (and when it was first reached) and the latest session's best set."""
+    records: Dict[str, Dict[str, Any]] = {}
+    for session in history:  # newest first
+        for ex in session["exercises"]:
+            best = _best_set(ex)
+            if best <= 0:
+                continue
+            record = records.get(ex["name"])
+            if record is None:
+                records[ex["name"]] = {"best": best, "best_date": session["date"], "last": best}
+            elif best >= record["best"]:
+                # Ties move the date back, so it points at when the record was first set
+                record["best"], record["best_date"] = best, session["date"]
+    return records
+
+
+def compute_paths(
+    history: List[Dict[str, Any]],
+    level: int,
+    legacy_conquered: Optional[Dict[str, List[int]]] = None,
+    today: Optional[date_cls] = None,
+) -> List[Dict[str, Any]]:
+    """Quest paths with per-station progress counted from history, plus today's plan for each path."""
+    today = today or date_cls.today()
+    legacy_conquered = legacy_conquered or {}
+
+    tally: Dict[Tuple[str, int], Dict[str, int]] = {}
+    path_sessions: Dict[str, List[Dict[str, Any]]] = {}
+    for session in history:  # newest first
+        seen_stations = set()
+        for ex in session["exercises"]:
+            station = ex.get("station")
+            if not station or station in seen_stations:
+                continue
+            seen_stations.add(station)
+            skill_key, idx = station
+            target = SKILL_PROGRESSIONS[skill_key]["progressions"][idx]["reps"]
+            counts = tally.setdefault(station, {"sessions": 0, "in_range": 0})
+            counts["sessions"] += 1
+            if ex["sets"] > 0 and ex["reps"] / ex["sets"] >= _rep_range(target)[0]:
+                counts["in_range"] += 1
+            sessions_on_path = path_sessions.setdefault(skill_key, [])
+            if not sessions_on_path or sessions_on_path[-1] is not session:
+                sessions_on_path.append(session)
+
+    paths = []
+    for skill_key, skill in SKILL_PROGRESSIONS.items():
+        meta = PATHS[skill_key]
+        sessions = path_sessions.get(skill_key, [])
+        legacy_done = set(legacy_conquered.get(skill_key, []))
+
+        stations = []
+        for idx, step in enumerate(skill["progressions"]):
+            counts = tally.get((skill_key, idx), {"sessions": 0, "in_range": 0})
+            low, high = _rep_range(step["reps"])
+            stations.append({
+                "index": idx,
+                "number": idx + 1,
+                "name": step["name"],
+                "hebrew": step["hebrew"],
+                "exercise_name": station_exercise_name(step),
+                "reps": step["reps"],
+                "rest": step["rest"],
+                "rep_label": f"{low}–{high}" if low < high else str(high),
+                "sessions": counts["sessions"],
+                "in_range": min(counts["in_range"], STATION_SESSIONS_TO_CONQUER),
+                "remaining": max(0, STATION_SESSIONS_TO_CONQUER - counts["in_range"]),
+                "conquered": counts["in_range"] >= STATION_SESSIONS_TO_CONQUER or idx in legacy_done,
+            })
+
+        current = next((st for st in stations if not st["conquered"]), None)
+        for st in stations:
+            if st["conquered"]:
+                st["state"] = "conquered"
+            elif st is current:
+                st["state"] = "current"
+            elif current is not None and st["index"] == current["index"] + 1:
+                st["state"] = "next"
+            else:
+                st["state"] = "locked"
+
+        # Today's plan: the station being conquered, then earlier stations as volume.
+        # A finished path keeps training its goal.
+        focus = current or stations[-1]
+        planned = [(focus, PLAN_FOCUS_SETS)] + [
+            (stations[focus["index"] - back], PLAN_SUPPORT_SETS)
+            for back in range(1, PLAN_SUPPORT_STATIONS + 1)
+            if focus["index"] - back >= 0
+        ]
+        plan_sets = sum(sets for _, sets in planned)
+        plan_reps = sum(sets * st["reps"] for st, sets in planned)
+        recent_durations = [s["total_duration"] for s in sessions[:PLAN_DURATION_SAMPLE] if s.get("total_duration")]
+        if recent_durations:
+            plan_minutes = round(median(recent_durations))
+        else:
+            plan_seconds = sum(sets * (PLAN_SECONDS_PER_SET + st["rest"]) for st, sets in planned)
+            plan_minutes = max(1, round(plan_seconds / 60))
+        plan = {
+            "exercises": [
+                {
+                    "name": st["exercise_name"],
+                    "title": st["hebrew"],
+                    "skill_key": skill_key,
+                    "stage_index": st["index"],
+                    "sets": sets,
+                    "reps": st["reps"],
+                    "rest": st["rest"],
+                }
+                for st, sets in planned
+            ],
+            "sets": plan_sets,
+            "minutes": plan_minutes,
+            "xp": _session_xp(plan_sets, plan_reps, plan_minutes),
+        }
+
+        # Time to the goal at the user's own pace on this path
+        eta = None
+        if current is not None and len(sessions) >= ETA_MIN_SESSIONS:
+            taken = [st["sessions"] for st in stations if st["conquered"] and st["sessions"]]
+            per_station = max(STATION_SESSIONS_TO_CONQUER, median(taken) if taken else 0)
+            remaining_sessions = max(0, (len(stations) - current["index"]) * per_station - current["in_range"])
+            first_day = _parse_day(sessions[-1]["date"]) or today
+            weeks_active = max(1.0, (today - first_day).days / 7)
+            eta = _eta_label(remaining_sessions / (len(sessions) / weeks_active))
+
+        last_day = _parse_day(sessions[0]["date"]) if sessions else None
+        paths.append({
+            "key": skill_key,
+            **meta,
+            "title": skill["title"],
+            "difficulty": skill["difficulty"],
+            "muscles": skill["muscles"],
+            "warmup": skill["warmup"],
+            "cues": skill["cues"],
+            "category": meta["workout_type"].lower(),
+            "unlocked": level >= meta["unlock_level"] or bool(sessions) or bool(legacy_done),
+            "stations": stations,
+            "total": len(stations),
+            "current": current,
+            "complete": current is None,
+            "position": current["number"] if current else len(stations),
+            "conquered_count": sum(1 for st in stations if st["conquered"]),
+            "goal": stations[-1],
+            "stations_to_goal": len(stations) - current["number"] if current else 0,
+            "eta": eta,
+            "plan": plan,
+            "sessions": len(sessions),
+            "last_date": last_day.isoformat() if last_day else None,
+            "last_ago": _ago_label((today - last_day).days) if last_day else None,
+        })
+    return paths
+
+
+def _legacy_progress_key(user_id: int) -> str:
+    return f"workouts_legacy_conquered:{user_id}"
+
+
+def _clean_progress(data: Any) -> Dict[str, List[int]]:
+    """Keep only real skill keys and in-range stage indexes."""
+    clean: Dict[str, List[int]] = {}
+    if not isinstance(data, dict):
+        return clean
+    for skill_key, indexes in data.items():
+        skill = SKILL_PROGRESSIONS.get(skill_key)
+        if not skill or not isinstance(indexes, list):
+            continue
+        valid = sorted({
+            i for i in indexes
+            if isinstance(i, int) and not isinstance(i, bool) and 0 <= i < len(skill["progressions"])
+        })
+        if valid:
+            clean[skill_key] = valid
+    return clean
+
+
+def _load_legacy_progress(db_conn: sqlite3.Connection, user_id: int) -> Dict[str, List[int]]:
+    """Stations a browser had marked conquered by hand, imported once from localStorage."""
+    row = db_conn.execute(
+        "SELECT value FROM system_settings WHERE key = ?", (_legacy_progress_key(user_id),)
+    ).fetchone()
+    if not row:
+        return {}
+    try:
+        return _clean_progress(json.loads(row["value"]))
+    except (TypeError, ValueError):
+        return {}
 
 
 def _resolve_user_id(request: Request, db_conn: sqlite3.Connection):
@@ -341,7 +712,8 @@ def _fetch_history(db_conn: sqlite3.Connection, user_id: int) -> List[Dict[str, 
     """Fetch workout rows and aggregate them into per-session dicts."""
     rows = db_conn.execute(
         """
-        SELECT date, workout_type, total_duration, exercise_name, total_sets, total_reps
+        SELECT date, workout_type, total_duration, exercise_name, total_sets, total_reps,
+               skill_key, stage_index, max_reps
         FROM workouts
         WHERE user_id = ?
         ORDER BY date DESC, id DESC
@@ -359,10 +731,14 @@ def _fetch_history(db_conn: sqlite3.Connection, user_id: int) -> List[Dict[str, 
                 "total_duration": r["total_duration"],
                 "exercises": []
             }
+        station = _station_for(r["skill_key"], r["stage_index"], r["exercise_name"])
         workout_sessions[session_key]["exercises"].append({
             "name": r["exercise_name"],
+            "title": _exercise_title(r["exercise_name"], station),
             "sets": r["total_sets"],
-            "reps": r["total_reps"]
+            "reps": r["total_reps"],
+            "max_reps": r["max_reps"],
+            "station": station,
         })
     return list(workout_sessions.values())
 
@@ -372,14 +748,51 @@ async def workout_page(
     request: Request,
     db_conn: sqlite3.Connection = Depends(get_db_conn)
 ) -> HTMLResponse:
-    """Render the main workout tracker page with active UI and history of workouts."""
+    """Render the workout page: quest select, map, profile, history, and the arena shell."""
     user_id = _resolve_user_id(request, db_conn)
     if user_id is None:
         # AuthMiddleware will redirect, but as defensive fallback
         return HTMLResponse("Unauthorized", status_code=status.HTTP_401_UNAUTHORIZED)
 
+    today = date_cls.today()
     history = _fetch_history(db_conn, user_id)
-    game = compute_gamification(history)
+    game = compute_gamification(history, today)
+    paths = compute_paths(history, game["level"], _load_legacy_progress(db_conn, user_id), today)
+    records = compute_records(history)
+    unlocked = [p for p in paths if p["unlocked"]]
+    trained = [p for p in unlocked if p["last_date"]]
+    default_path = max(trained, key=lambda p: p["last_date"])["key"] if trained else unlocked[0]["key"]
+    first_workout = game["total_workouts"] == 0
+
+    for session in history:
+        day = _parse_day(session["date"])
+        session["ago"] = _ago_label((today - day).days) if day else ""
+
+    # Everything the arena needs without a request per set
+    client_data = {
+        "default_path": default_path,
+        "paths": {
+            p["key"]: {
+                "name": p["name"],
+                "icon": p["icon"],
+                "unlocked": p["unlocked"],
+                "workout_type": p["workout_type"],
+                "category": p["category"],
+                "plan": p["plan"],
+            }
+            for p in paths
+        },
+        "stations": {
+            p["key"]: [
+                {"name": st["exercise_name"], "title": st["hebrew"], "reps": st["reps"], "rest": st["rest"]}
+                for st in p["stations"]
+            ]
+            for p in paths
+        },
+        "records": {name: {"best": r["best"], "last": r["last"]} for name, r in records.items()},
+        "catalog": EXERCISE_CATALOG,
+        "first_workout": first_workout,
+    }
 
     return templates.TemplateResponse(
         "pages/workout.html",
@@ -388,7 +801,14 @@ async def workout_page(
             "default_exercises": DEFAULT_EXERCISES,
             "history": history,
             "skills_guide": SKILL_PROGRESSIONS,
+            "paths": paths,
+            "paths_by_key": {p["key"]: p for p in paths},
+            "default_path": default_path,
+            "first_workout": first_workout,
+            "first_workout_xp": min(p["plan"]["xp"] for p in unlocked),
+            "sessions_to_conquer": STATION_SESSIONS_TO_CONQUER,
             "game": game,
+            "client_data": client_data,
             "show_sidebar": False,  # Hide standard finance sidebar to give space for mobile-first workout UI
         }
     )
@@ -409,16 +829,30 @@ async def save_workout(
         return JSONResponse({"status": "error", "message": "No exercises performed in this workout."}, status_code=status.HTTP_400_BAD_REQUEST)
 
     try:
-        # Snapshot game state before saving to detect level-ups and new badges
-        game_before = compute_gamification(_fetch_history(db_conn, user_id))
+        today = date_cls.today()
+        legacy = _load_legacy_progress(db_conn, user_id)
+
+        # Snapshot game state before saving to detect level-ups, new badges, stations and records
+        history_before = _fetch_history(db_conn, user_id)
+        game_before = compute_gamification(history_before, today)
+        records_before = compute_records(history_before)
+        conquered_before = {
+            (p["key"], st["index"])
+            for p in compute_paths(history_before, game_before["level"], legacy, today)
+            for st in p["stations"] if st["conquered"]
+        }
 
         # Insert each exercise row
+        session_best: Dict[str, Tuple[int, str]] = {}
         for ex in payload.exercises:
             if ex.total_sets > 0:
+                station = _station_for(ex.skill_key, ex.stage_index, ex.exercise_name)
+                max_reps = None if ex.max_reps is None else max(0, min(ex.max_reps, ex.total_reps))
                 db_conn.execute(
                     """
-                    INSERT INTO workouts (user_id, date, workout_type, total_duration, exercise_name, total_sets, total_reps)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO workouts (user_id, date, workout_type, total_duration, exercise_name,
+                                          total_sets, total_reps, skill_key, stage_index, max_reps)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         user_id,
@@ -427,18 +861,49 @@ async def save_workout(
                         payload.total_duration,
                         ex.exercise_name,
                         ex.total_sets,
-                        ex.total_reps
+                        ex.total_reps,
+                        station[0] if station else None,
+                        station[1] if station else None,
+                        max_reps,
                     )
                 )
+                if max_reps and max_reps > session_best.get(ex.exercise_name, (0, ""))[0]:
+                    session_best[ex.exercise_name] = (max_reps, _exercise_title(ex.exercise_name, station))
         db_conn.commit()
 
-        game_after = compute_gamification(_fetch_history(db_conn, user_id))
+        history_after = _fetch_history(db_conn, user_id)
+        game_after = compute_gamification(history_after, today)
         unlocked_before = {a["id"] for a in game_before["achievements"] if a["unlocked"]}
         new_achievements = [
             {"icon": a["icon"], "title": a["title"], "desc": a["desc"]}
             for a in game_after["achievements"]
             if a["unlocked"] and a["id"] not in unlocked_before
         ]
+
+        new_stations = []
+        for p in compute_paths(history_after, game_after["level"], legacy, today):
+            for st in p["stations"]:
+                if st["conquered"] and (p["key"], st["index"]) not in conquered_before:
+                    new_stations.append({
+                        "path": p["name"],
+                        "icon": p["icon"],
+                        "station": st["hebrew"],
+                        "next": p["current"]["hebrew"] if p["current"] else None,
+                    })
+
+        # Personal records only count against real history for the same exercise
+        new_records = []
+        for name, (reps, title) in session_best.items():
+            previous = records_before.get(name)
+            if previous and reps > previous["best"]:
+                previous_day = _parse_day(previous["best_date"])
+                new_records.append({
+                    "exercise_name": name,
+                    "title": title,
+                    "reps": reps,
+                    "previous": previous["best"],
+                    "previous_ago": _ago_label((today - previous_day).days) if previous_day else None,
+                })
 
         return {
             "status": "success",
@@ -450,13 +915,38 @@ async def save_workout(
                 "new_level": game_after["level"],
                 "leveled_up": game_after["level"] > game_before["level"],
                 "rank": game_after["rank"],
+                "next_rank": game_after["next_rank"],
                 "xp_in_level": game_after["xp_in_level"],
                 "xp_for_next": game_after["xp_for_next"],
                 "progress_pct": game_after["progress_pct"],
                 "streak": game_after["streak"],
                 "new_achievements": new_achievements,
+                "new_stations": new_stations,
+                "new_records": new_records,
             },
         }
     except Exception as e:
         logger.exception("Failed to save workout session")
         return JSONResponse({"status": "error", "message": f"Database error: {str(e)}"}, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@router.post("/workouts/legacy-progress")
+async def import_legacy_progress(
+    payload: WorkoutLegacyProgressSchema,
+    request: Request,
+    db_conn: sqlite3.Connection = Depends(get_db_conn)
+):
+    """One-time import of stations a browser had marked "כבשתי!" before conquering was counted."""
+    user_id = _resolve_user_id(request, db_conn)
+    if user_id is None:
+        return JSONResponse({"status": "error", "message": "Not authenticated"}, status_code=status.HTTP_401_UNAUTHORIZED)
+
+    merged = _load_legacy_progress(db_conn, user_id)
+    for skill_key, indexes in _clean_progress(payload.progress).items():
+        merged[skill_key] = sorted(set(merged.get(skill_key, [])) | set(indexes))
+    db_conn.execute(
+        "INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+        (_legacy_progress_key(user_id), json.dumps(merged)),
+    )
+    db_conn.commit()
+    return {"status": "success", "stations": sum(len(v) for v in merged.values())}

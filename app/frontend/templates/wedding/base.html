@@ -9,7 +9,7 @@
 {%- set path = request.path -%}
 {#- Mobile IA: 10 pages grouped into 4 sections; pages beyond the first become chips. -#}
 {%- set section_pages = {
-    'planning': [('משימות', '/wedding/tasks'), ('לו״ז', '/wedding/timeline'), ('לזכור', '/wedding/notes'), ('רעיונות', '/wedding/ideas')],
+    'planning': [('משימות', '/wedding/tasks'), ('לו״ז', '/wedding/milestones'), ('סוף שבוע', '/wedding/timeline'), ('לזכור', '/wedding/notes'), ('רעיונות', '/wedding/ideas')],
     'guests':   [('מוזמנים', '/wedding/guests'), ('הושבות', '/wedding/seating'), ('לינה', '/wedding/lodging')],
     'finances': [('תקציב', '/wedding/budget'), ('ספקים', '/wedding/vendors')],
 } -%}
@@ -17,14 +17,21 @@
 {%- for key, pages in section_pages.items() -%}
     {%- for label, href in pages if path.startswith(href) -%}{%- set ns.section = key -%}{%- endfor -%}
 {%- endfor -%}
+{%- set wh = wedding_header() -%}
+{%- set countdown_badge = none -%}
+{%- if wh.days_left is not none and wh.days_left >= 0 -%}
+    {%- set countdown_badge = 'היום!' if wh.days_left == 0 else ('💍 ' ~ wh.days_left ~ ' ימים') -%}
+{%- endif -%}
 <style>.fab-button { display: none !important; }</style>
 
+{% block mobile_header scoped %}
 {{ section_header('חתונה', 'wedding', [
     ('planning', 'תכנון', '/wedding/tasks'),
     ('overview', 'סקירה', '/wedding'),
     ('guests', 'מוזמנים', '/wedding/guests'),
     ('finances', 'כספים', '/wedding/budget'),
-], ns.section) }}
+], ns.section, badge=countdown_badge) }}
+{% endblock %}
 
 <!-- Desktop Only: Persistent Sidebar -->
 <aside class="hidden lg:flex lg:flex-col fixed bg-white border-l border-gray-200 shadow-lg overflow-y-auto"
@@ -165,6 +172,21 @@
             {% endif %}
         </a>
 
+        <a href="/wedding/milestones"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+                   {% if 'milestones' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+            <div class="w-8 h-8 rounded-lg {% if 'milestones' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 {% if 'milestones' in request.path %}text-rose-600{% else %}text-gray-500{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/>
+                </svg>
+            </div>
+            <span>אבני דרך</span>
+            {% if 'milestones' in request.path %}
+            <span class="mr-auto w-2 h-2 rounded-full bg-rose-500"></span>
+            {% endif %}
+        </a>
+
         <a href="/wedding/timeline"
             class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
                    {% if 'timeline' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
@@ -200,11 +222,13 @@
 
 <!-- Page Content: full width on mobile, offset on desktop for sidebar -->
 <div class="bg-gray-50 min-h-screen px-4 pt-2 pb-4 sm:p-6 lg:p-8 lg:mr-64" dir="rtl">
+    {% block mobile_chips scoped %}
     {%- set chips = [] -%}
     {%- for label, href in section_pages.get(ns.section, []) -%}
-        {%- set _ = chips.append((label, href, path.startswith(href))) -%}
+        {%- set _ = chips.append((label, href, path.startswith(href), wh.planning_counts.get(href))) -%}
     {%- endfor -%}
     {{ section_chips(chips) }}
+    {% endblock %}
     <!-- Page's primary action. Desktop shows it here; on mobile the tab-bar
          "+" triggers it via [data-quick-add]. -->
     <div class="hidden lg:flex justify-end mb-4">

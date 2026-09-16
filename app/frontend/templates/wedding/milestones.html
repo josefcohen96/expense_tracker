@@ -1,0 +1,874 @@
+{% extends "wedding/base.html" %}
+{% block wedding_title %}לוח זמנים{% endblock %}
+
+{#- Drill-down header: back to the planning tasks, page action at the end. -#}
+{% block mobile_header %}
+{% from "layout/_mobile_nav.html" import section_header %}
+{% call section_header('לוח זמנים', 'wedding', back='/wedding/tasks') %}{% if view.wedding_date %}<button type="button" class="msh-action" onclick="msOpenEdit(null, this)">+ אבן דרך</button>{% endif %}{% endcall %}
+{% endblock %}
+
+{% block mobile_chips %}{% endblock %}
+
+{% block wedding_header_action %}
+{% if view.wedding_date %}
+<button type="button" data-quick-add="+ אבן דרך" onclick="msOpenEdit(null, this)"
+        class="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-3 py-2 rounded-xl text-sm font-medium shadow-sm min-h-[36px]">
+    + אבן דרך
+</button>
+{% endif %}
+{% endblock %}
+
+{% block wedding_content %}
+{%- set ms_feeds = {
+    'headcount': ' · מזין את הקייטרינג',
+    'invitations': ' · מזין את אישורי ההגעה',
+    'catering': ' · מזין את מספר המנות',
+    'seating': ' · מזין את ההושבה',
+} -%}
+<style>
+/* ── 2c: date-anchored milestones ───────────────────────── */
+.ms-page { max-width: 42rem; margin: 0 auto; }
+.ms-page [hidden], .ms-scrim [hidden] { display: none !important; }
+
+.ms-notice {
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: #fff1f2;
+    border: 1px solid #fecdd3;
+    border-radius: 14px;
+}
+.ms-notice-icon { flex: 0 0 auto; font-size: 15px; line-height: 1; }
+.ms-notice-text {
+    flex: 1;
+    margin: 0;
+    font: 400 11.5px/1.5 var(--font-primary);
+    color: #9f1239;
+}
+.ms-date-btn {
+    position: relative;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: 700;
+    color: inherit;
+    cursor: pointer;
+    text-decoration: underline dotted #fca5a5;
+    text-underline-offset: 3px;
+    -webkit-tap-highlight-color: transparent;
+}
+.ms-date-btn::after { content: ''; position: absolute; inset: -14px -8px; }
+
+/* Rail: node column + cards. Each row draws the line down to the next node's center. */
+.ms-rail {
+    position: relative;
+    isolation: isolate;
+    list-style: none;
+    margin: 16px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+.ms-row { position: relative; display: flex; gap: 13px; }
+.ms-row:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    inset-inline-start: 13px;
+    top: 14px;
+    width: 2px;
+    height: calc(100% + 9px);
+    background: #f3f4f6;
+}
+
+.ms-node {
+    position: relative;
+    z-index: 1;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 999px;
+    border: 2px solid #e5e7eb;
+    background: #fff;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: background-color 160ms ease, border-color 160ms ease, transform 120ms ease;
+}
+.ms-node::after { content: ''; position: absolute; inset: -10px; }
+.ms-node:active { transform: scale(.92); }
+.ms-node:focus-visible, .ms-card:focus-visible, .ms-link:focus-visible, .ms-date-btn:focus-visible {
+    outline: 2px solid #e11d48;
+    outline-offset: 2px;
+}
+.ms-node-icon { display: block; line-height: 1; }
+.ms-node-icon::before { content: ''; }
+.ms-done .ms-node { background: #16a34a; border-color: #16a34a; }
+.ms-done .ms-node-icon::before { content: '✓'; font-size: 13px; }
+.ms-overdue .ms-node { background: #dc2626; border-color: #dc2626; }
+.ms-overdue .ms-node-icon::before { content: '!'; font: 700 12px/1 var(--font-primary); }
+.ms-next .ms-node { border-color: #e11d48; }
+.ms-next .ms-node-icon { width: 9px; height: 9px; border-radius: 999px; background: #e11d48; }
+
+.ms-body { flex: 1; min-width: 0; }
+.ms-card {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    border: 0;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(17, 24, 39, .07);
+    text-align: start;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: opacity 160ms ease;
+}
+.ms-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ms-title {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font: 500 13px var(--font-primary);
+    color: #374151;
+}
+.ms-offset {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    /* Mono digits; the Hebrew unit falls back to Rubik rather than Courier. */
+    font: 600 10px 'JetBrains Mono', var(--font-primary);
+    color: #6b7280;
+}
+.ms-sub {
+    display: block;
+    margin-top: 4px;
+    font: 400 11px var(--font-primary);
+    color: #9ca3af;
+}
+.ms-amount { font: 500 11px var(--font-mono); color: #dc2626; }
+.ms-amount-line { display: block; margin-top: 4px; }
+.ms-tag {
+    margin-inline-start: 6px;
+    white-space: nowrap;
+    font: 600 10px var(--font-primary);
+    color: #9f1239;
+}
+
+.ms-done .ms-card { opacity: .6; }
+.ms-done .ms-title { color: #6b7280; text-decoration: line-through; }
+.ms-done .ms-offset { color: #9ca3af; }
+.ms-done .ms-sub-text,
+.ms-done .ms-sub .ms-amount,
+.ms-done .ms-amount-line,
+.ms-done .ms-sub:not(.has-tag) { display: none; }
+.ms-done .ms-tag { margin-inline-start: 0; }
+
+.ms-overdue .ms-card,
+.ms-next .ms-card { padding: 13px 14px; box-shadow: 0 1px 4px rgba(17, 24, 39, .1); }
+.ms-overdue .ms-card { border-inline-start: 3px solid #dc2626; }
+.ms-overdue .ms-title,
+.ms-next .ms-title { font-weight: 600; color: #111827; }
+.ms-overdue .ms-offset { font-weight: 700; color: #b91c1c; }
+.ms-next .ms-offset { font-weight: 700; color: #be123c; }
+.ms-overdue .ms-sub { margin-top: 5px; font-weight: 500; color: #dc2626; }
+.ms-next .ms-sub { margin-top: 5px; font-weight: 500; color: #be123c; }
+
+.ms-err {
+    margin: 5px 2px 0;
+    font: 500 11px var(--font-primary);
+    color: #dc2626;
+}
+
+/* The wedding itself closes the rail. */
+.ms-node-wedding {
+    background: #881337;
+    border-color: #881337;
+    font-size: 12px;
+    cursor: default;
+}
+.ms-node-wedding::after { content: none; }
+.ms-wed-card {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #881337, #e11d48);
+    color: #fff;
+}
+.ms-wed-title { font: 700 13px var(--font-heading); }
+.ms-wed-date { flex: 0 0 auto; font: 700 10px var(--font-mono); color: #fecdd3; }
+
+/* No wedding date yet. */
+.ms-cta {
+    margin-top: 6px;
+    padding: 18px 16px;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(17, 24, 39, .07);
+}
+.ms-cta-title { margin: 0 0 12px; font: 700 15px var(--font-heading); color: #111827; }
+.ms-cta-row { display: flex; gap: 8px; }
+.ms-cta-row .ms-input { flex: 1; min-width: 0; }
+
+.ms-link {
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 46px;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(17, 24, 39, .07);
+    font: 600 13px var(--font-primary);
+    color: #111827;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+}
+.ms-link-arrow { color: #9ca3af; font-weight: 400; }
+
+/* Sheets: bottom sheet on phones, centered card from 640px. */
+.ms-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 600;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    background: rgba(17, 24, 39, .42);
+    opacity: 0;
+    transition: opacity 160ms ease;
+}
+.ms-scrim[hidden] { display: none; }
+.ms-scrim.is-open { opacity: 1; }
+.ms-sheet {
+    width: 100%;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-sizing: border-box;
+    padding: 14px 18px calc(18px + env(safe-area-inset-bottom, 0px));
+    border-radius: 26px 26px 0 0;
+    background: #fff;
+    box-shadow: 0 -8px 30px rgba(17, 24, 39, .12);
+    transform: translateY(100%);
+    transition: transform 240ms ease-out;
+}
+.ms-sheet:focus { outline: none; }
+.ms-scrim.is-open .ms-sheet { transform: none; }
+.ms-grab { width: 38px; height: 4px; margin: 0 auto 14px; border-radius: 999px; background: #d1d5db; }
+.ms-sheet-title { margin: 0 0 14px; font: 700 17px var(--font-heading); color: #111827; }
+.ms-field { margin-bottom: 14px; }
+.ms-label { display: block; margin-bottom: 6px; font: 600 12px var(--font-primary); color: #4b5563; }
+.ms-input {
+    display: block;
+    width: 100%;
+    min-height: 46px;
+    box-sizing: border-box;
+    padding: 0 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #fff;
+    font: 400 16px var(--font-primary);
+    color: #111827;
+}
+.ms-input:focus { outline: none; border-color: #e11d48; box-shadow: 0 0 0 3px #ffe4e6; }
+.ms-input[aria-invalid="true"] { border-color: #dc2626; }
+input.ms-input[type="date"] { text-align: right; }
+.ms-num { font-family: var(--font-mono); }
+.ms-offset-row { display: flex; gap: 8px; }
+.ms-offset-row > * { flex: 1; min-width: 0; }
+.ms-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    font: 500 14px var(--font-primary);
+    color: #374151;
+    cursor: pointer;
+}
+.ms-check input { width: 18px; height: 18px; accent-color: #e11d48; }
+.ms-hint { margin: 2px 0 0; font: 400 12px var(--font-primary); color: #6b7280; }
+.ms-sheet-err { margin: 0 0 12px; font: 500 12px var(--font-primary); color: #dc2626; }
+.ms-actions { display: flex; gap: 8px; }
+.ms-actions > .ms-btn { flex: 1; }
+.ms-btn {
+    min-height: 46px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 14px;
+    font: 600 15px var(--font-primary);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+.ms-btn:disabled { opacity: .6; cursor: default; }
+.ms-btn-primary { background: #e11d48; color: #fff; }
+.ms-btn-primary:active { background: #be123c; }
+.ms-btn-ghost { background: #f3f4f6; color: #374151; }
+.ms-btn-danger { background: #dc2626; color: #fff; }
+.ms-text-btn {
+    display: block;
+    min-height: 44px;
+    padding: 0 4px;
+    border: 0;
+    background: none;
+    font: 600 13px var(--font-primary);
+    cursor: pointer;
+}
+.ms-reset-btn { color: #be123c; }
+.ms-delete-btn { margin: 8px auto 0; color: #dc2626; }
+.ms-confirm {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 14px;
+    background: #fee2e2;
+}
+.ms-confirm-text { margin: 0 0 10px; font: 600 13px var(--font-primary); color: #b91c1c; }
+
+@media (min-width: 640px) {
+    .ms-scrim { align-items: center; padding: 24px; }
+    .ms-sheet {
+        max-width: 420px;
+        padding: 22px;
+        border-radius: 20px;
+        box-shadow: 0 24px 60px -18px rgba(17, 24, 39, .4);
+        opacity: 0;
+        transform: translateY(12px) scale(.98);
+        transition: transform 240ms ease-out, opacity 160ms ease;
+    }
+    .ms-scrim.is-open .ms-sheet { opacity: 1; transform: none; }
+    .ms-grab { display: none; }
+}
+@media (min-width: 1024px) {
+    .ms-notice, .ms-cta { margin-top: 0; }
+    .ms-card, .ms-wed-card { padding: 14px 16px; }
+    .ms-overdue .ms-card, .ms-next .ms-card { padding: 15px 16px; }
+    .ms-title, .ms-wed-title { font-size: 14px; }
+    .ms-offset, .ms-wed-date { font-size: 11px; }
+    .ms-sub, .ms-amount { font-size: 12px; }
+    .ms-notice-text { font-size: 13px; }
+    .ms-card:hover { box-shadow: 0 4px 12px rgba(17, 24, 39, .1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .ms-scrim, .ms-sheet, .ms-node, .ms-card { transition: none; }
+}
+</style>
+
+<div class="ms-page" dir="rtl">
+    <div class="hidden lg:block mb-5">
+        <h1 class="text-xl sm:text-2xl font-bold text-gray-900">אבני דרך</h1>
+        {% if view.wedding_date and view.milestones %}
+        <p id="ms-summary" data-ms-live class="text-sm text-gray-500 mt-1"><span dir="ltr" class="font-mono">{{ view.done_count }}</span> מתוך <span dir="ltr" class="font-mono">{{ view.milestones|length }}</span> הושלמו</p>
+        {% endif %}
+    </div>
+
+    {% if view.wedding_date %}
+    <div class="ms-notice">
+        <span class="ms-notice-icon" aria-hidden="true">⚡</span>
+        <p class="ms-notice-text">כל התאריכים נגזרים מ-<button type="button" class="ms-date-btn" dir="ltr" aria-label="שינוי תאריך החתונה, {{ view.wedding_date_label }}" onclick="msOpenDate(this)">{{ view.wedding_date_label }}</button>. שינוי התאריך מזיז את כולם.</p>
+    </div>
+
+    <ol id="ms-rail" data-ms-live class="ms-rail" aria-label="אבני דרך">
+        {%- macro wedding_row() -%}
+        <li class="ms-row ms-row-wedding">
+            <span class="ms-node ms-node-wedding" aria-hidden="true">💍</span>
+            <div class="ms-wed-card">
+                <span class="ms-wed-title">החתונה</span>
+                <span class="ms-wed-date" dir="ltr">{{ view.wedding_date_label }}</span>
+            </div>
+        </li>
+        {%- endmacro -%}
+        {%- set ns_rail = namespace(wedding_shown=false) -%}
+        {%- for m in view.milestones -%}
+        {%- if not ns_rail.wedding_shown and m.date and m.date > view.wedding_date -%}
+        {{ wedding_row() }}
+        {%- set ns_rail.wedding_shown = true -%}
+        {%- endif -%}
+        {%- set open_status = m.open_status -%}
+        {%- set has_amount = m.kind == 'payment' and m.amount and m.amount > 0 -%}
+        {%- set amount_label = "₪{:,.0f}".format(m.amount) if has_amount else '' -%}
+        <li class="ms-row ms-{{ m.status }}" data-id="{{ m.id }}" data-status="{{ m.status }}" data-open="{{ open_status }}"
+            data-completed="{{ 1 if m.completed else 0 }}" data-title="{{ m.title }}" data-offset="{{ m.offset_days }}"
+            data-custom="{{ m.custom_date or '' }}">
+            <button type="button" class="ms-node" data-ms-toggle aria-pressed="{{ 'true' if m.completed else 'false' }}"
+                    aria-label="הושלם: {{ m.title }}"><span class="ms-node-icon" aria-hidden="true"></span></button>
+            <div class="ms-body">
+                <button type="button" class="ms-card" data-ms-edit aria-haspopup="dialog">
+                    <span class="ms-head">
+                        <span class="ms-title">{{ m.title }}</span>
+                        {%- if m.offset_days == 0 %}
+                        <span class="ms-offset">{{ m.offset_label }}</span>
+                        {%- else %}
+                        {%- set off_parts = m.offset_label.split(' ', 1) %}
+                        <span class="ms-offset"><span dir="ltr">{{ off_parts[0] }}</span> {{ off_parts[1] }}</span>
+                        {%- endif %}
+                    </span>
+                    <span class="ms-sub{% if m.adjusted %} has-tag{% endif %}">
+                        {%- if open_status == 'overdue' -%}
+                        <span class="ms-sub-text">היה אמור להיות ב-<span dir="ltr">{{ m.date_label }}</span> · {{ m.late_label }}</span>
+                        {%- elif open_status == 'next' -%}
+                        <span class="ms-sub-text"><span dir="ltr">{{ m.date_label }}</span> · {{ m.when_label }}</span>
+                        {%- elif has_amount -%}
+                        <span class="ms-amount" dir="ltr">{{ amount_label }}</span>
+                        {%- else -%}
+                        <span class="ms-sub-text"><span dir="ltr">{{ m.date_label }}</span>{{ ms_feeds.get(m.kind, '') }}</span>
+                        {%- endif -%}
+                        {%- if m.adjusted %}<span class="ms-tag">📌 מותאם</span>{% endif -%}
+                    </span>
+                    {%- if has_amount and open_status != 'future' %}
+                    <span class="ms-amount-line"><span class="ms-amount" dir="ltr">{{ amount_label }}</span></span>
+                    {%- endif %}
+                </button>
+                <p class="ms-err" role="alert" hidden></p>
+            </div>
+        </li>
+        {%- endfor -%}
+        {%- if not ns_rail.wedding_shown %}
+        {{ wedding_row() }}
+        {%- endif %}
+    </ol>
+    {% else %}
+    <form id="ms-cta-form" class="ms-cta" novalidate>
+        <h2 class="ms-cta-title" id="ms-cta-title">הגדירו תאריך כדי לראות לו״ז</h2>
+        <div class="ms-cta-row">
+            <input id="ms-cta-date" type="date" class="ms-input" dir="ltr" required aria-labelledby="ms-cta-title">
+            <button type="submit" class="ms-btn ms-btn-primary">שמירה</button>
+        </div>
+        <p class="ms-sheet-err" data-ms-error role="alert" hidden style="margin:10px 0 0"></p>
+    </form>
+    {% endif %}
+
+    <a href="/wedding/timeline" class="ms-link">
+        <span>📅 לו״ז סוף השבוע</span>
+        <span class="ms-link-arrow" aria-hidden="true">←</span>
+    </a>
+</div>
+
+{% if view.wedding_date %}
+<!-- Edit / add milestone -->
+<div id="ms-edit" class="ms-scrim fixed inset-0" hidden>
+    <div class="ms-sheet" role="dialog" aria-modal="true" aria-labelledby="ms-edit-title" tabindex="-1" dir="rtl">
+        <div class="ms-grab" aria-hidden="true"></div>
+        <h2 id="ms-edit-title" class="ms-sheet-title">עריכת אבן דרך</h2>
+        <form id="ms-edit-form" novalidate>
+            <div class="ms-field">
+                <label for="ms-f-title" class="ms-label">שם</label>
+                <input id="ms-f-title" class="ms-input" type="text" maxlength="200" autocomplete="off" required>
+            </div>
+            <div class="ms-field">
+                <label for="ms-f-count" class="ms-label" id="ms-f-offset-label">כמה זמן לפני החתונה</label>
+                <div class="ms-offset-row">
+                    <input id="ms-f-count" class="ms-input ms-num" type="number" inputmode="numeric" min="0" step="1" dir="ltr">
+                    <select id="ms-f-unit" class="ms-input" aria-label="יחידת זמן">
+                        <option value="1">ימים</option>
+                        <option value="7">שבועות</option>
+                        <option value="30">חודשים</option>
+                    </select>
+                </div>
+                <label class="ms-check"><input type="checkbox" id="ms-f-after"> אחרי החתונה</label>
+                <p class="ms-hint" id="ms-f-computed" hidden>התאריך המחושב: <span dir="ltr"></span></p>
+            </div>
+            <div class="ms-field">
+                <label for="ms-f-custom" class="ms-label">תאריך מותאם</label>
+                <input id="ms-f-custom" class="ms-input" type="date" dir="ltr">
+                <button type="button" id="ms-f-reset" class="ms-text-btn ms-reset-btn" hidden>חזרה לתאריך המחושב</button>
+            </div>
+            <p class="ms-sheet-err" data-ms-error role="alert" hidden></p>
+            <div class="ms-actions" id="ms-edit-actions">
+                <button type="submit" class="ms-btn ms-btn-primary">שמירה</button>
+                <button type="button" class="ms-btn ms-btn-ghost" data-ms-close>ביטול</button>
+            </div>
+            <button type="button" id="ms-f-delete" class="ms-text-btn ms-delete-btn">מחיקה</button>
+            <div id="ms-del-confirm" class="ms-confirm" hidden>
+                <p class="ms-confirm-text">למחוק את אבן הדרך?</p>
+                <div class="ms-actions">
+                    <button type="button" class="ms-btn ms-btn-danger" id="ms-del-yes">כן, למחוק</button>
+                    <button type="button" class="ms-btn ms-btn-ghost" id="ms-del-no">חזרה</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Change the wedding date -->
+<div id="ms-date" class="ms-scrim fixed inset-0" hidden>
+    <div class="ms-sheet" role="dialog" aria-modal="true" aria-labelledby="ms-date-title" tabindex="-1" dir="rtl">
+        <div class="ms-grab" aria-hidden="true"></div>
+        <h2 id="ms-date-title" class="ms-sheet-title">תאריך החתונה</h2>
+        <form id="ms-date-form" novalidate>
+            <div class="ms-field">
+                <input id="ms-d-date" class="ms-input" type="date" dir="ltr" required aria-labelledby="ms-date-title" value="{{ view.wedding_date }}">
+                <p class="ms-hint" style="margin-top:8px">אבני הדרך יזוזו יחד איתו, חוץ מאלה עם תאריך מותאם.</p>
+            </div>
+            <p class="ms-sheet-err" data-ms-error role="alert" hidden></p>
+            <div class="ms-actions">
+                <button type="submit" class="ms-btn ms-btn-primary">שמירה</button>
+                <button type="button" class="ms-btn ms-btn-ghost" data-ms-close>ביטול</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<script>
+(function () {
+    var WEDDING = {{ (view.wedding_date or '') | tojson }};
+    var SAVE_FAILED = 'השמירה נכשלה, נסו שוב.';
+    var JSON_HEADERS = { 'Content-Type': 'application/json' };
+
+    /* ── helpers ─────────────────────────────────────────── */
+    function isoAddDays(iso, days) {
+        var p = iso.split('-').map(Number);
+        return new Date(Date.UTC(p[0], p[1] - 1, p[2] + days)).toISOString().slice(0, 10);
+    }
+    function dotted(iso) {
+        var p = iso.split('-').map(Number);
+        return p[2] + '.' + p[1] + '.' + p[0];
+    }
+    function isVisible(el) {
+        return !!(el && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
+    }
+    function showError(box, message) {
+        if (!box) return;
+        box.textContent = message || '';
+        box.hidden = !message;
+    }
+    function errorDetail(res) {
+        return res.json().then(function (body) {
+            return typeof (body && body.detail) === 'string' ? body.detail : SAVE_FAILED;
+        }, function () { return SAVE_FAILED; });
+    }
+    function saveWeddingDate(value, errorBox, button) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) {
+            showError(errorBox, 'יש לבחור תאריך');
+            return;
+        }
+        if (button) button.disabled = true;
+        fetch('/api/wedding/settings', {
+            method: 'POST', headers: JSON_HEADERS, credentials: 'same-origin',
+            body: JSON.stringify({ key: 'wedding_date', value: value })
+        }).then(function (res) {
+            if (res.ok) { location.reload(); return; }
+            return errorDetail(res).then(function (msg) { throw new Error(msg); });
+        }).catch(function (err) {
+            showError(errorBox, (err && err.message) || SAVE_FAILED);
+            if (button) button.disabled = false;
+        });
+    }
+
+    /* ── no wedding date: inline CTA ─────────────────────── */
+    var ctaForm = document.getElementById('ms-cta-form');
+    if (ctaForm) {
+        ctaForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            saveWeddingDate(document.getElementById('ms-cta-date').value,
+                ctaForm.querySelector('[data-ms-error]'), ctaForm.querySelector('[type=submit]'));
+        });
+    }
+    if (!WEDDING) {
+        window.msOpenEdit = window.msOpenDate = function () {};
+        return;
+    }
+
+    /* ── sheets ──────────────────────────────────────────── */
+    var openScrim = null, returnFocus = null, closeTimer = null, savedOverflow = '';
+    var FOCUSABLE = 'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])';
+
+    function openSheet(scrim, opener, focusEl) {
+        if (openScrim) closeSheet(false);
+        clearTimeout(closeTimer);
+        returnFocus = isVisible(opener) ? opener : document.activeElement;
+        scrim.hidden = false;
+        void scrim.offsetWidth; // start the transition from the closed state
+        scrim.classList.add('is-open');
+        openScrim = scrim;
+        savedOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        (focusEl || scrim.querySelector('[role=dialog]')).focus({ preventScroll: true });
+    }
+    function closeSheet(restoreFocus) {
+        if (!openScrim) return;
+        var scrim = openScrim;
+        openScrim = null;
+        scrim.classList.remove('is-open');
+        scrim.classList.add('is-closing');
+        document.body.style.overflow = savedOverflow;
+        closeTimer = setTimeout(function () {
+            scrim.hidden = true;
+            // base.html only watches class/style changes to bring the tab bar back.
+            scrim.classList.remove('is-closing');
+        }, 240);
+        if (restoreFocus !== false && returnFocus && returnFocus.focus) {
+            returnFocus.focus({ preventScroll: true });
+        }
+    }
+    document.querySelectorAll('.ms-scrim').forEach(function (scrim) {
+        // .main-content is its own stacking context; lift the sheets above the navbar.
+        document.body.appendChild(scrim);
+        scrim.addEventListener('click', function (e) {
+            if (e.target === scrim || e.target.closest('[data-ms-close]')) closeSheet();
+        });
+    });
+    document.addEventListener('keydown', function (e) {
+        if (!openScrim) return;
+        if (e.key === 'Escape') { e.preventDefault(); closeSheet(); return; }
+        if (e.key !== 'Tab') return;
+        var dialog = openScrim.querySelector('[role=dialog]');
+        var items = Array.prototype.filter.call(openScrim.querySelectorAll(FOCUSABLE), function (el) {
+            return !el.disabled && isVisible(el);
+        });
+        if (!items.length) return;
+        var first = items[0], last = items[items.length - 1], active = document.activeElement;
+        var outside = !dialog.contains(active) || active === dialog;
+        if (e.shiftKey && (active === first || outside)) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && (active === last || (outside && active !== dialog))) { e.preventDefault(); first.focus(); }
+    });
+
+    /* ── wedding date sheet ──────────────────────────────── */
+    var dateScrim = document.getElementById('ms-date');
+    var dateForm = document.getElementById('ms-date-form');
+    var dateInput = document.getElementById('ms-d-date');
+    window.msOpenDate = function (opener) {
+        dateInput.value = WEDDING;
+        showError(dateForm.querySelector('[data-ms-error]'), '');
+        openSheet(dateScrim, opener, dateInput);
+    };
+    dateForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        saveWeddingDate(dateInput.value, dateForm.querySelector('[data-ms-error]'), dateForm.querySelector('[type=submit]'));
+    });
+
+    /* ── edit / add sheet ────────────────────────────────── */
+    var editScrim = document.getElementById('ms-edit');
+    var form = document.getElementById('ms-edit-form');
+    var f = {
+        heading: document.getElementById('ms-edit-title'),
+        title: document.getElementById('ms-f-title'),
+        count: document.getElementById('ms-f-count'),
+        unit: document.getElementById('ms-f-unit'),
+        after: document.getElementById('ms-f-after'),
+        offsetLabel: document.getElementById('ms-f-offset-label'),
+        computed: document.getElementById('ms-f-computed'),
+        custom: document.getElementById('ms-f-custom'),
+        reset: document.getElementById('ms-f-reset'),
+        error: form.querySelector('[data-ms-error]'),
+        actions: document.getElementById('ms-edit-actions'),
+        submit: form.querySelector('[type=submit]'),
+        del: document.getElementById('ms-f-delete'),
+        confirm: document.getElementById('ms-del-confirm'),
+        yes: document.getElementById('ms-del-yes'),
+        no: document.getElementById('ms-del-no')
+    };
+    var editing = null; // {id, custom} or null for a new milestone
+
+    function splitOffset(days) {
+        var n = Math.abs(days);
+        if (n >= 30 && n % 30 === 0) return [n / 30, 30];
+        if (n > 0 && n % 7 === 0) return [n / 7, 7];
+        return [n, 1];
+    }
+    function readOffset() {
+        var raw = f.count.value.trim();
+        if (!/^\d+$/.test(raw)) return null;
+        var days = parseInt(raw, 10) * parseInt(f.unit.value, 10);
+        return f.after.checked ? days : -days;
+    }
+    function syncOffsetUi() {
+        f.offsetLabel.textContent = f.after.checked ? 'כמה זמן אחרי החתונה' : 'כמה זמן לפני החתונה';
+        var offset = readOffset();
+        f.computed.hidden = offset === null;
+        if (offset !== null) f.computed.querySelector('span').textContent = dotted(isoAddDays(WEDDING, offset));
+    }
+    function setConfirming(on) {
+        f.confirm.hidden = !on;
+        f.actions.hidden = on;
+        f.del.hidden = on || !editing;
+        if (on) f.no.focus();
+    }
+    function setInvalid(el, bad) {
+        if (bad) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid');
+    }
+
+    window.msOpenEdit = function (row, opener) {
+        editing = row ? { id: row.dataset.id, custom: row.dataset.custom || '' } : null;
+        f.heading.textContent = row ? 'עריכת אבן דרך' : 'אבן דרך חדשה';
+        f.title.value = row ? row.dataset.title : '';
+        var offset = row ? parseInt(row.dataset.offset, 10) : null;
+        if (offset === null) {
+            f.count.value = '';
+            f.unit.value = '7';
+            f.after.checked = false;
+        } else {
+            var parts = splitOffset(offset);
+            f.count.value = parts[0];
+            f.unit.value = String(parts[1]);
+            f.after.checked = offset > 0;
+        }
+        f.custom.value = editing ? editing.custom : '';
+        f.reset.hidden = !(editing && editing.custom);
+        [f.title, f.count, f.custom].forEach(function (el) { setInvalid(el, false); });
+        showError(f.error, '');
+        f.submit.disabled = false;
+        f.yes.disabled = false;
+        setConfirming(false);
+        syncOffsetUi();
+        openSheet(editScrim, opener, row ? null : f.title);
+    };
+
+    [f.count, f.unit, f.after].forEach(function (el) {
+        el.addEventListener('input', syncOffsetUi);
+        el.addEventListener('change', syncOffsetUi);
+    });
+    f.reset.addEventListener('click', function () {
+        f.custom.value = '';
+        f.reset.hidden = true;
+        f.custom.focus();
+    });
+    f.del.addEventListener('click', function () { setConfirming(true); });
+    f.no.addEventListener('click', function () { setConfirming(false); f.del.focus(); });
+
+    function request(method, url, body) {
+        return fetch(url, {
+            method: method, headers: JSON_HEADERS, credentials: 'same-origin',
+            body: body === undefined ? undefined : JSON.stringify(body)
+        }).then(function (res) {
+            if (res.ok) return res.status === 204 ? null : res.json();
+            return errorDetail(res).then(function (msg) { throw new Error(msg); });
+        });
+    }
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var title = f.title.value.trim();
+        var offset = readOffset();
+        var custom = f.custom.value;
+        setInvalid(f.title, !title);
+        setInvalid(f.count, offset === null);
+        if (!title) { showError(f.error, 'יש להזין שם'); f.title.focus(); return; }
+        if (offset === null) { showError(f.error, 'יש להזין מספר שלם'); f.count.focus(); return; }
+        if (offset < -1000 || offset > 365) {
+            setInvalid(f.count, true);
+            showError(f.error, 'אפשר עד 1000 ימים לפני החתונה ועד 365 אחרי');
+            f.count.focus();
+            return;
+        }
+        showError(f.error, '');
+        f.submit.disabled = true;
+        var body = { title: title, offset_days: offset };
+        var saving;
+        if (editing) {
+            if (custom !== editing.custom) body.custom_date = custom || null;
+            saving = request('PUT', '/api/wedding/milestones/' + editing.id, body);
+        } else {
+            body.kind = 'general';
+            saving = request('POST', '/api/wedding/milestones', body).then(function (created) {
+                return custom ? request('PUT', '/api/wedding/milestones/' + created.id, { custom_date: custom }) : created;
+            });
+        }
+        saving.then(function () { location.reload(); }, function (err) {
+            showError(f.error, (err && err.message) || SAVE_FAILED);
+            f.submit.disabled = false;
+        });
+    });
+
+    f.yes.addEventListener('click', function () {
+        if (!editing) return;
+        f.yes.disabled = true;
+        request('DELETE', '/api/wedding/milestones/' + editing.id).then(function () {
+            location.reload();
+        }, function (err) {
+            f.yes.disabled = false;
+            setConfirming(false);
+            showError(f.error, (err && err.message) || 'המחיקה נכשלה, נסו שוב.');
+        });
+    });
+
+    /* ── rail: toggle done (optimistic) and open the editor ─ */
+    var rail = document.getElementById('ms-rail');
+    var pending = {};
+    var STATUSES = ['ms-done', 'ms-overdue', 'ms-next', 'ms-future'];
+
+    function setRowState(row, status, completed) {
+        STATUSES.forEach(function (c) { row.classList.remove(c); });
+        row.classList.add('ms-' + status);
+        row.dataset.status = status;
+        row.dataset.completed = completed ? '1' : '0';
+        row.querySelector('[data-ms-toggle]').setAttribute('aria-pressed', completed ? 'true' : 'false');
+    }
+    function pendingCount() { return Object.keys(pending).length; }
+
+    // Re-render the live regions from the server so "next"/"overdue" move with the change.
+    // Accept: text/html keeps sw.js from answering with a cached copy (it caches other GETs).
+    function refreshRail() {
+        fetch(location.pathname, {
+            credentials: 'same-origin', cache: 'no-store', headers: { 'Accept': 'text/html' }
+        }).then(function (res) {
+            return res.ok ? res.text() : Promise.reject();
+        }).then(function (html) {
+            if (pendingCount()) return;
+            var active = document.activeElement;
+            var activeRow = active && active.closest && active.closest('.ms-row');
+            var focusId = activeRow && activeRow.dataset.id;
+            var focusSel = active && active.hasAttribute('data-ms-toggle') ? '[data-ms-toggle]' : '[data-ms-edit]';
+            var doc = new DOMParser().parseFromString(html, 'text/html');
+            document.querySelectorAll('[data-ms-live]').forEach(function (el) {
+                var fresh = doc.getElementById(el.id);
+                if (fresh) el.innerHTML = fresh.innerHTML;
+            });
+            if (focusId) {
+                var row = rail.querySelector('.ms-row[data-id="' + focusId + '"]');
+                var target = row && row.querySelector(focusSel);
+                if (target) target.focus({ preventScroll: true });
+            }
+        }).catch(function () { /* the optimistic state stays until the next load */ });
+    }
+
+    function toggleRow(row) {
+        var id = row.dataset.id;
+        if (pending[id]) return;
+        var wasDone = row.dataset.completed === '1';
+        var prevStatus = row.dataset.status;
+        var errorBox = row.querySelector('.ms-err');
+        showError(errorBox, '');
+        setRowState(row, wasDone ? row.dataset.open : 'done', !wasDone);
+        pending[id] = true;
+        request('PUT', '/api/wedding/milestones/' + id, { completed: wasDone ? 0 : 1 }).then(function () {
+            delete pending[id];
+            if (!pendingCount()) refreshRail();
+        }, function () {
+            delete pending[id];
+            setRowState(row, prevStatus, wasDone);
+            showError(errorBox, SAVE_FAILED);
+            clearTimeout(row._msErrTimer);
+            row._msErrTimer = setTimeout(function () { showError(errorBox, ''); }, 5000);
+        });
+    }
+
+    rail.addEventListener('click', function (e) {
+        var node = e.target.closest('[data-ms-toggle]');
+        if (node) { toggleRow(node.closest('.ms-row')); return; }
+        var card = e.target.closest('[data-ms-edit]');
+        if (card) window.msOpenEdit(card.closest('.ms-row'), card);
+    });
+})();
+</script>
+{% endblock %}

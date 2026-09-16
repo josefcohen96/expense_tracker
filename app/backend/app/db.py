@@ -387,7 +387,9 @@ def initialise_database() -> None:
     # Migration: add venue/social fields to wedding_vendors if missing (existing DBs)
     try:
         vendor_cols = [r[1] for r in cur.execute("PRAGMA table_info('wedding_vendors')").fetchall()]
-        for col, typedef in [("instagram_url", "TEXT"), ("facebook_url", "TEXT"), ("location", "TEXT"), ("inclusions", "TEXT")]:
+        # portions_ordered: meals the catering vendor was booked for, compared to confirmed guests.
+        for col, typedef in [("instagram_url", "TEXT"), ("facebook_url", "TEXT"), ("location", "TEXT"), ("inclusions", "TEXT"),
+                             ("portions_ordered", "INTEGER")]:
             if col not in vendor_cols:
                 conn.execute(f"ALTER TABLE wedding_vendors ADD COLUMN {col} {typedef}")
         conn.commit()
@@ -406,6 +408,14 @@ def initialise_database() -> None:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    # Migration: owner = which household member (users.name) took the task; NULL = unassigned.
+    try:
+        task_cols = [r[1] for r in cur.execute("PRAGMA table_info('wedding_tasks')").fetchall()]
+        if "owner" not in task_cols:
+            conn.execute("ALTER TABLE wedding_tasks ADD COLUMN owner TEXT")
+            conn.commit()
+    except Exception:
+        pass
 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS wedding_budget_items (
@@ -473,6 +483,21 @@ def initialise_database() -> None:
             start_time TEXT NOT NULL,
             end_time TEXT,
             category TEXT DEFAULT 'general',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Backwards schedule: dates are wedding_date + offset_days, so they follow the
+    # wedding date. custom_date pins a milestone the user moved by hand.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS wedding_milestones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            offset_days INTEGER NOT NULL,
+            kind TEXT NOT NULL DEFAULT 'general',
+            completed INTEGER NOT NULL DEFAULT 0,
+            custom_date TEXT,
+            sort_order INTEGER NOT NULL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -629,6 +654,15 @@ def initialise_database() -> None:
     except Exception:
         pass
 
+    # Starter milestones, once a wedding date exists (also seeded when the date is first saved).
+    try:
+        from .services import wedding_plan
+        if wedding_plan.get_wedding_date(conn):
+            wedding_plan.seed_default_milestones(conn)
+            conn.commit()
+    except Exception:
+        pass
+
     # --- Home Renovation Module Tables ---
     cur.execute("""
         CREATE TABLE IF NOT EXISTS renovation_rooms (
@@ -767,6 +801,16 @@ def initialise_database() -> None:
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
     """)
+    # Migration: the quest station an exercise row trained (skill_key + stage_index, counted to
+    # conquer stations) and its best single set (max_reps, read for personal records).
+    try:
+        workout_cols = [r[1] for r in cur.execute("PRAGMA table_info('workouts')").fetchall()]
+        for col, typedef in [("skill_key", "TEXT"), ("stage_index", "INTEGER"), ("max_reps", "INTEGER")]:
+            if col not in workout_cols:
+                conn.execute(f"ALTER TABLE workouts ADD COLUMN {col} {typedef}")
+        conn.commit()
+    except Exception:
+        pass
 
     conn.commit()
     conn.close()

@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from ..db import get_db_conn
-from ..services.access import can_edit_renovation, normalise_username
+from ..services.access import USER_DISPLAY_NAMES, can_edit_renovation, normalise_username
 
 ROOT_DIR = FSPath(__file__).resolve().parents[3]
 TEMPLATES_DIR = ROOT_DIR / "frontend" / "templates"
@@ -48,12 +48,6 @@ HEBREW_MONTHS = (
     "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר",
 )
 
-# Hebrew display names for the header greeting.
-USER_DISPLAY_NAMES = {
-    "YOSEF": "יוסף",
-    "TSAHALA": "צהלה",
-    "KARINA": "קארינה",
-}
 
 
 def _current_user(request: Request) -> Any:

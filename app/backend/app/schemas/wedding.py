@@ -3,7 +3,7 @@ Pydantic schemas for the wedding module.
 """
 from __future__ import annotations
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ─── Vendors ────────────────────────────────────────────────────────────────
@@ -23,6 +23,7 @@ class VendorCreate(BaseModel):
     facebook_url: Optional[str] = None
     location: Optional[str] = None
     inclusions: Optional[str] = None
+    portions_ordered: Optional[int] = Field(default=None, ge=0)
 
 
 class VendorUpdate(BaseModel):
@@ -40,6 +41,7 @@ class VendorUpdate(BaseModel):
     facebook_url: Optional[str] = None
     location: Optional[str] = None
     inclusions: Optional[str] = None
+    portions_ordered: Optional[int] = Field(default=None, ge=0)
 
 
 class QuoteItem(BaseModel):
@@ -111,6 +113,7 @@ class TaskCreate(BaseModel):
     due_date: Optional[str] = None
     priority: str = "medium"
     notes: Optional[str] = None
+    owner: Optional[str] = None  # users.name of the household member; None = unassigned
 
 
 class TaskUpdate(BaseModel):
@@ -120,6 +123,7 @@ class TaskUpdate(BaseModel):
     completed: Optional[int] = None
     priority: Optional[str] = None
     notes: Optional[str] = None
+    owner: Optional[str] = None
 
 
 # ─── Budget ──────────────────────────────────────────────────────────────────
@@ -199,6 +203,22 @@ class TimelineEventUpdate(BaseModel):
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     category: Optional[str] = None
+
+
+# ─── Milestones ──────────────────────────────────────────────────────────────
+
+class MilestoneCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    offset_days: int = Field(ge=-1000, le=365)
+    kind: str = "general"
+
+
+class MilestoneUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    offset_days: Optional[int] = Field(default=None, ge=-1000, le=365)
+    completed: Optional[int] = None
+    # YYYY-MM-DD pins the milestone to a day; null returns it to its offset.
+    custom_date: Optional[str] = None
 
 
 # ─── Seating ─────────────────────────────────────────────────────────────────

@@ -1,4 +1,6 @@
 // app/frontend/static/js/workout.js
+// Workouts page: quest select / map / profile / history views, and the arena —
+// a full-screen workout that shows one set at a time (set → rest → reward).
 
 // --- Global Workout State ---
 let workoutStartTime = Date.now();
@@ -6,24 +8,74 @@ let workoutTimerInterval = null;
 let activeExercises = [];
 let sessionActive = false;
 
+// --- Arena State ---
+let arenaPhase = 'set';      // 'set' | 'rest' | 'reward'
+let cursor = null;           // { exerciseId, setId } of the set on screen
+let plannedSets = 0;         // sets the session set out to do (star ②)
+let sessionPath = null;      // quest path key the session started from
+let prShown = {};            // exercise name -> true once its record toast fired
+let lastRestEnd = null;      // planned end of the last rest (combo grace)
+let restTip = '';
+
 // --- Global Rest Timer State ---
 // Absolute-timestamp based so the countdown stays correct even when the
 // mobile browser throttles timers in the background / with the screen off.
 let restTimerInterval = null;
+let restAutoAdvance = null;
 let restEndsAt = null;
 let restDuration = 0;
 let isTimerFinished = false;
 
 // --- Gamification State ---
-// Mirrors the server XP formula: every completed set is worth 10 XP + 1 XP per rep.
+// Mirrors the server XP formula for the live counter only: every completed set is
+// worth 10 XP + 1 XP per rep. The reward screen shows the server's number.
 const XP_PER_SET = 10;
-let comboCount = 0; // consecutive completed sets without unchecking
+const COMBO_REST_GRACE_MS = 90 * 1000; // resting longer than this past the plan breaks the combo
+const REST_AUTO_ADVANCE_MS = 6000;
+const PR_TOAST_MS = 2500;
+const DEFAULT_NEW_EXERCISE = { sets: 3, reps: 8, rest: 90 };
+let comboCount = 0; // consecutive completed sets
 
-// --- Session persistence (survives refresh / accidental navigation) ---
+// --- Persistence keys (namespaced; nothing else is touched) ---
 const WORKOUT_SESSION_KEY = 'workout_active_session_v2';
+const ACTIVE_PATH_KEY = 'workout_active_path_v1';
+const SKILL_PROGRESS_KEY = 'workout_skill_progress_v1'; // legacy "כבשתי!" flags, imported once
 
 // --- Screen Wake Lock (keep the phone awake mid-workout) ---
 let wakeLock = null;
+
+const reducedMotion = window.matchMedia
+    ? window.matchMedia('(prefers-reduced-motion: reduce)')
+    : { matches: false };
+
+const CATEGORY_ICONS = { push: '💪', pull: '🧗', core: '🌀', legs: '🦵', general: '🏋️' };
+
+// Calm, one-breath coach lines, rotated per rest.
+const COACH_TIPS = {
+    push: [
+        'נשום דרך האף, כתפיים רחוק מהאוזניים. אם הסט האחרון הרגיש קל — תוסיף חזרה, לא מהירות.',
+        'מרפקים בזווית של 45 מעלות מהגוף. ירידה איטית שווה יותר מעוד חזרה חפוזה.',
+        'נעל בטן וישבן — הגוף זז כיחידה אחת, מהראש ועד העקבים.',
+    ],
+    pull: [
+        'התחל כל חזרה מהשכמות: למטה ואחורה, ורק אז הידיים.',
+        'תלייה מלאה בתחתית, חזה אל המוט למעלה. טווח מלא לפני עוד חזרות.',
+        'שחרר את האחיזה בין הסטים ונער את הידיים — האמות צריכות את המנוחה הזו.',
+    ],
+    core: [
+        'צלעות למטה, אגן מגולגל קלות. אם הגב התחתון מתקשת — קצר את הסט.',
+        'נשימה קצרה ושקטה בזמן ההחזקה. איכות השניות חשובה יותר מהמספר.',
+        'לחץ חזק את הרצפה או את המוט — המתח בידיים מייצב את כל הליבה.',
+    ],
+    legs: [
+        'ברכיים בכיוון האצבעות, משקל על כל כף הרגל. ירידה בשליטה, עלייה בכוח.',
+        'אם האיזון בורח — אחוז במשהו. עדיף טווח מלא עם עזרה מחצי טווח בלי.',
+    ],
+    general: [
+        'כמה לגימות מים ונשימה עמוקה. הסט הבא מתחיל כשהנשימה חוזרת לקצב.',
+        'תנועה נקייה לפני עוד חזרות. כשהטכניקה נשברת — זה הסוף הטבעי של הסט.',
+    ],
+};
 
 // ====================== UTILITIES ======================
 
@@ -43,6 +95,49 @@ function escapeHtml(str) {
     ));
 }
 
+// Numbers render mono + LTR inside the RTL layout.
+function numHtml(value) {
+    return `<span class="wk-num" dir="ltr">${escapeHtml(value)}</span>`;
+}
+
+// Hebrew count phrase: 'סט אחד' / '5 סטים'
+function countHtml(n, one, many) {
+    return n === 1 ? one : `${numHtml(formatNumber(n))} ${many}`;
+}
+
+function formatNumber(n) {
+    return Number(n || 0).toLocaleString('en-US');
+}
+
+function $(selector, root) {
+    return (root || document).querySelector(selector);
+}
+
+function $all(selector, root) {
+    return Array.from((root || document).querySelectorAll(selector));
+}
+
+function vibrate(pattern) {
+    if (reducedMotion.matches || !navigator.vibrate) return;
+    navigator.vibrate(pattern);
+}
+
+let workoutData = null;
+function data() {
+    if (!workoutData) {
+        try {
+            workoutData = JSON.parse($('#workout-data').textContent);
+        } catch (e) {
+            workoutData = {};
+        }
+        workoutData.paths = workoutData.paths || {};
+        workoutData.stations = workoutData.stations || {};
+        workoutData.records = workoutData.records || {};
+        workoutData.catalog = workoutData.catalog || {};
+    }
+    return workoutData;
+}
+
 function findSet(exerciseId, setId) {
     const exercise = activeExercises.find(ex => ex.id === exerciseId);
     if (!exercise) return null;
@@ -51,18 +146,87 @@ function findSet(exerciseId, setId) {
     return { exercise, set };
 }
 
+function isResolved(set) {
+    return set.done || set.skipped;
+}
+
+function buildExercise(meta, setCount, reps, rest) {
+    return {
+        id: uid('ex'),
+        name: meta.name,
+        title: meta.title || meta.name,
+        category: meta.category || 'general',
+        skill_key: meta.skill_key || null,
+        stage_index: Number.isInteger(meta.stage_index) ? meta.stage_index : null,
+        sets: Array.from({ length: Math.max(1, setCount) }, () => ({
+            id: uid('set'),
+            reps: clampInt(reps, 0, 999),
+            rest: clampInt(rest, 0, 999),
+            done: false,
+            skipped: false,
+        })),
+    };
+}
+
+function exerciseIcon(exercise) {
+    const path = exercise.skill_key && data().paths[exercise.skill_key];
+    return path ? path.icon : (CATEGORY_ICONS[exercise.category] || CATEGORY_ICONS.general);
+}
+
+function sessionStats() {
+    let doneSets = 0, doneReps = 0, skipped = 0, pending = 0, total = 0;
+    activeExercises.forEach(ex => ex.sets.forEach(set => {
+        total++;
+        if (set.done) { doneSets++; doneReps += set.reps; }
+        else if (set.skipped) skipped++;
+        else pending++;
+    }));
+    return { doneSets, doneReps, skipped, pending, total };
+}
+
+// ====================== PAGE SCROLL LOCK ======================
+// Shared by the arena and the exercise picker (iOS-safe body lock).
+
+let scrollLocks = 0;
+
+function lockPageScroll() {
+    if (scrollLocks++ > 0) return;
+    const scrollY = window.scrollY;
+    document.body.dataset.scrollY = scrollY;
+    document.body.style.top = `-${scrollY}px`;
+    document.body.classList.add('modal-open');
+}
+
+function unlockPageScroll() {
+    if (scrollLocks === 0) return;
+    if (--scrollLocks > 0) return;
+    const scrollY = parseInt(document.body.dataset.scrollY || '0', 10);
+    document.body.classList.remove('modal-open');
+    document.body.style.top = '';
+    window.scrollTo(0, scrollY);
+}
+
 // ====================== SESSION PERSISTENCE ======================
 
 function saveSession() {
     if (!sessionActive) return;
     try {
-        const dateInput = document.getElementById('workout-date');
-        const typeSelect = document.getElementById('workout-type');
+        const dateInput = $('#workout-date');
+        const typeSelect = $('#workout-type');
         localStorage.setItem(WORKOUT_SESSION_KEY, JSON.stringify({
             startedAt: workoutStartTime,
             date: dateInput ? dateInput.value : '',
             type: typeSelect ? typeSelect.value : '',
-            exercises: activeExercises
+            exercises: activeExercises,
+            cursor,
+            phase: arenaPhase === 'rest' ? 'rest' : 'set',
+            restEndsAt,
+            restDuration,
+            plannedSets,
+            path: sessionPath,
+            prShown,
+            comboCount,
+            lastRestEnd,
         }));
     } catch (e) { /* private mode — session just won't survive a refresh */ }
 }
@@ -73,9 +237,9 @@ function clearSavedSession() {
 
 function loadSavedSession() {
     try {
-        const data = JSON.parse(localStorage.getItem(WORKOUT_SESSION_KEY));
-        if (!data || typeof data.startedAt !== 'number' || !Array.isArray(data.exercises)) return null;
-        return data;
+        const saved = JSON.parse(localStorage.getItem(WORKOUT_SESSION_KEY));
+        if (!saved || typeof saved.startedAt !== 'number' || !Array.isArray(saved.exercises)) return null;
+        return saved;
     } catch (e) {
         return null;
     }
@@ -91,13 +255,19 @@ function sanitizeExercises(list) {
             id: (s && typeof s.id === 'string') ? s.id : uid('set'),
             reps: clampInt(s && s.reps, 0, 999),
             rest: clampInt(s && s.rest, 0, 999),
-            done: !!(s && s.done)
+            done: !!(s && s.done),
+            skipped: !!(s && s.skipped && !s.done),
         }));
         if (sets.length === 0) return;
+        const catalog = data().catalog[ex.name] || {};
         result.push({
             id: typeof ex.id === 'string' ? ex.id : uid('ex'),
             name: ex.name,
-            sets
+            title: typeof ex.title === 'string' && ex.title ? ex.title : (catalog.title || ex.name),
+            category: typeof ex.category === 'string' ? ex.category : (catalog.category || 'general'),
+            skill_key: typeof ex.skill_key === 'string' ? ex.skill_key : null,
+            stage_index: Number.isInteger(ex.stage_index) ? ex.stage_index : null,
+            sets,
         });
     });
     return result;
@@ -128,434 +298,553 @@ document.addEventListener('visibilitychange', () => {
 // ====================== INITIALIZE PAGE ======================
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Set default date to today in local timezone
-    const dateInput = document.getElementById('workout-date');
-    if (dateInput && !dateInput.value) {
-        const today = new Date();
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        dateInput.value = `${yyyy}-${mm}-${dd}`;
-    }
+    // 1. Default the workout date to today (local timezone)
+    const dateInput = $('#workout-date');
+    if (dateInput && !dateInput.value) dateInput.value = todayIso();
 
-    // 2. Initialize default skill details
-    const select = document.getElementById('skill-select');
-    if (select) {
-        displaySkillData(select.value);
-    }
+    // 2. Views + the active quest path
+    initActivePath();
+    applyRoute();
+    window.addEventListener('hashchange', () => {
+        applyRoute();
+        window.scrollTo(0, 0);
+    });
+    selectDefaultBadge();
 
-    // 3. Paint quest stage maps (locked/current/conquered) from saved progress
-    renderAllStageMaps();
+    // 3. Desktop skill guide
+    const select = $('#skill-select');
+    if (select) displaySkillData(select.value);
 
     // 4. Persist date/type edits mid-session
-    const typeSelect = document.getElementById('workout-type');
+    const typeSelect = $('#workout-type');
     if (dateInput) dateInput.addEventListener('change', saveSession);
     if (typeSelect) typeSelect.addEventListener('change', saveSession);
 
-    // 5. Resume an in-progress workout after a refresh/navigation
+    wirePage();
+    wireArenaSheet();
+
+    // 5. Resume an in-progress workout after a refresh/navigation — straight into the arena
     const saved = loadSavedSession();
     if (saved) {
-        const exercises = sanitizeExercises(saved.exercises);
-        activeExercises = exercises;
-        workoutStartTime = saved.startedAt;
         if (dateInput && saved.date) dateInput.value = saved.date;
         if (typeSelect && saved.type) typeSelect.value = saved.type;
-        resumeWorkoutSession();
+        resumeWorkoutSession(saved);
     }
+
+    // 6. Stations used to be marked by hand in this browser; hand them to the server once
+    migrateLegacySkillProgress();
 });
+
+function todayIso() {
+    const today = new Date();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${today.getFullYear()}-${mm}-${dd}`;
+}
+
+function wirePage() {
+    document.addEventListener('click', (e) => {
+        const startPath = e.target.closest('[data-start-path]');
+        if (startPath) { startPathWorkout(startPath.dataset.startPath); return; }
+
+        const choosePath = e.target.closest('[data-choose-path]');
+        if (choosePath) {
+            setActivePath(choosePath.dataset.choosePath);
+            window.scrollTo({ top: 0, behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+            return;
+        }
+
+        const chip = e.target.closest('[data-map-chip]');
+        if (chip && !chip.disabled) { setActivePath(chip.dataset.mapChip); return; }
+
+        if (e.target.closest('[data-start-free]')) { startFreeWorkout(); return; }
+
+        const badge = e.target.closest('[data-badge]');
+        if (badge) { selectBadge(badge); return; }
+
+        const addExercise = e.target.closest('[data-add-exercise]');
+        if (addExercise) { addExerciseByName(addExercise.dataset.addExercise); return; }
+
+        const addStation = e.target.closest('[data-add-station]');
+        if (addStation) { addSkillProgression(addStation.dataset.addStation, parseInt(addStation.dataset.stage, 10)); }
+    });
+
+    const customInput = $('#custom-exercise-name');
+    if (customInput) {
+        customInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); addCustomExercise(); }
+        });
+    }
+
+    const prLayer = $('#arena-pr-layer');
+    if (prLayer) prLayer.addEventListener('click', hidePrToast);
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if ($('#exercise-modal').classList.contains('active')) closeExerciseModal();
+    });
+}
+
+// ====================== VIEWS & ACTIVE PATH ======================
+
+const VIEWS = ['home', 'map', 'profile', 'history'];
+let activePath = null;
+
+function applyRoute() {
+    const [view, pathKey] = (location.hash || '#home').slice(1).split('/');
+    if (pathKey) setActivePath(pathKey);
+    showView(view);
+}
+
+function showView(name) {
+    if (!VIEWS.includes(name) || !$(`[data-view="${name}"]`)) name = 'home';
+    $all('[data-view]').forEach(el => { el.hidden = el.dataset.view !== name; });
+    $all('#mobile-section-header .section-tab, [data-desk-tab]').forEach(tab => {
+        const isActive = tab.getAttribute('href') === `#${name}`;
+        tab.classList.toggle('is-active', isActive);
+        if (isActive) tab.setAttribute('aria-current', 'page');
+        else tab.removeAttribute('aria-current');
+    });
+    if (name === 'profile') scrollLadderToCurrent();
+}
+
+function initActivePath() {
+    let stored = null;
+    try { stored = localStorage.getItem(ACTIVE_PATH_KEY); } catch (e) { /* storage unavailable */ }
+    const paths = data().paths;
+    const key = stored && paths[stored] && paths[stored].unlocked ? stored : data().default_path;
+    if (key) setActivePath(key, false);
+}
+
+function setActivePath(key, persist = true) {
+    const path = data().paths[key];
+    if (!path || !path.unlocked) return;
+    activePath = key;
+    $all('[data-mission]').forEach(el => { el.hidden = el.dataset.mission !== key; });
+    $all('[data-path-row]').forEach(el => { el.hidden = el.dataset.pathRow === key; });
+    $all('[data-map]').forEach(el => { el.hidden = el.dataset.map !== key; });
+    $all('[data-map-chip]').forEach(chip => {
+        const isActive = chip.dataset.mapChip === key;
+        chip.classList.toggle('is-active', isActive);
+        chip.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+    if (persist) {
+        try { localStorage.setItem(ACTIVE_PATH_KEY, key); } catch (e) { /* storage unavailable */ }
+    }
+}
+
+function scrollLadderToCurrent() {
+    const ladder = $('[data-ladder]');
+    const current = ladder && $('[data-current-rank]', ladder);
+    if (!ladder || !current) return;
+    ladder.scrollTop = current.offsetTop - (ladder.clientHeight - current.offsetHeight) / 2;
+}
+
+function selectBadge(badge) {
+    const detail = $('[data-badge-detail]');
+    if (!detail) return;
+    $all('[data-badge]').forEach(b => b.classList.toggle('is-selected', b === badge));
+    const unlocked = badge.dataset.unlocked === '1';
+    const progress = unlocked
+        ? 'הושג'
+        : `${numHtml(formatNumber(badge.dataset.current))} / ${numHtml(formatNumber(badge.dataset.target))}`;
+    detail.innerHTML = `<b>${escapeHtml(badge.dataset.title)}</b> — ${escapeHtml(badge.dataset.desc)} · ${progress}`;
+}
+
+// Open on the locked badge that is closest to unlocking (or the first one).
+function selectDefaultBadge() {
+    const badges = $all('[data-badge]');
+    if (!badges.length) return;
+    let best = null;
+    let bestRatio = -1;
+    badges.forEach(b => {
+        if (b.dataset.unlocked === '1') return;
+        const ratio = Number(b.dataset.current) / Math.max(1, Number(b.dataset.target));
+        if (ratio > bestRatio) { best = b; bestRatio = ratio; }
+    });
+    selectBadge(best || badges[0]);
+}
 
 // ====================== WORKOUT SESSION LIFECYCLE ======================
 
-function showSessionUI() {
-    const startContainer = document.getElementById('start-session-container');
-    const sessionContainer = document.getElementById('active-workout-session');
-    if (startContainer) startContainer.classList.add('hidden');
-    if (sessionContainer) sessionContainer.classList.remove('hidden');
+function startPathWorkout(key) {
+    const path = data().paths[key];
+    if (!path || !path.unlocked) return;
+    if (sessionActive) { openArena(); return; }
+    setActivePath(key);
+    const exercises = path.plan.exercises.map(ex => buildExercise(
+        { ...ex, category: path.category }, ex.sets, ex.reps, ex.rest
+    ));
+    beginSession(exercises, key, path.workout_type);
 }
 
-// --- Start Workout Session (User triggered) ---
-function startWorkoutSession() {
+function startFreeWorkout() {
+    if (sessionActive) { openArena(); return; }
+    beginSession([], null, 'Calisthenics');
+    openExerciseModal();
+}
+
+function beginSession(exercises, pathKey, workoutType) {
+    activeExercises = exercises;
     workoutStartTime = Date.now();
     sessionActive = true;
+    sessionPath = pathKey;
     comboCount = 0;
+    prShown = {};
+    lastRestEnd = null;
+    plannedSets = exercises.reduce((n, ex) => n + ex.sets.length, 0);
 
-    showSessionUI();
-    updateSessionScore();
-    updateComboIndicator();
+    const dateInput = $('#workout-date');
+    if (dateInput) dateInput.value = todayIso();
+    const typeSelect = $('#workout-type');
+    if (typeSelect && workoutType) typeSelect.value = workoutType;
+
+    cursor = null;
+    advanceCursor();
+    arenaPhase = 'set';
+    openArena();
     startWorkoutTimer();
     requestWakeLock();
+    renderArena();
     saveSession();
 }
 
 // --- Resume a persisted session (after refresh) ---
-function resumeWorkoutSession() {
+function resumeWorkoutSession(saved) {
+    activeExercises = sanitizeExercises(saved.exercises);
+    workoutStartTime = saved.startedAt;
     sessionActive = true;
-    comboCount = 0;
+    sessionPath = typeof saved.path === 'string' ? saved.path : null;
+    plannedSets = clampInt(saved.plannedSets, 0, 9999);
+    prShown = (saved.prShown && typeof saved.prShown === 'object') ? saved.prShown : {};
+    comboCount = clampInt(saved.comboCount, 0, 9999);
+    lastRestEnd = typeof saved.lastRestEnd === 'number' ? saved.lastRestEnd : null;
 
-    showSessionUI();
-    renderActiveExercises();
-    updateSessionScore();
-    updateComboIndicator();
+    cursor = saved.cursor && typeof saved.cursor.setId === 'string' ? saved.cursor : null;
+    if (!currentPosition()) advanceCursor();
+
+    arenaPhase = 'set';
+    openArena();
     startWorkoutTimer();
     requestWakeLock();
+
+    const restEnd = typeof saved.restEndsAt === 'number' ? saved.restEndsAt : null;
+    if (saved.phase === 'rest' && restEnd && Date.now() < restEnd + REST_AUTO_ADVANCE_MS) {
+        resumeRest(restEnd, clampInt(saved.restDuration, 1, 999));
+    } else {
+        if (saved.phase === 'rest' && restEnd) lastRestEnd = restEnd;
+        renderArena();
+    }
+    updateComboIndicator();
 }
 
 // --- Cancel the current session entirely ---
 function cancelWorkout() {
-    if (!confirm('לבטל את האימון הנוכחי? כל הסטים שסומנו יימחקו ולא יישמרו.')) return;
+    if (activeExercises.some(ex => ex.sets.some(s => s.done))
+        && !confirm('לבטל את האימון הנוכחי? כל הסטים שסומנו יימחקו ולא יישמרו.')) return;
 
     sessionActive = false;
     clearSavedSession();
     activeExercises = [];
+    cursor = null;
     comboCount = 0;
 
     if (workoutTimerInterval) clearInterval(workoutTimerInterval);
-    skipRestTimer();
+    stopRestTimer();
     releaseWakeLock();
-    renderActiveExercises();
-
-    const startContainer = document.getElementById('start-session-container');
-    const sessionContainer = document.getElementById('active-workout-session');
-    if (sessionContainer) sessionContainer.classList.add('hidden');
-    if (startContainer) startContainer.classList.remove('hidden');
+    closeArenaSheet(true);
+    closeArena();
 }
 
 // --- Live Workout Timer Logic ---
-// Renders elapsed time from workoutStartTime; the caller decides the start point,
-// so a resumed session keeps counting from its original start.
+// Renders elapsed time from workoutStartTime, so a resumed session keeps its original start.
 function startWorkoutTimer() {
-    const timerLabel = document.getElementById('workout-timer');
-
+    const timerLabel = $('#workout-timer');
     if (workoutTimerInterval) clearInterval(workoutTimerInterval);
 
     const tick = () => {
-        const elapsedMs = Date.now() - workoutStartTime;
-        const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
-
+        const totalSeconds = Math.max(0, Math.floor((Date.now() - workoutStartTime) / 1000));
         const hours = Math.floor(totalSeconds / 3600);
         const minutes = Math.floor((totalSeconds % 3600) / 60);
         const seconds = totalSeconds % 60;
-
-        let displayStr = '';
-        if (hours > 0) {
-            displayStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        } else {
-            displayStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        }
-
-        if (timerLabel) {
-            timerLabel.textContent = displayStr;
-        }
+        const mmss = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        if (timerLabel) timerLabel.textContent = hours > 0 ? `${hours}:${mmss}` : mmss;
     };
 
     tick();
     workoutTimerInterval = setInterval(tick, 1000);
 }
 
-// ====================== MODAL CONTROLS ======================
+// ====================== ARENA SHELL ======================
 
-function openExerciseModal() {
-    const modal = document.getElementById('exercise-modal');
-    if (modal) {
-        modal.classList.add('active');
-        // iOS scroll lock: save current scroll position, then fix body in place
-        const scrollY = window.scrollY;
-        document.body.dataset.scrollY = scrollY;
-        document.body.style.top = `-${scrollY}px`;
-        document.body.classList.add('modal-open');
+// Everything behind the arena is taken out of the tab order while it is open.
+const ARENA_BACKGROUND = ['#wk-page', '#mobile-section-header', '#mobile-tab-bar', 'nav.nav-gradient', 'footer.footer'];
+
+function openArena() {
+    const arena = $('#arena');
+    if (!arena || !arena.hidden) return;
+    arena.hidden = false;
+    document.body.classList.add('arena-open');
+    lockPageScroll();
+    ARENA_BACKGROUND.forEach(sel => $all(sel).forEach(el => el.setAttribute('inert', '')));
+    arena.focus({ preventScroll: true });
+}
+
+function closeArena() {
+    const arena = $('#arena');
+    if (!arena || arena.hidden) return;
+    arena.hidden = true;
+    document.body.classList.remove('arena-open');
+    ARENA_BACKGROUND.forEach(sel => $all(sel).forEach(el => el.removeAttribute('inert')));
+    unlockPageScroll();
+}
+
+// ====================== CURSOR (the set on screen) ======================
+
+function currentPosition() {
+    if (!cursor) return null;
+    const found = findSet(cursor.exerciseId, cursor.setId);
+    return found && !isResolved(found.set) ? found : null;
+}
+
+// Move to the next unresolved set after the cursor, wrapping to the start.
+function advanceCursor() {
+    const flat = [];
+    activeExercises.forEach(exercise => exercise.sets.forEach(set => flat.push({ exercise, set })));
+    const start = cursor ? flat.findIndex(item => item.set.id === cursor.setId) : -1;
+    for (let step = 1; step <= flat.length; step++) {
+        const item = flat[(start + step + flat.length) % flat.length];
+        if (!isResolved(item.set)) {
+            cursor = { exerciseId: item.exercise.id, setId: item.set.id };
+            return item;
+        }
+    }
+    cursor = null;
+    return null;
+}
+
+function pointCursorAt(exercise) {
+    const set = exercise.sets.find(s => !s.done);
+    if (!set) return false;
+    set.skipped = false;
+    cursor = { exerciseId: exercise.id, setId: set.id };
+    return true;
+}
+
+// ====================== ARENA RENDERING ======================
+
+function renderArena() {
+    const arena = $('#arena');
+    if (!arena) return;
+    arena.dataset.phase = arenaPhase;
+    if (arenaPhase === 'reward') return;
+
+    renderStatus();
+    updateSessionScore(false);
+    if (arenaPhase === 'set') renderSetPanel();
+    else renderRestPanel();
+    if (!$('#arena-sheet-layer').hidden) renderSheet();
+}
+
+function renderStatus() {
+    const pos = currentPosition();
+    const exIndex = pos ? activeExercises.indexOf(pos.exercise) : activeExercises.length - 1;
+    const countEl = $('#arena-ex-count');
+    if (countEl) {
+        countEl.innerHTML = `תרגיל ${numHtml(Math.max(1, exIndex + 1))} מתוך ${numHtml(activeExercises.length)}`;
+    }
+
+    const rail = $('#arena-rail');
+    if (rail) {
+        rail.innerHTML = activeExercises.map(ex => {
+            const state = ex.sets.every(isResolved) ? 'is-done' : (pos && pos.exercise === ex ? 'is-current' : '');
+            return `<span class="${state}"></span>`;
+        }).join('');
     }
 }
 
-function closeExerciseModal() {
-    const modal = document.getElementById('exercise-modal');
-    if (modal) {
-        modal.classList.remove('active');
-        // iOS scroll lock: restore scroll position after releasing body
-        const scrollY = parseInt(document.body.dataset.scrollY || '0', 10);
-        document.body.classList.remove('modal-open');
-        document.body.style.top = '';
-        window.scrollTo(0, scrollY);
-    }
-}
-
-function closeExerciseModalOnBackdrop(event) {
-    if (event.target === document.getElementById('exercise-modal')) {
-        closeExerciseModal();
-    }
-}
-
-// ====================== ACTIVE EXERCISES RENDERING ======================
-
-function toggleEmptyState() {
-    const emptyState = document.getElementById('empty-state');
-    const workoutActions = document.getElementById('workout-actions');
+function renderSetPanel() {
+    const panel = $('[data-phase-panel="set"]');
+    const pos = currentPosition();
+    const ring = $('#arena-ring');
+    const repsEl = $('#arena-reps');
+    const compare = $('#arena-compare');
 
     if (activeExercises.length === 0) {
-        if (emptyState) emptyState.classList.remove('hidden');
-        if (workoutActions) workoutActions.classList.add('hidden');
-    } else {
-        if (emptyState) emptyState.classList.add('hidden');
-        if (workoutActions) workoutActions.classList.remove('hidden');
-    }
-}
-
-function generateSetRowHTML(exercise, set, idx) {
-    return `
-    <div class="set-row ${set.done ? 'is-done' : ''}" data-set-id="${set.id}" data-exercise-id="${exercise.id}">
-        <span class="set-index w-6 text-center text-xs font-black text-gray-400 flex-shrink-0">${idx + 1}</span>
-        <div class="stepper-group" aria-label="חזרות">
-            <button type="button" class="stepper-btn" onclick="stepSetValue('${exercise.id}', '${set.id}', 'reps', -1)" aria-label="הפחת חזרה">
-                <i class="fas fa-minus"></i>
-            </button>
-            <input type="number" value="${set.reps}" min="0" max="999"
-                   class="stepper-input" data-field="reps"
-                   inputmode="numeric" pattern="[0-9]*"
-                   onchange="updateSetData('${exercise.id}', '${set.id}', 'reps', this.value)">
-            <button type="button" class="stepper-btn" onclick="stepSetValue('${exercise.id}', '${set.id}', 'reps', 1)" aria-label="הוסף חזרה">
-                <i class="fas fa-plus"></i>
-            </button>
-        </div>
-        <div class="stepper-group" aria-label="מנוחה בשניות">
-            <button type="button" class="stepper-btn" onclick="stepSetValue('${exercise.id}', '${set.id}', 'rest', -10)" aria-label="הפחת 10 שניות מנוחה">
-                <i class="fas fa-minus"></i>
-            </button>
-            <input type="number" value="${set.rest}" min="0" max="999"
-                   class="stepper-input" data-field="rest"
-                   inputmode="numeric" pattern="[0-9]*"
-                   onchange="updateSetData('${exercise.id}', '${set.id}', 'rest', this.value)">
-            <button type="button" class="stepper-btn" onclick="stepSetValue('${exercise.id}', '${set.id}', 'rest', 10)" aria-label="הוסף 10 שניות מנוחה">
-                <i class="fas fa-plus"></i>
-            </button>
-        </div>
-        <button type="button" class="set-done-btn" onclick="toggleSetDone('${exercise.id}', '${set.id}')"
-                aria-label="סמן סט כבוצע" aria-pressed="${set.done ? 'true' : 'false'}">
-            <i class="fas fa-check"></i>
-        </button>
-        <button type="button" class="set-del-btn" onclick="removeSet('${exercise.id}', '${set.id}')" aria-label="מחק סט">
-            <i class="fas fa-trash-alt text-xs"></i>
-        </button>
-    </div>
-    `;
-}
-
-function generateExerciseCardHTML(exercise) {
-    const doneCount = exercise.sets.filter(s => s.done).length;
-    const allDone = doneCount === exercise.sets.length && exercise.sets.length > 0;
-    const rowsHTML = exercise.sets.map((set, idx) => generateSetRowHTML(exercise, set, idx)).join('');
-
-    return `
-    <div class="exercise-card bg-white border ${allDone ? 'border-emerald-200' : 'border-gray-200'} shadow-md rounded-2xl p-3.5 sm:p-4 relative" data-exercise-id="${exercise.id}">
-        <!-- Card Header -->
-        <div class="flex justify-between items-center gap-2 mb-3">
-            <div class="min-w-0">
-                <h3 class="text-base font-extrabold text-gray-900 leading-tight truncate">${escapeHtml(exercise.name)}</h3>
-                <span class="ex-progress text-[11px] font-bold ${allDone ? 'text-emerald-600' : 'text-gray-400'}">${doneCount}/${exercise.sets.length} סטים הושלמו</span>
-            </div>
-            <button onclick="removeExercise('${exercise.id}')"
-                    class="text-gray-400 hover:text-red-500 active:scale-90 transition-colors p-2 rounded-xl hover:bg-red-50 flex-shrink-0"
-                    title="הסר תרגיל" aria-label="הסר תרגיל">
-                <i class="fas fa-trash-alt"></i>
-            </button>
-        </div>
-
-        <!-- Column labels (match set-row flex proportions) -->
-        <div class="flex items-center gap-1.5 px-2 mb-1.5 text-[10px] font-black text-gray-400 uppercase tracking-wide">
-            <span class="w-6 text-center">#</span>
-            <span class="flex-1 text-center">חזרות</span>
-            <span class="flex-1 text-center">מנוחה (שנ')</span>
-            <span class="w-11 text-center">בוצע</span>
-            <span class="w-8"></span>
-        </div>
-
-        <!-- Set rows -->
-        <div class="space-y-2 sets-list" id="sets-list-${exercise.id}">
-            ${rowsHTML}
-        </div>
-
-        <!-- Card Footer -->
-        <button onclick="addSet('${exercise.id}')"
-                class="mt-3 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 border border-dashed border-purple-400 hover:border-purple-600 text-purple-700 font-bold text-xs rounded-xl hover:bg-purple-50/50 transition-all active:scale-[0.98]">
-            <i class="fas fa-plus"></i>
-            הוסף סט
-        </button>
-    </div>
-    `;
-}
-
-function renderActiveExercises() {
-    const container = document.getElementById('active-exercises');
-    if (!container) return;
-
-    container.innerHTML = activeExercises.map(ex => generateExerciseCardHTML(ex)).join('');
-    toggleEmptyState();
-}
-
-// Re-render a single exercise card in place — cheaper and calmer than
-// rebuilding the whole list on every set change.
-function renderExerciseCard(exercise) {
-    const card = document.querySelector(`.exercise-card[data-exercise-id="${exercise.id}"]`);
-    if (!card) {
-        renderActiveExercises();
+        panel.dataset.state = 'empty';
         return;
     }
-    const holder = document.createElement('div');
-    holder.innerHTML = generateExerciseCardHTML(exercise).trim();
-    card.replaceWith(holder.firstElementChild);
-}
 
-function updateExerciseProgress(exercise) {
-    const card = document.querySelector(`.exercise-card[data-exercise-id="${exercise.id}"]`);
-    if (!card) return;
-    const doneCount = exercise.sets.filter(s => s.done).length;
-    const allDone = doneCount === exercise.sets.length && exercise.sets.length > 0;
-
-    const chip = card.querySelector('.ex-progress');
-    if (chip) {
-        chip.textContent = `${doneCount}/${exercise.sets.length} סטים הושלמו`;
-        chip.classList.toggle('text-emerald-600', allDone);
-        chip.classList.toggle('text-gray-400', !allDone);
-    }
-    card.classList.toggle('border-emerald-200', allDone);
-    card.classList.toggle('border-gray-200', !allDone);
-}
-
-// ====================== EXERCISE / SET OPERATIONS ======================
-
-function addExercise(name) {
-    const newEx = {
-        id: uid('ex'),
-        name: name,
-        sets: [
-            { id: uid('set'), reps: 8, rest: 90, done: false }
-        ]
-    };
-    activeExercises.push(newEx);
-    closeExerciseModal();
-    renderActiveExercises();
-    saveSession();
-}
-
-function addCustomExercise() {
-    const input = document.getElementById('custom-exercise-name');
-    const name = input ? input.value.trim() : '';
-    if (!name) return;
-
-    addExercise(name);
-    if (input) input.value = '';
-}
-
-function removeExercise(exerciseId) {
-    const exercise = activeExercises.find(ex => ex.id === exerciseId);
-    if (!exercise) return;
-
-    // Deleting completed work deserves a second thought
-    if (exercise.sets.some(s => s.done)) {
-        if (!confirm(`להסיר את "${exercise.name}"? הסטים שכבר סומנו בו יימחקו.`)) return;
+    if (!pos) {
+        const stats = sessionStats();
+        panel.dataset.state = 'complete';
+        ring.style.setProperty('--pct', '100%');
+        repsEl.textContent = '✓';
+        $('#arena-reps-label').textContent = 'הושלם';
+        $('#arena-set-label').innerHTML = `כל ${numHtml(stats.total)} הסטים הושלמו`;
+        $('#arena-ex-name').textContent = 'האימון מוכן לשמירה';
+        compare.hidden = false;
+        compare.innerHTML = `${numHtml(stats.doneSets)} סטים · ${numHtml(stats.doneReps)} חזרות · ${numHtml(`+${computeSessionScore()}`)} XP עד עכשיו`;
+        return;
     }
 
-    activeExercises = activeExercises.filter(ex => ex.id !== exerciseId);
-    renderActiveExercises();
-    updateSessionScore();
-    saveSession();
+    const { exercise, set } = pos;
+    const doneInExercise = exercise.sets.filter(s => s.done).length;
+    panel.dataset.state = 'active';
+    ring.style.setProperty('--pct', `${Math.round(doneInExercise * 100 / exercise.sets.length)}%`);
+    repsEl.textContent = set.reps;
+    $('#arena-reps-label').textContent = 'חזרות';
+    $('#arena-set-xp').textContent = `+${XP_PER_SET + set.reps} XP`;
+    $('#arena-set-label').innerHTML = `סט ${numHtml(exercise.sets.indexOf(set) + 1)} מתוך ${numHtml(exercise.sets.length)}`;
+    $('#arena-ex-name').textContent = exercise.title;
+
+    const line = compareLine(exercise, set.reps);
+    compare.hidden = !line;
+    compare.innerHTML = line;
 }
 
-function addSet(exerciseId) {
-    const exercise = activeExercises.find(ex => ex.id === exerciseId);
-    if (!exercise) return;
+// "בפעם שעברה עשית 11 — עוד אחת והשיא נשבר" — only when there is history for the exercise.
+function compareLine(exercise, reps) {
+    const record = data().records[exercise.name];
+    if (!record) return '';
+    const best = Math.max(record.best, sessionBest(exercise.name));
+    const need = best + 1 - reps;
+    let tail;
+    if (need <= 0) tail = 'זה שיא חדש';
+    else if (need === 1) tail = 'עוד אחת והשיא נשבר';
+    else if (need <= 3) tail = `עוד ${numHtml(need)} והשיא נשבר`;
+    else tail = `השיא שלך ${numHtml(best)}`;
+    return `בפעם שעברה עשית ${numHtml(record.last)} — ${tail}`;
+}
 
-    // Copy reps/rest from the last set for a streamlined experience (HEVY style)
-    let lastReps = 8;
-    let lastRest = 90;
-    if (exercise.sets.length > 0) {
-        const lastSet = exercise.sets[exercise.sets.length - 1];
-        lastReps = lastSet.reps;
-        lastRest = lastSet.rest;
-    }
-
-    exercise.sets.push({
-        id: uid('set'),
-        reps: lastReps,
-        rest: lastRest,
-        done: false
+function sessionBest(name) {
+    let best = 0;
+    activeExercises.forEach(ex => {
+        if (ex.name !== name) return;
+        ex.sets.forEach(s => { if (s.done) best = Math.max(best, s.reps); });
     });
-
-    renderExerciseCard(exercise);
-    saveSession();
+    return best;
 }
 
-function removeSet(exerciseId, setId) {
-    const exercise = activeExercises.find(ex => ex.id === exerciseId);
-    if (!exercise) return;
+function renderRestPanel() {
+    const next = currentPosition();
+    const tile = $('#rest-next-tile');
+    const title = $('#rest-next-title');
+    const sub = $('#rest-next-sub');
+    const xp = $('#rest-next-xp');
 
-    const target = exercise.sets.find(s => s.id === setId);
-    if (target && target.done && !confirm('הסט הזה כבר סומן כבוצע. למחוק אותו בכל זאת?')) return;
-
-    exercise.sets = exercise.sets.filter(s => s.id !== setId);
-
-    // If no sets are left, remove the exercise card completely
-    if (exercise.sets.length === 0) {
-        activeExercises = activeExercises.filter(ex => ex.id !== exerciseId);
-        renderActiveExercises();
+    if (next) {
+        const { exercise, set } = next;
+        const index = exercise.sets.indexOf(set);
+        const target = `יעד ${numHtml(set.reps)} חזרות`;
+        tile.textContent = exerciseIcon(exercise);
+        title.innerHTML = `${escapeHtml(exercise.title)} · סט ${numHtml(index + 1)}`;
+        if (exercise.sets.length > 1 && index === exercise.sets.length - 1) sub.innerHTML = `הסט האחרון בתרגיל · ${target}`;
+        else if (index === 0) sub.innerHTML = `תרגיל חדש · ${target}`;
+        else sub.innerHTML = target;
+        xp.textContent = `+${XP_PER_SET + set.reps}`;
     } else {
-        renderExerciseCard(exercise);
-    }
-    updateSessionScore();
-    saveSession();
-}
-
-function updateSetData(exerciseId, setId, field, value) {
-    const found = findSet(exerciseId, setId);
-    if (!found || (field !== 'reps' && field !== 'rest')) return;
-
-    const clamped = clampInt(value, 0, 999);
-    found.set[field] = clamped;
-
-    // Reflect the clamped value back so garbage input never lingers on screen
-    const input = document.querySelector(`.set-row[data-set-id="${setId}"] .stepper-input[data-field="${field}"]`);
-    if (input && String(input.value) !== String(clamped)) {
-        input.value = clamped;
+        tile.textContent = '🏁';
+        title.textContent = 'זה היה הסט האחרון';
+        sub.textContent = 'אחרי המנוחה — סיום ושמירה';
+        xp.textContent = '';
     }
 
-    // Reps of an already-completed set affect the live score
-    if (field === 'reps' && found.set.done) updateSessionScore();
-    saveSession();
+    $('#rest-coach-tip').textContent = restTip;
+    const stats = sessionStats();
+    $('#rest-strip-xp').textContent = `${formatNumber(computeSessionScore())} XP`;
+    $('#rest-strip-sets').innerHTML = countHtml(stats.doneSets, 'סט אחד', 'סטים');
+    $('#rest-combo-line').hidden = comboCount < 2;
 }
 
-// +/- stepper buttons — instant, no keyboard needed
-function stepSetValue(exerciseId, setId, field, delta) {
-    const found = findSet(exerciseId, setId);
-    if (!found) return;
-    updateSetData(exerciseId, setId, field, (found.set[field] || 0) + delta);
+function pickCoachTip(exercise) {
+    const tips = COACH_TIPS[exercise && exercise.category] || COACH_TIPS.general;
+    return tips[sessionStats().doneSets % tips.length];
 }
 
-function toggleSetDone(exerciseId, setId) {
-    const found = findSet(exerciseId, setId);
-    if (!found) return;
-    const set = found.set;
+// ====================== SET ACTIONS ======================
 
-    set.done = !set.done;
+function completeCurrentSet() {
+    const pos = currentPosition();
+    if (!pos) return;
+    const { exercise, set } = pos;
 
-    // Direct DOM manipulation for instant visual response (no full re-render)
-    const rowEl = document.querySelector(`.set-row[data-set-id="${setId}"]`);
-    if (rowEl) {
-        rowEl.classList.toggle('is-done', set.done);
-        const doneBtn = rowEl.querySelector('.set-done-btn');
-        if (doneBtn) doneBtn.setAttribute('aria-pressed', set.done ? 'true' : 'false');
-    }
-    updateExerciseProgress(found.exercise);
+    // Resting far past the plan breaks the chain
+    if (lastRestEnd && Date.now() - lastRestEnd > COMBO_REST_GRACE_MS) comboCount = 0;
+    lastRestEnd = null;
 
-    // --- Game feedback: XP + combo + rest timer ---
-    if (set.done) {
-        comboCount++;
-        spawnXpFloat(rowEl, XP_PER_SET + set.reps);
-        if (navigator.vibrate) navigator.vibrate(40);
-        if (set.rest > 0) startRestTimer(set.rest);
+    set.done = true;
+    set.skipped = false;
+    comboCount++;
+    spawnXpFloat($('#arena-done-btn'), XP_PER_SET + set.reps);
+    vibrate(12);
+
+    const record = checkPersonalRecord(exercise, set);
+    const next = advanceCursor();
+    if (next && set.rest > 0) {
+        restTip = pickCoachTip(exercise);
+        startRestTimer(set.rest);
     } else {
-        comboCount = 0; // breaking the chain resets the combo
+        arenaPhase = 'set';
+        renderArena();
     }
-    updateSessionScore();
+    updateSessionScore(true);
     updateComboIndicator();
     saveSession();
+    if (record) showPrToast(record);
+}
+
+function skipCurrentSet() {
+    const pos = currentPosition();
+    if (!pos) return;
+    pos.set.skipped = true;
+    comboCount = 0;
+    lastRestEnd = null;
+    advanceCursor();
+    arenaPhase = 'set';
+    renderArena();
+    updateComboIndicator();
+    saveSession();
+}
+
+function arenaStepReps(delta) {
+    const pos = currentPosition();
+    if (!pos) return;
+    pos.set.reps = clampInt(pos.set.reps + delta, 0, 999);
+    renderSetPanel();
+    saveSession();
+}
+
+// ====================== PERSONAL RECORDS ======================
+
+function checkPersonalRecord(exercise, set) {
+    const record = data().records[exercise.name];
+    if (!record || prShown[exercise.name] || set.reps <= record.best) return null;
+    prShown[exercise.name] = true;
+    return { title: exercise.title, reps: set.reps, previous: record.best };
+}
+
+let prToastTimer = null;
+
+function showPrToast(record) {
+    const layer = $('#arena-pr-layer');
+    if (!layer) return;
+    const inTitle = /^[֐-׿]/.test(record.title) ? `ב${record.title}` : `· ${record.title}`;
+    $('#arena-pr-detail').innerHTML =
+        `${numHtml(record.reps)} חזרות ${escapeHtml(inTitle)} · הקודם ${numHtml(record.previous)}`;
+    $('#arena-pr-delta').textContent = `+${record.reps - record.previous}`;
+    layer.hidden = false;
+    requestAnimationFrame(() => layer.classList.add('is-open'));
+    clearTimeout(prToastTimer);
+    prToastTimer = setTimeout(hidePrToast, PR_TOAST_MS);
+}
+
+function hidePrToast() {
+    const layer = $('#arena-pr-layer');
+    if (!layer || layer.hidden) return;
+    clearTimeout(prToastTimer);
+    layer.classList.remove('is-open');
+    setTimeout(() => { layer.hidden = true; }, reducedMotion.matches ? 0 : 200);
 }
 
 // ====================== SESSION SCORE HUD ======================
@@ -570,51 +859,50 @@ function computeSessionScore() {
     return score;
 }
 
-function updateSessionScore() {
-    const scoreEl = document.getElementById('session-score');
+function updateSessionScore(bump) {
+    const scoreEl = $('#session-score');
     if (!scoreEl) return;
     scoreEl.textContent = computeSessionScore();
-    scoreEl.classList.remove('score-bump');
+    if (!bump) return;
+    scoreEl.classList.remove('is-bumped');
     void scoreEl.offsetWidth; // restart the CSS animation
-    scoreEl.classList.add('score-bump');
+    scoreEl.classList.add('is-bumped');
 }
 
 function updateComboIndicator() {
-    const indicator = document.getElementById('combo-indicator');
-    const countEl = document.getElementById('combo-count');
+    const indicator = $('#combo-indicator');
+    const countEl = $('#combo-count');
     if (!indicator || !countEl) return;
 
-    if (comboCount >= 2) {
-        countEl.textContent = comboCount;
-        indicator.classList.remove('hidden');
-        indicator.classList.remove('combo-pop');
-        void indicator.offsetWidth;
-        indicator.classList.add('combo-pop');
-    } else {
-        indicator.classList.add('hidden');
-    }
+    const show = comboCount >= 2 && arenaPhase === 'set' && !!currentPosition();
+    indicator.hidden = !show;
+    if (!show) return;
+    countEl.textContent = comboCount;
+    indicator.classList.remove('is-popped');
+    void indicator.offsetWidth;
+    indicator.classList.add('is-popped');
 }
 
-// Floating "+XP" particle rising from the completed set row.
-// Pass a number for XP, or any string for a custom celebration text.
+// Floating "+XP" rising from the anchor. Pass a number for XP, or any string.
 function spawnXpFloat(anchorEl, xp) {
-    if (!anchorEl) return;
+    if (!anchorEl || reducedMotion.matches) return;
     const rect = anchorEl.getBoundingClientRect();
     const float = document.createElement('div');
-    float.className = 'xp-float text-lg';
+    float.className = 'xp-float';
+    float.setAttribute('dir', 'ltr');
     float.textContent = typeof xp === 'number' ? `+${xp} XP` : xp;
     float.style.left = `${rect.left + rect.width / 2 - 30}px`;
-    float.style.top = `${rect.top}px`;
+    float.style.top = `${rect.top - 8}px`;
     document.body.appendChild(float);
     setTimeout(() => float.remove(), 1300);
 }
 
-// ====================== STICKY REST TIMER ======================
+// ====================== REST SCREEN ======================
 
 function formatRestTime(totalSeconds) {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
-    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
 function restRemainingSeconds() {
@@ -622,43 +910,36 @@ function restRemainingSeconds() {
     return Math.max(0, Math.ceil((restEndsAt - Date.now()) / 1000));
 }
 
-function setBannerFinishedLook(finished) {
-    const banner = document.getElementById('rest-timer-banner');
-    const bannerIcon = document.getElementById('timer-banner-icon');
-    if (banner) banner.classList.toggle('timer-finished', finished);
-    if (bannerIcon) {
-        if (finished) {
-            bannerIcon.className = 'w-10 h-10 bg-white/20 text-white rounded-full flex items-center justify-center text-lg flex-shrink-0';
-            bannerIcon.innerHTML = '<i class="fas fa-bell"></i>';
-        } else {
-            bannerIcon.className = 'w-10 h-10 bg-purple-600/30 text-purple-400 rounded-full flex items-center justify-center text-lg flex-shrink-0';
-            bannerIcon.innerHTML = '<i class="fas fa-hourglass-half animate-spin-slow"></i>';
-        }
-    }
-}
-
 function startRestTimer(seconds) {
     if (seconds <= 0) return;
+    resumeRest(Date.now() + seconds * 1000, seconds);
+}
 
-    const banner = document.getElementById('rest-timer-banner');
-    if (!banner) return;
-
+function resumeRest(endsAt, duration) {
+    clearTimeout(restAutoAdvance);
     isTimerFinished = false;
-    restDuration = seconds;
-    restEndsAt = Date.now() + seconds * 1000;
+    restDuration = duration;
+    restEndsAt = endsAt;
+    if (!restTip) {
+        const pos = currentPosition();
+        restTip = pickCoachTip(pos && pos.exercise);
+    }
+    $('[data-phase-panel="rest"]').classList.remove('is-finished');
+    $('#rest-ring-label').textContent = 'עד הסט הבא';
 
-    setBannerFinishedLook(false);
-    banner.classList.remove('translate-y-full');
+    arenaPhase = 'rest';
+    renderArena();
+    updateComboIndicator();
 
     if (restTimerInterval) clearInterval(restTimerInterval);
     restTimerInterval = setInterval(tickRestTimer, 250);
     tickRestTimer();
+    saveSession();
 }
 
 function tickRestTimer() {
     const remaining = restRemainingSeconds();
     updateRestTimerDisplay(remaining);
-
     if (remaining <= 0) {
         if (restTimerInterval) clearInterval(restTimerInterval);
         handleRestTimerCompletion();
@@ -666,171 +947,603 @@ function tickRestTimer() {
 }
 
 function updateRestTimerDisplay(remaining) {
-    const clock = document.getElementById('timer-banner-clock');
-    if (clock) {
-        clock.textContent = formatRestTime(remaining);
-    }
-    const progress = document.getElementById('timer-banner-progress');
-    if (progress && restDuration > 0) {
-        const pct = Math.min(100, Math.max(0, 100 * (1 - remaining / restDuration)));
-        progress.style.width = `${pct}%`;
+    const clock = $('#timer-banner-clock');
+    if (clock) clock.textContent = formatRestTime(remaining);
+    const ring = $('#rest-ring');
+    if (ring && restDuration > 0) {
+        const pct = Math.min(100, Math.max(0, 100 * remaining / restDuration));
+        ring.style.setProperty('--pct', `${pct}%`);
     }
 }
 
 function handleRestTimerCompletion() {
     if (isTimerFinished) return;
     isTimerFinished = true;
+    $('[data-phase-panel="rest"]').classList.add('is-finished');
+    $('#rest-ring-label').textContent = 'הזמן עבר';
+    vibrate([40, 60, 40]);
 
-    setBannerFinishedLook(true);
-
-    // Trigger haptic vibration if supported (mobile browsers)
-    if (navigator.vibrate) {
-        navigator.vibrate([200, 100, 200, 100, 300]);
-    }
-
-    // Auto-close banner after 6 seconds of completion alert
-    setTimeout(() => {
-        if (isTimerFinished) {
-            skipRestTimer();
-        }
-    }, 6000);
+    // After a short alert, bring the next set on screen by itself
+    const wait = Math.max(0, restEndsAt + REST_AUTO_ADVANCE_MS - Date.now());
+    restAutoAdvance = setTimeout(() => {
+        if (isTimerFinished && arenaPhase === 'rest') skipRestTimer();
+    }, wait);
 }
 
 function adjustRestTimer(amount) {
     if (isTimerFinished) {
-        // If timer was finished, restart it with the adjusted value
+        // A finished timer restarts with the added time
         if (amount > 0) startRestTimer(amount);
         return;
     }
     if (!restEndsAt) return;
-
     restEndsAt += amount * 1000;
     restDuration = Math.max(1, restDuration + amount);
     tickRestTimer();
+    saveSession();
 }
 
-function skipRestTimer() {
+function stopRestTimer() {
     if (restTimerInterval) clearInterval(restTimerInterval);
+    clearTimeout(restAutoAdvance);
     isTimerFinished = false;
     restEndsAt = null;
+    restTip = '';
+}
 
-    const banner = document.getElementById('rest-timer-banner');
-    if (banner) {
-        banner.classList.add('translate-y-full');
-        banner.classList.remove('timer-finished');
+// "אני מוכן" — end the rest and show the next set
+function skipRestTimer() {
+    if (restEndsAt) lastRestEnd = restEndsAt;
+    stopRestTimer();
+    if (arenaPhase === 'rest') {
+        arenaPhase = 'set';
+        renderArena();
+        updateComboIndicator();
+        saveSession();
     }
+}
+
+// ====================== EXERCISE SHEET (2d) ======================
+
+let sheetOpener = null;
+let expandedExerciseId = null;
+
+function openArenaSheet(trigger) {
+    const layer = $('#arena-sheet-layer');
+    if (!layer || !layer.hidden) return;
+    sheetOpener = trigger || document.activeElement;
+    const pos = currentPosition();
+    expandedExerciseId = null;
+    renderSheet();
+    layer.hidden = false;
+    $all('.arena-phase').forEach(el => el.setAttribute('inert', ''));
+    $('#arena-sheet').style.transform = '';
+    requestAnimationFrame(() => layer.classList.add('is-open'));
+    $('#arena-sheet').focus({ preventScroll: true });
+    // Bring the current exercise into view
+    if (pos) {
+        const row = $(`.sheet-ex[data-ex="${pos.exercise.id}"]`);
+        if (row) row.scrollIntoView({ block: 'nearest' });
+    }
+}
+
+function closeArenaSheet(instant) {
+    const layer = $('#arena-sheet-layer');
+    if (!layer || layer.hidden) return;
+    layer.classList.remove('is-open');
+    $all('.arena-phase').forEach(el => el.removeAttribute('inert'));
+    const done = () => {
+        layer.hidden = true;
+        $('#arena-sheet').style.transform = '';
+        if (sheetOpener && sheetOpener.focus && document.contains(sheetOpener)) {
+            sheetOpener.focus({ preventScroll: true });
+        }
+    };
+    if (instant === true || reducedMotion.matches) done();
+    else setTimeout(done, 240);
+}
+
+function renderSheet() {
+    const list = $('#arena-sheet-list');
+    if (!list) return;
+    const pos = currentPosition();
+
+    if (!activeExercises.length) {
+        list.innerHTML = '<p class="rest-next-sub">עוד לא נוספו תרגילים.</p>';
+    } else {
+        list.innerHTML = activeExercises.map((ex, idx) => {
+            const done = ex.sets.filter(s => s.done).length;
+            const allResolved = ex.sets.every(isResolved);
+            const isCurrent = pos && pos.exercise === ex;
+            const state = isCurrent ? 'is-current' : (allResolved && done > 0 ? 'is-done' : '');
+            const badge = isCurrent ? '🏋️' : (state === 'is-done' ? '✓' : numHtml(idx + 1));
+            const open = ex.id === expandedExerciseId;
+            return `
+            <div class="sheet-ex ${state} ${open ? 'is-open' : ''}" data-ex="${ex.id}">
+                <button type="button" class="sheet-ex-row" data-sheet-toggle="${ex.id}" aria-expanded="${open}">
+                    <span class="sheet-ex-badge" aria-hidden="true">${badge}</span>
+                    <span class="sheet-ex-name">${escapeHtml(ex.title)}</span>
+                    <span class="sheet-ex-count" dir="ltr">${done}/${ex.sets.length}</span>
+                    <span class="sheet-ex-chev" aria-hidden="true">⌄</span>
+                </button>
+                ${open ? sheetExerciseBody(ex, isCurrent) : ''}
+            </div>`;
+        }).join('');
+    }
+
+    const stats = sessionStats();
+    const finishBtn = $('#arena-finish-early');
+    if (finishBtn) {
+        const early = stats.pending > 0;
+        finishBtn.textContent = early ? 'סיום מוקדם' : 'סיום ושמירה';
+        finishBtn.classList.toggle('is-danger', early);
+        finishBtn.classList.toggle('is-finish', !early);
+    }
+}
+
+function sheetExerciseBody(ex, isCurrent) {
+    const rows = ex.sets.map((set, idx) => {
+        const toggleClass = set.done ? 'is-done' : (set.skipped ? 'is-skipped' : '');
+        const toggleLabel = set.done ? '✓' : (set.skipped ? 'דולג' : '✓');
+        return `
+        <div class="sheet-set">
+            <span class="sheet-set-index" aria-hidden="true">${idx + 1}</span>
+            <div class="sheet-stepper">
+                <button type="button" onclick="stepSetValue('${ex.id}', '${set.id}', 'reps', -1)" aria-label="הפחת חזרה בסט ${idx + 1}">−</button>
+                <input type="number" value="${set.reps}" min="0" max="999" inputmode="numeric" pattern="[0-9]*"
+                       aria-label="חזרות בסט ${idx + 1}" data-set-input="${set.id}"
+                       onchange="updateSetData('${ex.id}', '${set.id}', 'reps', this.value)">
+                <span class="sheet-stepper-unit">חזרות</span>
+                <button type="button" onclick="stepSetValue('${ex.id}', '${set.id}', 'reps', 1)" aria-label="הוסף חזרה בסט ${idx + 1}">+</button>
+            </div>
+            <button type="button" class="sheet-set-toggle ${toggleClass}" onclick="toggleSetDone('${ex.id}', '${set.id}')"
+                    aria-pressed="${set.done}" aria-label="סט ${idx + 1} בוצע">${toggleLabel}</button>
+            <button type="button" class="sheet-set-del" onclick="removeSet('${ex.id}', '${set.id}')" aria-label="מחק סט ${idx + 1}">
+                <i class="fas fa-trash-alt" aria-hidden="true"></i>
+            </button>
+        </div>`;
+    }).join('');
+
+    const canJump = !isCurrent && ex.sets.some(s => !s.done);
+    return `
+    <div class="sheet-ex-body">
+        ${rows}
+        <div class="sheet-ex-actions">
+            <button type="button" onclick="addSet('${ex.id}')">+ סט</button>
+            ${canJump ? `<button type="button" onclick="jumpToExercise('${ex.id}')">לתרגיל הזה</button>` : ''}
+            <button type="button" class="is-danger" onclick="removeExercise('${ex.id}')">הסר תרגיל</button>
+        </div>
+    </div>`;
+}
+
+function wireArenaSheet() {
+    const layer = $('#arena-sheet-layer');
+    const sheet = $('#arena-sheet');
+    if (!layer || !sheet) return;
+
+    layer.addEventListener('click', (e) => {
+        if (e.target.closest('[data-sheet-close]')) { closeArenaSheet(); return; }
+        const toggle = e.target.closest('[data-sheet-toggle]');
+        if (toggle) {
+            const id = toggle.dataset.sheetToggle;
+            expandedExerciseId = expandedExerciseId === id ? null : id;
+            renderSheet();
+            const row = $(`.sheet-ex[data-ex="${id}"] .sheet-ex-row`);
+            if (row) row.focus({ preventScroll: true });
+        }
+    });
+
+    layer.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); closeArenaSheet(); return; }
+        if (e.key !== 'Tab') return;
+        const items = $all('button:not([disabled]), input, select, summary, [href]', sheet)
+            .filter(el => el.offsetParent !== null);
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (e.shiftKey && (document.activeElement === first || document.activeElement === sheet)) {
+            e.preventDefault(); last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault(); first.focus();
+        }
+    });
+
+    // Drag the grab handle down to dismiss
+    const handle = $('[data-sheet-handle]', sheet);
+    let dragStart = null;
+    handle.addEventListener('pointerdown', (e) => {
+        dragStart = e.clientY;
+        handle.setPointerCapture(e.pointerId);
+        sheet.classList.add('is-dragging');
+    });
+    handle.addEventListener('pointermove', (e) => {
+        if (dragStart === null) return;
+        sheet.style.transform = `translateY(${Math.max(0, e.clientY - dragStart)}px)`;
+    });
+    const endDrag = (e) => {
+        if (dragStart === null) return;
+        const dy = e.clientY - dragStart;
+        dragStart = null;
+        sheet.classList.remove('is-dragging');
+        if (dy > 80) closeArenaSheet(); else sheet.style.transform = '';
+    };
+    handle.addEventListener('pointerup', endDrag);
+    handle.addEventListener('pointercancel', endDrag);
+}
+
+function refreshAfterEdit() {
+    if (!currentPosition()) advanceCursor();
+    renderArena();
+    updateSessionScore(false);
+    updateComboIndicator();
+    saveSession();
+}
+
+function jumpToExercise(exerciseId) {
+    const exercise = activeExercises.find(ex => ex.id === exerciseId);
+    if (!exercise || !pointCursorAt(exercise)) return;
+    if (arenaPhase === 'rest') stopRestTimer();
+    arenaPhase = 'set';
+    closeArenaSheet();
+    refreshAfterEdit();
+}
+
+function finishEarly() {
+    const { pending } = sessionStats();
+    if (pending > 0) {
+        const left = pending === 1 ? 'סט אחד עדיין לא בוצע' : `${pending} סטים עדיין לא בוצעו`;
+        if (!confirm(`לסיים את האימון עכשיו? ${left}.`)) return;
+    }
+    finishWorkout();
+}
+
+// ====================== EXERCISE PICKER ======================
+
+function openExerciseModal() {
+    const modal = $('#exercise-modal');
+    if (!modal || modal.classList.contains('active')) return;
+    modal.classList.add('active');
+    lockPageScroll();
+}
+
+function closeExerciseModal() {
+    const modal = $('#exercise-modal');
+    if (!modal || !modal.classList.contains('active')) return;
+    modal.classList.remove('active');
+    unlockPageScroll();
+}
+
+function closeExerciseModalOnBackdrop(event) {
+    if (event.target === $('#exercise-modal')) closeExerciseModal();
+}
+
+// ====================== EXERCISE / SET OPERATIONS ======================
+
+function addExerciseToSession(exercise, pathKey, workoutType) {
+    closeExerciseModal();
+    if (!sessionActive) {
+        beginSession([exercise], pathKey || null, workoutType || 'Calisthenics');
+        return;
+    }
+    activeExercises.push(exercise);
+    plannedSets += exercise.sets.length;
+    if (!currentPosition()) {
+        pointCursorAt(exercise);
+        if (arenaPhase === 'rest') stopRestTimer();
+        arenaPhase = 'set';
+    }
+    expandedExerciseId = null;
+    refreshAfterEdit();
+}
+
+function addExerciseByName(name) {
+    const meta = data().catalog[name] || {};
+    addExerciseToSession(buildExercise(
+        { name, title: meta.title || name, category: meta.category || 'general' },
+        DEFAULT_NEW_EXERCISE.sets, DEFAULT_NEW_EXERCISE.reps, DEFAULT_NEW_EXERCISE.rest
+    ));
+}
+
+function addCustomExercise() {
+    const input = $('#custom-exercise-name');
+    const name = input ? input.value.trim() : '';
+    if (!name) return;
+    addExerciseByName(name);
+    if (input) input.value = '';
+}
+
+// Desktop skill guide "+ אימון": one station of a path
+function addSkillProgression(skillKey, stageIndex) {
+    const station = (data().stations[skillKey] || [])[stageIndex];
+    const path = data().paths[skillKey];
+    if (!station || !path) return;
+    const exercise = buildExercise(
+        { name: station.name, title: station.title, category: path.category, skill_key: skillKey, stage_index: stageIndex },
+        DEFAULT_NEW_EXERCISE.sets, station.reps, station.rest
+    );
+    addExerciseToSession(exercise, skillKey, path.workout_type);
+}
+
+function removeExercise(exerciseId) {
+    const exercise = activeExercises.find(ex => ex.id === exerciseId);
+    if (!exercise) return;
+    if (exercise.sets.some(s => s.done)
+        && !confirm(`להסיר את "${exercise.title}"? הסטים שכבר סומנו בו יימחקו.`)) return;
+
+    activeExercises = activeExercises.filter(ex => ex.id !== exerciseId);
+    if (cursor && cursor.exerciseId === exerciseId) cursor = null;
+    if (arenaPhase === 'rest' && !activeExercises.some(ex => ex.sets.some(s => !isResolved(s)))) stopRestTimer();
+    if (!restEndsAt) arenaPhase = 'set';
+    refreshAfterEdit();
+}
+
+function addSet(exerciseId) {
+    const exercise = activeExercises.find(ex => ex.id === exerciseId);
+    if (!exercise) return;
+
+    // Copy reps/rest from the last set
+    const last = exercise.sets[exercise.sets.length - 1];
+    const set = {
+        id: uid('set'),
+        reps: last ? last.reps : DEFAULT_NEW_EXERCISE.reps,
+        rest: last ? last.rest : DEFAULT_NEW_EXERCISE.rest,
+        done: false,
+        skipped: false,
+    };
+    exercise.sets.push(set);
+    plannedSets++;
+    if (!currentPosition()) cursor = { exerciseId, setId: set.id };
+    refreshAfterEdit();
+}
+
+function removeSet(exerciseId, setId) {
+    const exercise = activeExercises.find(ex => ex.id === exerciseId);
+    if (!exercise) return;
+
+    const target = exercise.sets.find(s => s.id === setId);
+    if (target && target.done && !confirm('הסט הזה כבר סומן כבוצע. למחוק אותו בכל זאת?')) return;
+
+    exercise.sets = exercise.sets.filter(s => s.id !== setId);
+    if (exercise.sets.length === 0) {
+        activeExercises = activeExercises.filter(ex => ex.id !== exerciseId);
+    }
+    if (cursor && cursor.setId === setId) advanceCursor();
+    refreshAfterEdit();
+}
+
+function updateSetData(exerciseId, setId, field, value) {
+    const found = findSet(exerciseId, setId);
+    if (!found || (field !== 'reps' && field !== 'rest')) return;
+
+    const clamped = clampInt(value, 0, 999);
+    found.set[field] = clamped;
+
+    // Reflect the clamped value back so garbage input never lingers on screen
+    const input = $(`[data-set-input="${setId}"]`);
+    if (input && field === 'reps' && String(input.value) !== String(clamped)) input.value = clamped;
+
+    if (arenaPhase === 'set') renderSetPanel();
+    updateSessionScore(false);
+    saveSession();
+}
+
+// +/- stepper buttons in the sheet
+function stepSetValue(exerciseId, setId, field, delta) {
+    const found = findSet(exerciseId, setId);
+    if (!found) return;
+    updateSetData(exerciseId, setId, field, (found.set[field] || 0) + delta);
+}
+
+// Sheet correction: mark / unmark a set without the rest flow
+function toggleSetDone(exerciseId, setId) {
+    const found = findSet(exerciseId, setId);
+    if (!found) return;
+    const set = found.set;
+
+    if (set.done) {
+        set.done = false;
+        comboCount = 0; // breaking the chain resets the combo
+        if (!currentPosition()) cursor = { exerciseId, setId };
+    } else {
+        set.done = true;
+        set.skipped = false;
+        comboCount++;
+        const record = checkPersonalRecord(found.exercise, set);
+        if (record) showPrToast(record);
+    }
+    refreshAfterEdit();
 }
 
 // ====================== FINISH WORKOUT & POST ======================
 
 async function finishWorkout() {
-    // 1. Verify there is at least one exercise and at least one completed set
-    let totalCompletedSets = 0;
-    activeExercises.forEach(ex => {
-        ex.sets.forEach(set => {
-            if (set.done) totalCompletedSets++;
-        });
-    });
-
-    if (activeExercises.length === 0 || totalCompletedSets === 0) {
-        alert("נא לסמן לפחות סט אחד כבוצע (✓) לפני שמירת האימון!");
+    const stats = sessionStats();
+    if (activeExercises.length === 0 || stats.doneSets === 0) {
+        alert('נא לסמן לפחות סט אחד כבוצע לפני שמירת האימון!');
         return;
     }
 
-    // 2. Compute duration in minutes
-    const elapsedMs = Date.now() - workoutStartTime;
-    const durationMinutes = Math.round(elapsedMs / 60000) || 1; // minimum 1 minute
+    const durationMinutes = Math.round((Date.now() - workoutStartTime) / 60000) || 1; // minimum 1 minute
 
-    // 3. Aggregate completed data
     const exercisesData = [];
     activeExercises.forEach(ex => {
-        let completedSets = 0;
-        let completedReps = 0;
-
-        ex.sets.forEach(set => {
-            if (set.done) {
-                completedSets++;
-                completedReps += set.reps;
-            }
+        const doneSets = ex.sets.filter(s => s.done);
+        if (!doneSets.length) return;
+        exercisesData.push({
+            exercise_name: ex.name,
+            total_sets: doneSets.length,
+            total_reps: doneSets.reduce((sum, s) => sum + s.reps, 0),
+            max_reps: Math.max(...doneSets.map(s => s.reps)),
+            skill_key: ex.skill_key,
+            stage_index: ex.stage_index,
         });
-
-        if (completedSets > 0) {
-            exercisesData.push({
-                exercise_name: ex.name,
-                total_sets: completedSets,
-                total_reps: completedReps
-            });
-        }
     });
 
-    const workoutDate = document.getElementById('workout-date').value;
-    const workoutType = document.getElementById('workout-type').value;
-
     const payload = {
-        date: workoutDate,
-        workout_type: workoutType,
+        date: $('#workout-date').value || todayIso(),
+        workout_type: $('#workout-type').value,
         total_duration: durationMinutes,
-        exercises: exercisesData
+        exercises: exercisesData,
     };
 
-    // 4. Send POST request — button locked so a double-tap can't save twice
-    const finishBtn = document.getElementById('finish-workout-btn');
-    const originalBtnHTML = finishBtn ? finishBtn.innerHTML : '';
-    if (finishBtn) {
-        finishBtn.disabled = true;
-        finishBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> שומר אימון...';
-    }
-
-    const restoreBtn = () => {
-        if (finishBtn) {
-            finishBtn.disabled = false;
-            finishBtn.innerHTML = originalBtnHTML;
-        }
-    };
+    // Buttons locked so a double-tap can't save twice
+    const buttons = [$('#finish-workout-btn'), $('#arena-finish-early')].filter(Boolean);
+    buttons.forEach(btn => { btn.disabled = true; });
+    const unlock = () => buttons.forEach(btn => { btn.disabled = false; });
 
     try {
         const response = await fetch('/workouts', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
         });
+        const result = await response.json();
 
-        const data = await response.json();
-
-        if (response.ok && data.status === 'success') {
+        if (response.ok && result.status === 'success') {
             // The workout is safely on the server — stop the session
             sessionActive = false;
             clearSavedSession();
             if (workoutTimerInterval) clearInterval(workoutTimerInterval);
-            skipRestTimer();
+            stopRestTimer();
             releaseWakeLock();
-
-            if (navigator.vibrate) {
-                navigator.vibrate([100, 50, 100, 50, 300]);
-            }
-            // Game-style victory screen with rewards from the server
-            showVictoryModal(data.rewards, totalCompletedSets);
+            unlock();
+            showReward(result.rewards, {
+                minutes: durationMinutes,
+                doneSets: stats.doneSets,
+                doneReps: stats.doneReps,
+                planned: plannedSets || stats.total,
+                skipped: stats.skipped,
+                pending: stats.pending,
+            });
         } else {
-            restoreBtn();
-            alert(`שגיאה בשמירת האימון: ${data.message || 'שגיאה כללית בשרת'}`);
+            unlock();
+            alert(`שגיאה בשמירת האימון: ${result.message || 'שגיאה כללית בשרת'}`);
         }
     } catch (error) {
-        console.error("Save workout request failed", error);
-        restoreBtn();
-        alert("נכשלה ההתקשרות עם השרת. האימון שלך לא אבד — אפשר לנסות לשמור שוב.");
+        console.error('Save workout request failed', error);
+        unlock();
+        alert('נכשלה ההתקשרות עם השרת. האימון שלך לא אבד — אפשר לנסות לשמור שוב.');
     }
 }
 
-// ====================== SIDEBAR TABS & SKILL GUIDE ======================
+// ====================== REWARD SCREEN ======================
 
-const SIDEBAR_TABS = ['history', 'skills', 'achievements'];
+function animateCountUp(el, target, durationMs, format) {
+    if (!el) return;
+    if (reducedMotion.matches) { el.textContent = format(target); return; }
+    const start = performance.now();
+    const step = (now) => {
+        const progress = Math.min((now - start) / durationMs, 1);
+        const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+        el.textContent = format(Math.round(target * eased));
+        if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+}
+
+function rewardRow(kind, tileHtml, title, sub) {
+    return `
+    <div class="reward-row is-${kind}">
+        <span class="reward-row-tile" aria-hidden="true">${tileHtml}</span>
+        <div class="reward-row-text">
+            <div class="reward-row-title">${title}</div>
+            <div class="reward-row-sub">${sub}</div>
+        </div>
+    </div>`;
+}
+
+function fillRows(containerId, rows) {
+    const container = $(containerId);
+    if (!container) return;
+    container.innerHTML = rows.join('');
+    container.hidden = rows.length === 0;
+}
+
+function showReward(rewards, stats) {
+    if (!rewards) {
+        // Fallback if the server didn't send rewards (e.g. an older cached response)
+        alert('האימון נשמר בהצלחה!');
+        window.location.reload();
+        return;
+    }
+
+    closeArenaSheet(true);
+    hidePrToast();
+    arenaPhase = 'reward';
+    renderArena();
+    const panel = $('[data-phase-panel="reward"]');
+    panel.scrollTop = 0;
+
+    $('#reward-summary').innerHTML = [
+        countHtml(stats.minutes, 'דקה אחת', 'דקות'),
+        countHtml(stats.doneSets, 'סט אחד', 'סטים'),
+        countHtml(stats.doneReps, 'חזרה אחת', 'חזרות'),
+    ].join(' · ');
+
+    // Stars: ① finished ② hit the planned sets ③ nothing skipped or left behind
+    const earned = [true, stats.doneSets >= stats.planned, stats.skipped === 0 && stats.pending === 0];
+    $all('.reward-star', panel).forEach((star, idx) => star.classList.toggle('is-earned', earned[idx]));
+    const hints = [];
+    if (!earned[1]) hints.push(`הכוכב השני: להשלים את כל ${stats.planned} הסטים המתוכננים`);
+    if (!earned[2]) hints.push('הכוכב השלישי: לסיים בלי לדלג על סט');
+    $('#reward-star-hints').innerHTML = hints.map(escapeHtml).join('<br>');
+    $('#victory-stars').setAttribute('aria-label', `${earned.filter(Boolean).length} מתוך 3 כוכבים`);
+
+    animateCountUp($('#victory-xp'), rewards.xp_gained, 900, n => `+${formatNumber(n)} XP`);
+    $('#reward-total').innerHTML = `סה״כ ${numHtml(`${formatNumber(rewards.total_xp)} XP`)}`;
+
+    $('#victory-level').textContent = `שלב ${rewards.new_level} ← ${rewards.new_level + 1}`;
+    $('#victory-xp-label').textContent = `${formatNumber(rewards.xp_in_level)} / ${formatNumber(rewards.xp_for_next)}`;
+    const bar = $('#victory-xp-bar');
+    bar.style.width = '0%';
+    setTimeout(() => { bar.style.width = `${rewards.progress_pct}%`; }, reducedMotion.matches ? 0 : 400);
+
+    const nextRank = rewards.next_rank;
+    $('#reward-next-rank').innerHTML = nextRank && nextRank.title
+        ? `עוד ${numHtml(`${formatNumber(nextRank.xp_needed)} XP`)} לדרגת <b>${escapeHtml(nextRank.title)}</b>`
+        : `הגעת לדרגה הגבוהה ביותר — <b>${escapeHtml(rewards.rank.title)}</b>`;
+
+    const levelUp = $('#victory-levelup');
+    levelUp.hidden = !rewards.leveled_up;
+    if (rewards.leveled_up) {
+        levelUp.innerHTML = `עלית שלב! ברוך הבא לשלב ${numHtml(rewards.new_level)} · ${escapeHtml(rewards.rank.title)}`;
+        vibrate([30, 50, 30, 50, 80]);
+    }
+
+    fillRows('#victory-achievements', (rewards.new_achievements || []).map(a => rewardRow(
+        'achievement', `<i class="fas ${escapeHtml(a.icon)}"></i>`,
+        `הישג חדש · ${escapeHtml(a.title)}`, escapeHtml(a.desc)
+    )));
+    fillRows('#reward-stations', (rewards.new_stations || []).map(s => rewardRow(
+        'station', escapeHtml(s.icon),
+        `תחנה נכבשה · ${escapeHtml(s.station)}`,
+        s.next ? `מסלול ${escapeHtml(s.path)} · התחנה הבאה: ${escapeHtml(s.next)}` : `מסלול ${escapeHtml(s.path)} הושלם`
+    )));
+    fillRows('#reward-records', (rewards.new_records || []).map(r => rewardRow(
+        'record', '📈',
+        `שיא אישי · ${numHtml(r.reps)} חזרות`,
+        `${escapeHtml(r.title)} · השיא הקודם היה ${numHtml(r.previous)}${r.previous_ago ? ` · ${escapeHtml(r.previous_ago)}` : ''}`
+    )));
+
+    $('#reward-home-btn').focus({ preventScroll: true });
+}
+
+// Kept name: the reward's "חזרה למפת המסע" reloads onto the map with server state
+function closeVictoryModal() {
+    if (location.hash !== '#map') {
+        history.replaceState(null, '', `${location.pathname}${location.search}#map`);
+    }
+    window.location.reload();
+}
+
+// ====================== DESKTOP SIDEBAR & SKILL GUIDE ======================
+
+const SIDEBAR_TABS = ['history', 'skills'];
 
 function switchSidebarTab(tabName) {
     SIDEBAR_TABS.forEach(name => {
-        const tabBtn = document.getElementById(`tab-${name}`);
-        const content = document.getElementById(`sidebar-${name}-content`);
+        const tabBtn = $(`#tab-${name}`);
+        const content = $(`#sidebar-${name}-content`);
         const isActive = name === tabName;
 
         if (tabBtn) {
@@ -843,250 +1556,57 @@ function switchSidebarTab(tabName) {
     });
 
     if (tabName === 'skills') {
-        // Auto display selected skill details
-        const select = document.getElementById('skill-select');
-        if (select) {
-            displaySkillData(select.value);
-        }
+        const select = $('#skill-select');
+        if (select) displaySkillData(select.value);
     }
 }
 
 function displaySkillData(skillKey) {
-    // Hide all skill detail blocks
-    const detailBlocks = document.querySelectorAll('.skill-detail-block');
-    detailBlocks.forEach(block => block.classList.add('hidden'));
-
-    // Show the selected one
-    const selectedBlock = document.getElementById(`skill-details-${skillKey}`);
-    if (selectedBlock) {
-        selectedBlock.classList.remove('hidden');
-    }
+    $all('.skill-detail-block').forEach(block => block.classList.add('hidden'));
+    const selectedBlock = $(`#skill-details-${skillKey}`);
+    if (selectedBlock) selectedBlock.classList.remove('hidden');
 }
 
 function toggleCuesAccordion(skillKey) {
-    const content = document.getElementById(`accordion-content-${skillKey}`);
-    const icon = document.getElementById(`accordion-icon-${skillKey}`);
-
-    if (content) {
-        content.classList.toggle('hidden');
-    }
-    if (icon) {
-        icon.classList.toggle('rotate-180');
-    }
+    const content = $(`#accordion-content-${skillKey}`);
+    const icon = $(`#accordion-icon-${skillKey}`);
+    if (content) content.classList.toggle('hidden');
+    if (icon) icon.classList.toggle('rotate-180');
 }
 
-// ====================== VICTORY SCREEN & CONFETTI ======================
+// ====================== LEGACY STATION FLAGS ======================
+// Stations used to be conquered with a "כבשתי!" button saved in this browser only.
+// They're now counted on the server; send any old flags once, then forget them.
 
-function animateCountUp(el, target, durationMs) {
-    if (!el) return;
-    const start = performance.now();
-    const step = (now) => {
-        const progress = Math.min((now - start) / durationMs, 1);
-        // ease-out cubic
-        const eased = 1 - Math.pow(1 - progress, 3);
-        el.textContent = Math.round(target * eased);
-        if (progress < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-}
+async function migrateLegacySkillProgress() {
+    let stored;
+    try { stored = localStorage.getItem(SKILL_PROGRESS_KEY); } catch (e) { return; }
+    if (stored === null) return;
 
-function launchConfetti(pieceCount) {
-    const colors = ['#facc15', '#a855f7', '#22c55e', '#3b82f6', '#f97316', '#ec4899'];
-    for (let i = 0; i < pieceCount; i++) {
-        const piece = document.createElement('div');
-        piece.className = 'confetti-piece';
-        const size = 6 + Math.random() * 8;
-        piece.style.left = `${Math.random() * 100}vw`;
-        piece.style.width = `${size}px`;
-        piece.style.height = `${size * (0.4 + Math.random() * 0.8)}px`;
-        piece.style.background = colors[Math.floor(Math.random() * colors.length)];
-        piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
-        piece.style.animationDuration = `${2.2 + Math.random() * 2.5}s`;
-        piece.style.animationDelay = `${Math.random() * 0.8}s`;
-        document.body.appendChild(piece);
-        setTimeout(() => piece.remove(), 6000);
-    }
-}
-
-function showVictoryModal(rewards, completedSets) {
-    const modal = document.getElementById('victory-modal');
-    if (!modal || !rewards) {
-        // Fallback if the server didn't send rewards (e.g. older cached response)
-        alert("האימון נשמר בהצלחה!");
-        window.location.reload();
-        return;
-    }
-
-    modal.classList.add('active');
-    launchConfetti(90);
-
-    // Stars: 1 for finishing, 2 for a solid session, 3 for a big one
-    const starCount = completedSets >= 16 ? 3 : (completedSets >= 8 ? 2 : 1);
-    const stars = modal.querySelectorAll('.victory-star');
-    stars.forEach((star, idx) => {
-        star.classList.toggle('earned', idx < starCount);
-    });
-
-    // XP earned count-up
-    animateCountUp(document.getElementById('victory-xp'), rewards.xp_gained, 1400);
-
-    // Level + progress bar toward the next level
-    const levelEl = document.getElementById('victory-level');
-    if (levelEl) levelEl.textContent = rewards.new_level;
-    const xpLabel = document.getElementById('victory-xp-label');
-    if (xpLabel) xpLabel.textContent = `${rewards.xp_in_level} / ${rewards.xp_for_next} XP`;
-    const bar = document.getElementById('victory-xp-bar');
-    if (bar) {
-        // Animate from 0 to the real progress after the card pops in
-        setTimeout(() => { bar.style.width = `${rewards.progress_pct}%`; }, 400);
-    }
-
-    // Level-up banner
-    if (rewards.leveled_up) {
-        const banner = document.getElementById('victory-levelup');
-        const newLevelEl = document.getElementById('victory-new-level');
-        if (newLevelEl) newLevelEl.textContent = rewards.new_level;
-        if (banner) banner.classList.remove('hidden');
-        // Extra celebration for a level-up
-        setTimeout(() => launchConfetti(60), 900);
-    }
-
-    // Newly unlocked achievements
-    if (rewards.new_achievements && rewards.new_achievements.length > 0) {
-        const container = document.getElementById('victory-achievements');
-        if (container) {
-            container.innerHTML = rewards.new_achievements.map(ach => `
-                <div class="flex items-center gap-3 bg-yellow-400/10 border border-yellow-400/30 rounded-xl px-3 py-2.5">
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 text-white flex items-center justify-center flex-shrink-0">
-                        <i class="fas ${ach.icon}"></i>
-                    </div>
-                    <div>
-                        <p class="text-xs font-black text-yellow-300">הישג חדש: ${ach.title}</p>
-                        <p class="text-[10px] text-purple-300">${ach.desc}</p>
-                    </div>
-                </div>
-            `).join('');
-            container.classList.remove('hidden');
-        }
-    }
-}
-
-function closeVictoryModal() {
-    // Reload refreshes the player card, history and achievements with server state
-    window.location.reload();
-}
-
-// ====================== QUEST STAGE MAP (Skill progressions as game levels) ======================
-// Stage completion is personal training progress, persisted locally per browser.
-
-const SKILL_PROGRESS_KEY = 'workout_skill_progress_v1';
-
-function getSkillProgress() {
+    let progress = {};
     try {
-        return JSON.parse(localStorage.getItem(SKILL_PROGRESS_KEY)) || {};
-    } catch (e) {
-        return {};
-    }
-}
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            Object.entries(parsed).forEach(([key, indexes]) => {
+                if (!Array.isArray(indexes)) return;
+                const valid = indexes.filter(Number.isInteger);
+                if (valid.length) progress[key] = valid;
+            });
+        }
+    } catch (e) { /* unreadable — nothing worth keeping */ }
 
-function saveSkillProgress(progress) {
+    const forget = () => { try { localStorage.removeItem(SKILL_PROGRESS_KEY); } catch (e) { /* ignore */ } };
+    if (!Object.keys(progress).length) { forget(); return; }
+
     try {
-        localStorage.setItem(SKILL_PROGRESS_KEY, JSON.stringify(progress));
-    } catch (e) { /* private mode — progress just won't persist */ }
-}
-
-function toggleStageComplete(skillKey, stageIdx) {
-    const progress = getSkillProgress();
-    const completed = new Set(progress[skillKey] || []);
-
-    if (completed.has(stageIdx)) {
-        completed.delete(stageIdx);
-    } else {
-        completed.add(stageIdx);
-        // Small celebration for conquering a stage
-        const node = document.getElementById(`stage-${skillKey}-${stageIdx}`);
-        spawnXpFloat(node, '⭐');
-        if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
-        launchConfetti(25);
-    }
-
-    progress[skillKey] = Array.from(completed).sort((a, b) => a - b);
-    saveSkillProgress(progress);
-    renderStageMap(skillKey);
-}
-
-function renderStageMap(skillKey) {
-    const nodes = document.querySelectorAll(`.stage-node[data-skill="${skillKey}"]`);
-    if (!nodes.length) return;
-
-    const completed = new Set(getSkillProgress()[skillKey] || []);
-    // The "current" stage is the first uncompleted one
-    let currentIdx = 0;
-    while (completed.has(currentIdx)) currentIdx++;
-
-    nodes.forEach(node => {
-        const idx = parseInt(node.dataset.stage, 10);
-        const isDone = completed.has(idx);
-        const isCurrent = idx === currentIdx;
-
-        node.classList.toggle('stage-completed', isDone);
-        node.classList.toggle('stage-current', isCurrent);
-        node.classList.toggle('stage-locked', !isDone && !isCurrent);
-
-        const dotLabel = node.querySelector('.stage-dot-label');
-        if (dotLabel) {
-            dotLabel.innerHTML = isDone ? '<i class="fas fa-check"></i>'
-                : (!isCurrent ? '<i class="fas fa-lock text-[8px]"></i>' : `${idx + 1}`);
-        }
-        const statusIcon = node.querySelector('.stage-status-icon');
-        if (statusIcon) {
-            statusIcon.innerHTML = isDone ? '<i class="fas fa-star text-yellow-500 text-[10px]"></i>'
-                : (isCurrent ? '<i class="fas fa-location-arrow text-purple-500 text-[10px]"></i>' : '');
-        }
-        const conquerLabel = node.querySelector('.stage-conquer-label');
-        if (conquerLabel) conquerLabel.textContent = isDone ? 'בטל' : 'כבשתי!';
-    });
-
-    // Quest progress bar + counter
-    const total = nodes.length;
-    const doneCount = Math.min(completed.size, total);
-    const bar = document.getElementById(`quest-bar-${skillKey}`);
-    if (bar) bar.style.width = `${Math.round(doneCount * 100 / total)}%`;
-    const counter = document.getElementById(`quest-progress-${skillKey}`);
-    if (counter) counter.textContent = `${doneCount}/${total} שלבים`;
-}
-
-function renderAllStageMaps() {
-    const skillKeys = new Set();
-    document.querySelectorAll('.stage-node[data-skill]').forEach(node => skillKeys.add(node.dataset.skill));
-    skillKeys.forEach(key => renderStageMap(key));
-}
-
-function addSkillProgression(name, hebrew, reps, rest) {
-    // 1. If workout session not started, start it
-    const sessionContainer = document.getElementById('active-workout-session');
-    if (sessionContainer && sessionContainer.classList.contains('hidden')) {
-        startWorkoutSession();
-    }
-
-    // 2. Build new exercise and add to list
-    const cleanHebrewName = hebrew || name;
-    const displayName = `${cleanHebrewName} (${name})`;
-
-    activeExercises.push({
-        id: uid('ex'),
-        name: displayName,
-        sets: [
-            { id: uid('set'), reps: clampInt(reps, 0, 999), rest: clampInt(rest, 0, 999), done: false }
-        ]
-    });
-
-    renderActiveExercises();
-    saveSession();
-
-    // 3. Smooth scroll to exercises container
-    const exercisesContainer = document.getElementById('active-exercises');
-    if (exercisesContainer) {
-        exercisesContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
+        const response = await fetch('/workouts/legacy-progress', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ progress }),
+        });
+        if (!response.ok) return; // keep the flags and try again next visit
+        forget();
+        // The map was rendered before the import; show it with the imported stations
+        if (!sessionActive) window.location.reload();
+    } catch (e) { /* offline — try again next visit */ }
 }

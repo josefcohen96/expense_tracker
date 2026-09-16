@@ -58,8 +58,8 @@ def test_only_renovation_users_can_edit():
 
 def test_home_path_depends_on_user():
     assert home_path_for({"username": "TSAHALA"}) == "/renovation"
-    assert home_path_for({"username": "YOSEF"}) == "/finances"
-    assert home_path_for(None) == "/finances"
+    assert home_path_for({"username": "YOSEF"}) == "/"
+    assert home_path_for(None) == "/"
 
 
 # ─── Pages ───────────────────────────────────────────────────────────────────

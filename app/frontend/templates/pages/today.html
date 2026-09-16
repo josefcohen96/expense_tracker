@@ -1,0 +1,174 @@
+{% extends "layout/base.html" %}
+
+{% block title %}היום - המנביטים{% endblock %}
+
+{% block body_class %}has-section-header{% endblock %}
+
+{% block head %}
+<script>
+    // היום is the mobile home screen; desktop keeps landing on the finances dashboard.
+    if (window.matchMedia('(min-width: 1024px)').matches) location.replace('/finances');
+</script>
+{% endblock %}
+
+{% block content %}
+{% from "layout/_mobile_nav.html" import section_header %}
+{% call section_header('היום') %}
+    <span class="msh-date">{{ today.date_label }}</span>
+    {% if today.me %}<span class="td-avatar" title="{{ today.me.display }}" aria-hidden="true">{{ today.me.initial }}</span>{% endif %}
+{% endcall %}
+
+{% set w = today.wedding %}
+{% set m = today.month %}
+<div class="td" id="today-screen" dir="rtl">
+
+    {% if w.days_left is none %}
+    <a href="/wedding" class="td-card td-wedding-cta">
+        <span>💍 הגדירו תאריך חתונה כדי לראות ספירה לאחור</span>
+        <span aria-hidden="true">←</span>
+    </a>
+    {% elif w.days_left >= 0 %}
+    <a href="/wedding" class="td-wedding">
+        <div class="td-wedding-row">
+            <span>החתונה שלנו 💍</span>
+            <span dir="ltr">{{ w.date_label }}</span>
+        </div>
+        <div class="td-wedding-count">
+            {% if w.days_left == 0 %}
+            <span class="td-wedding-today">היום!</span>
+            {% else %}
+            <span class="td-days" dir="ltr">{{ w.days_left }}</span>
+            <span class="td-days-label">ימים</span>
+            {% endif %}
+        </div>
+        {% if w.total %}
+        <div class="td-progress" role="progressbar" aria-valuenow="{{ w.pct }}" aria-valuemin="0" aria-valuemax="100"
+             aria-label="משימות שהושלמו"><div style="width:{{ w.pct }}%"></div></div>
+        <div class="td-wedding-row td-wedding-foot">
+            <span>{{ w.pct }}% מהמשימות הושלמו</span>
+            {% if w.open %}<span>{{ w.open }} פתוחות</span>{% endif %}
+        </div>
+        {% endif %}
+    </a>
+    {% endif %}
+
+    <section>
+        <div class="td-head">
+            <h2 class="td-h">דחוף עכשיו</h2>
+            <a href="/wedding/tasks" class="td-link">כל המשימות ←</a>
+        </div>
+        <div class="td-list">
+            {% for t in today.tasks[:6] %}
+            <div class="td-row is-{{ t.urgency }}" data-module="{{ t.module }}" data-id="{{ t.id }}" data-status="{{ t.status or '' }}">
+                <button type="button" class="td-check" role="checkbox" aria-checked="false" aria-label="בוצע: {{ t.title }}">
+                    <span class="td-box" aria-hidden="true">✓</span>
+                </button>
+                <a class="td-body" href="{{ '/wedding/tasks' if t.module == 'wedding' else '/renovation/tasks' }}">
+                    <span class="td-title">{{ t.title }}</span>
+                    <span class="td-meta">
+                        {% if t.module == 'wedding' %}
+                        <span class="td-tag td-tag-wedding">💍 חתונה</span>
+                        {% else %}
+                        <span class="td-tag td-tag-renovation">🏡 שיפוץ</span>
+                        {% endif %}
+                        <span class="td-due">{{ t.due_label }}</span>
+                    </span>
+                </a>
+            </div>
+            {% endfor %}
+            {% if not today.tasks %}
+            <p class="td-empty">אין משימות דחופות השבוע.</p>
+            {% endif %}
+            <button type="button" class="td-add" data-open-quick-add="task">
+                <span class="td-add-plus" aria-hidden="true">+</span> הוסף משימה
+            </button>
+        </div>
+    </section>
+
+    <a href="/finances" class="td-card td-money">
+        <div class="td-head td-head-tight">
+            <h2 class="td-h td-h-sm">{{ m.label }}</h2>
+            <span class="td-link td-link-blue">כספים ←</span>
+        </div>
+        <div class="td-stats">
+            <div>
+                <div class="td-stat-label">הוצאות</div>
+                <div class="td-stat td-stat-expense" dir="ltr">₪{{ "{:,.0f}".format(m.expenses) }}</div>
+            </div>
+            <div class="td-divider" aria-hidden="true"></div>
+            <div>
+                <div class="td-stat-label">הכנסות</div>
+                <div class="td-stat td-stat-income" dir="ltr">₪{{ "{:,.0f}".format(m.income) }}</div>
+            </div>
+        </div>
+    </a>
+</div>
+
+<script>
+// Tick a task off from היום without leaving the page; undo for a few seconds, then it leaves the queue.
+(function () {
+    var screen = document.getElementById('today-screen');
+    if (!screen) return;
+    var UNDO_MS = 4000;
+
+    function request(row, done) {
+        var id = row.getAttribute('data-id');
+        var wedding = row.getAttribute('data-module') === 'wedding';
+        var url = wedding ? '/api/wedding/tasks/' + id : '/api/renovation/tasks/' + id;
+        var body = wedding ? { completed: done ? 1 : 0 }
+            : { status: done ? 'done' : (row.getAttribute('data-status') || 'todo') };
+        return fetch(url, {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        }).then(function (r) { if (!r.ok) throw new Error(r.status); });
+    }
+
+    function setState(row, done) {
+        row.classList.toggle('is-done', done);
+        row.querySelector('.td-check').setAttribute('aria-checked', done ? 'true' : 'false');
+    }
+
+    function showError(row) {
+        var el = row.querySelector('.td-error');
+        if (!el) {
+            el = document.createElement('p');
+            el.className = 'td-error';
+            el.setAttribute('role', 'alert');
+            row.appendChild(el);
+        }
+        el.textContent = 'לא נשמר — נסו שוב';
+    }
+
+    function complete(row) {
+        var err = row.querySelector('.td-error');
+        if (err) err.remove();
+        setState(row, true);
+        request(row, true).then(function () {
+            var removeTimer = setTimeout(function () {
+                row.classList.add('is-leaving');
+                setTimeout(function () { row.remove(); }, 200);
+            }, UNDO_MS);
+            if (window.AppToast) {
+                window.AppToast('המשימה סומנה כבוצעה', 'ביטול', function () {
+                    clearTimeout(removeTimer);
+                    setState(row, false);
+                    request(row, false).catch(function () { setState(row, true); showError(row); });
+                }, UNDO_MS);
+            }
+        }).catch(function () {
+            setState(row, false);
+            showError(row);
+        });
+    }
+
+    screen.addEventListener('click', function (e) {
+        var check = e.target.closest('.td-check');
+        if (!check) return;
+        var row = check.closest('.td-row');
+        if (!row.classList.contains('is-done')) complete(row);
+    });
+})();
+</script>
+{% endblock %}

@@ -2,7 +2,7 @@ from datetime import date
 
 
 def test_root_redirect_and_dashboard_loads(app_client):
-    # Root should redirect to finances; TestClient follows redirects by default
+    # Root renders the היום screen, which links to finances
     r = app_client.get("/")
     assert r.status_code == 200
     assert "לוח בקרה" in r.text or "finances" in r.text

@@ -1,6 +1,9 @@
 import json
 import math
+import mimetypes
+import re
 import sqlite3
+import struct
 import logging
 from datetime import date as date_cls, timedelta
 from statistics import median
@@ -213,6 +216,149 @@ EXERCISE_CATALOG = {
     for category, exercises in DEFAULT_EXERCISES.items()
     for ex in exercises
 }
+
+# ====================== EXERCISE HOLOGRAM ======================
+# One shared glTF-binary model with an animation clip per exercise, named by holo_key().
+# An exercise without a clip keeps the plain arena — the hologram only appears when its
+# clip exists. Each clip is one rep, authored as lowering → pause → pushing, so the
+# arena can play it at the exercise's tempo.
+
+HOLO_MODEL_PATH = FRONTEND_DIR / "static" / "holo" / "exercises.glb"
+HOLO_MODEL_URL = "/static/holo/exercises.glb"
+mimetypes.add_type("model/gltf-binary", ".glb")  # StaticFiles would serve it as text/plain
+
+TEMPO_DEFAULT = (3, 1, 1)   # seconds: lowering, pause, pushing
+TEMPO_BY_EXERCISE = {
+    "Explosive Pull-ups": (2, 0, 1),
+    "Assisted Muscle-Up (Band)": (2, 0, 1),
+    "Full Muscle-Up": (2, 0, 1),
+    "Muscle-ups": (2, 0, 1),
+    "Negative Muscle-Up": (5, 1, 1),
+    "Negative Wall HSPU": (5, 1, 1),
+    "Active Scapula Hangs": (2, 1, 1),
+    "Scapula Shrugs": (2, 1, 1),
+    "Toes to Bar": (2, 1, 1),
+    "Calf Raises": (2, 1, 1),
+}
+# Static positions: the clip is the hold itself, so there is no rep tempo.
+HOLD_EXERCISES = {
+    "Planche Lean", "Tucked L-Sit", "Frog Stand", "One-Legged Advanced Tuck", "Advanced Tuck Planche",
+    "One Arm Active Hang", "One Arm Inverted Support", "Wall Walks (Holds)", "L-Sit", "Plank",
+}
+
+# Two form cues per exercise: a short pin for the hologram + the full sentence.
+# Path stations use the first two of their skill's existing cues.
+SKILL_CUE_PINS = {
+    "muscle_up": ("תנאי סף", "אחיזה כוזבת"),
+    "front_lever": ("תלייה פעילה", "מרפקים נעולים"),
+    "planche": ("מרפקים נעולים", "הרחקת שכמות"),
+    "hspu": ("מרפקים צמודים", "בסיס משולש"),
+    "human_flag": ("דחיפה ומשיכה", "אלכסונים"),
+}
+FORM_CUES = {
+    "Push-ups": (("גב ישר", "קו ישר מהעורף לעקבים — בלי לשקוע באגן."),
+                 ("מרפקים 45°", "מרפקים ב-45° לגוף, לא פתוחים לצדדים.")),
+    "Dips": (("כתפיים למטה", "כתפיים רחוק מהאוזניים לאורך כל התנועה."),
+             ("עומק 90°", "יורדים עד מרפק ב-90°, לא עמוק יותר.")),
+    "Pike Push-ups": (("אגן גבוה", "אגן גבוה מעל הכתפיים, הגוף ב-V הפוכה."),
+                      ("ראש קדימה", "הראש יורד מעט לפני כפות הידיים — בסיס משולש.")),
+    "Handstand Push-ups": (("מרפקים צמודים", "מרפקים פנימה, לא פתוחים לצדדים."),
+                           ("גוף נעול", "בטן וישבן נעולים — בלי קשת בגב.")),
+    "Diamond Push-ups": (("ידיים מתחת לחזה", "אגודלים ואצבעות מורות נוגעים, מתחת לעצם החזה."),
+                         ("מרפקים צמודים", "המרפקים נשארים קרובים לגוף בירידה.")),
+    "Pull-ups": (("שכמות קודם", "מתחילים מהשכמות — למטה ואחורה, ורק אז הידיים."),
+                 ("סנטר מעל המוט", "סנטר מעל המוט, בלי למתוח את הצוואר.")),
+    "Muscle-ups": (("משיכה גבוהה", "משיכה מתפרצת עד גובה בית החזה."),
+                   ("מעבר מהיר", "פרקי הידיים עוברים מעל המוט לפני שהמרפקים נפתחים.")),
+    "Chin-ups": (("טווח מלא", "תלייה מלאה בתחתית, סנטר מעל המוט למעלה."),
+                 ("בלי תנופה", "רגליים שקטות — בלי תנופה מהאגן.")),
+    "Australian Pull-ups / Rows": (("גוף ישר", "גוף ישר כמו קרש מהכתפיים לעקבים."),
+                                   ("חזה למוט", "מושכים את החזה אל המוט, מרפקים ליד הגוף.")),
+    "Scapula Shrugs": (("ידיים ישרות", "מרפקים ישרים — רק השכמות זזות."),
+                       ("למטה ואחורה", "מורידים את הכתפיים הרחק מהאוזניים.")),
+    "L-Sit": (("ברכיים נעולות", "רגליים ישרות ומתוחות עד קצות האצבעות."),
+              ("דחיפה למטה", "דוחפים את הרצפה ומרימים את הכתפיים.")),
+    "Hanging Leg Raises": (("בלי נדנוד", "מתחילים מתלייה שקטה, בלי תנופה."),
+                           ("אגן מתגלגל", "האגן מתגלגל למעלה בסוף התנועה.")),
+    "Plank": (("קו ישר", "קו ישר מהעורף לעקבים."),
+              ("צלעות למטה", "צלעות למטה ובטן אסופה — הגב התחתון לא שוקע.")),
+    "Ab Wheel Rollouts": (("אגן פנימה", "גב עליון מעוגל קלות, אגן מגולגל פנימה."),
+                          ("טווח בשליטה", "מתגלגלים רק עד שהגב התחתון מתחיל להתקשת.")),
+    "Toes to Bar": (("שכמות פעילות", "שכמות מכווצות — לא תלייה רפויה."),
+                    ("רגליים ישרות", "רגליים ישרות ככל האפשר עד המוט.")),
+    "Pistol Squats": (("עקב על הרצפה", "העקב נשאר צמוד לרצפה לכל אורך הירידה."),
+                      ("ברך מעל האצבעות", "הברך בכיוון האצבעות, לא קורסת פנימה.")),
+    "Bulgarian Split Squats": (("גו זקוף", "גו זקוף, המשקל על הרגל הקדמית."),
+                               ("ברך יציבה", "הברך הקדמית בקו האצבעות.")),
+    "Shrimp Squats": (("ברך אחורית", "הברך האחורית נוגעת ברצפה בשליטה."),
+                      ("גו קדימה", "הטיית גו קדימה שומרת על האיזון.")),
+    "Airborne Squats": (("ברך אחורית", "הברך האחורית יורדת לרצפה בשליטה."),
+                        ("זרועות קדימה", "זרועות קדימה לאיזון, גו זקוף ככל האפשר.")),
+    "Calf Raises": (("טווח מלא", "מלמטה עמוק ועד קצות האצבעות."),
+                    ("עצירה למעלה", "שנייה של עצירה בנקודה הגבוהה.")),
+    "Bodyweight Squats": (("עקבים על הרצפה", "משקל על כל כף הרגל, העקבים לא מתרוממים."),
+                          ("חזה פתוח", "חזה פתוח וגב ניטרלי בירידה.")),
+}
+
+
+def holo_key(english_name: str) -> str:
+    """Animation clip name for an exercise: 'Negative Muscle-Up' -> 'negative_muscle_up'."""
+    return re.sub(r"[^a-z0-9]+", "_", english_name.lower()).strip("_")
+
+
+def exercise_tempo(english_name: str) -> Optional[List[int]]:
+    """Rep tempo in seconds (lowering, pause, pushing); None for static holds."""
+    if "Hold" in english_name or english_name in HOLD_EXERCISES:
+        return None
+    return list(TEMPO_BY_EXERCISE.get(english_name, TEMPO_DEFAULT))
+
+
+_holo_clip_cache: Dict[str, Any] = {"stamp": None, "clips": frozenset()}
+
+
+def holo_clips() -> frozenset:
+    """Animation names inside the hologram model (read from the GLB's JSON chunk, cached by mtime)."""
+    try:
+        stat = HOLO_MODEL_PATH.stat()
+    except OSError:
+        return frozenset()
+    stamp = (stat.st_mtime_ns, stat.st_size)
+    if _holo_clip_cache["stamp"] != stamp:
+        clips = frozenset()
+        try:
+            with open(HOLO_MODEL_PATH, "rb") as f:
+                magic, _version, _length = struct.unpack("<4sII", f.read(12))
+                chunk_length, chunk_type = struct.unpack("<I4s", f.read(8))
+                if magic == b"glTF" and chunk_type == b"JSON":
+                    gltf = json.loads(f.read(chunk_length))
+                    clips = frozenset(a["name"] for a in gltf.get("animations", []) if a.get("name"))
+        except (OSError, ValueError, struct.error):
+            logger.warning("Unreadable hologram model at %s", HOLO_MODEL_PATH)
+        _holo_clip_cache.update(stamp=stamp, clips=clips)
+    return _holo_clip_cache["clips"]
+
+
+def exercise_form_data() -> Dict[str, Dict[str, Any]]:
+    """Per saved exercise name: hologram clip key, tempo and the two form cues."""
+    data: Dict[str, Dict[str, Any]] = {}
+    for name in EXERCISE_CATALOG:
+        data[name] = {
+            "holo_key": holo_key(name),
+            "tempo": exercise_tempo(name),
+            "cues": [{"pin": pin, "text": text} for pin, text in FORM_CUES.get(name, ())],
+        }
+    for skill_key, skill in SKILL_PROGRESSIONS.items():
+        cues = [
+            {"pin": pin, "text": text}
+            for pin, text in zip(SKILL_CUE_PINS.get(skill_key, ()), skill["cues"][:2])
+        ]
+        for step in skill["progressions"]:
+            data[station_exercise_name(step)] = {
+                "holo_key": holo_key(step["name"]),
+                "tempo": exercise_tempo(step["name"]),
+                "cues": cues,
+            }
+    return data
 
 # ====================== GAMIFICATION ENGINE ======================
 # XP is derived deterministically from workout history, so no schema change
@@ -791,8 +937,13 @@ async def workout_page(
         },
         "records": {name: {"best": r["best"], "last": r["last"]} for name, r in records.items()},
         "catalog": EXERCISE_CATALOG,
+        "form": exercise_form_data(),
         "first_workout": first_workout,
     }
+    clips = holo_clips()
+    if clips:
+        version = _holo_clip_cache["stamp"][0]  # mtime, so a new model busts the cache
+        client_data["holo"] = {"model": f"{HOLO_MODEL_URL}?v={version}", "clips": sorted(clips)}
 
     return templates.TemplateResponse(
         "pages/workout.html",

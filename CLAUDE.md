@@ -116,7 +116,15 @@ A full second sub-app inside the same codebase:
 - RSVP invite links (token-based, public routes)
 
 ### 3. Workouts Module
-Lightweight workout logging tracker (separate from finance and wedding).
+Calisthenics tracker built as a game ("הזירה"): `pages/workout.html` + `static/js/workout.js` + `static/css/workout.css`.
+- Views on one page, switched by hash: `#home` (today's mission per quest path), `#map`, `#profile`, `#history`.
+- A workout runs in a full-screen arena (set → rest → reward), one set at a time; the session resumes
+  from `localStorage` (`workout_active_session_v2`) after a refresh.
+- XP, levels, ranks, streaks and achievements are derived from history in `routes/workouts.py` — never stored.
+- Quest paths = `SKILL_PROGRESSIONS`; a station is conquered by 5 workouts in its rep range (counted, no button).
+  `POST /workouts/legacy-progress` imports the old browser-only "כבשתי!" flags once (kept in `system_settings`).
+- Optional exercise hologram: `static/holo/exercises.glb`, one animation clip per exercise (`holo_key()`),
+  shown with `<model-viewer>` from jsDelivr. No file → the plain arena. See `static/holo/README.md`.
 
 ---
 
@@ -144,7 +152,7 @@ All tables in a single SQLite file at `app/backend/data/budget.db`. Connection u
 - `wedding_vendors.portions_ordered` — meals booked with the catering vendor; `wedding_settings.venue_capacity` — seats at the venue.
 
 **Workouts table:**
-- `workouts` — `id, user_id (FK), date, workout_type, total_duration, exercise_name, total_sets, total_reps`
+- `workouts` — `id, user_id (FK), date, workout_type, total_duration, exercise_name, total_sets, total_reps, skill_key, stage_index, max_reps`. One row per exercise per session. `skill_key`/`stage_index` = the quest station trained (older rows are matched by their `"hebrew (English)"` name); `max_reps` = best single set, for personal records.
 
 **Migrations** are inline in `initialise_database()` in `db.py`, using `PRAGMA table_info()` to detect and add missing columns. No migration framework is used.
 

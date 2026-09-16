@@ -134,6 +134,7 @@ function data() {
         workoutData.stations = workoutData.stations || {};
         workoutData.records = workoutData.records || {};
         workoutData.catalog = workoutData.catalog || {};
+        workoutData.form = workoutData.form || {};
     }
     return workoutData;
 }
@@ -293,11 +294,19 @@ document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && sessionActive) {
         requestWakeLock();
     }
+    syncHologram();
 });
 
 // ====================== INITIALIZE PAGE ======================
 
 document.addEventListener('DOMContentLoaded', () => {
+    // 0. The page content is its own stacking context (under the navbar),
+    //    so the full-screen layers are moved up to <body>.
+    ['#arena', '#exercise-modal'].forEach(selector => {
+        const layer = $(selector);
+        if (layer) document.body.appendChild(layer);
+    });
+
     // 1. Default the workout date to today (local timezone)
     const dateInput = $('#workout-date');
     if (dateInput && !dateInput.value) dateInput.value = todayIso();
@@ -322,6 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     wirePage();
     wireArenaSheet();
+    wireHologram();
 
     // 5. Resume an in-progress workout after a refresh/navigation — straight into the arena
     const saved = loadSavedSession();
@@ -492,6 +502,7 @@ function beginSession(exercises, pathKey, workoutType) {
     comboCount = 0;
     prShown = {};
     lastRestEnd = null;
+    holoSlow = false;
     plannedSets = exercises.reduce((n, ex) => n + ex.sets.length, 0);
 
     const dateInput = $('#workout-date');
@@ -553,6 +564,7 @@ function cancelWorkout() {
     stopRestTimer();
     releaseWakeLock();
     closeArenaSheet(true);
+    closeFormCheck();
     closeArena();
 }
 
@@ -597,6 +609,7 @@ function closeArena() {
     document.body.classList.remove('arena-open');
     ARENA_BACKGROUND.forEach(sel => $all(sel).forEach(el => el.removeAttribute('inert')));
     unlockPageScroll();
+    syncHologram();
 }
 
 // ====================== CURSOR (the set on screen) ======================
@@ -637,13 +650,17 @@ function renderArena() {
     const arena = $('#arena');
     if (!arena) return;
     arena.dataset.phase = arenaPhase;
-    if (arenaPhase === 'reward') return;
+    if (arenaPhase === 'reward') {
+        syncHologram();
+        return;
+    }
 
     renderStatus();
     updateSessionScore(false);
     if (arenaPhase === 'set') renderSetPanel();
     else renderRestPanel();
     if (!$('#arena-sheet-layer').hidden) renderSheet();
+    syncHologram();
 }
 
 function renderStatus() {
@@ -672,25 +689,30 @@ function renderSetPanel() {
 
     if (activeExercises.length === 0) {
         panel.dataset.state = 'empty';
+        panel.dataset.holo = 'off';
         return;
     }
 
     if (!pos) {
         const stats = sessionStats();
         panel.dataset.state = 'complete';
+        panel.dataset.holo = 'off';
         ring.style.setProperty('--pct', '100%');
         repsEl.textContent = '✓';
         $('#arena-reps-label').textContent = 'הושלם';
         $('#arena-set-label').innerHTML = `כל ${numHtml(stats.total)} הסטים הושלמו`;
         $('#arena-ex-name').textContent = 'האימון מוכן לשמירה';
         compare.hidden = false;
-        compare.innerHTML = `${numHtml(stats.doneSets)} סטים · ${numHtml(stats.doneReps)} חזרות · ${numHtml(`+${computeSessionScore()}`)} XP עד עכשיו`;
+        compare.innerHTML = `${countHtml(stats.doneSets, 'סט אחד', 'סטים')} · ${countHtml(stats.doneReps, 'חזרה אחת', 'חזרות')} · ${numHtml(`+${computeSessionScore()} XP`)} עד עכשיו`;
         return;
     }
 
     const { exercise, set } = pos;
     const doneInExercise = exercise.sets.filter(s => s.done).length;
     panel.dataset.state = 'active';
+    const holo = holoFor(exercise);
+    panel.dataset.holo = holo ? 'on' : 'off';
+    if (holo) paintTempo(panel, holo.tempo);
     ring.style.setProperty('--pct', `${Math.round(doneInExercise * 100 / exercise.sets.length)}%`);
     repsEl.textContent = set.reps;
     $('#arena-reps-label').textContent = 'חזרות';
@@ -760,6 +782,274 @@ function renderRestPanel() {
 function pickCoachTip(exercise) {
     const tips = COACH_TIPS[exercise && exercise.category] || COACH_TIPS.general;
     return tips[sessionStats().doneSets % tips.length];
+}
+
+// ====================== HOLOGRAM (3a / 3b) ======================
+// One shared glTF model with an animation clip per exercise (clip name = holo_key, see
+// routes/workouts.py). Only exercises whose clip exists get the stage; the rest keep the
+// plain set screen. Each clip is one rep, played so that a loop lasts the exercise's tempo.
+
+const MODEL_VIEWER_URL = 'https://cdn.jsdelivr.net/npm/@google/model-viewer@4.3.1/dist/model-viewer.min.js';
+const HOLO_ANGLE_KEY = 'workout_holo_angle_v1';
+const HOLO_ANGLES = {
+    side: '90deg 75deg 105%',
+    front: '0deg 75deg 105%',
+    top: '0deg 12deg 105%',
+};
+const HOLO_ANGLE_ORDER = ['side', 'front', 'top'];
+
+let modelViewerLoading = null;
+let holoFailed = false;   // the viewer or the model could not load: fall back to the plain arena
+let holoSlow = false;     // .5× — resets every session
+let stageViewer = null;
+let formViewer = null;
+let formOpener = null;
+let formAngle = 'side';
+let holoFrame = null;
+
+function holoFor(exercise) {
+    const holo = data().holo;
+    if (!holo || holoFailed || !exercise) return null;
+    const form = data().form[exercise.name];
+    if (!form || !holo.clips.includes(form.holo_key)) return null;
+    return form;
+}
+
+function currentHolo() {
+    const pos = arenaPhase === 'set' ? currentPosition() : null;
+    const form = pos && holoFor(pos.exercise);
+    return form ? { exercise: pos.exercise, ...form } : null;
+}
+
+function loadModelViewer() {
+    if (!modelViewerLoading) {
+        modelViewerLoading = import(MODEL_VIEWER_URL).catch((error) => {
+            console.error('Hologram viewer failed to load', error);
+            disableHologram();
+        });
+    }
+    return modelViewerLoading;
+}
+
+function disableHologram() {
+    if (holoFailed) return;
+    holoFailed = true;
+    closeFormCheck();
+    if (!$('#arena').hidden) renderArena();
+}
+
+function createViewer(container, interactive) {
+    loadModelViewer();
+    const viewer = document.createElement('model-viewer');
+    viewer.setAttribute('src', data().holo.model);
+    viewer.setAttribute('alt', 'הדגמת התרגיל');
+    viewer.setAttribute('interaction-prompt', 'none');
+    viewer.setAttribute('disable-zoom', '');
+    viewer.setAttribute('disable-pan', '');
+    viewer.setAttribute('disable-tap', '');
+    viewer.setAttribute('shadow-intensity', '0');
+    viewer.setAttribute('environment-image', 'neutral');
+    viewer.setAttribute('loading', 'eager');
+    if (interactive) viewer.setAttribute('camera-controls', '');
+    viewer.addEventListener('error', disableHologram);
+    viewer.addEventListener('load', syncHologram);
+    container.appendChild(viewer);
+    return viewer;
+}
+
+function readAngles() {
+    try { return JSON.parse(localStorage.getItem(HOLO_ANGLE_KEY)) || {}; } catch (e) { return {}; }
+}
+
+function angleFor(key) {
+    const angle = readAngles()[key];
+    return HOLO_ANGLES[angle] ? angle : HOLO_ANGLE_ORDER[0];
+}
+
+function rememberAngle(key, angle) {
+    const angles = readAngles();
+    angles[key] = angle;
+    try { localStorage.setItem(HOLO_ANGLE_KEY, JSON.stringify(angles)); } catch (e) { /* storage unavailable */ }
+}
+
+// Re-applies the preset even when the user dragged away from the same value
+function setOrbit(viewer, angle) {
+    viewer.cameraOrbit = '';
+    viewer.cameraOrbit = HOLO_ANGLES[angle];
+}
+
+function aimViewer(viewer, holo, angle) {
+    if (viewer.getAttribute('animation-name') !== holo.holo_key) {
+        viewer.setAttribute('animation-name', holo.holo_key);
+    }
+    if (viewer.dataset.angle !== angle || viewer.dataset.clip !== holo.holo_key) {
+        viewer.dataset.angle = angle;
+        viewer.dataset.clip = holo.holo_key;
+        setOrbit(viewer, angle);
+    }
+}
+
+function tempoTotal(tempo) {
+    return tempo ? tempo.reduce((sum, part) => sum + part, 0) : 0;
+}
+
+function paintTempo(root, tempo) {
+    $all('[data-tempo-bar] span', root).forEach((segment, i) => {
+        segment.hidden = tempo ? tempo[i] === 0 : i > 0;
+        segment.style.setProperty('--seg', tempo ? Math.max(tempo[i], 1) : 1);
+        segment.classList.toggle('is-on', i === 0);
+    });
+    $('[data-tempo-value]', root).textContent = tempo ? tempo.join('-') : 'החזקה';
+    const legend = $('[data-tempo-legend]', root);
+    if (legend) legend.textContent = tempo ? 'ירידה · עצירה · דחיפה' : 'החזקה סטטית לאורך הסט';
+}
+
+// Keeps the loop at the exercise's tempo and lights the matching tempo segment.
+function holoLoop() {
+    holoFrame = null;
+    const holo = currentHolo();
+    const formOpen = !$('#arena-form-layer').hidden;
+    const viewer = formOpen ? formViewer : stageViewer;
+    if (!holo || !viewer) return;
+
+    const duration = viewer.duration;
+    if (viewer.loaded && duration > 0) {
+        const total = tempoTotal(holo.tempo);
+        const scale = (total ? duration / total : 1) * (holoSlow ? 0.5 : 1);
+        if (Math.abs(viewer.timeScale - scale) > 0.001) viewer.timeScale = scale;
+        if (viewer.paused) viewer.play();
+        if (holo.tempo) {
+            const t = ((viewer.currentTime % duration) / duration) * total;
+            const active = t < holo.tempo[0] ? 0 : (t < holo.tempo[0] + holo.tempo[1] ? 1 : 2);
+            const root = formOpen ? $('#arena-form-layer') : $('[data-phase-panel="set"]');
+            $all('[data-tempo-bar] span', root).forEach((segment, i) => segment.classList.toggle('is-on', i === active));
+        }
+    }
+    holoFrame = requestAnimationFrame(holoLoop);
+}
+
+// Plays exactly one viewer while the set screen (or the form check) is up and the tab is visible.
+function syncHologram() {
+    const arena = $('#arena');
+    const holo = arena && !arena.hidden ? currentHolo() : null;
+    const formOpen = !$('#arena-form-layer').hidden;
+
+    if (holo) {
+        if (!stageViewer) stageViewer = createViewer($('#holo-figure'), false);
+        aimViewer(stageViewer, holo, angleFor(holo.holo_key));
+        if (formOpen && formViewer) aimViewer(formViewer, holo, formAngle);
+    } else if (formOpen) {
+        closeFormCheck();
+        return;
+    }
+
+    const active = holo && document.visibilityState === 'visible'
+        ? (formOpen ? formViewer : stageViewer)
+        : null;
+    [stageViewer, formViewer].forEach(viewer => {
+        if (viewer && viewer !== active && viewer.loaded && !viewer.paused) viewer.pause();
+    });
+    if (active && !holoFrame) {
+        holoFrame = requestAnimationFrame(holoLoop);
+    } else if (!active && holoFrame) {
+        cancelAnimationFrame(holoFrame);
+        holoFrame = null;
+    }
+    const slowBtn = $('#holo-slow-btn');
+    if (slowBtn) slowBtn.setAttribute('aria-pressed', holoSlow ? 'true' : 'false');
+}
+
+function cycleHoloAngle() {
+    const holo = currentHolo();
+    if (!holo || !stageViewer) return;
+    const current = angleFor(holo.holo_key);
+    const next = HOLO_ANGLE_ORDER[(HOLO_ANGLE_ORDER.indexOf(current) + 1) % HOLO_ANGLE_ORDER.length];
+    rememberAngle(holo.holo_key, next);
+    syncHologram();
+}
+
+function toggleHoloSlow() {
+    holoSlow = !holoSlow;
+    syncHologram();
+}
+
+function paintFormAngles() {
+    $all('[data-form-angle]').forEach(btn => {
+        btn.setAttribute('aria-pressed', btn.dataset.formAngle === formAngle ? 'true' : 'false');
+    });
+}
+
+function openFormCheck(trigger) {
+    const holo = currentHolo();
+    const layer = $('#arena-form-layer');
+    if (!holo || !layer.hidden) return;
+    formOpener = trigger || document.activeElement;
+    formAngle = angleFor(holo.holo_key);
+
+    $('#form-check-title').textContent = holo.exercise.title;
+    const cues = (holo.cues || []).slice(0, 2);
+    $all('[data-pin]', layer).forEach((pin, i) => {
+        pin.hidden = !cues[i];
+        if (cues[i]) $('.form-pin-label', pin).textContent = cues[i].pin;
+    });
+    $('#form-cues').hidden = cues.length === 0;
+    $('#form-cue-list').innerHTML = cues.map((cue, i) => `
+        <li><span class="form-cue-num" dir="ltr">${i + 1}</span><span class="form-cue-text">${escapeHtml(cue.text)}</span></li>
+    `).join('');
+    paintTempo(layer, holo.tempo);
+    paintFormAngles();
+
+    layer.hidden = false;
+    $all('.arena-phase').forEach(el => el.setAttribute('inert', ''));
+    if (!formViewer) formViewer = createViewer($('#form-figure'), true);
+    layer.scrollTop = 0;
+    layer.focus({ preventScroll: true });
+    syncHologram();
+}
+
+// Closing only hides the look — the set and any timer kept running underneath.
+function closeFormCheck() {
+    const layer = $('#arena-form-layer');
+    if (!layer || layer.hidden) return;
+    layer.hidden = true;
+    $all('.arena-phase').forEach(el => el.removeAttribute('inert'));
+    syncHologram();
+    if (formOpener && formOpener.focus && formOpener.offsetParent) formOpener.focus({ preventScroll: true });
+}
+
+function wireHologram() {
+    const angleBtn = $('#holo-angle-btn');
+    if (angleBtn) angleBtn.addEventListener('click', cycleHoloAngle);
+    const slowBtn = $('#holo-slow-btn');
+    if (slowBtn) slowBtn.addEventListener('click', toggleHoloSlow);
+
+    const layer = $('#arena-form-layer');
+    if (!layer) return;
+    layer.addEventListener('click', (e) => {
+        if (e.target.closest('[data-form-close]')) { closeFormCheck(); return; }
+        const angleChoice = e.target.closest('[data-form-angle]');
+        if (angleChoice && formViewer) {
+            const holo = currentHolo();
+            formAngle = angleChoice.dataset.formAngle;
+            if (holo) rememberAngle(holo.holo_key, formAngle);
+            formViewer.dataset.angle = formAngle;
+            setOrbit(formViewer, formAngle);
+            paintFormAngles();
+        }
+    });
+    layer.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); closeFormCheck(); return; }
+        if (e.key !== 'Tab') return;
+        const items = $all('button:not([disabled])', layer).filter(el => el.offsetParent !== null);
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (e.shiftKey && (document.activeElement === first || document.activeElement === layer)) {
+            e.preventDefault(); last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault(); first.focus();
+        }
+    });
 }
 
 // ====================== SET ACTIONS ======================
@@ -1468,6 +1758,7 @@ function showReward(rewards, stats) {
     }
 
     closeArenaSheet(true);
+    closeFormCheck();
     hidePrToast();
     arenaPhase = 'reward';
     renderArena();

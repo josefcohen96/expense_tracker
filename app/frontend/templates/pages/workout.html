@@ -4,7 +4,7 @@
 
 {% block head %}
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/workout.css?v=20260917-arena">
+<link rel="stylesheet" href="/static/css/workout.css?v=20260917-holo">
 {% endblock %}
 
 {% block body_class %}has-section-header workouts-page{% endblock %}
@@ -479,12 +479,40 @@
     <div class="arena-col">
 
         <!-- SET (1a · 2) -->
-        <section class="arena-phase arena-set" data-phase-panel="set" data-state="active">
+        <section class="arena-phase arena-set" data-phase-panel="set" data-state="active" data-holo="off">
             <div class="arena-status">
                 <span class="arena-status-meta"><span id="arena-ex-count"></span> · <span id="workout-timer" class="wk-num" dir="ltr">00:00</span></span>
                 <span class="arena-xp" aria-label="XP באימון"><span id="session-score" class="arena-xp-value" dir="ltr">0</span><span aria-hidden="true">⭐</span></span>
             </div>
             <div id="arena-rail" class="arena-rail" aria-hidden="true"></div>
+
+            <!-- Hologram of the pose (3a) — only for exercises whose clip is in the model -->
+            <div class="holo-block" data-holo-only>
+                <div class="holo-stage">
+                    <div class="holo-grid" aria-hidden="true"></div>
+                    <div class="holo-sweep" aria-hidden="true"></div>
+                    <span class="holo-corner is-ts" aria-hidden="true"></span>
+                    <span class="holo-corner is-te" aria-hidden="true"></span>
+                    <span class="holo-corner is-bs" aria-hidden="true"></span>
+                    <span class="holo-corner is-be" aria-hidden="true"></span>
+                    <div class="holo-status"><span class="holo-dot" aria-hidden="true"></span><span>מנח התרגיל · לופ</span></div>
+                    <div class="holo-figure" id="holo-figure"></div>
+                    <div class="holo-plinth" aria-hidden="true"><span></span></div>
+                    <div class="holo-controls">
+                        <button type="button" class="holo-control" id="holo-angle-btn" aria-label="החלף זווית">
+                            <span aria-hidden="true">🔄</span><span class="holo-control-label">זווית</span>
+                        </button>
+                        <button type="button" class="holo-control" id="holo-slow-btn" aria-pressed="false" aria-label="האטה לחצי מהירות">
+                            <span class="holo-control-speed" dir="ltr">.5×</span><span class="holo-control-label">האט</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="holo-tempo" data-tempo>
+                    <span class="holo-tempo-label">מקצב</span>
+                    <div class="holo-tempo-bar" data-tempo-bar aria-hidden="true"><span></span><span></span><span></span></div>
+                    <span class="holo-tempo-value" data-tempo-value dir="ltr"></span>
+                </div>
+            </div>
 
             <div class="arena-stage">
                 <div id="arena-set-label" class="arena-set-label"></div>
@@ -511,6 +539,13 @@
 
             <div class="arena-foot">
                 <div id="combo-indicator" class="arena-combo" hidden><span aria-hidden="true">🔥</span><span>קומבו ×<span id="combo-count" class="wk-num">0</span></span></div>
+                <div class="holo-steppers" data-when="active" data-holo-only>
+                    <button type="button" class="arena-step" onclick="arenaStepReps(-1)" aria-label="הפחת חזרה">−</button>
+                    <button type="button" class="holo-form-btn" id="holo-form-btn" onclick="openFormCheck(this)">
+                        <i class="fas fa-street-view" aria-hidden="true"></i><span>בדיקת תנוחה</span>
+                    </button>
+                    <button type="button" class="arena-step" onclick="arenaStepReps(1)" aria-label="הוסף חזרה">+</button>
+                </div>
                 <button type="button" id="arena-done-btn" class="arena-primary" data-when="active" onclick="completeCurrentSet()">
                     <span aria-hidden="true">✓</span><span>סיימתי את הסט</span>
                 </button>
@@ -611,6 +646,42 @@
             </div>
         </section>
 
+        <!-- LAYER: form check (3b) — a look, not a mode: the workout keeps running underneath -->
+        <div id="arena-form-layer" class="arena-form" role="dialog" aria-modal="true" aria-labelledby="form-check-title" tabindex="-1" hidden>
+            <div class="form-head">
+                <h3 id="form-check-title"></h3>
+                <button type="button" class="form-close" data-form-close>סגור</button>
+            </div>
+            <div class="form-body">
+                <div class="holo-stage is-large">
+                    <div class="holo-grid" aria-hidden="true"></div>
+                    <div class="holo-sweep" aria-hidden="true"></div>
+                    <div class="holo-figure" id="form-figure"></div>
+                    <div class="form-pin is-top" data-pin="0"><span class="form-pin-num" dir="ltr">1</span><span class="form-pin-label"></span></div>
+                    <div class="form-pin is-bottom" data-pin="1"><span class="form-pin-label"></span><span class="form-pin-num" dir="ltr">2</span></div>
+                    <div class="holo-plinth" aria-hidden="true"><span></span></div>
+                    <div class="form-angles" role="group" aria-label="זווית צפייה">
+                        <button type="button" data-form-angle="side" aria-pressed="false">צד</button>
+                        <button type="button" data-form-angle="front" aria-pressed="false">חזית</button>
+                        <button type="button" data-form-angle="top" aria-pressed="false">מלמעלה</button>
+                    </div>
+                </div>
+            </div>
+            <div class="form-foot">
+                <div class="form-tempo" data-tempo>
+                    <span class="holo-tempo-label">מקצב</span>
+                    <div class="holo-tempo-bar" data-tempo-bar aria-hidden="true"><span></span><span></span><span></span></div>
+                    <span class="holo-tempo-value" data-tempo-value dir="ltr"></span>
+                    <span class="form-tempo-legend" data-tempo-legend>ירידה · עצירה · דחיפה</span>
+                </div>
+                <div class="form-cues" id="form-cues">
+                    <div class="form-cues-title">שתי נקודות לתיקון</div>
+                    <ol id="form-cue-list"></ol>
+                </div>
+                <button type="button" class="form-back" data-form-close>חזרה לסט</button>
+            </div>
+        </div>
+
         <!-- LAYER: personal-record toast (2d) -->
         <div id="arena-pr-layer" class="arena-layer" hidden>
             <div class="arena-scrim"></div>
@@ -696,5 +767,5 @@
 </div>
 
 <script type="application/json" id="workout-data">{{ client_data|tojson }}</script>
-<script src="/static/js/workout.js?v=20260917-arena" defer></script>
+<script src="/static/js/workout.js?v=20260917-holo" defer></script>
 {% endblock %}

@@ -2,47 +2,29 @@
 
 {% block title %}{% block wedding_title %}חתונה{% endblock %} - המנביטים{% endblock %}
 
-{% block body_class %}has-side-navigation{% endblock %}
+{% block body_class %}has-side-navigation has-section-header{% endblock %}
 
 {% block content %}
-{#- Active section for the compact mobile header below. -#}
-{% set wedding_section = 'overview' %}
-{% if request.path in ['/wedding/tasks', '/wedding/timeline', '/wedding/notes', '/wedding/ideas'] %}
-    {% set wedding_section = 'planning' %}
-{% elif request.path.startswith('/wedding/guests') or request.path.startswith('/wedding/seating') or request.path.startswith('/wedding/lodging') %}
-    {% set wedding_section = 'guests' %}
-{% elif request.path.startswith('/wedding/budget') or request.path.startswith('/wedding/vendors') %}
-    {% set wedding_section = 'finances' %}
-{% endif %}
+{% from "layout/_mobile_nav.html" import section_header, section_chips %}
+{%- set path = request.path -%}
+{#- Mobile IA: 10 pages grouped into 4 sections; pages beyond the first become chips. -#}
+{%- set section_pages = {
+    'planning': [('משימות', '/wedding/tasks'), ('לו״ז', '/wedding/timeline'), ('לזכור', '/wedding/notes'), ('רעיונות', '/wedding/ideas')],
+    'guests':   [('מוזמנים', '/wedding/guests'), ('הושבות', '/wedding/seating'), ('לינה', '/wedding/lodging')],
+    'finances': [('תקציב', '/wedding/budget'), ('ספקים', '/wedding/vendors')],
+} -%}
+{%- set ns = namespace(section='overview') -%}
+{%- for key, pages in section_pages.items() -%}
+    {%- for label, href in pages if path.startswith(href) -%}{%- set ns.section = key -%}{%- endfor -%}
+{%- endfor -%}
+<style>.fab-button { display: none !important; }</style>
 
-<!-- Mobile-only chrome swap: the compact section header below replaces the
-     purple navbar + old pill row/drawer under the lg breakpoint (matches this
-     module's existing sidebar breakpoint), hitting the ~70px chrome target. -->
-<style>
-    .fab-button { display: none !important; }
-    @media (max-width: 1023.98px) {
-        .nav-gradient { display: none !important; }
-        .main-content { margin-top: 0 !important; }
-    }
-    .wedding-section-tab {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 32px;
-        border-radius: 9px;
-        font-family: 'Rubik', sans-serif;
-        font-size: 12px;
-        font-weight: 500;
-        color: #6b7280;
-        background: transparent;
-        text-decoration: none;
-    }
-    .wedding-section-tab.is-active {
-        background: #fff1f2;
-        color: #be123c;
-        font-weight: 700;
-    }
-</style>
+{{ section_header('חתונה', 'wedding', [
+    ('planning', 'תכנון', '/wedding/tasks'),
+    ('overview', 'סקירה', '/wedding'),
+    ('guests', 'מוזמנים', '/wedding/guests'),
+    ('finances', 'כספים', '/wedding/budget'),
+], ns.section) }}
 
 <!-- Desktop Only: Persistent Sidebar -->
 <aside class="hidden lg:flex lg:flex-col fixed bg-white border-l border-gray-200 shadow-lg overflow-y-auto"
@@ -216,52 +198,17 @@
     </nav>
 </aside>
 
-<!-- Mobile Only: Compact section header (70px, hides on scroll) -->
-<div id="wedding-mobile-header"
-     class="lg:hidden fixed inset-x-0 top-0 bg-white border-b border-gray-100 transition-transform duration-200 ease-out"
-     style="z-index:210; padding-top: var(--safe-top, 0px);"
-     dir="rtl">
-    <div class="flex items-center justify-between" style="height:40px; padding:0 18px;">
-        <span style="font-family:'Heebo',sans-serif; font-weight:700; font-size:16px; color:#111827;">{% block wedding_breadcrumb %}חתונה{% endblock %}</span>
-        <div class="flex items-center gap-2 flex-shrink-0">
-            {% block wedding_header_action %}{% endblock %}
-        </div>
-    </div>
-    <div class="grid grid-cols-4" style="padding:0 12px 9px; gap:2px;">
-        <a href="/wedding/tasks" class="wedding-section-tab {% if wedding_section == 'planning' %}is-active{% endif %}">תכנון</a>
-        <a href="/wedding" class="wedding-section-tab {% if wedding_section == 'overview' %}is-active{% endif %}">סקירה</a>
-        <a href="/wedding/guests" class="wedding-section-tab {% if wedding_section == 'guests' %}is-active{% endif %}">מוזמנים</a>
-        <a href="/wedding/budget" class="wedding-section-tab {% if wedding_section == 'finances' %}is-active{% endif %}">כספים</a>
-    </div>
-</div>
-<!-- Spacer: the fixed header above is out of flow -->
-<div class="lg:hidden" style="height: calc(70px + var(--safe-top, 0px));"></div>
-
-<script>
-(function () {
-    var header = document.getElementById('wedding-mobile-header');
-    if (!header) return;
-    var lastY = window.scrollY;
-    var hidden = false;
-    window.addEventListener('scroll', function () {
-        var y = Math.max(window.scrollY, 0);
-        if (y > lastY && y > 24 && !hidden) {
-            header.style.transform = 'translateY(-100%)';
-            hidden = true;
-        } else if (y < lastY && hidden) {
-            header.style.transform = 'translateY(0)';
-            hidden = false;
-        }
-        lastY = y;
-    }, { passive: true });
-})();
-</script>
-
 <!-- Page Content: full width on mobile, offset on desktop for sidebar -->
-<div class="bg-gray-50 min-h-screen p-4 sm:p-6 lg:p-8 pb-10 lg:mr-64" dir="rtl">
-    <!-- Desktop Only: action button row -->
+<div class="bg-gray-50 min-h-screen px-4 pt-2 pb-4 sm:p-6 lg:p-8 lg:mr-64" dir="rtl">
+    {%- set chips = [] -%}
+    {%- for label, href in section_pages.get(ns.section, []) -%}
+        {%- set _ = chips.append((label, href, path.startswith(href))) -%}
+    {%- endfor -%}
+    {{ section_chips(chips) }}
+    <!-- Page's primary action. Desktop shows it here; on mobile the tab-bar
+         "+" triggers it via [data-quick-add]. -->
     <div class="hidden lg:flex justify-end mb-4">
-        {{ self.wedding_header_action() }}
+        {% block wedding_header_action %}{% endblock %}
     </div>
     {% block wedding_content %}{% endblock %}
 </div>

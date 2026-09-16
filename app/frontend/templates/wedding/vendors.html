@@ -89,7 +89,7 @@
             <h1 class="text-xl sm:text-2xl font-bold text-gray-900">ספקים 🏢</h1>
             <p class="text-xs text-gray-500 mt-0.5">נהלו הצעות מחיר, השוו ספקים וסמנו מה כלול</p>
         </div>
-        <button onclick="openAddModal(null)"
+        <button data-quick-add onclick="openAddModal(null)"
                 class="hidden sm:inline-flex items-center bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-4 py-2.5 rounded-xl text-sm font-semibold min-h-[44px] shadow-sm">
             + הוסף ספק
         </button>
@@ -334,13 +334,6 @@
     </div>
 
 </div><!-- /space-y-4 -->
-
-<!-- Mobile FAB -->
-<button onclick="openAddModal(null)"
-        class="sm:hidden fixed z-[800] bg-rose-600 text-white w-16 h-16 rounded-full shadow-xl flex items-center justify-center text-3xl font-light active:scale-90 transition-transform"
-        style="bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); right: 1.25rem;">
-    +
-</button>
 
 <!-- ═══════════════ ADD / EDIT MODAL ═══════════════ -->
 <div id="vendor-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[850] flex items-start sm:items-center justify-center sm:p-4" dir="rtl">

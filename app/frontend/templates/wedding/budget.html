@@ -26,7 +26,7 @@
     <!-- Header -->
     <div class="flex flex-wrap items-center justify-between gap-3">
         <h1 class="text-xl sm:text-2xl font-bold text-gray-900">ניהול תקציב 💰</h1>
-        <button onclick="openModal('add-item-modal')"
+        <button data-quick-add onclick="openModal('add-item-modal')"
                 class="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium min-h-[44px]">
             + הוצאה ידנית
         </button>
@@ -353,13 +353,6 @@
     </div>
 
 </div>
-
-<!-- Mobile FAB - positioned above browser bottom bar -->
-<button onclick="openModal('add-item-modal')"
-        class="sm:hidden fixed z-[800] bg-rose-600 text-white w-16 h-16 rounded-full shadow-xl flex items-center justify-center text-3xl font-light active:scale-90 transition-transform"
-        style="bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); right: 1.25rem;">
-    +
-</button>
 
 <!-- Set Total Budget Modal -->
 <div id="budget-total-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[500] flex items-start sm:items-center justify-center sm:p-4" dir="rtl">

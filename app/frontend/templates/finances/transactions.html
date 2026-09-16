@@ -1,6 +1,5 @@
 {% extends "finances/base.html" %}
 {% block finances_title %}עסקאות{% endblock %}
-{% block finances_breadcrumb %}עסקאות{% endblock %}
 
 {% block finances_content %}
 {% set has_active_filters = request.query_params.get('category_id') or request.query_params.get('date_from') or request.query_params.get('date_to') or request.query_params.get('amount_min') or request.query_params.get('amount_max') or request.query_params.get('user_id') or request.query_params.get('account_id') or request.query_params.get('tags') %}
@@ -16,7 +15,7 @@
             <p class="text-xs sm:text-sm text-gray-500 mt-0.5">ניהול וצפייה בכל ההוצאות</p>
         </div>
     </div>
-    <button onclick="openAddModal()"
+    <button data-quick-add onclick="openAddModal()"
             class="btn btn-primary w-full sm:w-auto flex-shrink-0 text-base"
             style="min-height:48px;">
         <i class="fas fa-plus"></i>

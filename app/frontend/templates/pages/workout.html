@@ -288,7 +288,11 @@
 </style>
 {% endblock %}
 
+{% block body_class %}has-section-header{% endblock %}
+
 {% block content %}
+{% from "layout/_mobile_nav.html" import section_header %}
+{{ section_header('אימונים') }}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 workout-container" dir="rtl">
     <!-- Header Summary -->
     <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">

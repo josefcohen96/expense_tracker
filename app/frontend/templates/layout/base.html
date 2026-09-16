@@ -18,7 +18,7 @@
     <script src="/static/js/vendor/htmx.min.js" defer></script>
 
     <!-- Custom CSS - PERFORMANCE OPTIMIZED -->
-    <link rel="stylesheet" href="/static/css/main.css?v=20260701">
+    <link rel="stylesheet" href="/static/css/main.css?v=20260916">
 
     <!-- Font Awesome - PERFORMANCE OPTIMIZED -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
@@ -495,21 +495,22 @@
     {% block head %}{% endblock %}
 </head>
 
-<body class="bg-gray-50 min-h-screen full-viewport-safe {% block body_class %}{% endblock %}">
-    {#- Resolved by AuthMiddleware; falls back to the session for public pages. -#}
-    {% set current_username = ((request.state.user or request.session.get('user') or {}).get('username') or '') | upper %}
-    {% set show_renovation = current_username in ['YOSEF', 'TSAHALA'] %}
-    {#- Active tab for the mobile bottom nav (layout-level; wedding/base.html sets its own finer-grained section). -#}
-    {% set mobile_tab = 'today' %}
-    {% if request.path.startswith('/wedding') %}
-        {% set mobile_tab = 'wedding' %}
-    {% elif request.path.startswith('/finances/backup') %}
-        {% set mobile_tab = 'more' %}
-    {% elif request.path.startswith('/finances') %}
-        {% set mobile_tab = 'finances' %}
-    {% elif request.path.startswith('/workouts') or request.path.startswith('/renovation') or request.path in ['/more', '/login'] %}
-        {% set mobile_tab = 'more' %}
-    {% endif %}
+{#- Resolved by AuthMiddleware; falls back to the session for public pages. -#}
+{% set current_username = ((request.state.user or request.session.get('user') or {}).get('username') or '') | upper %}
+{% set show_renovation = current_username in ['YOSEF', 'TSAHALA'] %}
+{#- Renovation-only users can't open wedding/finances, and logged-out visitors have nowhere to go. -#}
+{% set show_tab_bar = current_username and current_username != 'TSAHALA' %}
+{% set mobile_tab = 'today' %}
+{% if request.path.startswith('/wedding') %}
+    {% set mobile_tab = 'wedding' %}
+{% elif request.path.startswith('/finances/backup') %}
+    {% set mobile_tab = 'more' %}
+{% elif request.path.startswith('/finances') %}
+    {% set mobile_tab = 'finances' %}
+{% elif request.path.startswith('/workouts') or request.path.startswith('/renovation') or request.path == '/more' %}
+    {% set mobile_tab = 'more' %}
+{% endif %}
+<body class="bg-gray-50 min-h-screen full-viewport-safe {% if show_tab_bar %}has-tab-bar{% endif %} {% block body_class %}{% endblock %}">
     <!-- Main Navigation Bar -->
     <nav class="nav-gradient text-white shadow-lg">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -567,37 +568,36 @@
         </div>
     </nav>
 
-    <!-- Mobile bottom tab bar (< lg only — matches the wedding/finances sidebar breakpoint).
-         Replaces the old hamburger + dropdown as the primary mobile nav. -->
-    <nav id="mobile-tab-bar"
-         class="lg:hidden fixed inset-x-0 bottom-0 grid grid-cols-5 items-end"
-         style="z-index:220;"
-         dir="rtl"
-         aria-label="ניווט ראשי">
-        <a href="/" class="tab-item {% if mobile_tab == 'today' %}is-active{% endif %}" style="--tab-accent:#4f46e5">
-            <span class="tab-icon">🏠</span>
-            <span class="tab-label">היום</span>
-        </a>
-        <a href="/wedding" class="tab-item {% if mobile_tab == 'wedding' %}is-active{% endif %}" style="--tab-accent:#be123c">
-            <span class="tab-icon">💍</span>
-            <span class="tab-label">חתונה</span>
-        </a>
-        <div class="flex items-start justify-center">
-            <a href="{{ '/wedding/tasks' if mobile_tab == 'wedding' else '/finances/transactions' }}"
+    {% if show_tab_bar %}
+    <!-- Mobile bottom tab bar (< lg only — matches the wedding/finances sidebar breakpoint). -->
+    <nav id="mobile-tab-bar" dir="rtl" aria-label="ניווט ראשי">
+        {% for key, label, icon, href, accent in [
+            ('today', 'היום', '🏠', '/', '#4f46e5'),
+            ('wedding', 'חתונה', '💍', '/wedding/tasks', '#be123c'),
+            ('fab', '', '', '', ''),
+            ('finances', 'כספים', '💳', '/finances', '#1d4ed8'),
+            ('more', 'עוד', '☰', '/more', '#374151'),
+        ] %}
+        {% if key == 'fab' %}
+        <div class="tab-fab-cell">
+            {#- Opens the page's own [data-quick-add] action when there is one (see script below). -#}
+            <a id="mobile-fab" href="{{ '/finances/transactions?new=1' if mobile_tab == 'finances' else '/wedding/tasks?new=1' }}"
                class="mobile-fab {% if mobile_tab == 'wedding' %}mobile-fab-wedding{% elif mobile_tab == 'finances' %}mobile-fab-finances{% endif %}"
-               aria-label="הוספה מהירה">
+               aria-label="{{ 'הוצאה חדשה' if mobile_tab == 'finances' else 'משימה חדשה' }}">
                 <span aria-hidden="true">+</span>
             </a>
         </div>
-        <a href="/finances" class="tab-item {% if mobile_tab == 'finances' %}is-active{% endif %}" style="--tab-accent:#1d4ed8">
-            <span class="tab-icon">💳</span>
-            <span class="tab-label">כספים</span>
+        {% else %}
+        <a href="{{ href }}" data-nav-module="{{ key }}"
+           class="tab-item{% if mobile_tab == key %} is-active{% endif %}"{% if mobile_tab == key %} aria-current="page"{% endif %}
+           style="--tab-accent:{{ accent }}">
+            <span class="tab-icon" aria-hidden="true">{{ icon }}</span>
+            <span class="tab-label">{{ label }}</span>
         </a>
-        <a href="/more" class="tab-item {% if mobile_tab == 'more' %}is-active{% endif %}" style="--tab-accent:#374151">
-            <span class="tab-icon">☰</span>
-            <span class="tab-label">עוד</span>
-        </a>
+        {% endif %}
+        {% endfor %}
     </nav>
+    {% endif %}
 
     <!-- Main Content Area -->
     <div class="main-content w-full">
@@ -856,6 +856,135 @@
                     });
             });
         }
+    </script>
+
+    <script>
+        // Mobile nav shell behaviour (< lg). State lives under one namespaced key.
+        (function () {
+            var NAV_KEY = 'et.mobile.nav';
+            var MODULE_ROOTS = { wedding: '/wedding/tasks', finances: '/finances' };
+
+            function readNav() {
+                try { return JSON.parse(localStorage.getItem(NAV_KEY)) || {}; } catch (e) { return {}; }
+            }
+            function writeNav(state) {
+                try { localStorage.setItem(NAV_KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
+            }
+
+            var path = location.pathname;
+            var current = path.indexOf('/wedding') === 0 ? 'wedding'
+                : (path.indexOf('/finances') === 0 && path.indexOf('/finances/backup') !== 0) ? 'finances'
+                : null;
+
+            // Remember the last page per module so its tab returns there.
+            if (current) {
+                var state = readNav();
+                state.lastPath = state.lastPath || {};
+                state.lastPath[current] = path;
+                writeNav(state);
+            }
+
+            document.querySelectorAll('#mobile-tab-bar [data-nav-module]').forEach(function (tab) {
+                var module = tab.getAttribute('data-nav-module');
+                if (!MODULE_ROOTS[module]) return;
+                tab.addEventListener('click', function (e) {
+                    // Tapping the active tab goes back to its root; otherwise resume where the user left off.
+                    var target = module === current ? MODULE_ROOTS[module]
+                        : ((readNav().lastPath || {})[module] || MODULE_ROOTS[module]);
+                    if (target !== tab.getAttribute('href')) {
+                        e.preventDefault();
+                        location.href = target;
+                    }
+                });
+            });
+
+            function quickAddSource() {
+                return document.querySelector('[data-quick-add]');
+            }
+
+            var fab = document.getElementById('mobile-fab');
+            if (fab) {
+                fab.addEventListener('click', function (e) {
+                    var source = quickAddSource();
+                    if (source) {
+                        e.preventDefault();
+                        source.click();
+                    }
+                });
+            }
+
+            // Pages open dialogs in many ways; hide the tab bar whenever any full-screen overlay is visible
+            // so it never covers a sheet's buttons.
+            var tabBar = document.getElementById('mobile-tab-bar');
+            if (tabBar) {
+                var overlayQueued = false;
+                function overlayVisible() {
+                    if (document.body.classList.contains('modal-open') || document.body.style.overflow === 'hidden') return true;
+                    var candidates = document.querySelectorAll('.fixed.inset-0, .modal-overlay');
+                    for (var i = 0; i < candidates.length; i++) {
+                        var cs = getComputedStyle(candidates[i]);
+                        if (cs.display !== 'none' && cs.visibility !== 'hidden' && candidates[i].getClientRects().length) return true;
+                    }
+                    return false;
+                }
+                function syncOverlay() {
+                    overlayQueued = false;
+                    document.body.classList.toggle('overlay-open', overlayVisible());
+                }
+                new MutationObserver(function () {
+                    if (!overlayQueued) {
+                        overlayQueued = true;
+                        requestAnimationFrame(syncOverlay);
+                    }
+                }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] });
+            }
+
+            // ?new=1 (from the FAB on pages without their own add action) opens the add dialog once.
+            var params = new URLSearchParams(location.search);
+            if (params.get('new') === '1') {
+                window.addEventListener('load', function () {
+                    var source = quickAddSource();
+                    if (source) source.click();
+                    params.delete('new');
+                    var qs = params.toString();
+                    history.replaceState(null, '', path + (qs ? '?' + qs : '') + location.hash);
+                });
+            }
+
+            // Section header hides on scroll down, returns on scroll up.
+            // --msh-offset lets sticky page elements sit just below it.
+            var header = document.getElementById('mobile-section-header');
+            if (header) {
+                var root = document.documentElement;
+                var lastY = Math.max(window.scrollY, 0);
+                var hidden = false;
+                var ticking = false;
+                function setOffset() {
+                    root.style.setProperty('--msh-offset', hidden ? '0px' : header.offsetHeight + 'px');
+                }
+                function onScroll() {
+                    var y = Math.max(window.scrollY, 0);
+                    if (Math.abs(y - lastY) >= 4) {
+                        var nextHidden = y > lastY && y > 24;
+                        if (nextHidden !== hidden) {
+                            hidden = nextHidden;
+                            header.classList.toggle('is-hidden', hidden);
+                            setOffset();
+                        }
+                        lastY = y;
+                    }
+                    ticking = false;
+                }
+                setOffset();
+                window.addEventListener('resize', setOffset);
+                window.addEventListener('scroll', function () {
+                    if (!ticking) {
+                        ticking = true;
+                        requestAnimationFrame(onScroll);
+                    }
+                }, { passive: true });
+            }
+        })();
     </script>
 
     {% block scripts %}{% endblock %}

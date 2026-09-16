@@ -1408,21 +1408,60 @@ body {
   .full-viewport-safe { min-height: 100dvh; }
 }
 
-/* ===== MOBILE BOTTOM TAB BAR (nav layer, z-index 220) =====
-   Shown < lg — matches the breakpoint the wedding/finances module
-   sidebars already switch on, so nav chrome swaps together. */
+/* ===== MOBILE NAV SHELL (< lg) =====
+   Bottom tab bar (z 220) + per-module section header (z 210) and chips.
+   < lg matches the breakpoint the wedding/finances sidebars switch on,
+   so all nav chrome swaps together. */
+@media (min-width: 1024px) {
+  #mobile-tab-bar,
+  .mobile-section-header,
+  .msh-spacer,
+  .section-chips {
+    display: none !important;
+  }
+}
+
 @media (max-width: 1023.98px) {
-  body {
+  body.has-tab-bar {
     padding-bottom: calc(78px + var(--safe-bottom));
+  }
+  /* The tab bar replaces the footer's links on mobile. */
+  body.has-tab-bar .footer {
+    display: none;
+  }
+  /* Module pages swap the purple navbar for their own light header. */
+  body.has-section-header .nav-gradient {
+    display: none;
+  }
+  body.has-section-header .main-content {
+    margin-top: 0;
   }
 }
 
 #mobile-tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 220;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: end;
   background: rgba(255, 255, 255, .96);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   border-top: 1px solid #e5e7eb;
   padding: 7px 6px calc(15px + var(--safe-bottom));
+}
+
+body.overlay-open #mobile-tab-bar {
+  display: none;
+}
+
+.tab-fab-cell {
+  display: flex;
+  justify-content: center;
+  align-self: start;
 }
 
 .tab-item {
@@ -1462,12 +1501,14 @@ body {
   align-items: center;
   justify-content: center;
   color: #fff;
+  font-family: var(--font-primary);
   font-size: 26px;
   font-weight: 300;
   line-height: 1;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+  transition: transform 120ms ease;
   background: linear-gradient(135deg, #4f46e5, #7c3aed);
   box-shadow: 0 6px 16px -4px rgba(79, 70, 229, .6);
 }
@@ -1481,6 +1522,137 @@ body {
 .mobile-fab-finances {
   background: linear-gradient(135deg, #2563eb, #1d4ed8);
   box-shadow: 0 6px 16px -4px rgba(37, 99, 235, .6);
+}
+
+/* Section header: 40px title row + 41px tab row (32px tabs + 9px padding). */
+.mobile-section-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 210;
+  background: #fff;
+  border-bottom: 1px solid #f3f4f6;
+  padding-top: var(--safe-top, 0px);
+  transition: transform 200ms cubic-bezier(.4, 0, .2, 1);
+}
+.mobile-section-header.is-hidden {
+  transform: translateY(-100%);
+}
+.msh-title-row {
+  height: 40px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.msh-title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 16px;
+  color: #111827;
+}
+.msh-tabs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 2px;
+  height: 41px;
+  padding: 0 12px 9px;
+  box-sizing: border-box;
+}
+.section-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border-radius: 9px;
+  font-family: var(--font-primary);
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+  text-decoration: none;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Stretch the tap target to 45px without growing the visual pill. */
+.section-tab::after {
+  content: '';
+  position: absolute;
+  inset: -4px 0 -9px;
+}
+.section-tab.is-active {
+  font-weight: 700;
+  background: #eef2ff;
+  color: #4f46e5;
+}
+.mobile-section-header[data-theme="wedding"] .section-tab.is-active {
+  background: #fff1f2;
+  color: #be123c;
+}
+.mobile-section-header[data-theme="finances"] .section-tab.is-active {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.msh-spacer {
+  height: calc(40px + var(--safe-top, 0px));
+}
+.msh-spacer.has-tabs {
+  height: calc(81px + var(--safe-top, 0px));
+}
+
+/* Sticky page elements that should ride just under the section header. */
+.sticky-below-header {
+  top: calc(64px + var(--safe-top, 0px));
+  transition: top 200ms cubic-bezier(.4, 0, .2, 1);
+}
+@media (max-width: 1023.98px) {
+  .sticky-below-header {
+    top: var(--msh-offset, calc(81px + var(--safe-top, 0px)));
+  }
+}
+
+/* Sub-page chips inside a section (30px pill, 44px tap row). */
+.section-chips {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  margin: 0 -16px 6px;
+  padding: 0 16px;
+  scrollbar-width: none;
+}
+.section-chips::-webkit-scrollbar {
+  display: none;
+}
+.section-chip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 7px 0;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.section-chip > span {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  color: #4b5563;
+  font-family: var(--font-primary);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.section-chip.is-active > span {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+  font-weight: 600;
 }
 
 /* ===== MISC ===== */

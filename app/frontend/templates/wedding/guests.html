@@ -1,9 +1,8 @@
 {% extends "wedding/base.html" %}
 {% block wedding_title %}מוזמנים{% endblock %}
-{% block wedding_breadcrumb %}מוזמנים{% endblock %}
 
 {% block wedding_header_action %}
-<button onclick="openGuestModal()"
+<button data-quick-add onclick="openGuestModal()"
         class="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-3 py-2 rounded-xl text-sm font-medium shadow-sm min-h-[36px]">
     + הוסף מוזמן
 </button>
@@ -189,25 +188,7 @@ textarea.inline-edit-input {
 <div class="space-y-3 sm:space-y-4" dir="rtl">
 
     <!-- Search -->
-    <div class="search-wrap relative sticky z-20 bg-gray-50 pb-1" style="top: calc(148px + env(safe-area-inset-top, 0px))" id="guest-search-bar">
-        <script>
-        // Dynamically align the sticky search bar below navbar + section-subheader
-        (function () {
-            function updateSearchTop() {
-                var sh = document.querySelector('.section-subheader');
-                var sb = document.getElementById('guest-search-bar');
-                if (!sh || !sb) return;
-                var navH = 64;
-                var subH = sh.getBoundingClientRect().height;
-                sb.style.top = 'calc(' + (navH + subH) + 'px + env(safe-area-inset-top, 0px))';
-            }
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', updateSearchTop);
-            } else {
-                updateSearchTop();
-            }
-        })();
-        </script>
+    <div class="search-wrap relative sticky sticky-below-header z-20 bg-gray-50 pb-1" id="guest-search-bar">
         <input type="search" id="guest-search" placeholder="חיפוש מוזמן..."
                class="w-full border border-gray-200 rounded-xl px-4 py-3 pr-10 text-base bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
                oninput="filterGuests(this.value)">
@@ -575,14 +556,6 @@ textarea.inline-edit-input {
     </div>
     {% endif %}
 </div>
-
-<!-- Mobile FAB - positioned above browser bottom bar -->
-<button id="guest-fab"
-        onclick="openGuestModal()"
-        class="sm:hidden fixed z-[800] bg-rose-600 text-white w-16 h-16 rounded-full shadow-xl flex items-center justify-center text-3xl font-light active:scale-90 transition-transform"
-        style="bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); right: 1.25rem;">
-    +
-</button>
 
 <!-- Inline Status Picker (small bottom sheet) -->
 <div id="status-picker-overlay" class="hidden fixed inset-0 z-[500]" dir="rtl">

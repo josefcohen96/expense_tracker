@@ -1,0 +1,28 @@
+{#- Mobile (< lg) navigation chrome shared by module layouts. Styles live in main.css. -#}
+
+{% macro section_header(title, theme='app', sections=[], active='') -%}
+<header id="mobile-section-header" class="mobile-section-header" data-theme="{{ theme }}" dir="rtl">
+    <div class="msh-title-row">
+        <span class="msh-title">{{ title }}</span>
+    </div>
+    {% if sections %}
+    <nav class="msh-tabs" aria-label="{{ title }}">
+        {% for key, label, href in sections %}
+        <a href="{{ href }}" class="section-tab{% if key == active %} is-active{% endif %}"{% if key == active %} aria-current="page"{% endif %}>{{ label }}</a>
+        {% endfor %}
+    </nav>
+    {% endif %}
+</header>
+<div class="msh-spacer{% if sections %} has-tabs{% endif %}" aria-hidden="true"></div>
+{%- endmacro %}
+
+{#- chips: list of (label, href, is_active) -#}
+{% macro section_chips(chips) -%}
+{% if chips %}
+<nav class="section-chips" dir="rtl">
+    {% for label, href, is_active in chips %}
+    <a href="{{ href }}" class="section-chip{% if is_active %} is-active{% endif %}"{% if is_active %} aria-current="page"{% endif %}><span>{{ label }}</span></a>
+    {% endfor %}
+</nav>
+{% endif %}
+{%- endmacro %}

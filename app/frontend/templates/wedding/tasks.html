@@ -1,9 +1,8 @@
 {% extends "wedding/base.html" %}
 {% block wedding_title %}משימות{% endblock %}
-{% block wedding_breadcrumb %}משימות{% endblock %}
 
 {% block wedding_header_action %}
-<button onclick="openModal('add-task-modal')"
+<button data-quick-add onclick="openModal('add-task-modal')"
         class="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-3 py-2 rounded-xl text-sm font-medium shadow-sm min-h-[36px]">
     + הוסף משימה
 </button>
@@ -144,7 +143,7 @@
         </aside>
 
         <!-- Main: Task List -->
-        <div class="flex-1 min-w-0">
+        <div class="flex-1 min-w-0 w-full">
             {% if tasks %}
             <div class="space-y-2">
                 {% for task in tasks %}
@@ -238,14 +237,6 @@
         </div>
     </div>
 </div>
-
-<!-- Mobile FAB - positioned above browser bottom bar -->
-<button id="task-fab"
-        onclick="openModal('add-task-modal')"
-        class="md:hidden fixed z-[800] bg-rose-600 text-white w-16 h-16 rounded-full shadow-xl flex items-center justify-center text-3xl font-light active:scale-90 transition-transform"
-        style="bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); right: 1.25rem;">
-    +
-</button>
 
 <!-- Add/Edit Task Modal -->
 <div id="add-task-modal" class="hidden fixed inset-0 z-[500] flex items-start sm:items-center justify-center sm:p-4" dir="rtl">

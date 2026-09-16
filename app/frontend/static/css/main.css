@@ -1408,6 +1408,81 @@ body {
   .full-viewport-safe { min-height: 100dvh; }
 }
 
+/* ===== MOBILE BOTTOM TAB BAR (nav layer, z-index 220) =====
+   Shown < lg — matches the breakpoint the wedding/finances module
+   sidebars already switch on, so nav chrome swaps together. */
+@media (max-width: 1023.98px) {
+  body {
+    padding-bottom: calc(78px + var(--safe-bottom));
+  }
+}
+
+#mobile-tab-bar {
+  background: rgba(255, 255, 255, .96);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid #e5e7eb;
+  padding: 7px 6px calc(15px + var(--safe-bottom));
+}
+
+.tab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 44px;
+  padding: 4px 2px;
+  color: #9ca3af;
+  font-family: var(--font-primary);
+  font-weight: 500;
+  font-size: 10px;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.tab-item .tab-icon {
+  font-size: 18px;
+  line-height: 1;
+  opacity: .45;
+}
+.tab-item.is-active {
+  color: var(--tab-accent, #4f46e5);
+  font-weight: 700;
+}
+.tab-item.is-active .tab-icon {
+  opacity: 1;
+}
+
+.mobile-fab {
+  width: 46px;
+  height: 46px;
+  margin-top: -16px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 26px;
+  font-weight: 300;
+  line-height: 1;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  box-shadow: 0 6px 16px -4px rgba(79, 70, 229, .6);
+}
+.mobile-fab:active {
+  transform: scale(.93);
+}
+.mobile-fab-wedding {
+  background: linear-gradient(135deg, #e11d48, #881337);
+  box-shadow: 0 6px 16px -4px rgba(225, 29, 72, .6);
+}
+.mobile-fab-finances {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 6px 16px -4px rgba(37, 99, 235, .6);
+}
+
 /* ===== MISC ===== */
 .critical { contain: layout style paint; will-change: auto; }
 

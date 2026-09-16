@@ -346,6 +346,11 @@ async def index(request: Request) -> RedirectResponse:
     return RedirectResponse(url=home_path_for(user_obj), status_code=status.HTTP_302_FOUND)
 
 
+@router.get("/more", response_class=HTMLResponse)
+async def more_page(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse("pages/more.html", {"request": request})
+
+
 @router.get("/sw.js")
 async def service_worker() -> FileResponse:
     sw_path = STATIC_DIR / "js" / "sw.js"

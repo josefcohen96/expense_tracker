@@ -1,0 +1,44 @@
+{% extends "layout/base.html" %}
+
+{% block title %}עוד - המנביטים{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto px-4 pt-6 pb-[90px]" dir="rtl">
+    <h1 class="text-xl font-bold text-gray-900 mb-4">עוד</h1>
+    <div class="space-y-2">
+        <a href="/workouts"
+           class="flex items-center gap-3 bg-white rounded-xl px-4 py-3.5 shadow-sm border border-gray-100 min-h-[52px]">
+            <span class="text-xl w-8 text-center flex-shrink-0">🏋️</span>
+            <span class="font-medium text-gray-800 flex-1">אימונים</span>
+            <i class="fas fa-chevron-left text-gray-300 text-xs"></i>
+        </a>
+        {% if show_renovation %}
+        <a href="/renovation"
+           class="flex items-center gap-3 bg-white rounded-xl px-4 py-3.5 shadow-sm border border-gray-100 min-h-[52px]">
+            <span class="text-xl w-8 text-center flex-shrink-0">🏡</span>
+            <span class="font-medium text-gray-800 flex-1">שיפוץ</span>
+            <i class="fas fa-chevron-left text-gray-300 text-xs"></i>
+        </a>
+        {% endif %}
+        <a href="/finances/backup"
+           class="flex items-center gap-3 bg-white rounded-xl px-4 py-3.5 shadow-sm border border-gray-100 min-h-[52px]">
+            <span class="text-xl w-8 text-center flex-shrink-0">💾</span>
+            <span class="font-medium text-gray-800 flex-1">גיבוי</span>
+            <i class="fas fa-chevron-left text-gray-300 text-xs"></i>
+        </a>
+        {% if request.session.get('user') %}
+        <a href="/logout"
+           class="flex items-center gap-3 bg-white rounded-xl px-4 py-3.5 shadow-sm border border-gray-100 min-h-[52px]">
+            <span class="text-xl w-8 text-center flex-shrink-0"><i class="fas fa-sign-out-alt text-gray-500"></i></span>
+            <span class="font-medium text-gray-800 flex-1">יציאה</span>
+        </a>
+        {% else %}
+        <a href="/login"
+           class="flex items-center gap-3 bg-white rounded-xl px-4 py-3.5 shadow-sm border border-gray-100 min-h-[52px]">
+            <span class="text-xl w-8 text-center flex-shrink-0"><i class="fas fa-sign-in-alt text-gray-500"></i></span>
+            <span class="font-medium text-gray-800 flex-1">התחברות</span>
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

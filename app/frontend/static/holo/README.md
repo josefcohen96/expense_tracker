@@ -13,10 +13,32 @@ python3 tools/build_exercises_glb.py --preview poses.png   # + a contact sheet o
 ```
 
 The script needs nothing but the standard library. Poses live in its `SPECS` table as joint
-angles in the sagittal plane (`0deg` = up, `90deg` = forward/+Z), so tuning a pose means
-editing a few numbers and re-running it; the preview PNG shows the start pose (cyan) against
-the turnaround (magenta) for all 60 clips at once. Swapping in a better model by hand is
-fine too — nothing in the app knows how the file was made, it only reads the clip names.
+angles in the sagittal plane (`0deg` = up, `90deg` = forward/+Z); where a rep's depth matters
+they are authored through `arm_to()` / `leg_to()`, which solve the two-segment chain so the
+contact point lands where you asked ("shoulders 23 cm above the hands, elbows towards the
+feet") instead of by guessing angles.
+
+Check the result with the two pictures it can draw:
+
+```bash
+python3 tools/build_exercises_glb.py --preview poses.png              # fast stick sheet, all clips
+python3 tools/build_exercises_glb.py --render look.png --view side \
+        --clips push_ups,dips --frame turn                            # shaded, through the arena's camera
+```
+
+`--render` rasterises the real geometry through the same three presets the arena uses
+(`--view auto` picks the one each clip is authored for) and `--frame turn` shows the bottom of
+the rep, which is where a bad pose shows up. Swapping in a better model by hand is fine too —
+nothing in the app knows how the file was made, it only reads the clip names.
+
+Two things beyond the poses make the difference in the arena:
+
+- **Props.** A pull-up with nothing to hang from just looks like someone standing with bent
+  arms, so each clip carries the rig its grip implies — a bar with uprights, a pair of
+  parallettes, or a pole — taken from the pose's own contact point.
+- **The clip's camera.** The arena opens on the side preset, which is edge-on for a human
+  flag. The model lists the clips that read from the front in its glTF `extras`
+  (`front_view_clips`), and `holo_clips()` passes that to the page.
 
 ## What the file must contain
 

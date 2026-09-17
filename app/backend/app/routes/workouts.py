@@ -313,7 +313,7 @@ def exercise_tempo(english_name: str) -> Optional[List[int]]:
     return list(TEMPO_BY_EXERCISE.get(english_name, TEMPO_DEFAULT))
 
 
-_holo_clip_cache: Dict[str, Any] = {"stamp": None, "clips": frozenset()}
+_holo_clip_cache: Dict[str, Any] = {"stamp": None, "clips": frozenset(), "front": frozenset()}
 
 
 def holo_clips() -> frozenset:
@@ -324,7 +324,7 @@ def holo_clips() -> frozenset:
         return frozenset()
     stamp = (stat.st_mtime_ns, stat.st_size)
     if _holo_clip_cache["stamp"] != stamp:
-        clips = frozenset()
+        clips, front = frozenset(), frozenset()
         try:
             with open(HOLO_MODEL_PATH, "rb") as f:
                 magic, _version, _length = struct.unpack("<4sII", f.read(12))
@@ -332,10 +332,17 @@ def holo_clips() -> frozenset:
                 if magic == b"glTF" and chunk_type == b"JSON":
                     gltf = json.loads(f.read(chunk_length))
                     clips = frozenset(a["name"] for a in gltf.get("animations", []) if a.get("name"))
+                    front = frozenset(gltf.get("extras", {}).get("front_view_clips", ()))
         except (OSError, ValueError, struct.error):
             logger.warning("Unreadable hologram model at %s", HOLO_MODEL_PATH)
-        _holo_clip_cache.update(stamp=stamp, clips=clips)
+        _holo_clip_cache.update(stamp=stamp, clips=clips, front=front)
     return _holo_clip_cache["clips"]
+
+
+def holo_front_clips() -> frozenset:
+    """Clips the model asks to open on the front camera — a flag is edge-on from the side."""
+    holo_clips()
+    return _holo_clip_cache["front"]
 
 
 def exercise_form_data() -> Dict[str, Dict[str, Any]]:
@@ -943,7 +950,8 @@ async def workout_page(
     clips = holo_clips()
     if clips:
         version = _holo_clip_cache["stamp"][0]  # mtime, so a new model busts the cache
-        client_data["holo"] = {"model": f"{HOLO_MODEL_URL}?v={version}", "clips": sorted(clips)}
+        client_data["holo"] = {"model": f"{HOLO_MODEL_URL}?v={version}", "clips": sorted(clips),
+                               "front": sorted(holo_front_clips() & clips)}
 
     return templates.TemplateResponse(
         "pages/workout.html",

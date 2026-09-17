@@ -861,9 +861,15 @@ function readAngles() {
     try { return JSON.parse(localStorage.getItem(HOLO_ANGLE_KEY)) || {}; } catch (e) { return {}; }
 }
 
+// The model names the clips that read from the front (the flags); everything else starts side-on.
+function defaultAngle(key) {
+    const holo = data().holo;
+    return holo && (holo.front || []).includes(key) ? 'front' : HOLO_ANGLE_ORDER[0];
+}
+
 function angleFor(key) {
     const angle = readAngles()[key];
-    return HOLO_ANGLES[angle] ? angle : HOLO_ANGLE_ORDER[0];
+    return HOLO_ANGLES[angle] ? angle : defaultAngle(key);
 }
 
 function rememberAngle(key, angle) {

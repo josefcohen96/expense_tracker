@@ -1,8 +1,22 @@
 # Exercise hologram model
 
 The workout arena shows a looping hologram of the exercise pose (design turns `3a`/`3b`).
-It is driven by **one file**: `exercises.glb` in this folder. Until that file exists,
-the arena shows its plain set screen, and nothing else changes.
+It is driven by **one file**: `exercises.glb` in this folder. Without that file the arena
+shows its plain set screen, and nothing else changes.
+
+The file that ships is generated — a stylised rig (segments between joints, a ball on every
+joint) with one clip per exercise, built by `tools/build_exercises_glb.py`:
+
+```bash
+python3 tools/build_exercises_glb.py                      # writes exercises.glb
+python3 tools/build_exercises_glb.py --preview poses.png   # + a contact sheet of every pose
+```
+
+The script needs nothing but the standard library. Poses live in its `SPECS` table as joint
+angles in the sagittal plane (`0deg` = up, `90deg` = forward/+Z), so tuning a pose means
+editing a few numbers and re-running it; the preview PNG shows the start pose (cyan) against
+the turnaround (magenta) for all 60 clips at once. Swapping in a better model by hand is
+fine too — nothing in the app knows how the file was made, it only reads the clip names.
 
 ## What the file must contain
 
@@ -86,4 +100,5 @@ Clip keys come from `holo_key()` in `app/backend/app/routes/workouts.py`
 | `wall_walks_holds` | Wall Walks (Holds) | hold |
 
 Replacing the file is enough — the page picks up the new clip list and cache-busts the model
-by its modification time.
+by its modification time. `test_shipped_model_covers_every_exercise` in
+`tests/test_workouts_e2e.py` fails if an exercise ends up without a clip.

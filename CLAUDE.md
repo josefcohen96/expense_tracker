@@ -123,8 +123,10 @@ Calisthenics tracker built as a game ("הזירה"): `pages/workout.html` + `sta
 - XP, levels, ranks, streaks and achievements are derived from history in `routes/workouts.py` — never stored.
 - Quest paths = `SKILL_PROGRESSIONS`; a station is conquered by 5 workouts in its rep range (counted, no button).
   `POST /workouts/legacy-progress` imports the old browser-only "כבשתי!" flags once (kept in `system_settings`).
-- Optional exercise hologram: `static/holo/exercises.glb`, one animation clip per exercise (`holo_key()`),
-  shown with `<model-viewer>` from jsDelivr. No file → the plain arena. See `static/holo/README.md`.
+- Exercise hologram: `static/holo/exercises.glb`, one animation clip per exercise (`holo_key()`),
+  shown with `<model-viewer>` from jsDelivr. No file → the plain arena. The shipped model is a
+  generated stick rig — `python3 tools/build_exercises_glb.py` (stdlib only, `--preview` renders a
+  pose contact sheet). See `static/holo/README.md`.
 
 ---
 

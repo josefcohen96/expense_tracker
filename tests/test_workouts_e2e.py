@@ -63,7 +63,8 @@ def test_first_run_page(app_client, clean_workouts):
     assert "victory-modal" not in html and "rest-timer-banner" not in html
     data = json.loads(html.split('id="workout-data">')[1].split("</script>")[0])
     assert data["first_workout"] is True
-    assert "holo" not in data  # no model shipped → plain arena
+    assert "push_ups" in data["holo"]["clips"]  # the shipped model drives the hologram
+    assert "full_human_flag_hold" in data["holo"]["front"]
     assert data["form"]["Push-ups"]["holo_key"] == "push_ups"
 
 
@@ -255,6 +256,23 @@ def test_exercise_form_data():
     assert [c["text"] for c in station["cues"]] == skill_cues
     assert form["פלאנץ' מלא (Full Planche Hold)"]["tempo"] is None  # static hold
     assert workouts.holo_key("Australian Pull-ups / Rows") == "australian_pull_ups_rows"
+
+
+def test_shipped_model_asks_for_the_front_camera_on_flags():
+    """A human flag is edge-on from the side, so the model names the clips that read from the front."""
+    front = workouts.holo_front_clips()
+    assert "full_human_flag_hold" in front
+    assert "push_ups" not in front
+    assert front <= workouts.holo_clips()
+
+
+def test_shipped_model_covers_every_exercise():
+    """The model in static/holo has one clip per exercise the arena can show."""
+    clips = workouts.holo_clips()
+    assert clips, f"missing hologram model at {workouts.HOLO_MODEL_PATH}"
+    wanted = {form["holo_key"] for form in workouts.exercise_form_data().values()}
+    missing = sorted(wanted - clips)
+    assert not missing, f"re-run tools/build_exercises_glb.py — no clip for: {missing}"
 
 
 def _write_glb(path, clip_names):

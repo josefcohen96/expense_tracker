@@ -1,8 +1,44 @@
 # Exercise hologram model
 
 The workout arena shows a looping hologram of the exercise pose (design turns `3a`/`3b`).
-It is driven by **one file**: `exercises.glb` in this folder. Until that file exists,
-the arena shows its plain set screen, and nothing else changes.
+It is driven by **one file**: `exercises.glb` in this folder. Without that file the arena
+shows its plain set screen, and nothing else changes.
+
+The file that ships is generated — a stylised rig (segments between joints, a ball on every
+joint) with one clip per exercise, built by `tools/build_exercises_glb.py`:
+
+```bash
+python3 tools/build_exercises_glb.py                      # writes exercises.glb
+python3 tools/build_exercises_glb.py --preview poses.png   # + a contact sheet of every pose
+```
+
+The script needs nothing but the standard library. Poses live in its `SPECS` table as joint
+angles in the sagittal plane (`0deg` = up, `90deg` = forward/+Z); where a rep's depth matters
+they are authored through `arm_to()` / `leg_to()`, which solve the two-segment chain so the
+contact point lands where you asked ("shoulders 23 cm above the hands, elbows towards the
+feet") instead of by guessing angles.
+
+Check the result with the two pictures it can draw:
+
+```bash
+python3 tools/build_exercises_glb.py --preview poses.png              # fast stick sheet, all clips
+python3 tools/build_exercises_glb.py --render look.png --view side \
+        --clips push_ups,dips --frame turn                            # shaded, through the arena's camera
+```
+
+`--render` rasterises the real geometry through the same three presets the arena uses
+(`--view auto` picks the one each clip is authored for) and `--frame turn` shows the bottom of
+the rep, which is where a bad pose shows up. Swapping in a better model by hand is fine too —
+nothing in the app knows how the file was made, it only reads the clip names.
+
+Two things beyond the poses make the difference in the arena:
+
+- **Props.** A pull-up with nothing to hang from just looks like someone standing with bent
+  arms, so each clip carries the rig its grip implies — a bar with uprights, a pair of
+  parallettes, or a pole — taken from the pose's own contact point.
+- **The clip's camera.** The arena opens on the side preset, which is edge-on for a human
+  flag. The model lists the clips that read from the front in its glTF `extras`
+  (`front_view_clips`), and `holo_clips()` passes that to the page.
 
 ## What the file must contain
 
@@ -86,4 +122,5 @@ Clip keys come from `holo_key()` in `app/backend/app/routes/workouts.py`
 | `wall_walks_holds` | Wall Walks (Holds) | hold |
 
 Replacing the file is enough — the page picks up the new clip list and cache-busts the model
-by its modification time.
+by its modification time. `test_shipped_model_covers_every_exercise` in
+`tests/test_workouts_e2e.py` fails if an exercise ends up without a clip.

@@ -46,11 +46,12 @@ expense_tracker/
 │   │   │   │   ├── statistics.py    # Aggregated stats
 │   │   │   │   ├── backup.py        # ZIP + Excel backup
 │   │   │   │   ├── wedding.py       # Full wedding module API (incl. milestones)
+│   │   │   │   ├── workouts.py      # Workouts admin CRUD (sessions + imported stations)
 │   │   │   │   └── today.py         # /api/today aggregate + /api/quick-add/options
 │   │   │   ├── routes/              # HTML page routes (Jinja2 rendering)
 │   │   │   │   ├── pages.py         # All page views, login/logout, dashboard
 │   │   │   │   ├── partials.py      # HTMX-style partial HTML fragments
-│   │   │   │   ├── workouts.py      # Workouts page
+│   │   │   │   ├── workouts.py      # Workouts page + admin page
 │   │   │   │   └── debug_logs.py    # Debug log viewer
 │   │   │   ├── schemas/             # Pydantic models
 │   │   │   │   ├── transactions.py
@@ -129,6 +130,13 @@ Calisthenics tracker built as a game ("הזירה"): `pages/workout.html` + `sta
   `--render` for a shaded look through the arena's own cameras). Each clip carries the prop its
   grip implies (bar / parallettes / pole), and the model's glTF `extras.front_view_clips` names
   the clips the arena should open on the front camera. See `static/holo/README.md`.
+- Admin screen: `/workouts/admin` (`pages/workout_admin.html`) — the back office for the saved rows.
+  Lists every session of the selected household member, and adds / edits / deletes them through
+  `api/workouts.py`. A **session** is the group of rows sharing
+  `(user_id, date, workout_type, total_duration)` — the same grouping the history uses — so any of
+  its row ids addresses it. It also clears the stations imported from the old browser-only flags.
+  Everything derived (XP, levels, streaks, conquered stations) follows from these rows, so an edit
+  here moves the game state with it. Reachable from the history view and from `/more`.
 
 ---
 
@@ -217,7 +225,8 @@ Lives in `recurrence.py`. Uses a **catch-up / materialization** model — not re
 | `statistics_api` | `/api/statistics` | Aggregated stats + cache clear |
 | `backup_api` | `/api/backup` | ZIP + Excel backups |
 | `wedding_api` | `/api/wedding` | Full wedding module CRUD |
-| `workouts_router` | (no prefix) | Workouts page + data |
+| `workouts_router` | (no prefix) | Workouts page, admin page + data |
+| `workouts_api` | `/api/workouts` | Admin CRUD: sessions + imported stations |
 | `debug_logs_router` | (no prefix) | Debug log viewer |
 | `today_api` | `/api` | `GET /today` (היום aggregate), `GET /quick-add/options` |
 

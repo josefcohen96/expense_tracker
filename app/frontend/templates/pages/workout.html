@@ -23,7 +23,7 @@
 </a>
 {%- endmacro %}
 
-{% set type_labels = {'Calisthenics': 'קליסטניקס', 'Push': 'דחיפה', 'Pull': 'משיכה', 'Core': 'ליבה', 'Legs': 'רגליים', 'Full Body': 'גוף מלא'} %}
+{#- type_labels comes from routes/workouts.py (WORKOUT_TYPE_LABELS) -#}
 {% set view_tabs = [] if first_workout else [('home', 'אימון', '#home'), ('map', 'מסלול', '#map'), ('profile', 'פרופיל', '#profile'), ('history', 'היסטוריה', '#history')] %}
 
 {% block content %}
@@ -316,8 +316,8 @@
         <!-- ===== HISTORY ===== -->
         <section class="wk-view" data-view="history" hidden>
             <div class="wk-view-head">
-                <h2>היסטוריה</h2>
-                <span class="wk-block-count" dir="ltr">{{ history|length }}</span>
+                <h2>היסטוריה <span class="wk-block-count" dir="ltr">{{ history|length }}</span></h2>
+                <a href="/workouts/admin" class="wk-link">ניהול אימונים ←</a>
             </div>
             <div class="wk-history">
                 {% for session in history %}

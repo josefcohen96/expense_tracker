@@ -1,0 +1,467 @@
+{% extends "layout/base.html" %}
+
+{% block title %}ניהול אימונים - המנביטים{% endblock %}
+
+{% block body_class %}has-section-header{% endblock %}
+
+{% macro num(value) -%}<span dir="ltr">{{ value }}</span>{%- endmacro %}
+
+{% block content %}
+{% from "layout/_mobile_nav.html" import section_header %}
+{{ section_header('ניהול אימונים', 'arena', back='/workouts') }}
+
+<div class="max-w-3xl mx-auto px-4 pt-3 pb-10 lg:pt-8" dir="rtl">
+
+    <!-- Desktop heading -->
+    <div class="hidden lg:flex items-end justify-between mb-5">
+        <div>
+            <h1 class="text-xl font-bold text-gray-900">ניהול אימונים</h1>
+            <p class="text-sm text-gray-500 mt-1">כל אימון שנשמר — לתיקון, הוספה או מחיקה. הניקוד, השלבים והתחנות נגזרים מהשורות האלה.</p>
+        </div>
+        <a href="/workouts" class="text-sm font-medium text-indigo-600 hover:text-indigo-800">חזרה לזירה ←</a>
+    </div>
+
+    <!-- Who we are managing -->
+    {% if people|length > 1 %}
+    <div class="flex gap-2 mb-4">
+        {% for person in people %}
+        <a href="/workouts/admin?user={{ person.id }}"
+           class="flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-colors
+                  {% if person.id == selected_id %}border-indigo-300 bg-indigo-50 text-indigo-800{% else %}border-gray-200 bg-white text-gray-600 hover:bg-gray-50{% endif %}"
+           {% if person.id == selected_id %}aria-current="page"{% endif %}>
+            <span class="w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center"
+                  style="background: {{ person.color }}" aria-hidden="true">{{ person.initial }}</span>
+            {{ person.display }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- What the history adds up to -->
+    <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5">
+        {% for label, value in [
+            ('אימונים', game.total_workouts), ('סטים', game.total_sets), ('חזרות', game.total_reps),
+            ('דקות', game.total_minutes), ('XP', game.total_xp), ('שלב', game.level)
+        ] %}
+        <div class="bg-white rounded-xl border border-gray-200 p-2.5 text-center">
+            <div class="text-[11px] text-gray-500">{{ label }}</div>
+            <div class="text-base font-bold text-gray-900" dir="ltr">{{ "{:,}".format(value) }}</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Search + add -->
+    <div class="flex gap-2 mb-4">
+        <div class="relative flex-1">
+            <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 text-xs" aria-hidden="true"></i>
+            <input id="admin-search" type="search" placeholder="חיפוש לפי תאריך, סוג או תרגיל…"
+                   class="w-full pr-9 pl-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                   aria-label="חיפוש אימון">
+        </div>
+        <button type="button" data-quick-add="+ אימון" onclick="openSessionEditor()"
+                class="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm whitespace-nowrap">
+            + אימון
+        </button>
+    </div>
+
+    <!-- Sessions -->
+    <div id="admin-sessions" class="space-y-3">
+        {% for session in sessions %}
+        <article class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4" data-session
+                 data-search="{{ (session.date ~ ' ' ~ session.type_label ~ ' ' ~ session.workout_type ~ ' ' ~ (session.exercises | map(attribute='title') | join(' '))) | lower }}">
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="px-2 py-0.5 text-[11px] font-bold bg-indigo-100 text-indigo-800 rounded">{{ session.type_label }}</span>
+                        <span class="text-sm font-bold text-gray-800" dir="ltr">{{ session.date }}</span>
+                        <span class="text-xs text-gray-400">{{ session.ago }}</span>
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1.5">
+                        {{ num(session.total_duration) }} דק׳ ·
+                        {{ num(session.sets) }} סטים ·
+                        {{ num(session.reps) }} חזרות ·
+                        <span class="font-semibold text-indigo-600" dir="ltr">+{{ session.xp }} XP</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1 flex-shrink-0">
+                    <button type="button" onclick="openSessionEditor({{ session.id }})"
+                            class="px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+                            aria-label="עריכת האימון מ-{{ session.date }}">
+                        <i class="fas fa-pen ml-1 text-[10px]" aria-hidden="true"></i>עריכה
+                    </button>
+                    <button type="button" onclick="deleteSession({{ session.id }}, '{{ session.date }}')"
+                            class="p-2 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                            aria-label="מחיקת האימון מ-{{ session.date }}">
+                        <i class="fas fa-trash text-xs" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </div>
+
+            <ul class="mt-3 pt-3 border-t border-gray-100 divide-y divide-gray-50">
+                {% for ex in session.exercises %}
+                <li class="flex items-center justify-between gap-3 py-1.5 text-sm">
+                    <span class="min-w-0 truncate">
+                        <span class="text-gray-800">{{ ex.title }}</span>
+                        {% if ex.path %}<span class="text-[11px] text-purple-600 mr-1">· {{ ex.path }}</span>{% endif %}
+                    </span>
+                    <span class="text-xs text-gray-500 flex-shrink-0" dir="ltr">
+                        {{ ex.total_sets }} × {{ ex.total_reps }}{% if ex.max_reps %} · PR {{ ex.max_reps }}{% endif %}
+                    </span>
+                </li>
+                {% endfor %}
+            </ul>
+        </article>
+        {% else %}
+        <div class="bg-white rounded-2xl border border-dashed border-gray-200 py-14 text-center">
+            <div class="text-4xl mb-3" aria-hidden="true">🗂️</div>
+            <h3 class="font-bold text-gray-700">אין אימונים שמורים{% if selected_person %} ל{{ selected_person.display }}{% endif %}</h3>
+            <p class="text-sm text-gray-500 mt-1 mb-5">אפשר להוסיף אימון ידנית, או להתאמן בזירה.</p>
+            <button type="button" onclick="openSessionEditor()"
+                    class="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors">
+                הוספת אימון
+            </button>
+        </div>
+        {% endfor %}
+        <p id="admin-no-results" class="hidden text-center text-sm text-gray-500 py-8">אין אימון שמתאים לחיפוש.</p>
+    </div>
+
+    <!-- Stations that were imported from the old browser flags, not counted from history -->
+    {% if legacy_stations %}
+    <section class="mt-8">
+        <div class="flex items-center justify-between mb-2">
+            <h2 class="text-sm font-bold text-gray-700">תחנות שיובאו ידנית</h2>
+            <button type="button" onclick="clearLegacyStations()"
+                    class="text-xs font-medium text-red-500 hover:text-red-700">נקה הכל</button>
+        </div>
+        <p class="text-xs text-gray-500 mb-3">
+            תחנות שסומנו "כבשתי!" בדפדפן הישן. הן נחשבות ככבושות בלי אימונים בהיסטוריה — ניקוי מחזיר את המסלול לספירה מהאימונים בלבד.
+        </p>
+        <div id="legacy-stations" class="flex flex-wrap gap-2">
+            {% for station in legacy_stations %}
+            <span class="inline-flex items-center gap-2 pr-3 pl-2 py-1.5 rounded-full border border-purple-200 bg-purple-50 text-xs text-purple-900"
+                  data-legacy data-skill="{{ station.skill_key }}" data-stage="{{ station.stage_index }}">
+                <span aria-hidden="true">{{ station.icon }}</span>
+                <span>{{ station.path }} · {{ station.station }}</span>
+                <button type="button" onclick="dropLegacyStation(this)"
+                        class="w-5 h-5 rounded-full hover:bg-purple-200 transition-colors"
+                        aria-label="הסרת {{ station.station }}">✕</button>
+            </span>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+
+<!-- ================= SESSION EDITOR ================= -->
+<div id="session-modal" class="fixed inset-0 z-[500] hidden items-center justify-center p-0 sm:p-4" dir="rtl">
+    <div class="absolute inset-0 bg-slate-900/30 backdrop-blur-sm" onclick="closeSessionEditor()"></div>
+    <div class="relative w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col mt-auto sm:mt-0"
+         role="dialog" aria-modal="true" aria-labelledby="session-modal-title">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <h2 id="session-modal-title" class="text-lg font-bold text-gray-800">אימון חדש</h2>
+            <button type="button" onclick="closeSessionEditor()" class="p-1.5 text-gray-400 hover:text-gray-700" aria-label="סגירה">✕</button>
+        </div>
+
+        <div class="px-5 py-4 overflow-y-auto space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+                <label class="block">
+                    <span class="block text-xs font-medium text-gray-500 mb-1">תאריך</span>
+                    <input id="session-date" type="date"
+                           class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                </label>
+                <label class="block">
+                    <span class="block text-xs font-medium text-gray-500 mb-1">משך (דקות)</span>
+                    <input id="session-duration" type="number" min="0" max="1440" inputmode="numeric" dir="ltr"
+                           class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                </label>
+                <label class="block">
+                    <span class="block text-xs font-medium text-gray-500 mb-1">סוג אימון</span>
+                    <select id="session-type"
+                            class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                        {% for value, label in type_labels.items() %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="block">
+                    <span class="block text-xs font-medium text-gray-500 mb-1">מתאמן</span>
+                    <select id="session-user"
+                            class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                        {% for person in people %}
+                        <option value="{{ person.id }}">{{ person.display }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </div>
+
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-medium text-gray-500">תרגילים</span>
+                    <button type="button" onclick="addExerciseRow()"
+                            class="text-xs font-semibold text-indigo-600 hover:text-indigo-800">+ תרגיל</button>
+                </div>
+                <div id="session-exercises" class="space-y-2"></div>
+            </div>
+
+            <p id="session-error" class="hidden text-sm text-red-600" role="alert"></p>
+        </div>
+
+        <div class="flex gap-3 justify-end px-5 py-4 border-t border-gray-100">
+            <button type="button" onclick="closeSessionEditor()"
+                    class="px-4 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors">ביטול</button>
+            <button type="button" id="session-save" onclick="saveSession()"
+                    class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm">שמור</button>
+        </div>
+    </div>
+</div>
+
+<script type="application/json" id="workout-admin-data">{{ client_data|tojson }}</script>
+<script>
+(function () {
+    const DATA = JSON.parse(document.getElementById('workout-admin-data').textContent);
+    const SESSIONS = {};
+    DATA.sessions.forEach(s => { SESSIONS[s.id] = s; });
+    // Every picker value the editor knows, so a saved name that isn't one falls back to "other"
+    const KNOWN = new Set();
+    DATA.exercise_options.forEach(g => g.options.forEach(o => KNOWN.add(o.value)));
+
+    let editingId = null;
+
+    // ---- search ----
+    const search = document.getElementById('admin-search');
+    const noResults = document.getElementById('admin-no-results');
+    search.addEventListener('input', function () {
+        const q = search.value.trim().toLowerCase();
+        let shown = 0;
+        document.querySelectorAll('[data-session]').forEach(card => {
+            const hit = !q || card.dataset.search.indexOf(q) !== -1;
+            card.classList.toggle('hidden', !hit);
+            if (hit) shown++;
+        });
+        noResults.classList.toggle('hidden', shown > 0 || !q);
+    });
+
+    // ---- editor ----
+    function exerciseSelect(selected) {
+        const select = document.createElement('select');
+        select.dataset.exSelect = '';
+        select.className = 'flex-1 min-w-0 px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300';
+        DATA.exercise_options.forEach(group => {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = group.group;
+            group.options.forEach(option => {
+                const el = document.createElement('option');
+                el.value = option.value;
+                el.textContent = option.label;
+                if (option.skill_key) {
+                    el.dataset.skillKey = option.skill_key;
+                    el.dataset.stageIndex = option.stage_index;
+                }
+                optgroup.appendChild(el);
+            });
+            select.appendChild(optgroup);
+        });
+        const other = document.createElement('option');
+        other.value = '__other__';
+        other.textContent = 'אחר (שם חופשי)';
+        select.appendChild(other);
+        select.value = selected && KNOWN.has(selected) ? selected : '__other__';
+        return select;
+    }
+
+    function numberField(label, key, value, max) {
+        const wrap = document.createElement('label');
+        wrap.className = 'block';
+        const caption = document.createElement('span');
+        caption.className = 'block text-[11px] text-gray-500 mb-1';
+        caption.textContent = label;
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = '0';
+        input.max = String(max);
+        input.inputMode = 'numeric';
+        input.dir = 'ltr';
+        input.dataset[key] = '';
+        input.value = value === null || value === undefined ? '' : value;
+        input.className = 'w-full px-2.5 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300';
+        wrap.appendChild(caption);
+        wrap.appendChild(input);
+        return wrap;
+    }
+
+    window.addExerciseRow = function (exercise) {
+        const ex = exercise || {};
+        const row = document.createElement('div');
+        row.className = 'rounded-xl border border-gray-200 p-3 space-y-2';
+        row.dataset.row = '';
+        if (ex.id) row.dataset.id = ex.id;
+
+        const top = document.createElement('div');
+        top.className = 'flex gap-2';
+        const select = exerciseSelect(ex.exercise_name);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'px-2.5 rounded-xl text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors';
+        remove.setAttribute('aria-label', 'הסרת התרגיל');
+        remove.textContent = '✕';
+        remove.addEventListener('click', () => row.remove());
+        top.appendChild(select);
+        top.appendChild(remove);
+
+        const custom = document.createElement('input');
+        custom.type = 'text';
+        custom.dataset.exCustom = '';
+        custom.placeholder = 'שם התרגיל';
+        custom.className = 'w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300';
+        if (select.value === '__other__') {
+            custom.value = ex.exercise_name || '';
+        } else {
+            custom.classList.add('hidden');
+        }
+        select.addEventListener('change', function () {
+            custom.classList.toggle('hidden', select.value !== '__other__');
+            if (select.value === '__other__') custom.focus();
+        });
+
+        const numbers = document.createElement('div');
+        numbers.className = 'grid grid-cols-3 gap-2';
+        numbers.appendChild(numberField('סטים', 'exSets', ex.total_sets, 100));
+        numbers.appendChild(numberField('חזרות (סה״כ)', 'exReps', ex.total_reps, 5000));
+        numbers.appendChild(numberField('שיא בסט', 'exMax', ex.max_reps, 5000));
+
+        row.appendChild(top);
+        row.appendChild(custom);
+        row.appendChild(numbers);
+        document.getElementById('session-exercises').appendChild(row);
+        return row;
+    };
+
+    window.openSessionEditor = function (sessionId) {
+        const session = sessionId ? SESSIONS[sessionId] : null;
+        editingId = session ? session.id : null;
+        document.getElementById('session-modal-title').textContent = session ? 'עריכת אימון' : 'אימון חדש';
+        document.getElementById('session-date').value = session ? session.date : new Date().toISOString().slice(0, 10);
+        document.getElementById('session-duration').value = session ? session.total_duration : 30;
+        document.getElementById('session-user').value = String(session ? session.user_id : DATA.user_id);
+
+        const type = document.getElementById('session-type');
+        type.value = session ? session.workout_type : 'Calisthenics';
+        if (!type.value) type.selectedIndex = 0;
+
+        const list = document.getElementById('session-exercises');
+        list.innerHTML = '';
+        if (session) {
+            session.exercises.forEach(ex => addExerciseRow(ex));
+        } else {
+            addExerciseRow();
+        }
+        showError('');
+        const modal = document.getElementById('session-modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    };
+
+    window.closeSessionEditor = function () {
+        const modal = document.getElementById('session-modal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    };
+
+    function showError(message) {
+        const box = document.getElementById('session-error');
+        box.textContent = message;
+        box.classList.toggle('hidden', !message);
+    }
+
+    function readRows() {
+        const rows = [];
+        document.querySelectorAll('#session-exercises [data-row]').forEach(row => {
+            const select = row.querySelector('[data-ex-select]');
+            const option = select.options[select.selectedIndex];
+            const custom = row.querySelector('[data-ex-custom]').value.trim();
+            const name = select.value === '__other__' ? custom : select.value;
+            if (!name) return;
+            const max = row.querySelector('[data-ex-max]').value;
+            rows.push({
+                id: row.dataset.id ? Number(row.dataset.id) : null,
+                exercise_name: name,
+                total_sets: Number(row.querySelector('[data-ex-sets]').value || 0),
+                total_reps: Number(row.querySelector('[data-ex-reps]').value || 0),
+                max_reps: max === '' ? null : Number(max),
+                skill_key: option && option.dataset.skillKey ? option.dataset.skillKey : null,
+                stage_index: option && option.dataset.skillKey ? Number(option.dataset.stageIndex) : null,
+            });
+        });
+        return rows;
+    }
+
+    window.saveSession = function () {
+        const date = document.getElementById('session-date').value;
+        if (!date) { showError('צריך לבחור תאריך.'); return; }
+        const exercises = readRows();
+        if (!exercises.length) { showError('צריך לפחות תרגיל אחד עם שם.'); return; }
+
+        const body = {
+            user_id: Number(document.getElementById('session-user').value),
+            date: date,
+            workout_type: document.getElementById('session-type').value,
+            total_duration: Number(document.getElementById('session-duration').value || 0),
+            exercises: exercises,
+        };
+        const button = document.getElementById('session-save');
+        button.disabled = true;
+        fetch(editingId ? `/api/workouts/sessions/${editingId}` : '/api/workouts/sessions', {
+            method: editingId ? 'PUT' : 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        }).then(res => {
+            if (!res.ok) return res.json().then(e => {
+                // FastAPI sends a string for our own errors and a list for schema validation
+                throw new Error(typeof e.detail === 'string' ? e.detail : 'נתונים לא תקינים');
+            });
+            location.href = `/workouts/admin?user=${body.user_id}`;
+        }).catch(err => {
+            button.disabled = false;
+            showError('השמירה נכשלה: ' + err.message);
+        });
+    };
+
+    window.deleteSession = function (sessionId, dateLabel) {
+        if (!confirm(`למחוק את האימון מ-${dateLabel}? כל התרגילים שנשמרו בו יימחקו.`)) return;
+        fetch(`/api/workouts/sessions/${sessionId}`, { method: 'DELETE', credentials: 'same-origin' })
+            .then(res => { if (!res.ok) throw new Error(res.status); location.reload(); })
+            .catch(() => alert('המחיקה נכשלה.'));
+    };
+
+    // ---- imported "conquered by hand" stations ----
+    function saveLegacy(chips) {
+        const progress = {};
+        chips.forEach(chip => {
+            const key = chip.dataset.skill;
+            (progress[key] = progress[key] || []).push(Number(chip.dataset.stage));
+        });
+        return fetch('/api/workouts/legacy-progress', {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: DATA.user_id, progress: progress }),
+        }).then(res => {
+            if (!res.ok) throw new Error(res.status);
+            location.reload();
+        }).catch(() => alert('העדכון נכשל.'));
+    }
+
+    window.dropLegacyStation = function (button) {
+        const chip = button.closest('[data-legacy]');
+        const rest = Array.from(document.querySelectorAll('[data-legacy]')).filter(c => c !== chip);
+        saveLegacy(rest);
+    };
+
+    window.clearLegacyStations = function () {
+        if (!confirm('לנקות את כל התחנות שיובאו ידנית?')) return;
+        saveLegacy([]);
+    };
+})();
+</script>
+{% endblock %}

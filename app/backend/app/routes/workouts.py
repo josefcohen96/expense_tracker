@@ -15,6 +15,7 @@ from pathlib import Path as FSPath
 
 from ..db import get_db_conn
 from ..schemas.workouts import WorkoutCreateSchema, WorkoutLegacyProgressSchema
+from ..services.people import household
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +197,16 @@ PATHS = {
     "front_lever": {"name": "סמיכה קדמית", "icon": "🦅", "tint": "rgba(13,148,136,.32)", "unlock_level": 1, "workout_type": "Pull"},
     "human_flag": {"name": "דגל אנושי", "icon": "🚩", "tint": "rgba(2,132,199,.32)", "unlock_level": 5, "workout_type": "Core"},
     "planche": {"name": "פלאנץ'", "icon": "✈️", "tint": "rgba(217,119,6,.32)", "unlock_level": 10, "workout_type": "Push"},
+}
+
+# Hebrew label per stored workouts.workout_type value
+WORKOUT_TYPE_LABELS = {
+    "Calisthenics": "קליסטניקס",
+    "Push": "דחיפה",
+    "Pull": "משיכה",
+    "Core": "ליבה",
+    "Legs": "רגליים",
+    "Full Body": "גוף מלא",
 }
 
 
@@ -958,6 +969,7 @@ async def workout_page(
         {
             "request": request,
             "default_exercises": DEFAULT_EXERCISES,
+            "type_labels": WORKOUT_TYPE_LABELS,
             "history": history,
             "skills_guide": SKILL_PROGRESSIONS,
             "paths": paths,
@@ -1087,6 +1099,179 @@ async def save_workout(
     except Exception as e:
         logger.exception("Failed to save workout session")
         return JSONResponse({"status": "error", "message": f"Database error: {str(e)}"}, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ====================== ADMIN (back office) ======================
+# /workouts/admin edits the rows everything else is derived from. A session is the
+# group of rows sharing (user_id, date, workout_type, total_duration) — the same
+# grouping _fetch_history uses — so any row id identifies the session it belongs to.
+# The JSON writes behind the screen live in api/workouts.py.
+
+ADMIN_ROW_COLUMNS = (
+    "id, user_id, date, workout_type, total_duration, exercise_name, "
+    "total_sets, total_reps, skill_key, stage_index, max_reps"
+)
+
+
+def _session_key(row: sqlite3.Row) -> Tuple[Any, ...]:
+    return (row["user_id"], row["date"], row["workout_type"], row["total_duration"])
+
+
+def _admin_exercise(row: sqlite3.Row) -> Dict[str, Any]:
+    station = _station_for(row["skill_key"], row["stage_index"], row["exercise_name"])
+    return {
+        "id": row["id"],
+        "exercise_name": row["exercise_name"],
+        "title": _exercise_title(row["exercise_name"], station),
+        "total_sets": row["total_sets"],
+        "total_reps": row["total_reps"],
+        "max_reps": row["max_reps"],
+        "skill_key": station[0] if station else None,
+        "stage_index": station[1] if station else None,
+        "path": PATHS[station[0]]["name"] if station else None,
+    }
+
+
+def _group_admin_rows(rows: Iterable[sqlite3.Row]) -> List[Dict[str, Any]]:
+    """Exercise rows → sessions, in the order the rows arrive."""
+    sessions: Dict[Tuple[Any, ...], Dict[str, Any]] = {}
+    for row in rows:
+        session = sessions.setdefault(_session_key(row), {
+            "id": row["id"],  # any row of the group addresses the session
+            "user_id": row["user_id"],
+            "date": row["date"],
+            "workout_type": row["workout_type"],
+            "type_label": WORKOUT_TYPE_LABELS.get(row["workout_type"], row["workout_type"]),
+            "total_duration": row["total_duration"],
+            "exercises": [],
+        })
+        session["exercises"].append(_admin_exercise(row))
+    for session in sessions.values():
+        # Rows arrive newest first so sessions are; inside one, keep the order they were saved in
+        session["exercises"].sort(key=lambda ex: ex["id"])
+        session["id"] = session["exercises"][0]["id"]
+        session["sets"] = sum(ex["total_sets"] for ex in session["exercises"])
+        session["reps"] = sum(ex["total_reps"] for ex in session["exercises"])
+        session["xp"] = _session_xp(session["sets"], session["reps"], session["total_duration"])
+    return list(sessions.values())
+
+
+def admin_sessions(db_conn: sqlite3.Connection, user_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Saved sessions, newest first, in the shape the admin screen lists and edits."""
+    where, params = "", []
+    if user_id is not None:
+        where, params = "WHERE user_id = ?", [user_id]
+    rows = db_conn.execute(
+        f"SELECT {ADMIN_ROW_COLUMNS} FROM workouts {where} ORDER BY date DESC, id DESC", params
+    ).fetchall()
+    return _group_admin_rows(rows)
+
+
+def admin_session_rows(db_conn: sqlite3.Connection, row_id: int) -> List[sqlite3.Row]:
+    """Every row of the session a row id belongs to; empty when that row is gone."""
+    row = db_conn.execute(
+        f"SELECT {ADMIN_ROW_COLUMNS} FROM workouts WHERE id = ?", (row_id,)
+    ).fetchone()
+    if not row:
+        return []
+    return db_conn.execute(
+        f"SELECT {ADMIN_ROW_COLUMNS} FROM workouts "
+        "WHERE user_id = ? AND date = ? AND workout_type = ? AND total_duration = ? ORDER BY id",
+        _session_key(row),
+    ).fetchall()
+
+
+def admin_session(db_conn: sqlite3.Connection, row_id: int) -> Optional[Dict[str, Any]]:
+    """One session by any of its row ids, or None when it no longer exists."""
+    rows = admin_session_rows(db_conn, row_id)
+    return _group_admin_rows(rows)[0] if rows else None
+
+
+def admin_exercise_options() -> List[Dict[str, Any]]:
+    """Picker groups for the editor: every quest station first, then the free-workout catalog."""
+    groups: List[Dict[str, Any]] = []
+    for skill_key, skill in SKILL_PROGRESSIONS.items():
+        groups.append({
+            "group": f"{PATHS[skill_key]['icon']} {skill['title']}",
+            "options": [
+                {
+                    "value": station_exercise_name(step),
+                    "label": f"{idx + 1}. {step['hebrew']}",
+                    "skill_key": skill_key,
+                    "stage_index": idx,
+                }
+                for idx, step in enumerate(skill["progressions"])
+            ],
+        })
+    for category, exercises in DEFAULT_EXERCISES.items():
+        groups.append({
+            "group": category,
+            "options": [
+                {"value": ex["name"], "label": ex["hebrew"], "skill_key": None, "stage_index": None}
+                for ex in exercises
+            ],
+        })
+    return groups
+
+
+def admin_legacy_stations(db_conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]]:
+    """Stations imported from the old browser-only "כבשתי!" flags, as rows the admin can clear."""
+    return [
+        {
+            "skill_key": skill_key,
+            "path": PATHS[skill_key]["name"],
+            "icon": PATHS[skill_key]["icon"],
+            "stage_index": idx,
+            "station": SKILL_PROGRESSIONS[skill_key]["progressions"][idx]["hebrew"],
+        }
+        for skill_key, indexes in _load_legacy_progress(db_conn, user_id).items()
+        for idx in indexes
+    ]
+
+
+@router.get("/workouts/admin", response_class=HTMLResponse)
+async def workout_admin_page(
+    request: Request,
+    user: Optional[int] = None,
+    db_conn: sqlite3.Connection = Depends(get_db_conn)
+) -> HTMLResponse:
+    """Back office for the workouts module: every saved session, editable row by row."""
+    viewer_id = _resolve_user_id(request, db_conn)
+    if viewer_id is None:
+        return HTMLResponse("Unauthorized", status_code=status.HTTP_401_UNAUTHORIZED)
+
+    people = household(db_conn)
+    ids = [p["id"] for p in people]
+    selected_id = user if user in ids else (viewer_id if viewer_id in ids else (ids[0] if ids else viewer_id))
+    selected_person = next((p for p in people if p["id"] == selected_id), None)
+
+    today = date_cls.today()
+    sessions = admin_sessions(db_conn, selected_id)
+    for session in sessions:
+        day = _parse_day(session["date"])
+        session["ago"] = _ago_label((today - day).days) if day else ""
+    game = compute_gamification(_fetch_history(db_conn, selected_id), today)
+
+    return templates.TemplateResponse(
+        "pages/workout_admin.html",
+        {
+            "request": request,
+            "people": people,
+            "selected_id": selected_id,
+            "selected_person": selected_person,
+            "sessions": sessions,
+            "game": game,
+            "legacy_stations": admin_legacy_stations(db_conn, selected_id),
+            "type_labels": WORKOUT_TYPE_LABELS,
+            "client_data": {
+                "user_id": selected_id,
+                "sessions": sessions,
+                "exercise_options": admin_exercise_options(),
+                "type_labels": WORKOUT_TYPE_LABELS,
+            },
+            "show_sidebar": False,
+        }
+    )
 
 
 @router.post("/workouts/legacy-progress")

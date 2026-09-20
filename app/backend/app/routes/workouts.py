@@ -246,6 +246,74 @@ HOLD_EXERCISES = {
     "One Arm Active Hang", "One Arm Inverted Support", "Wall Walks (Holds)", "L-Sit", "Plank",
 }
 
+# Stations whose "reps" are seconds of a static hold. The arena runs a hold timer for them
+# instead of counting repetitions, and every label says שניות.
+HOLD_SECONDS_EXERCISES = {
+    "Planche Lean", "Tucked L-Sit", "Frog Stand", "One-Legged Advanced Tuck", "Advanced Tuck Planche",
+    "One Arm Active Hang", "One Arm Inverted Support", "L-Sit", "Plank",
+}
+
+
+def exercise_unit(english_name: str) -> str:
+    """'seconds' for a timed hold, 'reps' for everything else."""
+    if english_name in HOLD_SECONDS_EXERCISES:
+        return "seconds"
+    if "Hold" in english_name and english_name != "Wall Walks (Holds)":
+        return "seconds"
+    return "reps"
+
+
+def unit_word(unit: str, n: Optional[int] = None) -> str:
+    """Hebrew unit label: 'חזרות' / 'שניות' (singular when n == 1)."""
+    if unit == "seconds":
+        return "שנייה" if n == 1 else "שניות"
+    return "חזרה" if n == 1 else "חזרות"
+
+
+# ====================== WARM-UP ======================
+# A short, path-specific warm-up shown as the first phase of every path workout. Skills are
+# lost to injured wrists and shoulders far more often than to missing strength, so the
+# arena asks for it every time (skipping is allowed, but never the default).
+
+WARMUP_MINUTES = 6
+WARMUPS = {
+    "muscle_up": [
+        {"title": "סיבובי כתפיים ומרפקים", "detail": "20 שניות לכל כיוון"},
+        {"title": "תלייה פסיבית על המוט", "detail": "2 × 20 שניות"},
+        {"title": "משיכות שכמות בתלייה", "detail": "2 × 8"},
+        {"title": "מקבילים חלקיים קלים", "detail": "2 × 6"},
+        {"title": "עליות מתח קלות עם דחיפה מהרגליים", "detail": "2 × 5"},
+    ],
+    "front_lever": [
+        {"title": "סיבובי כתפיים וחגורת הכתפיים", "detail": "20 שניות לכל כיוון"},
+        {"title": "תלייה פסיבית על המוט", "detail": "2 × 20 שניות"},
+        {"title": "משיכות שכמות בתלייה", "detail": "2 × 8"},
+        {"title": "הרמות ברכיים בתלייה", "detail": "2 × 8"},
+        {"title": "חתירה אוסטרלית קלה", "detail": "2 × 8"},
+    ],
+    "planche": [
+        {"title": "סיבובי שורש כף היד", "detail": "20 שניות לכל כיוון"},
+        {"title": "לחיצות כף יד על הרצפה (אצבעות קדימה / אחורה)", "detail": "2 × 10 בכל מנח"},
+        {"title": "מתיחת אמות על הרצפה", "detail": "2 × 20 שניות"},
+        {"title": "שכיבות סמיכה בשכמות (Scapula Push-ups)", "detail": "2 × 10"},
+        {"title": "הישענות פלאנץ' קלה", "detail": "2 × 10 שניות"},
+    ],
+    "hspu": [
+        {"title": "סיבובי שורש כף היד", "detail": "20 שניות לכל כיוון"},
+        {"title": "לחיצות כף יד על הרצפה (אצבעות לכל הכיוונים)", "detail": "2 × 10"},
+        {"title": "סיבובי כתפיים וזרועות", "detail": "20 שניות לכל כיוון"},
+        {"title": "שכיבות סמיכה פייק קלות", "detail": "2 × 6"},
+        {"title": "עמידת ידיים על הקיר", "detail": "2 × 15 שניות"},
+    ],
+    "human_flag": [
+        {"title": "סיבובי כתפיים וצוואר", "detail": "20 שניות לכל כיוון"},
+        {"title": "הטיות צד עומדות", "detail": "2 × 8 לכל צד"},
+        {"title": "תלייה פסיבית + משיכות שכמות", "detail": "2 × 8"},
+        {"title": "פלאנק צד", "detail": "2 × 20 שניות לכל צד"},
+        {"title": "תמיכה בסולם / עמוד, יד ישרה", "detail": "2 × 10 שניות"},
+    ],
+}
+
 # Two form cues per exercise: a short pin for the hologram + the full sentence.
 # Path stations use the first two of their skill's existing cues.
 SKILL_CUE_PINS = {
@@ -345,6 +413,7 @@ def exercise_form_data() -> Dict[str, Dict[str, Any]]:
         data[name] = {
             "holo_key": holo_key(name),
             "tempo": exercise_tempo(name),
+            "unit": exercise_unit(name),
             "cues": [{"pin": pin, "text": text} for pin, text in FORM_CUES.get(name, ())],
         }
     for skill_key, skill in SKILL_PROGRESSIONS.items():
@@ -356,6 +425,7 @@ def exercise_form_data() -> Dict[str, Dict[str, Any]]:
             data[station_exercise_name(step)] = {
                 "holo_key": holo_key(step["name"]),
                 "tempo": exercise_tempo(step["name"]),
+                "unit": exercise_unit(step["name"]),
                 "cues": cues,
             }
     return data
@@ -709,6 +779,7 @@ def compute_paths(
         for idx, step in enumerate(skill["progressions"]):
             counts = tally.get((skill_key, idx), {"sessions": 0, "in_range": 0})
             low, high = _rep_range(step["reps"])
+            unit = exercise_unit(step["name"])
             stations.append({
                 "index": idx,
                 "number": idx + 1,
@@ -718,6 +789,8 @@ def compute_paths(
                 "reps": step["reps"],
                 "rest": step["rest"],
                 "rep_label": f"{low}–{high}" if low < high else str(high),
+                "unit": unit,
+                "unit_label": unit_word(unit),
                 "sessions": counts["sessions"],
                 "in_range": min(counts["in_range"], STATION_SESSIONS_TO_CONQUER),
                 "remaining": max(0, STATION_SESSIONS_TO_CONQUER - counts["in_range"]),
@@ -761,6 +834,7 @@ def compute_paths(
                     "sets": sets,
                     "reps": st["reps"],
                     "rest": st["rest"],
+                    "unit": st["unit"],
                 }
                 for st, sets in planned
             ],
@@ -800,11 +874,60 @@ def compute_paths(
             "stations_to_goal": len(stations) - current["number"] if current else 0,
             "eta": eta,
             "plan": plan,
+            "warmup": WARMUPS.get(skill_key, []),
+            "warmup_minutes": WARMUP_MINUTES,
             "sessions": len(sessions),
             "last_date": last_day.isoformat() if last_day else None,
             "last_ago": _ago_label((today - last_day).days) if last_day else None,
         })
     return paths
+
+
+TYPE_LABELS = {"Push": "דחיפה", "Pull": "משיכה", "Core": "ליבה", "Legs": "רגליים"}
+RECOVERY_STREAK_DAYS = 3   # this many training days in a row earns a rest-day nudge
+
+
+def plan_today(paths: List[Dict[str, Any]], history: List[Dict[str, Any]], today: date_cls) -> Tuple[str, Optional[str]]:
+    """The path for today's mission card and a one-line recovery note (or None).
+
+    Strength skills grow between sessions, not during them: after a pull day the mission
+    moves to a push path (and vice versa), and a long run of daily sessions gets a
+    rest-day nudge. A path already trained today stays put so the user can keep going.
+    """
+    unlocked = [p for p in paths if p["unlocked"]]
+    trained = [p for p in unlocked if p["last_date"]]
+    fallback = max(trained, key=lambda p: p["last_date"]) if trained else unlocked[0]
+    days = _workout_days(s["date"] for s in history)
+    if not days:
+        return fallback["key"], None
+    last = max(days)
+    gap = (today - last).days
+    if gap == 0 or gap >= 2:
+        return fallback["key"], None
+
+    # Trained yesterday: pick a path that loads a different muscle group.
+    yesterday_types = {s["workout_type"] for s in history if _parse_day(s["date"]) == last}
+    fresh = [p for p in unlocked if p["workout_type"] not in yesterday_types]
+    if fresh:
+        fresh_trained = [p for p in fresh if p["last_date"]]
+        if fresh_trained:
+            chosen = max(fresh_trained, key=lambda p: p["last_date"])
+        else:
+            # Never trained any of them: start with the easiest path (lowest unlock level)
+            chosen = min(fresh, key=lambda p: (p["unlock_level"], list(PATHS).index(p["key"])))
+    else:
+        chosen = fallback
+
+    run = _current_streak(days, today - timedelta(days=1)) if last == today - timedelta(days=1) else 0
+    if run >= RECOVERY_STREAK_DAYS:
+        note = (f"{run} ימים ברצף — הכוח נבנה בזמן המנוחה. יום חופש היום הוא חלק מהתוכנית, "
+                "ואם מתאמנים: קצר וקל.")
+    elif chosen is not fallback:
+        was = " ו".join(TYPE_LABELS.get(t, t) for t in sorted(yesterday_types) if t in TYPE_LABELS) or "אימון"
+        note = f"אתמול היה יום {was} — היום {TYPE_LABELS.get(chosen['workout_type'], chosen['workout_type'])}, השרירים של אתמול נחים."
+    else:
+        note = None
+    return chosen["key"], note
 
 
 def _legacy_progress_key(user_id: int) -> str:
@@ -878,9 +1001,12 @@ def _fetch_history(db_conn: sqlite3.Connection, user_id: int) -> List[Dict[str, 
                 "exercises": []
             }
         station = _station_for(r["skill_key"], r["stage_index"], r["exercise_name"])
+        english = SKILL_PROGRESSIONS[station[0]]["progressions"][station[1]]["name"] if station else r["exercise_name"]
         workout_sessions[session_key]["exercises"].append({
             "name": r["exercise_name"],
             "title": _exercise_title(r["exercise_name"], station),
+            "unit": exercise_unit(english),
+            "unit_label": unit_word(exercise_unit(english)),
             "sets": r["total_sets"],
             "reps": r["total_reps"],
             "max_reps": r["max_reps"],
@@ -906,8 +1032,7 @@ async def workout_page(
     paths = compute_paths(history, game["level"], _load_legacy_progress(db_conn, user_id), today)
     records = compute_records(history)
     unlocked = [p for p in paths if p["unlocked"]]
-    trained = [p for p in unlocked if p["last_date"]]
-    default_path = max(trained, key=lambda p: p["last_date"])["key"] if trained else unlocked[0]["key"]
+    default_path, coach_note = plan_today(paths, history, today)
     first_workout = game["total_workouts"] == 0
 
     for session in history:
@@ -925,12 +1050,14 @@ async def workout_page(
                 "workout_type": p["workout_type"],
                 "category": p["category"],
                 "plan": p["plan"],
+                "warmup": p["warmup"],
+                "warmup_minutes": p["warmup_minutes"],
             }
             for p in paths
         },
         "stations": {
             p["key"]: [
-                {"name": st["exercise_name"], "title": st["hebrew"], "reps": st["reps"], "rest": st["rest"]}
+                {"name": st["exercise_name"], "title": st["hebrew"], "reps": st["reps"], "rest": st["rest"], "unit": st["unit"]}
                 for st in p["stations"]
             ]
             for p in paths
@@ -955,6 +1082,7 @@ async def workout_page(
             "paths": paths,
             "paths_by_key": {p["key"]: p for p in paths},
             "default_path": default_path,
+            "coach_note": coach_note,
             "first_workout": first_workout,
             "first_workout_xp": min(p["plan"]["xp"] for p in unlocked),
             "sessions_to_conquer": STATION_SESSIONS_TO_CONQUER,

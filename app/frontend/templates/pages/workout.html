@@ -4,7 +4,7 @@
 
 {% block head %}
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/workout.css?v=20260917-holo">
+<link rel="stylesheet" href="/static/css/workout.css?v=20260920-hold">
 {% endblock %}
 
 {% block body_class %}has-section-header workouts-page{% endblock %}
@@ -83,6 +83,9 @@
                     <h2 class="wk-mission-title">מסלול {{ p.name }} · {% if p.complete %}הושלם{% else %}תחנה {{ num(p.position) }}{% endif %}</h2>
                     <div class="wk-mission-station">{{ p.plan.exercises[0].title }}</div>
                     <div class="wk-mission-sub">{{ num(p.plan.exercises|length) }} תרגילים · {{ num(p.plan.sets) }} סטים · בערך {{ num(p.plan.minutes) }} דקות</div>
+                    {% if coach_note and p.key == default_path %}
+                    <div class="wk-mission-note"><span aria-hidden="true">💡</span><span>{{ coach_note }}</span></div>
+                    {% endif %}
                     {% if p.current %}
                     <div class="wk-segs" role="img" aria-label="{{ p.current.in_range }} מתוך {{ sessions_to_conquer }} אימונים לכיבוש התחנה">
                         {% for i in range(sessions_to_conquer) %}<span{% if i < p.current.in_range %} class="is-on"{% endif %}></span>{% endfor %}
@@ -189,7 +192,7 @@
                                 <span class="wk-st-name">{{ st.hebrew }}</span>
                                 <span class="wk-here">אתה כאן</span>
                             </div>
-                            <div class="wk-st-sub">{{ num(st.in_range) }} מתוך {{ num(sessions_to_conquer) }} אימונים לכיבוש · {{ num(st.rep_label) }} חזרות</div>
+                            <div class="wk-st-sub">{{ num(st.in_range) }} מתוך {{ num(sessions_to_conquer) }} אימונים לכיבוש · {{ num(st.rep_label) }} {{ st.unit_label }}</div>
                             <div class="wk-segs" aria-hidden="true">
                                 {% for i in range(sessions_to_conquer) %}<span{% if i < st.in_range %} class="is-on"{% endif %}></span>{% endfor %}
                             </div>
@@ -331,7 +334,7 @@
                     </div>
                     <ul class="wk-session-ex">
                         {% for ex in session.exercises %}
-                        <li><span>{{ ex.title }}</span><span>{{ num(ex.sets) }} סטים · {{ num(ex.reps) }} חזרות</span></li>
+                        <li><span>{{ ex.title }}</span><span>{{ num(ex.sets) }} סטים · {{ num(ex.reps) }} {{ ex.unit_label }}</span></li>
                         {% endfor %}
                     </ul>
                 </article>
@@ -375,7 +378,7 @@
                             {% for ex in session.exercises %}
                             <div class="flex justify-between gap-2 text-xs text-gray-700">
                                 <span class="font-medium">{{ ex.title }}</span>
-                                <span class="text-gray-500 flex-shrink-0">{{ ex.sets }} סטים · {{ ex.reps }} חזרות</span>
+                                <span class="text-gray-500 flex-shrink-0">{{ ex.sets }} סטים · {{ ex.reps }} {{ ex.unit_label }}</span>
                             </div>
                             {% endfor %}
                         </div>
@@ -449,7 +452,7 @@
                                             </h5>
                                             <p class="text-[10px] text-gray-400 mt-0.5">{{ st.name }}</p>
                                         </div>
-                                        <span class="px-1.5 py-0.5 text-[9px] bg-gray-100 text-gray-600 rounded flex-shrink-0">{{ st.rep_label }} חזרות</span>
+                                        <span class="px-1.5 py-0.5 text-[9px] bg-gray-100 text-gray-600 rounded flex-shrink-0">{{ st.rep_label }} {{ st.unit_label }}</span>
                                     </div>
                                     <div class="mt-2.5 pt-2 border-t border-gray-50 flex justify-between items-center text-[10px]">
                                         <span class="text-gray-400">
@@ -477,6 +480,30 @@
 <!-- ================= ARENA (full-screen workout: set / rest / reward) ================= -->
 <div id="arena" class="arena" data-phase="set" role="dialog" aria-modal="true" aria-label="אימון פעיל" tabindex="-1" dir="rtl" hidden>
     <div class="arena-col">
+
+        <!-- WARM-UP — first phase of every path workout -->
+        <section class="arena-phase arena-warmup" data-phase-panel="warmup">
+            <div class="warmup-top">
+                <div class="rest-eyebrow">חימום</div>
+                <h2 class="warmup-title">מכינים את הגוף ל<span id="warmup-path"></span></h2>
+                <p class="warmup-sub">בערך <span id="warmup-minutes" class="wk-num" dir="ltr"></span> דקות · הקש על כל תרגיל כשסיימת אותו</p>
+                <div class="warmup-clock" aria-live="off"><span id="warmup-clock" class="wk-num" dir="ltr">0:00</span><span>בחימום</span></div>
+            </div>
+            <ol id="warmup-list" class="warmup-list"></ol>
+            <div class="rest-card rest-coach warmup-coach">
+                <div class="rest-card-eyebrow">מהמאמן</div>
+                <p>רוב הפציעות במיומנויות קורות בשורש כף היד ובכתף, לא בשריר. חימום קצר לפני כל אימון הוא ההבדל בין להתקדם לבין לעצור לחודש.</p>
+            </div>
+            <div class="arena-foot">
+                <button type="button" id="warmup-done-btn" class="arena-primary" onclick="finishWarmup()">
+                    <span aria-hidden="true">✓</span><span>מחומם — לזירה</span>
+                </button>
+                <div class="arena-secondary-row">
+                    <button type="button" onclick="finishWarmup(true)">דילוג על החימום</button>
+                    <button type="button" onclick="cancelWorkout()">ביטול</button>
+                </div>
+            </div>
+        </section>
 
         <!-- SET (1a · 2) -->
         <section class="arena-phase arena-set" data-phase-panel="set" data-state="active" data-holo="off">
@@ -525,6 +552,8 @@
                 </div>
                 <div id="arena-ex-name" class="arena-ex-name"></div>
                 <div id="arena-compare" class="arena-compare" hidden></div>
+                <div id="arena-cues" class="arena-cues" data-plain-only hidden></div>
+                <div id="arena-tempo" class="arena-tempo" data-plain-only hidden></div>
                 <div class="arena-steppers" data-when="active">
                     <button type="button" class="arena-step" onclick="arenaStepReps(-1)" aria-label="הפחת חזרה">−</button>
                     <span class="arena-step-label">כוונון חזרות</span>
@@ -546,8 +575,11 @@
                     </button>
                     <button type="button" class="arena-step" onclick="arenaStepReps(1)" aria-label="הוסף חזרה">+</button>
                 </div>
+                <button type="button" id="arena-hold-btn" class="arena-primary is-hold" data-when="active" onclick="startHold()">
+                    <span aria-hidden="true">▶</span><span>התחל החזקה</span>
+                </button>
                 <button type="button" id="arena-done-btn" class="arena-primary" data-when="active" onclick="completeCurrentSet()">
-                    <span aria-hidden="true">✓</span><span>סיימתי את הסט</span>
+                    <span aria-hidden="true">✓</span><span id="arena-done-label">סיימתי את הסט</span>
                 </button>
                 <button type="button" id="finish-workout-btn" class="arena-primary" data-when="complete" onclick="finishWorkout()">
                     <span aria-hidden="true">🏁</span><span>סיום ושמירה</span>
@@ -767,5 +799,5 @@
 </div>
 
 <script type="application/json" id="workout-data">{{ client_data|tojson }}</script>
-<script src="/static/js/workout.js?v=20260917-holo" defer></script>
+<script src="/static/js/workout.js?v=20260920-hold" defer></script>
 {% endblock %}

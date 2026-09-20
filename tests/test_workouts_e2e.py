@@ -285,3 +285,106 @@ def test_holo_clips_read_from_model(tmp_path, monkeypatch, app_client, clean_wor
 
     model.write_bytes(b"not a model at all")
     assert live["holo_clips"]() == frozenset()  # unreadable → treated as absent
+
+
+# ====================== holds, warm-up, recovery-aware mission ======================
+
+FL_TUCK = "סמיכה קדמית מקופלת (החזקה) (Tuck Front Lever Hold)"  # front_lever station 1, 15 seconds
+
+
+def test_exercise_units():
+    """Static holds are measured in seconds; wall walks and every rep exercise stay reps."""
+    assert workouts.exercise_unit("Tuck Front Lever Hold") == "seconds"
+    assert workouts.exercise_unit("Wall-Assisted Handstand Hold") == "seconds"
+    assert workouts.exercise_unit("Planche Lean") == "seconds"
+    assert workouts.exercise_unit("L-Sit") == "seconds"
+    assert workouts.exercise_unit("Wall Walks (Holds)") == "reps"
+    assert workouts.exercise_unit("Basic Pull-ups") == "reps"
+    assert workouts.unit_word("seconds") == "שניות"
+    assert workouts.unit_word("seconds", 1) == "שנייה"
+    assert workouts.unit_word("reps") == "חזרות"
+    form = workouts.exercise_form_data()
+    assert form[FL_TUCK]["unit"] == "seconds"
+    assert form[MU_BASIC]["unit"] == "reps"
+    assert form["Plank"]["unit"] == "seconds"
+
+
+def test_every_path_has_a_warmup():
+    for key in workouts.SKILL_PROGRESSIONS:
+        items = workouts.WARMUPS[key]
+        assert 4 <= len(items) <= 6
+        assert all(item["title"] and item["detail"] for item in items)
+    paths = workouts.compute_paths([], level=1)
+    assert all(p["warmup"] == workouts.WARMUPS[p["key"]] for p in paths)
+    assert all(p["warmup_minutes"] == workouts.WARMUP_MINUTES for p in paths)
+    # Station and plan rows carry their unit so the arena can run a hold timer
+    fl = next(p for p in paths if p["key"] == "front_lever")
+    assert fl["stations"][0]["unit"] == "reps" and fl["stations"][1]["unit"] == "seconds"
+    assert fl["stations"][1]["unit_label"] == "שניות"
+    assert fl["plan"]["exercises"][0]["unit"] == "reps"
+
+
+def test_plan_today_switches_muscle_group_after_yesterday():
+    today = date(2026, 9, 20)
+    yesterday = (today - timedelta(days=1)).isoformat()
+    history = [_session(yesterday, [(MU_BASIC, 4, 40)])]  # a pull day
+    paths = workouts.compute_paths(history, level=1, today=today)
+    key, note = workouts.plan_today(paths, history, today)
+    assert key == "hspu"  # the easiest push path, not the pull path trained yesterday
+    assert note == "אתמול היה יום משיכה — היום דחיפה, השרירים של אתמול נחים."
+
+    # A push path already trained wins over an untrained one
+    hspu_station = "עמידת ידיים נתמכת קיר (החזקה) (Wall-Assisted Handstand Hold)"
+    history2 = [_session(yesterday, [(MU_BASIC, 4, 40)]),
+                _session((today - timedelta(days=3)).isoformat(), [(hspu_station, 4, 120)])]
+    history2[1]["workout_type"] = "Push"
+    paths2 = workouts.compute_paths(history2, level=1, today=today)
+    assert workouts.plan_today(paths2, history2, today)[0] == "hspu"
+
+
+def test_plan_today_keeps_path_when_rested_or_already_trained_today():
+    today = date(2026, 9, 20)
+    rested = [_session((today - timedelta(days=2)).isoformat(), [(MU_BASIC, 4, 40)])]
+    paths = workouts.compute_paths(rested, level=1, today=today)
+    assert workouts.plan_today(paths, rested, today) == ("muscle_up", None)
+
+    trained_today = [_session(today.isoformat(), [(MU_BASIC, 4, 40)])]
+    paths = workouts.compute_paths(trained_today, level=1, today=today)
+    assert workouts.plan_today(paths, trained_today, today) == ("muscle_up", None)
+
+    # No history at all → first unlocked path, no note
+    paths = workouts.compute_paths([], level=1, today=today)
+    assert workouts.plan_today(paths, [], today) == ("muscle_up", None)
+
+
+def test_plan_today_rest_day_nudge_after_a_streak():
+    today = date(2026, 9, 20)
+    history = [_session((today - timedelta(days=d)).isoformat(), [(MU_BASIC, 4, 40)]) for d in (1, 2, 3)]
+    paths = workouts.compute_paths(history, level=1, today=today)
+    key, note = workouts.plan_today(paths, history, today)
+    assert key == "hspu"
+    assert note.startswith("3 ימים ברצף")
+
+
+def test_page_shows_units_note_and_warmup(app_client, clean_workouts):
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    _save(app_client, yesterday, [
+        {"exercise_name": FL_TUCK, "total_sets": 4, "total_reps": 60, "max_reps": 15,
+         "skill_key": "front_lever", "stage_index": 1},
+    ])
+    html = app_client.get("/workouts").text
+    # History and map rows say seconds for the hold station
+    assert "4 סטים · 60 שניות" in html.replace('<span class="wk-num" dir="ltr">', "").replace("</span>", "")
+    assert "12–15 שניות" in html  # station list: the hold's range in seconds
+    # The mission moved to a push path with a recovery note
+    assert "wk-mission-note" in html
+    assert "אתמול היה יום משיכה — היום דחיפה" in html
+    # Warm-up phase and the plain-arena form guide are on the page
+    for marker in ('data-phase-panel="warmup"', 'id="warmup-list"', 'id="arena-hold-btn"',
+                   'id="arena-cues"', 'id="arena-tempo"'):
+        assert marker in html
+    data = json.loads(html.split('id="workout-data">')[1].split("</script>")[0])
+    assert data["default_path"] == "hspu"
+    assert data["paths"]["hspu"]["warmup"] == workouts.WARMUPS["hspu"]
+    assert data["stations"]["front_lever"][1]["unit"] == "seconds"
+    assert data["form"][FL_TUCK]["unit"] == "seconds"

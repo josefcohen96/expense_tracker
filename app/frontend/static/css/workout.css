@@ -1256,10 +1256,14 @@ button.wk-path-row:active {
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+.arena[data-phase="warmup"] [data-phase-panel="warmup"],
 .arena[data-phase="set"] [data-phase-panel="set"],
 .arena[data-phase="rest"] [data-phase-panel="rest"],
 .arena[data-phase="reward"] [data-phase-panel="reward"] {
   display: flex;
+}
+.arena[data-phase="warmup"] {
+  --arena-bg: radial-gradient(110% 60% at 50% 20%, #7c2d12 0%, #2a1a3d 50%, #0b0a1c 100%);
 }
 
 /* One panel, three states: active set / every set resolved / nothing added yet */
@@ -1335,7 +1339,8 @@ button.wk-path-row:active {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: clamp(12px, 3vh, 24px) 18px 0;
+  justify-content: center;
+  padding: clamp(12px, 3vh, 24px) 18px 8px;
   text-align: center;
 }
 .arena-set-label {
@@ -2997,4 +3002,223 @@ button.wk-path-row:active {
   .xp-float {
     display: none !important;
   }
+}
+
+
+/* ====================== FORM GUIDE ON THE PLAIN SET SCREEN ====================== */
+/* Two cues + the rep tempo fill the space under the exercise name (the hologram has its own). */
+
+.arena-set[data-holo="on"] [data-plain-only] {
+  display: none !important;
+}
+.arena-cues {
+  width: 100%;
+  max-width: 340px;
+  margin-top: clamp(12px, 2.6vh, 20px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: start;
+}
+.arena-cue {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .09);
+}
+.arena-cue-pin {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(250, 204, 21, .16);
+  font: 700 11px/1.4 var(--font-primary);
+  color: var(--wk-gold);
+  white-space: nowrap;
+}
+.arena-cue-text {
+  font: 400 12.5px/1.5 var(--font-primary);
+  color: var(--wk-meta);
+}
+.arena-tempo {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 10px;
+  max-width: 340px;
+  text-align: start;
+}
+.arena-tempo-label {
+  flex: none;
+  font: 700 10px var(--font-primary);
+  color: #67e8f9;
+  letter-spacing: .06em;
+}
+.arena-tempo-text {
+  font: 500 12px/1.5 var(--font-primary);
+  color: #a5f3fc;
+}
+
+/* ====================== HOLD TIMER ====================== */
+/* A seconds station shows "התחל החזקה"; while holding, the ring counts down and only "עצור" stays. */
+
+.arena-primary.is-hold {
+  background: linear-gradient(135deg, #0891b2, #22d3ee);
+  box-shadow: 0 14px 30px -12px rgba(34, 211, 238, .9);
+}
+.arena-set[data-unit="seconds"][data-hold="idle"] #arena-done-btn,
+.arena-set:not([data-unit="seconds"]) #arena-hold-btn,
+.arena-set[data-hold="running"] #arena-hold-btn,
+.arena-set[data-hold="running"] .arena-steppers,
+.arena-set[data-hold="running"] .holo-steppers,
+.arena-set[data-hold="running"] .arena-secondary-row,
+.arena-set[data-hold="running"] .arena-ring-pill {
+  display: none !important;
+}
+.arena-set[data-hold="running"] #arena-done-btn {
+  background: linear-gradient(135deg, #b91c1c, #ef4444);
+  box-shadow: 0 14px 30px -12px rgba(239, 68, 68, .9);
+}
+.arena-set[data-hold="running"] .arena-ring {
+  background: conic-gradient(#22d3ee 0 var(--pct), rgba(255, 255, 255, .12) var(--pct) 100%);
+  animation: none;
+  box-shadow: 0 0 0 10px rgba(34, 211, 238, .08), 0 0 60px rgba(34, 211, 238, .35);
+  transition: none;
+}
+.arena-set[data-hold="running"] .arena-reps {
+  color: #a5f3fc;
+}
+
+/* ====================== WARM-UP PHASE ====================== */
+
+.warmup-top {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: clamp(14px, 3vh, 24px) 18px 0;
+  text-align: center;
+}
+.warmup-title {
+  margin-top: 8px;
+  font: 800 22px/1.25 var(--font-heading);
+  color: #fff;
+}
+.warmup-sub {
+  margin-top: 6px;
+  font: 400 12px/1.5 var(--font-primary);
+  color: var(--wk-meta);
+}
+.warmup-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .12);
+  font: 500 12px var(--font-primary);
+  color: var(--wk-meta);
+}
+.warmup-clock .wk-num {
+  font: 700 15px var(--font-mono);
+  color: #fdba74;
+}
+.warmup-list {
+  flex: 1 0 auto;
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.warmup-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .07);
+  border: 1px solid rgba(255, 255, 255, .1);
+  text-align: start;
+  color: #fff;
+  transition: background 140ms ease, opacity 140ms ease;
+}
+.warmup-item:active {
+  background: rgba(255, 255, 255, .14);
+}
+.warmup-item.is-done {
+  background: rgba(34, 197, 94, .14);
+  border-color: rgba(34, 197, 94, .35);
+}
+.warmup-check {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(253, 186, 116, .16);
+  font: 800 14px var(--font-mono);
+  color: #fdba74;
+}
+.warmup-item.is-done .warmup-check {
+  background: #22c55e;
+  color: #052e16;
+}
+.warmup-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.warmup-item-title {
+  font: 700 14px/1.3 var(--font-primary);
+}
+.warmup-item.is-done .warmup-item-title {
+  color: var(--wk-meta);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 255, 255, .4);
+}
+.warmup-item-detail {
+  font: 400 12px var(--font-primary);
+  color: var(--wk-meta);
+}
+.warmup-coach {
+  flex: none;
+  margin: 14px 18px 0;
+}
+.warmup-coach .rest-card-eyebrow {
+  color: #fdba74;
+}
+#warmup-done-btn {
+  display: flex;
+  background: linear-gradient(135deg, #c2410c, #f97316);
+  box-shadow: 0 14px 30px -12px rgba(249, 115, 22, .9);
+}
+#warmup-done-btn.is-ready {
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  box-shadow: 0 14px 30px -12px rgba(34, 197, 94, .9);
+}
+
+/* ====================== RECOVERY NOTE ON THE MISSION CARD ====================== */
+
+.wk-mission-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .12);
+  border: 1px solid rgba(255, 255, 255, .16);
+  font: 500 12px/1.5 var(--font-primary);
+  color: #fff;
 }

@@ -9,7 +9,11 @@ let activeExercises = [];
 let sessionActive = false;
 
 // --- Arena State ---
-let arenaPhase = 'set';      // 'set' | 'rest' | 'reward'
+let arenaPhase = 'set';      // 'warmup' | 'set' | 'rest' | 'reward'
+let warmupDone = [];         // indexes of warm-up items ticked off
+let holdStartedAt = null;    // Date.now() when the current hold began (null = not holding)
+let holdInterval = null;
+let holdLastBeep = null;
 let cursor = null;           // { exerciseId, setId } of the set on screen
 let plannedSets = 0;         // sets the session set out to do (star ②)
 let sessionPath = null;      // quest path key the session started from
@@ -185,6 +189,21 @@ function sessionStats() {
     return { doneSets, doneReps, skipped, pending, total };
 }
 
+// 'seconds' for a timed hold (front lever, planche, L-sit…), 'reps' for everything else.
+function exerciseUnit(exercise) {
+    const form = exercise && data().form[exercise.name];
+    return form && form.unit === 'seconds' ? 'seconds' : 'reps';
+}
+
+function unitWord(unit, n) {
+    if (unit === 'seconds') return n === 1 ? 'שנייה' : 'שניות';
+    return n === 1 ? 'חזרה' : 'חזרות';
+}
+
+function isHolding() {
+    return holdStartedAt !== null;
+}
+
 // ====================== PAGE SCROLL LOCK ======================
 // Shared by the arena and the exercise picker (iOS-safe body lock).
 
@@ -220,7 +239,8 @@ function saveSession() {
             type: typeSelect ? typeSelect.value : '',
             exercises: activeExercises,
             cursor,
-            phase: arenaPhase === 'rest' ? 'rest' : 'set',
+            phase: arenaPhase === 'rest' ? 'rest' : (arenaPhase === 'warmup' ? 'warmup' : 'set'),
+            warmupDone,
             restEndsAt,
             restDuration,
             plannedSets,
@@ -485,7 +505,7 @@ function startPathWorkout(key) {
     const exercises = path.plan.exercises.map(ex => buildExercise(
         { ...ex, category: path.category }, ex.sets, ex.reps, ex.rest
     ));
-    beginSession(exercises, key, path.workout_type);
+    beginSession(exercises, key, path.workout_type, path.warmup && path.warmup.length > 0);
 }
 
 function startFreeWorkout() {
@@ -494,8 +514,10 @@ function startFreeWorkout() {
     openExerciseModal();
 }
 
-function beginSession(exercises, pathKey, workoutType) {
+function beginSession(exercises, pathKey, workoutType, withWarmup = false) {
     activeExercises = exercises;
+    warmupDone = [];
+    holdStartedAt = null;
     workoutStartTime = Date.now();
     sessionActive = true;
     sessionPath = pathKey;
@@ -512,7 +534,7 @@ function beginSession(exercises, pathKey, workoutType) {
 
     cursor = null;
     advanceCursor();
-    arenaPhase = 'set';
+    arenaPhase = withWarmup ? 'warmup' : 'set';
     openArena();
     startWorkoutTimer();
     requestWakeLock();
@@ -533,8 +555,11 @@ function resumeWorkoutSession(saved) {
 
     cursor = saved.cursor && typeof saved.cursor.setId === 'string' ? saved.cursor : null;
     if (!currentPosition()) advanceCursor();
+    warmupDone = Array.isArray(saved.warmupDone) ? saved.warmupDone.filter(Number.isInteger) : [];
+    holdStartedAt = null;
 
-    arenaPhase = 'set';
+    const pathWarmup = sessionPath && data().paths[sessionPath] && data().paths[sessionPath].warmup;
+    arenaPhase = saved.phase === 'warmup' && pathWarmup && pathWarmup.length ? 'warmup' : 'set';
     openArena();
     startWorkoutTimer();
     requestWakeLock();
@@ -562,6 +587,7 @@ function cancelWorkout() {
 
     if (workoutTimerInterval) clearInterval(workoutTimerInterval);
     stopRestTimer();
+    stopHoldTimer();
     releaseWakeLock();
     closeArenaSheet(true);
     closeFormCheck();
@@ -581,6 +607,8 @@ function startWorkoutTimer() {
         const seconds = totalSeconds % 60;
         const mmss = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         if (timerLabel) timerLabel.textContent = hours > 0 ? `${hours}:${mmss}` : mmss;
+        const warmClock = $('#warmup-clock');
+        if (warmClock && arenaPhase === 'warmup') warmClock.textContent = `${minutes}:${String(seconds).padStart(2, '0')}`;
     };
 
     tick();
@@ -655,6 +683,12 @@ function renderArena() {
         return;
     }
 
+    if (arenaPhase === 'warmup') {
+        renderWarmup();
+        syncHologram();
+        return;
+    }
+
     renderStatus();
     updateSessionScore(false);
     if (arenaPhase === 'set') renderSetPanel();
@@ -687,9 +721,16 @@ function renderSetPanel() {
     const repsEl = $('#arena-reps');
     const compare = $('#arena-compare');
 
+    const cues = $('#arena-cues');
+    const tempoEl = $('#arena-tempo');
+    stopHoldTimer();
+    panel.dataset.hold = 'idle';
+
     if (activeExercises.length === 0) {
         panel.dataset.state = 'empty';
         panel.dataset.holo = 'off';
+        panel.dataset.unit = 'reps';
+        cues.hidden = tempoEl.hidden = true;
         return;
     }
 
@@ -704,6 +745,8 @@ function renderSetPanel() {
         $('#arena-ex-name').textContent = 'האימון מוכן לשמירה';
         compare.hidden = false;
         compare.innerHTML = `${countHtml(stats.doneSets, 'סט אחד', 'סטים')} · ${countHtml(stats.doneReps, 'חזרה אחת', 'חזרות')} · ${numHtml(`+${computeSessionScore()} XP`)} עד עכשיו`;
+        panel.dataset.unit = 'reps';
+        cues.hidden = tempoEl.hidden = true;
         return;
     }
 
@@ -714,8 +757,12 @@ function renderSetPanel() {
     panel.dataset.holo = holo ? 'on' : 'off';
     if (holo) paintTempo(panel, holo.tempo);
     ring.style.setProperty('--pct', `${Math.round(doneInExercise * 100 / exercise.sets.length)}%`);
+    const unit = exerciseUnit(exercise);
+    panel.dataset.unit = unit;
     repsEl.textContent = set.reps;
-    $('#arena-reps-label').textContent = 'חזרות';
+    $('#arena-reps-label').textContent = unitWord(unit);
+    $('#arena-done-label').textContent = 'סיימתי את הסט';
+    $all('.arena-step-label').forEach(el => { el.textContent = unit === 'seconds' ? 'כוונון שניות' : 'כוונון חזרות'; });
     $('#arena-set-xp').textContent = `+${XP_PER_SET + set.reps} XP`;
     $('#arena-set-label').innerHTML = `סט ${numHtml(exercise.sets.indexOf(set) + 1)} מתוך ${numHtml(exercise.sets.length)}`;
     $('#arena-ex-name').textContent = exercise.title;
@@ -723,6 +770,94 @@ function renderSetPanel() {
     const line = compareLine(exercise, set.reps);
     compare.hidden = !line;
     compare.innerHTML = line;
+    renderFormGuide(exercise, unit);
+}
+
+// Two form cues + the rep tempo under the exercise name — the plain arena's stand-in for the hologram.
+function renderFormGuide(exercise, unit) {
+    const cues = $('#arena-cues');
+    const tempoEl = $('#arena-tempo');
+    const form = data().form[exercise.name] || {};
+    const list = Array.isArray(form.cues) ? form.cues.slice(0, 2) : [];
+    cues.hidden = list.length === 0;
+    cues.innerHTML = list.map(c => `
+        <div class="arena-cue">
+            <span class="arena-cue-pin">${escapeHtml(c.pin)}</span>
+            <span class="arena-cue-text">${escapeHtml(c.text)}</span>
+        </div>`).join('');
+
+    if (unit === 'seconds') {
+        tempoEl.hidden = false;
+        tempoEl.innerHTML = `<span class="arena-tempo-label">החזקה</span><span class="arena-tempo-text">נשימה שקטה לאורך כל ההחזקה — לא עוצרים אוויר. עוצרים כשהתנוחה נשברת.</span>`;
+    } else if (Array.isArray(form.tempo) && form.tempo.length === 3) {
+        const [down, pause, up] = form.tempo;
+        const parts = [`ירידה ${down}`, pause ? `עצירה ${pause}` : '', `עלייה ${up}`].filter(Boolean);
+        tempoEl.hidden = false;
+        tempoEl.innerHTML = `<span class="arena-tempo-label">מקצב</span><span class="arena-tempo-text">${parts.map(numHtml).join(' · ')} שניות</span>`;
+    } else {
+        tempoEl.hidden = true;
+    }
+}
+
+// ====================== HOLD TIMER ======================
+// A hold station counts down its target seconds on the ring. Stopping early saves the
+// seconds actually held, so the station's rep range is judged on the truth.
+
+function startHold() {
+    const pos = currentPosition();
+    if (!pos || isHolding()) return;
+    const target = pos.set.reps;
+    if (target <= 0) return;
+    holdStartedAt = Date.now();
+    holdLastBeep = null;
+    const panel = $('[data-phase-panel="set"]');
+    panel.dataset.hold = 'running';
+    $('#arena-done-label').textContent = 'עצור — סיימתי';
+    $('#arena-set-xp').textContent = '';
+    vibrate(20);
+    if (holdInterval) clearInterval(holdInterval);
+    holdInterval = setInterval(tickHold, 100);
+    tickHold();
+}
+
+function tickHold() {
+    const pos = currentPosition();
+    if (!pos || !isHolding()) { stopHoldTimer(); return; }
+    const target = pos.set.reps;
+    const elapsed = (Date.now() - holdStartedAt) / 1000;
+    const remaining = Math.max(0, target - elapsed);
+    const shown = Math.ceil(remaining);
+    $('#arena-reps').textContent = shown;
+    $('#arena-reps-label').textContent = 'שניות נשארו';
+    $('#arena-ring').style.setProperty('--pct', `${Math.min(100, elapsed * 100 / target)}%`);
+    if (shown <= 3 && shown > 0 && holdLastBeep !== shown) {
+        holdLastBeep = shown;
+        vibrate(15);
+    }
+    if (remaining <= 0) finishHold(target);
+}
+
+function stopHoldTimer() {
+    if (holdInterval) clearInterval(holdInterval);
+    holdInterval = null;
+    holdStartedAt = null;
+    holdLastBeep = null;
+}
+
+// The hold ended (timer ran out, or "עצור") — save the seconds really held and complete the set.
+function finishHold(seconds) {
+    const pos = currentPosition();
+    stopHoldTimer();
+    if (!pos) return;
+    const held = clampInt(seconds, 0, 999);
+    if (held <= 0) {
+        // Nothing to save: back to the idle hold screen
+        renderSetPanel();
+        return;
+    }
+    pos.set.reps = Math.min(pos.set.reps, held);
+    vibrate([40, 60, 40]);
+    completeCurrentSet();
 }
 
 // "בפעם שעברה עשית 11 — עוד אחת והשיא נשבר" — only when there is history for the exercise.
@@ -736,7 +871,9 @@ function compareLine(exercise, reps) {
     else if (need === 1) tail = 'עוד אחת והשיא נשבר';
     else if (need <= 3) tail = `עוד ${numHtml(need)} והשיא נשבר`;
     else tail = `השיא שלך ${numHtml(best)}`;
-    return `בפעם שעברה עשית ${numHtml(record.last)} — ${tail}`;
+    const verb = exerciseUnit(exercise) === 'seconds' ? 'החזקת' : 'עשית';
+    const unit = exerciseUnit(exercise) === 'seconds' ? ' שנ׳' : '';
+    return `בפעם שעברה ${verb} ${numHtml(record.last)}${unit} — ${tail}`;
 }
 
 function sessionBest(name) {
@@ -758,7 +895,7 @@ function renderRestPanel() {
     if (next) {
         const { exercise, set } = next;
         const index = exercise.sets.indexOf(set);
-        const target = `יעד ${numHtml(set.reps)} חזרות`;
+        const target = `יעד ${numHtml(set.reps)} ${unitWord(exerciseUnit(exercise), set.reps)}`;
         tile.textContent = exerciseIcon(exercise);
         title.innerHTML = `${escapeHtml(exercise.title)} · סט ${numHtml(index + 1)}`;
         if (exercise.sets.length > 1 && index === exercise.sets.length - 1) sub.innerHTML = `הסט האחרון בתרגיל · ${target}`;
@@ -782,6 +919,44 @@ function renderRestPanel() {
 function pickCoachTip(exercise) {
     const tips = COACH_TIPS[exercise && exercise.category] || COACH_TIPS.general;
     return tips[sessionStats().doneSets % tips.length];
+}
+
+// ====================== WARM-UP PHASE ======================
+
+function renderWarmup() {
+    const path = sessionPath && data().paths[sessionPath];
+    const items = (path && path.warmup) || [];
+    $('#warmup-path').textContent = path ? `מסלול ${path.name}` : 'אימון';
+    $('#warmup-minutes').textContent = path && path.warmup_minutes ? path.warmup_minutes : 5;
+    $('#warmup-list').innerHTML = items.map((item, i) => `
+        <li>
+            <button type="button" class="warmup-item${warmupDone.includes(i) ? ' is-done' : ''}" onclick="toggleWarmupItem(${i})" aria-pressed="${warmupDone.includes(i)}">
+                <span class="warmup-check" aria-hidden="true">${warmupDone.includes(i) ? '✓' : i + 1}</span>
+                <span class="warmup-text">
+                    <span class="warmup-item-title">${escapeHtml(item.title)}</span>
+                    <span class="warmup-item-detail">${escapeHtml(item.detail)}</span>
+                </span>
+            </button>
+        </li>`).join('');
+    const btn = $('#warmup-done-btn');
+    const allDone = items.length > 0 && warmupDone.length >= items.length;
+    btn.classList.toggle('is-ready', allDone);
+}
+
+function toggleWarmupItem(index) {
+    if (warmupDone.includes(index)) warmupDone = warmupDone.filter(i => i !== index);
+    else warmupDone = [...warmupDone, index];
+    vibrate(8);
+    renderWarmup();
+    saveSession();
+}
+
+function finishWarmup(skipped = false) {
+    if (arenaPhase !== 'warmup') return;
+    if (!skipped) vibrate(12);
+    arenaPhase = 'set';
+    renderArena();
+    saveSession();
 }
 
 // ====================== HOLOGRAM (3a / 3b) ======================
@@ -1057,6 +1232,10 @@ function wireHologram() {
 function completeCurrentSet() {
     const pos = currentPosition();
     if (!pos) return;
+    if (isHolding()) {
+        finishHold(Math.floor((Date.now() - holdStartedAt) / 1000));
+        return;
+    }
     const { exercise, set } = pos;
 
     // Resting far past the plan breaks the chain
@@ -1087,6 +1266,7 @@ function completeCurrentSet() {
 function skipCurrentSet() {
     const pos = currentPosition();
     if (!pos) return;
+    stopHoldTimer();
     pos.set.skipped = true;
     comboCount = 0;
     lastRestEnd = null;
@@ -1099,7 +1279,7 @@ function skipCurrentSet() {
 
 function arenaStepReps(delta) {
     const pos = currentPosition();
-    if (!pos) return;
+    if (!pos || isHolding()) return;
     pos.set.reps = clampInt(pos.set.reps + delta, 0, 999);
     renderSetPanel();
     saveSession();
@@ -1372,6 +1552,7 @@ function renderSheet() {
 }
 
 function sheetExerciseBody(ex, isCurrent) {
+    const unitLabel = unitWord(exerciseUnit(ex));
     const rows = ex.sets.map((set, idx) => {
         const toggleClass = set.done ? 'is-done' : (set.skipped ? 'is-skipped' : '');
         const toggleLabel = set.done ? '✓' : (set.skipped ? 'דולג' : '✓');
@@ -1383,7 +1564,7 @@ function sheetExerciseBody(ex, isCurrent) {
                 <input type="number" value="${set.reps}" min="0" max="999" inputmode="numeric" pattern="[0-9]*"
                        aria-label="חזרות בסט ${idx + 1}" data-set-input="${set.id}"
                        onchange="updateSetData('${ex.id}', '${set.id}', 'reps', this.value)">
-                <span class="sheet-stepper-unit">חזרות</span>
+                <span class="sheet-stepper-unit">${unitLabel}</span>
                 <button type="button" onclick="stepSetValue('${ex.id}', '${set.id}', 'reps', 1)" aria-label="הוסף חזרה בסט ${idx + 1}">+</button>
             </div>
             <button type="button" class="sheet-set-toggle ${toggleClass}" onclick="toggleSetDone('${ex.id}', '${set.id}')"

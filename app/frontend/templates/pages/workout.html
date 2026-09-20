@@ -189,7 +189,11 @@
                                 <span class="wk-st-name">{{ st.hebrew }}</span>
                                 <span class="wk-here">אתה כאן</span>
                             </div>
-                            <div class="wk-st-sub">{{ num(st.in_range) }} מתוך {{ num(sessions_to_conquer) }} אימונים לכיבוש · {{ num(st.rep_label) }} חזרות</div>
+                            <div class="wk-st-sub">{{ num(st.in_range) }} מתוך {{ num(sessions_to_conquer) }} אימונים לכיבוש · {{ num(st.rep_label) }} {{ st.unit_label }}</div>
+                            <p class="wk-st-how">{{ st.how }}</p>
+                            <ul class="wk-st-cues">
+                                {% for cue in st.cues %}<li><b>{{ cue.pin }}</b> · {{ cue.text }}</li>{% endfor %}
+                            </ul>
                             <div class="wk-segs" aria-hidden="true">
                                 {% for i in range(sessions_to_conquer) %}<span{% if i < st.in_range %} class="is-on"{% endif %}></span>{% endfor %}
                             </div>
@@ -222,6 +226,7 @@
                 <details class="wk-card wk-cues">
                     <summary>דגשים ביומכניים <span aria-hidden="true">⌄</span></summary>
                     <div class="wk-cues-meta">{{ p.difficulty }}<br>{{ p.muscles }}<br>{{ p.warmup }}</div>
+                    <p class="wk-cues-prereq">{{ p.prereq }}</p>
                     <ul>{% for cue in p.cues %}<li>{{ cue }}</li>{% endfor %}</ul>
                 </details>
 
@@ -331,7 +336,7 @@
                     </div>
                     <ul class="wk-session-ex">
                         {% for ex in session.exercises %}
-                        <li><span>{{ ex.title }}</span><span>{{ num(ex.sets) }} סטים · {{ num(ex.reps) }} חזרות</span></li>
+                        <li><span>{{ ex.title }}</span><span>{{ num(ex.sets) }} סטים · {{ num(ex.reps) }} {{ ex.unit_label }}</span></li>
                         {% endfor %}
                     </ul>
                 </article>
@@ -375,7 +380,7 @@
                             {% for ex in session.exercises %}
                             <div class="flex justify-between gap-2 text-xs text-gray-700">
                                 <span class="font-medium">{{ ex.title }}</span>
-                                <span class="text-gray-500 flex-shrink-0">{{ ex.sets }} סטים · {{ ex.reps }} חזרות</span>
+                                <span class="text-gray-500 flex-shrink-0">{{ ex.sets }} סטים · {{ ex.reps }} {{ ex.unit_label }}</span>
                             </div>
                             {% endfor %}
                         </div>
@@ -449,7 +454,7 @@
                                             </h5>
                                             <p class="text-[10px] text-gray-400 mt-0.5">{{ st.name }}</p>
                                         </div>
-                                        <span class="px-1.5 py-0.5 text-[9px] bg-gray-100 text-gray-600 rounded flex-shrink-0">{{ st.rep_label }} חזרות</span>
+                                        <span class="px-1.5 py-0.5 text-[9px] bg-gray-100 text-gray-600 rounded flex-shrink-0">{{ st.rep_label }} {{ st.unit_label }}</span>
                                     </div>
                                     <div class="mt-2.5 pt-2 border-t border-gray-50 flex justify-between items-center text-[10px]">
                                         <span class="text-gray-400">
@@ -674,6 +679,7 @@
                     <span class="holo-tempo-value" data-tempo-value dir="ltr"></span>
                     <span class="form-tempo-legend" data-tempo-legend>ירידה · עצירה · דחיפה</span>
                 </div>
+                <p class="form-how" id="form-how"></p>
                 <div class="form-cues" id="form-cues">
                     <div class="form-cues-title">שתי נקודות לתיקון</div>
                     <ol id="form-cue-list"></ol>

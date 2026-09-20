@@ -78,17 +78,21 @@ Clip keys come from `holo_key()` in `app/backend/app/routes/workouts.py`
 | `dips` | Dips | 3-1-1 |
 | `elevated_pike_push_ups` | Elevated Pike Push-ups | 3-1-1 |
 | `explosive_pull_ups` | Explosive Pull-ups | 2-0-1 |
+| `false_grip_hang` | False Grip Hang | hold |
+| `false_grip_pull_ups` | False Grip Pull-ups | 3-1-1 |
+| `freestanding_handstand_hold` | Freestanding Handstand Hold | hold |
 | `frog_stand` | Frog Stand | hold |
 | `full_freestanding_hspu` | Full Freestanding HSPU | 3-1-1 |
 | `full_front_lever_hold` | Full Front Lever Hold | hold |
 | `full_human_flag_hold` | Full Human Flag Hold | hold |
 | `full_muscle_up` | Full Muscle-Up | 2-0-1 |
 | `full_planche_hold` | Full Planche Hold | hold |
+| `half_lay_front_lever_hold` | Half Lay Front Lever Hold | hold |
+| `half_lay_planche_hold` | Half Lay Planche Hold | hold |
 | `handstand_push_ups` | Handstand Push-ups | 3-1-1 |
 | `hanging_leg_raises` | Hanging Leg Raises | 3-1-1 |
-| `high_flag_hold_wall_walk` | High Flag Hold (Wall Walk) | hold |
 | `l_sit` | L-Sit | hold |
-| `low_flag_hold` | Low Flag Hold | hold |
+| `low_bar_transitions` | Low Bar Transitions | 2-0-1 |
 | `muscle_ups` | Muscle-ups | 2-0-1 |
 | `negative_muscle_up` | Negative Muscle-Up | 5-1-1 |
 | `negative_wall_hspu` | Negative Wall HSPU | 5-1-1 |
@@ -96,10 +100,13 @@ Clip keys come from `holo_key()` in `app/backend/app/routes/workouts.py`
 | `one_arm_inverted_support` | One Arm Inverted Support | hold |
 | `one_legged_advanced_tuck` | One-Legged Advanced Tuck | hold |
 | `one_legged_fl_hold` | One-Legged FL Hold | hold |
+| `one_legged_human_flag_hold` | One-Legged Human Flag Hold | hold |
+| `partial_wall_hspu` | Partial Wall HSPU | 3-1-1 |
 | `pike_push_ups` | Pike Push-ups | 3-1-1 |
 | `pistol_squats` | Pistol Squats | 3-1-1 |
 | `planche_lean` | Planche Lean | hold |
 | `plank` | Plank | hold |
+| `pseudo_planche_push_ups` | Pseudo Planche Push-ups | 3-1-1 |
 | `pull_ups` | Pull-ups | 3-1-1 |
 | `push_ups` | Push-ups | 3-1-1 |
 | `reversed_deadlift_fl_pulls` | Reversed Deadlift (FL Pulls) | 3-1-1 |
@@ -116,7 +123,8 @@ Clip keys come from `holo_key()` in `app/backend/app/routes/workouts.py`
 | `tuck_human_flag_hold` | Tuck Human Flag Hold | hold |
 | `tuck_planche_hold` | Tuck Planche Hold | hold |
 | `tucked_l_sit` | Tucked L-Sit | hold |
-| `twisted_flag_hold` | Twisted Flag Hold | hold |
+| `vertical_flag_hold` | Vertical Flag Hold | hold |
+| `vertical_flag_negatives` | Vertical Flag Negatives | 4-1-1 |
 | `wall_assisted_handstand_hold` | Wall-Assisted Handstand Hold | hold |
 | `wall_assisted_hspu` | Wall-Assisted HSPU | 3-1-1 |
 | `wall_walks_holds` | Wall Walks (Holds) | hold |

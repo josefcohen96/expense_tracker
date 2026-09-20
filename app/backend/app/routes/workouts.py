@@ -33,7 +33,7 @@ DEFAULT_EXERCISES = {
         {"name": "Push-ups", "hebrew": "שכיבות סמיכה"},
         {"name": "Dips", "hebrew": "מקבילים"},
         {"name": "Pike Push-ups", "hebrew": "שכיבות סמיכה פייק"},
-        {"name": "Handstand Push-ups", "hebrew": "עמידת ידיים שכיבות סמיכה"},
+        {"name": "Handstand Push-ups", "hebrew": "שכיבות סמיכה בעמידת ידיים"},
         {"name": "Diamond Push-ups", "hebrew": "שכיבות סמיכה יהלום"}
     ],
     "Pull (משיכה)": [
@@ -60,121 +60,335 @@ DEFAULT_EXERCISES = {
     ]
 }
 
-# Calisthenics Skill Progressions and Biomechanical cues
+# Calisthenics skill progressions.
+# Every station carries the way it is trained: `unit` ("reps" or "sec" for a static hold),
+# the target that conquers it, the rest after a set, one "how it is done" line and two
+# short form cues of its own. Station order follows the accepted progression for each
+# skill — an easier lever always comes before a longer one.
+
+def _station(name, hebrew, reps, rest, how, cues, unit="reps"):
+    """One quest station. `reps` is a count, or seconds when unit is 'sec'."""
+    return {"name": name, "hebrew": hebrew, "unit": unit, "reps": reps, "rest": rest,
+            "how": how, "cues": [{"pin": pin, "text": text} for pin, text in cues]}
+
+
 SKILL_PROGRESSIONS = {
     "muscle_up": {
         "title": "עליית כוח (Muscle-Up)",
         "difficulty": "רמת קושי: בינוני-מתקדם",
-        "muscles": "שרירים עיקריים: גב, כתפיים, יד אחורית, חזה",
-        "warmup": "זמן חימום מומלץ: 10-12 דקות",
+        "muscles": "שרירים עיקריים: רחב גבי, כתפיים, יד אחורית, חזה",
+        "warmup": "זמן חימום מומלץ: 10-12 דקות — שכמות, שורש כף היד ומרפקים",
+        "prereq": "תנאי סף למסלול: 8-10 עליות מתח נקיות, 8-10 מקבילים ו-20 שניות תלייה באחיזה כוזבת.",
         "cues": [
-            "תנאי סף: יכולת ביצוע של 10-11 עליות מתח נקיות לגובה החזה ו-15 מקבילים.",
-            "אחיזה כוזבת (False Grip) מונעת את הצורך לסובב את כף היד במעבר הקריטי ומייצבת את שורש כף היד.",
-            "תנועת משיכה קשתית מתפרצת להבאת הגוף מעבר לגובה המוט, תוך השתחלות קדימה מעל המוט בסיום.",
-            "ניתן להשתמש בתנופת רגליים קלה (Kipping) או מנח L-Sit בשלבים הראשונים לצמצום העומס."
+            "אחיזה כוזבת (False Grip): פרק כף היד עולה מעל המוט עוד לפני המשיכה — היא מקצרת את המעבר ומייתרת סיבוב של כף היד באמצע התנועה.",
+            "המשיכה קשתית: מושכים את המוט אל עצם החזה תוך הטיית הגוף אחורה, ולא אנכית כמו בעליית מתח רגילה.",
+            "המעבר (Transition) הוא מה שנתקע — לא המשיכה ולא המקבילים. מתאמנים עליו בנפרד על מוט נמוך.",
+            "תנופת רגליים (Kipping) מותרת בשלבים הראשונים, אבל היעד הוא עלייה נקייה מכוח הכתף והגב.",
         ],
         "progressions": [
-            {"name": "Basic Pull-ups", "hebrew": "עליות מתח בסיסיות", "reps": 10, "rest": 90},
-            {"name": "Basic Dips", "hebrew": "שכיבות סמיכה במקבילים", "reps": 12, "rest": 90},
-            {"name": "Toes to Bar", "hebrew": "הרמת אצבעות למתח", "reps": 8, "rest": 90},
-            {"name": "Straight Bar Dips", "hebrew": "מקבילים על מוט ישר", "reps": 8, "rest": 90},
-            {"name": "Explosive Pull-ups", "hebrew": "מתח מתפרץ / מחיאת כף", "reps": 5, "rest": 120},
-            {"name": "Negative Muscle-Up", "hebrew": "עליית כוח שלילית איטית", "reps": 3, "rest": 120},
-            {"name": "Assisted Muscle-Up (Band)", "hebrew": "עליית כוח עם גומייה", "reps": 5, "rest": 120},
-            {"name": "Full Muscle-Up", "hebrew": "עליית כוח מלאה", "reps": 3, "rest": 180}
-        ]
+            _station("Basic Pull-ups", "עליות מתח בסיסיות", 10, 90,
+                     "תלייה מלאה בתחתית, משיכה עד שהסנטר עובר את המוט, בלי תנופה מהאגן.",
+                     [("שכמות קודם", "מתחילים מהורדת השכמות ורק אז מכופפים מרפקים."),
+                      ("טווח מלא", "יורדים לזרועות ישרות בכל חזרה — חצי טווח לא נספר.")]),
+            _station("Basic Dips", "מקבילים", 12, 90,
+                     "יורדים עד שהמרפק בזווית 90 מעלות והכתף בגובה המרפק, ודוחפים לנעילה מלאה.",
+                     [("כתפיים למטה", "כתפיים רחוק מהאוזניים לאורך כל התנועה."),
+                      ("נטייה קדימה", "הטיית גו קלה קדימה מכינה את מנח התמיכה של עליית הכוח.")]),
+            _station("False Grip Hang", "תלייה באחיזה כוזבת", 25, 90,
+                     "בסיס כף היד מונח מעל המוט והשורש מכופף סביבו — נתלים כך שהמוט יושב על השורש ולא על האצבעות.",
+                     [("שורש מעל המוט", "המוט יושב על בסיס כף היד, האגודל מעליו."),
+                      ("להעלות בהדרגה", "מתחילים ב-15 שניות ומוסיפים — העור והגידים צריכים זמן.")],
+                     unit="sec"),
+            _station("Straight Bar Dips", "מקבילים על מוט ישר", 8, 90,
+                     "תמיכה על מוט ישר בגובה האגן: יורדים כשהמוט כמעט נוגע בחזה ודוחפים חזרה לנעילה.",
+                     [("מוט קרוב לחזה", "המוט מלווה את הגוף — לא מתרחק ממנו."),
+                      ("גו מעט קדימה", "נטייה קדימה שומרת על מרכז הכובד מעל כפות הידיים.")]),
+            _station("False Grip Pull-ups", "עליות מתח באחיזה כוזבת", 6, 120,
+                     "עליית מתח מלאה בלי לשחרר את האחיזה הכוזבת, עד שהחזה התחתון מגיע אל המוט.",
+                     [("חזה למוט", "היעד הוא עצם החזה במוט, לא הסנטר."),
+                      ("שורש נעול", "פרק כף היד נשאר כפוף מעל המוט לאורך כל החזרה.")]),
+            _station("Explosive Pull-ups", "מתח מתפרץ לגובה החזה", 5, 120,
+                     "משיכה מתפרצת שמביאה את המוט לגובה עצם החזה, עם ירידה בשליטה מלאה.",
+                     [("להאיץ מהתחתית", "ההאצה מתחילה למטה — לא נתירה בסוף התנועה."),
+                      ("צוואר ניטרלי", "לא זורקים את הראש אחורה — העבודה בגב ובכתף.")]),
+            _station("Low Bar Transitions", "מעבר על מוט נמוך", 5, 120,
+                     "מוט בגובה החזה: קפיצה קלה מהרגליים ותרגול רגע המעבר בלבד — חזה מעל המוט ומרפקים נפתחים לתמיכה.",
+                     [("חזה נכנס ראשון", "מכניסים את החזה מעל המוט לפני שפותחים מרפקים."),
+                      ("מהר בנקודה התקועה", "המעבר נעשה מהר — עצירה באמצע היא הכישלון עצמו.")]),
+            _station("Assisted Muscle-Up (Band)", "עליית כוח עם גומייה", 5, 120,
+                     "גומייה מתחת לכפות הרגליים או לברכיים; מבצעים עלייה מלאה ומדקקים את הגומייה ככל שמתחזקים.",
+                     [("גומייה דקה יותר", "עוברים לגומייה דקה ברגע שיוצאות 5 חזרות נקיות."),
+                      ("אותו מסלול", "הגומייה לא משנה את התנועה — עדיין חזה למוט ומעבר מהיר.")]),
+            _station("Negative Muscle-Up", "עליית כוח שלילית איטית", 3, 150,
+                     "מתחילים מתמיכה מעל המוט ויורדים כ-5 שניות דרך המעבר עד לתלייה מלאה באחיזה כוזבת.",
+                     [("5 שניות", "הירידה נשלטת לכל אורכה — במיוחד ברגע המעבר."),
+                      ("לא לשחרר", "האחיזה הכוזבת נשמרת גם בדרך למטה.")]),
+            _station("Full Muscle-Up", "עליית כוח מלאה", 3, 180,
+                     "מתלייה מלאה: משיכה קשתית אל החזה, מעבר מהיר ונעילת מרפקים בתמיכה מעל המוט.",
+                     [("קשת ולא קו", "מושכים את המוט אל החזה תוך הטיה אחורה."),
+                      ("נעילה למעלה", "החזרה נספרת רק עם מרפקים נעולים בתמיכה.")]),
+        ],
     },
     "front_lever": {
         "title": "סמיכה קדמית (Front Lever)",
         "difficulty": "רמת קושי: מתקדם",
         "muscles": "שרירים עיקריים: רחב גבי, כתף אחורית, גב עליון, ליבה",
-        "warmup": "זמן חימום מומלץ: 10-12 דקות",
+        "warmup": "זמן חימום מומלץ: 10-12 דקות — שכמות, מרפקים וליבה",
+        "prereq": "תנאי סף למסלול: 10 עליות מתח נקיות, 15 משיכות שכמות ותלייה הפוכה יציבה.",
         "cues": [
-            "הבסיס הביומכני מתחיל ב'תלייה פעילה' (Active Hang) - שכמות מכווצות לאחור ומטה.",
-            "משיכה קבועה של המוט כלפי מטה לעבר האגן תוך נעילת מרפקים מלאה ('לשבור את המוט לשניים').",
-            "התקדמות במנופים מאפשרת הארכה הדרגתית של הגוף תוך הגדלת מומנט הכוח בכתף.",
-            "שילוב תרגילים דינמיים כמו דדליפט הפוך או חתירות מנוף מסייע בבניית כוח אבסולוטי."
+            "הבסיס הוא תלייה פעילה: שכמות מכווצות לאחור ומטה לפני שהגוף מתחיל לעלות.",
+            "מרפקים נעולים לאורך כל ההחזקה — כיפוף מרפק מקצר את המנוף והופך את התרגיל לתרגיל אחר.",
+            "אגן באגירה אחורית וצלעות למטה; גב תחתון שמתקשת הוא הסימן הראשון לאובדן המנח.",
+            "עוברים לתחנה הבאה כשיוצאות 15-20 שניות נקיות במנח הנוכחי — הזמן הוא המדד, לא התחושה.",
         ],
         "progressions": [
-            {"name": "Active Scapula Hangs", "hebrew": "תלייה פעילה וכיווץ שכמות", "reps": 12, "rest": 90},
-            {"name": "Tuck Front Lever Hold", "hebrew": "סמיכה קדמית מקופלת (החזקה)", "reps": 15, "rest": 90},
-            {"name": "Advanced Tuck FL Hold", "hebrew": "סמיכה קדמית מקופלת מתקדמת", "reps": 12, "rest": 90},
-            {"name": "Hanging Leg Raises", "hebrew": "הרמות רגליים ישרות למוט", "reps": 10, "rest": 90},
-            {"name": "Reversed Deadlift (FL Pulls)", "hebrew": "דדליפט הפוך בתלייה", "reps": 5, "rest": 120},
-            {"name": "Tuck FL Rows", "hebrew": "חתירות בסמיכה קדמית מקופלת", "reps": 6, "rest": 120},
-            {"name": "Straddle Front Lever Hold", "hebrew": "סמיכה קדמית בפיסוק רגליים", "reps": 8, "rest": 120},
-            {"name": "One-Legged FL Hold", "hebrew": "סמיכה קדמית - רגל אחת מיושרת", "reps": 8, "rest": 120},
-            {"name": "Full Front Lever Hold", "hebrew": "סמיכה קדמית מלאה", "reps": 5, "rest": 180}
-        ]
+            _station("Active Scapula Hangs", "תלייה פעילה וכיווץ שכמות", 12, 90,
+                     "בתלייה עם מרפקים ישרים מורידים את הכתפיים מהאוזניים ומרימים את הגוף כמה סנטימטרים, בלי לכופף מרפק.",
+                     [("מרפקים ישרים", "רק השכמות זזות — המרפקים נעולים."),
+                      ("למטה ואחורה", "מושכים את השכמות מטה ואחורה, לא למעלה.")]),
+            _station("Hanging Leg Raises", "הרמות רגליים ישרות למוט", 10, 90,
+                     "מתלייה שקטה מרימים רגליים ישרות עד מעל גובה המותן, עם גלגול אגן בסוף התנועה.",
+                     [("בלי תנופה", "כל חזרה מתחילה מעצירה מוחלטת בתחתית."),
+                      ("אגן מתגלגל", "סיום החזרה הוא גלגול אגן, לא רק הרמת רגליים.")]),
+            _station("Tuck Front Lever Hold", "סמיכה קדמית מקופלת", 15, 90,
+                     "ברכיים אל החזה והגב מקביל לקרקע — מחזיקים את הגו אופקי ולא באלכסון.",
+                     [("גב מקביל", "הגב אופקי לקרקע — אלכסון הוא תחנה קלה יותר."),
+                      ("משיכה למטה", "מושכים את המוט לכיוון האגן לאורך כל ההחזקה.")],
+                     unit="sec"),
+            _station("Advanced Tuck FL Hold", "סמיכה קדמית מקופלת מתקדמת", 12, 90,
+                     "מאותו מנח מיישרים את הגב לגמרי ופותחים את הירך עד שהברכיים מעל האגן.",
+                     [("ברכיים מעל האגן", "הירך נפתחת — הברך יוצאת מהחזה."),
+                      ("גב שטוח", "הגב שטוח לגמרי, בלי קימור כלפי מעלה.")],
+                     unit="sec"),
+            _station("Tuck FL Rows", "חתירות בסמיכה קדמית מקופלת", 6, 120,
+                     "במנח המקופל מושכים את החזה אל המוט ויורדים בשליטה, בלי לאבד את גובה האגן.",
+                     [("אגן לא צונח", "הגוף נשאר אופקי גם כשהמרפקים מתכופפים."),
+                      ("ירידה איטית", "הירידה נמשכת 2-3 שניות לפחות.")]),
+            _station("Reversed Deadlift (FL Pulls)", "דדליפט הפוך בתלייה", 5, 120,
+                     "מתלייה מלאה מרימים את הגוף עם מרפקים נעולים עד מנח מקופל מתקדם, ומורידים בשליטה.",
+                     [("מרפקים נעולים", "כל התנועה מגיעה מהכתף ומהשכמה."),
+                      ("קצב שווה", "עלייה וירידה באותו קצב — בלי תנופה.")]),
+            _station("One-Legged FL Hold", "סמיכה קדמית רגל אחת", 10, 120,
+                     "ממנח מקופל מתקדם מיישרים רגל אחת לגמרי והשנייה נשארת מקופלת; מחליפים רגל בין הסטים.",
+                     [("אגן ישר", "האגן לא מסתובב — שתי הירכיים באותו גובה."),
+                      ("להחליף צד", "אותו מספר שניות לכל רגל.")],
+                     unit="sec"),
+            _station("Straddle Front Lever Hold", "סמיכה קדמית בפיסוק", 10, 150,
+                     "שתי הרגליים ישרות ופתוחות לצדדים — הפיסוק מקצר את המנוף ביחס לרגליים צמודות.",
+                     [("לפתוח רחב", "ככל שהפיסוק רחב יותר, ההחזקה קלה יותר."),
+                      ("ברכיים נעולות", "רגליים ישרות ומתוחות עד קצות האצבעות.")],
+                     unit="sec"),
+            _station("Half Lay Front Lever Hold", "סמיכה קדמית חצי פשוטה", 8, 150,
+                     "רגליים צמודות עם ברכיים כפופות ב-90 מעלות — כמעט מנוף מלא, בלי העומס של רגליים ישרות.",
+                     [("ירך פשוטה", "הירך נפתחת לגמרי, רק הברך כפופה."),
+                      ("רגליים צמודות", "הברכיים והקרסוליים נוגעים זה בזה.")],
+                     unit="sec"),
+            _station("Full Front Lever Hold", "סמיכה קדמית מלאה", 8, 180,
+                     "גוף ישר לגמרי ומקביל לקרקע, מרפקים נעולים, מהעורף ועד קצות האצבעות בקו אחד.",
+                     [("קו אחד", "הכתפיים, האגן והעקבים באותו גובה."),
+                      ("לנשום", "נושמים לצלעות — עצירת נשימה מקצרת את ההחזקה.")],
+                     unit="sec"),
+        ],
     },
     "planche": {
         "title": "פלאנץ' (Planche)",
         "difficulty": "רמת קושי: מתקדם מאוד / עילית",
-        "muscles": "שרירים עיקריים: כתפיים קדמיות, חזה, שכמות, דו-ראשי",
-        "warmup": "זמן חימום מומלץ: 8-10 דקות לשורש כף היד",
+        "muscles": "שרירים עיקריים: כתף קדמית, חזה, שכמות, דו-ראשי, ליבה",
+        "warmup": "זמן חימום מומלץ: 8-10 דקות ייעודיות לשורש כף היד",
+        "prereq": "תנאי סף למסלול: פלאנק יציב, 20 שניות הישענות פלאנץ' ושורש כף יד שסובל עומס מלא בהארכה.",
         "cues": [
-            "נעילת מרפקים מלאה וסיבובם קדימה כדי להעביר את העומס הסטטי לגיד הדו-ראשי.",
-            "הרחקה שכמתית עמוקה (Scapular Protraction) - עיגול קל של הגב העליון ודחיפה חזקה של הרצפה.",
-            "הישענות קדימה אל מעבר לקו האצבעות כדי לפצות על משקל פלג הגוף התחתון.",
-            "תרגול עמידת L מקופלת (Tucked L-Sit) מסייע בבניית הרמה והרחקת שכמות בטוחה."
+            "חימום שורש כף היד לפני כל אימון הוא חלק מהתרגיל ולא המלצה — הפלאנץ' מעמיס את השורש בהארכה מלאה.",
+            "מרפקים נעולים ומסובבים קדימה; כיפוף מרפק מעביר את העומס מהגיד לשריר והופך את התרגיל לתרגיל אחר.",
+            "הרחקת שכמות (Protraction): דוחפים את הרצפה ומעגלים קלות את הגב העליון. כיווץ שכמות מפיל את המנח.",
+            "ההישענות קדימה היא שמאזנת את הרגליים — ככל שהכתפיים עוברות את קו כף היד, כך המנח יציב יותר.",
         ],
         "progressions": [
-            {"name": "Planche Lean", "hebrew": "הישענות פלאנץ' על הקרקע", "reps": 20, "rest": 90},
-            {"name": "Tucked L-Sit", "hebrew": "עמידת L מקופלת", "reps": 15, "rest": 90},
-            {"name": "Frog Stand", "hebrew": "עמידת צפרדע", "reps": 15, "rest": 90},
-            {"name": "Tuck Planche Hold", "hebrew": "פלאנץ' מקופל (החזקה)", "reps": 10, "rest": 120},
-            {"name": "One-Legged Advanced Tuck", "hebrew": "פלאנץ' מתקדם רגל אחת שלוחה", "reps": 8, "rest": 120},
-            {"name": "Advanced Tuck Planche", "hebrew": "פלאנץ' מקופל מתקדם", "reps": 8, "rest": 120},
-            {"name": "Straddle Planche Hold", "hebrew": "פלאנץ' בפיסוק", "reps": 5, "rest": 150},
-            {"name": "Full Planche Hold", "hebrew": "פלאנץ' מלא", "reps": 3, "rest": 180}
-        ]
+            _station("Planche Lean", "הישענות פלאנץ'", 25, 90,
+                     "בפלאנק על כפות ידיים ואצבעות לכיוון הרגליים, מזיזים את הכתפיים קדימה מעבר לקו כף היד ומחזיקים.",
+                     [("כתפיים מעבר לשורש", "הכתף עוברת את קו כף היד — זה כל התרגיל."),
+                      ("גוף נעול", "ישבן ובטן נעולים, בלי שקיעה באגן.")],
+                     unit="sec"),
+            _station("Tucked L-Sit", "עמידת L מקופלת", 20, 90,
+                     "בתמיכה על מקבילונים מרימים את האגן ומקפלים ברכיים לחזה, כתפיים למטה וזרועות נעולות.",
+                     [("דחיפה למטה", "דוחפים את המקבילונים ומרחיקים את הכתפיים מהאוזניים."),
+                      ("אגן באוויר", "הישבן לא נוגע — כל הגוף תלוי על הידיים.")],
+                     unit="sec"),
+            _station("Frog Stand", "עמידת צפרדע", 20, 90,
+                     "כפות ידיים על הרצפה, ברכיים נשענות על המרפקים, ומעבירים משקל קדימה עד שהרגליים מתנתקות.",
+                     [("להעביר משקל", "המשקל עובר לידיים בהדרגה — לא בקפיצה."),
+                      ("מבט קדימה", "מבט מעט קדימה מייצב את האיזון.")],
+                     unit="sec"),
+            _station("Pseudo Planche Push-ups", "שכיבות סמיכה פסאודו-פלאנץ'", 8, 120,
+                     "שכיבות סמיכה עם כפות ידיים בגובה המותן ואצבעות לאחור, כשהכתפיים נשארות קדימה מול כף היד.",
+                     [("ידיים נמוך", "כפות הידיים בגובה המותן, לא מתחת לחזה."),
+                      ("לשמור על הנטייה", "לא נסוגים אחורה בתחתית החזרה.")]),
+            _station("Tuck Planche Hold", "פלאנץ' מקופל", 12, 120,
+                     "מעמידת צפרדע מיישרים את המרפקים לגמרי כשהברכיים עדיין צמודות לחזה.",
+                     [("מרפקים נעולים", "נעילה מלאה — זה ההבדל מעמידת צפרדע."),
+                      ("להרחיק שכמות", "דוחפים את הרצפה ומעגלים קלות את הגב העליון.")],
+                     unit="sec"),
+            _station("Advanced Tuck Planche", "פלאנץ' מקופל מתקדם", 10, 120,
+                     "פותחים את הירך עד שהגב שטוח והברכיים מעל האגן, עם אגירה אחורית של האגן.",
+                     [("גב שטוח", "הגב מקביל לקרקע ולא מקומר."),
+                      ("ברכיים מעל האגן", "הירך נפתחת לזווית של 90 מעלות.")],
+                     unit="sec"),
+            _station("One-Legged Advanced Tuck", "פלאנץ' מתקדם רגל אחת", 10, 120,
+                     "ממנח מקופל מתקדם מיישרים רגל אחת לאחור והשנייה נשארת מקופלת; מחליפים בין הסטים.",
+                     [("ישבן נעול", "הרגל הישרה מוחזקת בכיווץ ישבן, לא נגררת."),
+                      ("אגן ישר", "האגן לא מסתובב לצד.")],
+                     unit="sec"),
+            _station("Straddle Planche Hold", "פלאנץ' בפיסוק", 8, 150,
+                     "שתי הרגליים ישרות ופתוחות לצדדים, גוף אופקי והכתפיים הרבה מעבר לקו כף היד.",
+                     [("לפתוח רחב", "פיסוק רחב מקצר את המנוף."),
+                      ("להישען עוד", "ככל שהמנוף גדל, ההישענות קדימה גדלה איתו.")],
+                     unit="sec"),
+            _station("Half Lay Planche Hold", "פלאנץ' חצי פשוט", 6, 150,
+                     "רגליים צמודות עם ברכיים כפופות ב-90 מעלות והירך פשוטה לגמרי.",
+                     [("ירך פשוטה", "הירך נפתחת לגמרי — רק הברך כפופה."),
+                      ("ישבן נעול", "נעילת הישבן היא שמחזיקה את קו הגוף.")],
+                     unit="sec"),
+            _station("Full Planche Hold", "פלאנץ' מלא", 5, 180,
+                     "גוף ישר לגמרי ומקביל לקרקע על זרועות נעולות, מהכתפיים ועד קצות האצבעות.",
+                     [("קו אחד", "כתפיים, אגן ועקבים בקו אחד."),
+                      ("קצר ונקי", "עדיף 3 שניות נקיות מ-6 שניות שבורות.")],
+                     unit="sec"),
+        ],
     },
     "hspu": {
         "title": "שכיבות סמיכה בעמידת ידיים (HSPU)",
         "difficulty": "רמת קושי: בינוני-מתקדם",
         "muscles": "שרירים עיקריים: כתפיים, יד אחורית, שכמות, ליבה",
-        "warmup": "זמן חימום מומלץ: 15-20 דקות (שורש כף היד והכתף)",
+        "warmup": "זמן חימום מומלץ: 15-20 דקות — שורש כף היד, הכתף וחימום עמידת ידיים",
+        "prereq": "תנאי סף למסלול: 30 שניות עמידת ידיים יציבה עם החזה לקיר ו-10 שכיבות סמיכה פייק.",
         "cues": [
-            "שמירה על מרפקים צמודים לגוף/פנימה במהלך הירידה למניעת עומסי גזירה בכתף.",
-            "ביצוע ירידה זוויתית לפנים ליצירת 'בסיס משולש' (הראש מונח קדימה מקו הידיים ברצפה).",
-            "כיווץ מוחלט של הישבן והרגליים לשמירת קו גוף ישר ומניעת הקשתת יתר בגב התחתון.",
-            "שימוש בתמיכת קיר מאפשר בידוד של כוח הלחיצה לפני שילוב האיזון החופשי."
+            "עמידת ידיים עם החזה לקיר מלמדת את קו הגוף הנכון; גב לקיר מעודד קשת בגב התחתון.",
+            "מרפקים פנימה ולא לצדדים — מרפק שנפתח החוצה מעמיס את הכתף בזווית גזירה.",
+            "בסיס משולש: הראש נוגע מעט לפני קו כפות הידיים, כך שהראש והידיים יוצרים משולש יציב.",
+            "ישבן ובטן נעולים לאורך כל החזרה — הקשת בגב התחתון היא מה שגונב את הטווח.",
         ],
         "progressions": [
-            {"name": "Wall-Assisted Handstand Hold", "hebrew": "עמידת ידיים נתמכת קיר (החזקה)", "reps": 30, "rest": 90},
-            {"name": "Wall Walks (Holds)", "hebrew": "טיפוס קיר לעמידת ידיים", "reps": 5, "rest": 90},
-            {"name": "Pike Push-ups", "hebrew": "שכיבות סמיכה פייק", "reps": 10, "rest": 90},
-            {"name": "Elevated Pike Push-ups", "hebrew": "שכיבות סמיכה פייק מוגבהות", "reps": 8, "rest": 90},
-            {"name": "Negative Wall HSPU", "hebrew": "ירידה אקסצנטרית לקיר", "reps": 4, "rest": 120},
-            {"name": "Wall-Assisted HSPU", "hebrew": "שכיבות סמיכה בעמידת ידיים (קיר)", "reps": 5, "rest": 120},
-            {"name": "Straddle Freestanding HSPU", "hebrew": "שכיבות סמיכה חופשיות בפיסוק", "reps": 3, "rest": 150},
-            {"name": "Full Freestanding HSPU", "hebrew": "שכיבות סמיכה בעמידת ידיים מלאה", "reps": 3, "rest": 180}
-        ]
+            _station("Wall-Assisted Handstand Hold", "עמידת ידיים לקיר (החזקה)", 30, 90,
+                     "חזה לקיר, ידיים ברוחב כתפיים, והולכים עם הרגליים במעלה הקיר עד שהגוף אנכי ונעול.",
+                     [("חזה לקיר", "פונים אל הקיר — לא עם הגב אליו."),
+                      ("כתפיים פתוחות", "דוחפים את הכתפיים אל האוזניים לגובה מלא.")],
+                     unit="sec"),
+            _station("Pike Push-ups", "שכיבות סמיכה פייק", 10, 90,
+                     "מנח V הפוך עם אגן גבוה; יורדים עד שקודקוד הראש כמעט נוגע ברצפה מעט לפני הידיים.",
+                     [("אגן גבוה", "ככל שהאגן גבוה יותר, העומס קרוב יותר לאנכי."),
+                      ("ראש קדימה", "הראש יורד לפני קו כפות הידיים — בסיס משולש.")]),
+            _station("Wall Walks (Holds)", "טיפוס קיר לעמידת ידיים", 5, 90,
+                     "מפלאנק עם הרגליים על הקיר הולכים עם הידיים לעבר הקיר עד מנח כמעט אנכי, ועוצרים 3-5 שניות.",
+                     [("צעדים קטנים", "צעדי יד קטנים שומרים על שליטה."),
+                      ("לעצור למעלה", "עוצרים בנקודה הגבוהה לפני הירידה.")]),
+            _station("Elevated Pike Push-ups", "שכיבות סמיכה פייק מוגבהות", 8, 90,
+                     "רגליים על ספסל או מדרגה כך שהגו כמעט אנכי, וירידה לאותו בסיס משולש.",
+                     [("גו אנכי", "ככל שההגבהה גבוהה יותר, התרגיל קרוב יותר ל-HSPU."),
+                      ("טווח מלא", "הראש נוגע ברצפה בכל חזרה.")]),
+            _station("Negative Wall HSPU", "ירידה אקסצנטרית לקיר", 4, 120,
+                     "מעמידת ידיים לקיר יורדים 4-5 שניות עד שהראש נוגע ברצפה, ויוצאים מהמנח עם הרגליים.",
+                     [("ירידה 4-5 שניות", "ככל שהירידה איטית יותר, כך נבנה הכוח."),
+                      ("מרפקים פנימה", "המרפקים לא נפתחים החוצה בדרך למטה.")]),
+            _station("Partial Wall HSPU", "שכיבות סמיכה לקיר בטווח חלקי", 6, 120,
+                     "מניחים כרית או ספרים מתחת לראש ודוחפים מטווח קצר, ומנמיכים את ההגבהה ככל שמתחזקים.",
+                     [("להנמיך בהדרגה", "מורידים את ההגבהה בכל פעם שיוצאות 6 חזרות."),
+                      ("דחיפה מהידיים", "הדחיפה מתחילה מהידיים, לא מתנופת רגליים.")]),
+            _station("Wall-Assisted HSPU", "שכיבות סמיכה בעמידת ידיים לקיר", 5, 120,
+                     "ירידה מלאה עד שהראש נוגע ברצפה ודחיפה חזרה לנעילת מרפקים, כשהרגליים רק נוגעות בקיר.",
+                     [("נעילה למעלה", "כל חזרה מסתיימת במרפקים נעולים."),
+                      ("קיר לאיזון", "הרגליים נוגעות בקיר קלות — לא נשענות עליו.")]),
+            _station("Freestanding Handstand Hold", "עמידת ידיים חופשית (החזקה)", 20, 120,
+                     "עמידת ידיים בלי קיר: מאזנים בלחיצת אצבעות ובשורש כף היד, גוף נעול בקו אחד.",
+                     [("אצבעות מאזנות", "האיזון נעשה בלחיצת אצבעות, לא בתנועת גוף."),
+                      ("מבט בין הידיים", "המבט על הרצפה בין כפות הידיים.")],
+                     unit="sec"),
+            _station("Straddle Freestanding HSPU", "שכיבות סמיכה חופשיות בפיסוק", 3, 150,
+                     "עמידת ידיים חופשית עם רגליים פתוחות לצדדים לאיזון קל יותר, וירידה מלאה לבסיס המשולש.",
+                     [("פיסוק מאזן", "רגליים פתוחות מורידות את מרכז הכובד."),
+                      ("ירידה נשלטת", "הירידה האיטית היא שמחזיקה את האיזון.")]),
+            _station("Full Freestanding HSPU", "שכיבות סמיכה בעמידת ידיים מלאה", 3, 180,
+                     "עמידת ידיים חופשית עם רגליים צמודות: ירידה עד הראש ודחיפה לנעילה מלאה.",
+                     [("קו גוף נעול", "ישבן ובטן נעולים לאורך כל החזרה."),
+                      ("דחיפה שלמה", "מסיימים בכתפיים פתוחות ומרפקים נעולים.")]),
+        ],
     },
     "human_flag": {
         "title": "דגל אנושי (Human Flag)",
         "difficulty": "רמת קושי: מתקדם",
-        "muscles": "שרירים עיקריים: כתפיים, אלכסוני הבטן, רחב גבי, יד קדמית",
-        "warmup": "זמן חימום מומלץ: 10-12 דקות (גיוס שכמה וצד גוף)",
+        "muscles": "שרירים עיקריים: כתפיים, אלכסוני הבטן, רחב גבי, ליבה צדית",
+        "warmup": "זמן חימום מומלץ: 10-12 דקות — כתף, שכמה וליבה צדית",
+        "prereq": "תנאי סף למסלול: 30 שניות פלאנק צד לכל צד, תמיכה יציבה ביד אחת ואחיזה חזקה.",
         "cues": [
-            "פעולה א-סימטרית: זרוע תחתונה דוחפת בעוצמה (מרפק ישר), זרוע עליונה מושכת חזק.",
-            "כיווץ אגרסיבי של האלכסונים (Obliques) והשרשרת הצדית להרמת הירך והרגליים.",
-            "הקפדה על יישור אנכי של הידיים למניעת רוטציה (פיתול) של האגן הצידה.",
-            "אחיזה בסולם שווקי (Stall Bars) נוחה ומומלצת בהרבה מאשר עמוד אנכי בודד."
+            "פעולה א-סימטרית: היד התחתונה דוחפת את העמוד במרפק נעול, והיד העליונה מושכת אליו — שני כוחות מנוגדים.",
+            "היד התחתונה עושה את רוב העבודה; מי שנתקע בדרך כלל מנסה למשוך במקום לדחוף.",
+            "כיווץ אלכסונים וישבן הוא שמרים את האגן — בלעדיו הרגליים נשארות למטה גם עם כתפיים חזקות.",
+            "סולם שוודי או שתי ידיות בגבהים שונים נוחים בהרבה מעמוד עגול, במיוחד בשלבים הראשונים.",
         ],
         "progressions": [
-            {"name": "One Arm Active Hang", "hebrew": "תלייה פעילה ביד אחת", "reps": 20, "rest": 90},
-            {"name": "One Arm Inverted Support", "hebrew": "תמיכה הפוכה ביד אחת", "reps": 15, "rest": 90},
-            {"name": "Low Flag Hold", "hebrew": "החזקת דגל נמוך (אלכסוני)", "reps": 10, "rest": 90},
-            {"name": "High Flag Hold (Wall Walk)", "hebrew": "דגל עליון אנכי (עזרה)", "reps": 12, "rest": 90},
-            {"name": "Angled Tucked Flag Hold", "hebrew": "דגל מקופל בזווית גבוהה", "reps": 10, "rest": 120},
-            {"name": "Twisted Flag Hold", "hebrew": "דגל מפותל (חזה למעלה)", "reps": 8, "rest": 120},
-            {"name": "Tuck Human Flag Hold", "hebrew": "דגל אנושי מקופל (אופקי)", "reps": 8, "rest": 120},
-            {"name": "Straddle Human Flag Hold", "hebrew": "דגל אנושי בפיסוק", "reps": 5, "rest": 150},
-            {"name": "Full Human Flag Hold", "hebrew": "דגל אנושי מלא", "reps": 5, "rest": 180}
-        ]
-    }
+            _station("One Arm Active Hang", "תלייה פעילה ביד אחת", 20, 90,
+                     "תלייה ביד אחת עם שכמה פעילה — הכתף נמשכת מטה ולא נתלית רפויה על המפרק.",
+                     [("שכמה פעילה", "הכתף רחוק מהאוזן לאורך כל ההחזקה."),
+                      ("להחליף יד", "אותו מספר שניות לכל יד.")],
+                     unit="sec"),
+            _station("One Arm Inverted Support", "תמיכה הפוכה ביד אחת", 15, 90,
+                     "אוחזים בעמוד ביד עליונה ותחתונה, מרימים את הרגליים לצד העמוד ומחזיקים גוף אנכי הפוך.",
+                     [("מרפק תחתון נעול", "היד התחתונה נעולה ודוחפת."),
+                      ("גוף צמוד לעמוד", "ככל שהגוף קרוב לעמוד, ההחזקה יציבה יותר.")],
+                     unit="sec"),
+            _station("Vertical Flag Hold", "דגל אנכי (רגליים למעלה)", 15, 90,
+                     "מהתמיכה ההפוכה מורידים את הרגליים מעט מהאנכי ומחזיקים — זה המנח הקל ביותר בדגל.",
+                     [("להתחיל גבוה", "ככל שהרגליים גבוהות יותר, כך קל יותר."),
+                      ("דוחף ומושך", "תחתונה דוחפת, עליונה מושכת — כבר מהמנח הזה.")],
+                     unit="sec"),
+            _station("Vertical Flag Negatives", "ירידות מדגל אנכי", 5, 120,
+                     "מהדגל האנכי מורידים את הרגליים לאט לכיוון האופק, עוצרים בנקודה הנמוכה שאפשר וחוזרים למעלה.",
+                     [("ירידה 3-5 שניות", "הירידה היא התרגיל — לא הנפילה."),
+                      ("לעצור בשליטה", "עוצרים לפני שהמנח נשבר, לא אחרי.")]),
+            _station("Angled Tucked Flag Hold", "דגל מקופל בזווית", 12, 120,
+                     "ברכיים אל החזה והגוף באלכסון כלפי מעלה; מקטינים את הזווית בהדרגה בין האימונים.",
+                     [("ברכיים לחזה", "קיפול הדוק מקצר את המנוף."),
+                      ("להוריד זווית", "כל אימון קצת יותר קרוב לאופק.")],
+                     unit="sec"),
+            _station("Tuck Human Flag Hold", "דגל אנושי מקופל (אופקי)", 10, 120,
+                     "אותו קיפול, אבל הגו כבר מקביל לקרקע — האגן בגובה הכתפיים.",
+                     [("אגן בגובה כתף", "הגוף אופקי, לא אלכסוני."),
+                      ("אלכסונים נעולים", "צד הבטן העליון מכווץ חזק.")],
+                     unit="sec"),
+            _station("One-Legged Human Flag Hold", "דגל אנושי רגל אחת", 8, 150,
+                     "ממנח מקופל אופקי מיישרים רגל אחת — בדרך כלל העליונה — והשנייה נשארת מקופלת.",
+                     [("העליונה קודם", "מתחילים מיישור הרגל העליונה, היא הקלה יותר."),
+                      ("להחליף צד", "מבצעים לשני הכיוונים.")],
+                     unit="sec"),
+            _station("Straddle Human Flag Hold", "דגל אנושי בפיסוק", 8, 150,
+                     "שתי הרגליים ישרות ופתוחות לצדדים, גוף אופקי והאגן לא מסובב.",
+                     [("פיסוק רחב", "פיסוק רחב מקצר את המנוף."),
+                      ("אגן לא מסתובב", "הירכיים בקו אחד עם החזה.")],
+                     unit="sec"),
+            _station("Full Human Flag Hold", "דגל אנושי מלא", 5, 180,
+                     "רגליים ישרות וצמודות, גוף אופקי מלא, ומרפק תחתון נעול לאורך כל ההחזקה.",
+                     [("צמודות ונעולות", "רגליים צמודות עם ישבן נעול."),
+                      ("לנשום", "נשימה שקטה — עצירת נשימה מקצרת את ההחזקה.")],
+                     unit="sec"),
+        ],
+    },
 }
+
+# Stations whose Hebrew label changed here. A saved row carries the name it was saved
+# under, so these keep counting towards the same station. Stations that were dropped
+# from a path on purpose (Toes to Bar, the low and twisted flags) are not listed:
+# their rows stay in the history but no longer count towards a path.
+# (skill, the name it was saved under, the station it is today)
+STATION_RENAMES = [
+    ("muscle_up", "שכיבות סמיכה במקבילים", "Basic Dips", "Basic Dips"),
+    ("muscle_up", "מתח מתפרץ / מחיאת כף", "Explosive Pull-ups", "Explosive Pull-ups"),
+    ("front_lever", "סמיכה קדמית מקופלת (החזקה)", "Tuck Front Lever Hold", "Tuck Front Lever Hold"),
+    ("front_lever", "סמיכה קדמית - רגל אחת מיושרת", "One-Legged FL Hold", "One-Legged FL Hold"),
+    ("planche", "הישענות פלאנץ' על הקרקע", "Planche Lean", "Planche Lean"),
+    ("planche", "פלאנץ' מקופל (החזקה)", "Tuck Planche Hold", "Tuck Planche Hold"),
+    ("planche", "פלאנץ' מתקדם רגל אחת שלוחה", "One-Legged Advanced Tuck", "One-Legged Advanced Tuck"),
+    ("hspu", "עמידת ידיים נתמכת קיר (החזקה)", "Wall-Assisted Handstand Hold", "Wall-Assisted Handstand Hold"),
+    ("hspu", "שכיבות סמיכה בעמידת ידיים (קיר)", "Wall-Assisted HSPU", "Wall-Assisted HSPU"),
+    ("human_flag", "דגל עליון אנכי (עזרה)", "High Flag Hold (Wall Walk)", "Vertical Flag Hold"),
+]
 
 # ====================== QUEST PATHS ======================
 # Every SKILL_PROGRESSIONS entry is a path and its progressions are the stations.
@@ -215,11 +429,23 @@ def station_exercise_name(step: Dict[str, Any]) -> str:
     return f"{step['hebrew']} ({step['name']})"
 
 
-# Rows saved before skill_key existed are matched back to their station by name.
-STATION_BY_NAME: Dict[str, Tuple[str, int]] = {}
+# A saved row carries the exercise name, so the name — not the stored index — is what
+# survives a change to the order of a path. Both maps are built from it.
+STATION_BY_NAME: Dict[str, Tuple[str, int]] = {}          # name -> (skill, index)
+STATION_INDEX: Dict[Tuple[str, str], int] = {}            # (skill, name) -> index
 for _skill_key, _skill in SKILL_PROGRESSIONS.items():
     for _idx, _step in enumerate(_skill["progressions"]):
         STATION_BY_NAME.setdefault(station_exercise_name(_step), (_skill_key, _idx))
+        STATION_INDEX[(_skill_key, station_exercise_name(_step))] = _idx
+
+RENAMED_ENGLISH: Dict[Tuple[str, str], str] = {}   # (skill, old English name) -> today's name
+for _skill_key, _old_hebrew, _old_english, _english in STATION_RENAMES:
+    _steps = SKILL_PROGRESSIONS[_skill_key]["progressions"]
+    _idx = next(i for i, s in enumerate(_steps) if s["name"] == _english)
+    _old_name = f"{_old_hebrew} ({_old_english})"
+    STATION_BY_NAME.setdefault(_old_name, (_skill_key, _idx))
+    STATION_INDEX.setdefault((_skill_key, _old_name), _idx)
+    RENAMED_ENGLISH[(_skill_key, _old_english)] = _english
 
 # Hebrew title + coach-tip category for the free-workout exercise list
 EXERCISE_CATALOG = {
@@ -246,26 +472,23 @@ TEMPO_BY_EXERCISE = {
     "Muscle-ups": (2, 0, 1),
     "Negative Muscle-Up": (5, 1, 1),
     "Negative Wall HSPU": (5, 1, 1),
+    "Low Bar Transitions": (2, 0, 1),
+    "Vertical Flag Negatives": (4, 1, 1),
     "Active Scapula Hangs": (2, 1, 1),
     "Scapula Shrugs": (2, 1, 1),
     "Toes to Bar": (2, 1, 1),
     "Calf Raises": (2, 1, 1),
 }
-# Static positions: the clip is the hold itself, so there is no rep tempo.
+# Static positions among the free-workout exercises: the clip is the hold itself, so
+# there is no rep tempo. A path station says so itself, through its "sec" unit.
 HOLD_EXERCISES = {
     "Planche Lean", "Tucked L-Sit", "Frog Stand", "One-Legged Advanced Tuck", "Advanced Tuck Planche",
     "One Arm Active Hang", "One Arm Inverted Support", "Wall Walks (Holds)", "L-Sit", "Plank",
+    "False Grip Hang",
 }
 
-# Two form cues per exercise: a short pin for the hologram + the full sentence.
-# Path stations use the first two of their skill's existing cues.
-SKILL_CUE_PINS = {
-    "muscle_up": ("תנאי סף", "אחיזה כוזבת"),
-    "front_lever": ("תלייה פעילה", "מרפקים נעולים"),
-    "planche": ("מרפקים נעולים", "הרחקת שכמות"),
-    "hspu": ("מרפקים צמודים", "בסיס משולש"),
-    "human_flag": ("דחיפה ומשיכה", "אלכסונים"),
-}
+# Two form cues per free-workout exercise: a short pin for the hologram + the full
+# sentence. Path stations carry their own two cues inside SKILL_PROGRESSIONS.
 FORM_CUES = {
     "Push-ups": (("גב ישר", "קו ישר מהעורף לעקבים — בלי לשקוע באגן."),
                  ("מרפקים 45°", "מרפקים ב-45° לגוף, לא פתוחים לצדדים.")),
@@ -317,11 +540,16 @@ def holo_key(english_name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", english_name.lower()).strip("_")
 
 
-def exercise_tempo(english_name: str) -> Optional[List[int]]:
+def exercise_tempo(english_name: str, unit: str = "reps") -> Optional[List[int]]:
     """Rep tempo in seconds (lowering, pause, pushing); None for static holds."""
-    if "Hold" in english_name or english_name in HOLD_EXERCISES:
+    if unit == "sec" or "Hold" in english_name or english_name in HOLD_EXERCISES:
         return None
     return list(TEMPO_BY_EXERCISE.get(english_name, TEMPO_DEFAULT))
+
+
+def unit_label(unit: str) -> str:
+    """What a station's target counts: seconds for a hold, repetitions otherwise."""
+    return "שניות" if unit == "sec" else "חזרות"
 
 
 _holo_clip_cache: Dict[str, Any] = {"stamp": None, "clips": frozenset(), "front": frozenset()}
@@ -357,25 +585,31 @@ def holo_front_clips() -> frozenset:
 
 
 def exercise_form_data() -> Dict[str, Dict[str, Any]]:
-    """Per saved exercise name: hologram clip key, tempo and the two form cues."""
+    """Per saved exercise name: hologram clip key, unit, tempo, how it is done and its cues."""
     data: Dict[str, Dict[str, Any]] = {}
     for name in EXERCISE_CATALOG:
         data[name] = {
             "holo_key": holo_key(name),
+            "unit": "sec" if exercise_tempo(name) is None else "reps",
+            "unit_label": unit_label("sec" if exercise_tempo(name) is None else "reps"),
             "tempo": exercise_tempo(name),
+            "how": "",
             "cues": [{"pin": pin, "text": text} for pin, text in FORM_CUES.get(name, ())],
         }
-    for skill_key, skill in SKILL_PROGRESSIONS.items():
-        cues = [
-            {"pin": pin, "text": text}
-            for pin, text in zip(SKILL_CUE_PINS.get(skill_key, ()), skill["cues"][:2])
-        ]
+    for skill in SKILL_PROGRESSIONS.values():
         for step in skill["progressions"]:
-            data[station_exercise_name(step)] = {
+            entry = {
                 "holo_key": holo_key(step["name"]),
-                "tempo": exercise_tempo(step["name"]),
-                "cues": cues,
+                "unit": step["unit"],
+                "unit_label": unit_label(step["unit"]),
+                "tempo": exercise_tempo(step["name"], step["unit"]),
+                "how": step["how"],
+                "cues": [dict(cue) for cue in step["cues"]],
             }
+            data[station_exercise_name(step)] = entry
+    for skill_key, old_hebrew, old_english, english in STATION_RENAMES:
+        step = next(s for s in SKILL_PROGRESSIONS[skill_key]["progressions"] if s["name"] == english)
+        data.setdefault(f"{old_hebrew} ({old_english})", data[station_exercise_name(step)])
     return data
 
 # ====================== GAMIFICATION ENGINE ======================
@@ -648,11 +882,23 @@ def _rep_range(target: int) -> Tuple[int, int]:
 
 
 def _station_for(skill_key: Optional[str], stage_index: Optional[int], exercise_name: str) -> Optional[Tuple[str, int]]:
-    """The station an exercise row trained: its stored key when valid, else a match by name."""
+    """The station an exercise row trained.
+
+    The saved name is what identifies a station, so a row still lands on the right one
+    after a path was re-ordered. Only a row whose name is not a station at all falls
+    back to the index it was saved with.
+    """
     skill = SKILL_PROGRESSIONS.get(skill_key or "")
+    if skill:
+        idx = STATION_INDEX.get((skill_key, exercise_name))
+        if idx is not None:
+            return (skill_key, idx)
+    named = STATION_BY_NAME.get(exercise_name)
+    if named:
+        return named
     if skill and stage_index is not None and 0 <= stage_index < len(skill["progressions"]):
         return (skill_key, stage_index)
-    return STATION_BY_NAME.get(exercise_name)
+    return None
 
 
 def _exercise_title(exercise_name: str, station: Optional[Tuple[str, int]]) -> str:
@@ -662,6 +908,13 @@ def _exercise_title(exercise_name: str, station: Optional[Tuple[str, int]]) -> s
     if exercise_name in EXERCISE_CATALOG:
         return EXERCISE_CATALOG[exercise_name]["title"]
     return exercise_name
+
+
+def _exercise_unit(exercise_name: str, station: Optional[Tuple[str, int]]) -> str:
+    """What the saved number counts: 'sec' for a static hold, 'reps' otherwise."""
+    if station:
+        return SKILL_PROGRESSIONS[station[0]]["progressions"][station[1]]["unit"]
+    return "sec" if exercise_tempo(exercise_name) is None else "reps"
 
 
 def _best_set(exercise: Dict[str, Any]) -> int:
@@ -735,6 +988,10 @@ def compute_paths(
                 "exercise_name": station_exercise_name(step),
                 "reps": step["reps"],
                 "rest": step["rest"],
+                "unit": step["unit"],
+                "unit_label": unit_label(step["unit"]),
+                "how": step["how"],
+                "cues": step["cues"],
                 "rep_label": f"{low}–{high}" if low < high else str(high),
                 "sessions": counts["sessions"],
                 "in_range": min(counts["in_range"], STATION_SESSIONS_TO_CONQUER),
@@ -767,7 +1024,11 @@ def compute_paths(
         if recent_durations:
             plan_minutes = round(median(recent_durations))
         else:
-            plan_seconds = sum(sets * (PLAN_SECONDS_PER_SET + st["rest"]) for st, sets in planned)
+            # A hold's work time is the hold itself; a rep set gets the flat estimate.
+            plan_seconds = sum(
+                sets * ((st["reps"] if st["unit"] == "sec" else PLAN_SECONDS_PER_SET) + st["rest"])
+                for st, sets in planned
+            )
             plan_minutes = max(1, round(plan_seconds / 60))
         plan = {
             "exercises": [
@@ -779,6 +1040,8 @@ def compute_paths(
                     "sets": sets,
                     "reps": st["reps"],
                     "rest": st["rest"],
+                    "unit": st["unit"],
+                    "unit_label": st["unit_label"],
                 }
                 for st, sets in planned
             ],
@@ -805,6 +1068,7 @@ def compute_paths(
             "difficulty": skill["difficulty"],
             "muscles": skill["muscles"],
             "warmup": skill["warmup"],
+            "prereq": skill["prereq"],
             "cues": skill["cues"],
             "category": meta["workout_type"].lower(),
             "unlocked": level >= meta["unlock_level"] or bool(sessions) or bool(legacy_done),
@@ -829,26 +1093,64 @@ def _legacy_progress_key(user_id: int) -> str:
     return f"workouts_legacy_conquered:{user_id}"
 
 
+# The station order the browser-only "כבשתי!" flags were numbered against. Imported
+# flags are stored — and stay stored — in these indexes, and are translated to today's
+# order on the way out, so re-ordering a path never moves someone's old flags.
+LEGACY_STATION_ORDER = {
+    "muscle_up": ["Basic Pull-ups", "Basic Dips", "Toes to Bar", "Straight Bar Dips",
+                  "Explosive Pull-ups", "Negative Muscle-Up", "Assisted Muscle-Up (Band)",
+                  "Full Muscle-Up"],
+    "front_lever": ["Active Scapula Hangs", "Tuck Front Lever Hold", "Advanced Tuck FL Hold",
+                    "Hanging Leg Raises", "Reversed Deadlift (FL Pulls)", "Tuck FL Rows",
+                    "Straddle Front Lever Hold", "One-Legged FL Hold", "Full Front Lever Hold"],
+    "planche": ["Planche Lean", "Tucked L-Sit", "Frog Stand", "Tuck Planche Hold",
+                "One-Legged Advanced Tuck", "Advanced Tuck Planche", "Straddle Planche Hold",
+                "Full Planche Hold"],
+    "hspu": ["Wall-Assisted Handstand Hold", "Wall Walks (Holds)", "Pike Push-ups",
+             "Elevated Pike Push-ups", "Negative Wall HSPU", "Wall-Assisted HSPU",
+             "Straddle Freestanding HSPU", "Full Freestanding HSPU"],
+    "human_flag": ["One Arm Active Hang", "One Arm Inverted Support", "Low Flag Hold",
+                   "High Flag Hold (Wall Walk)", "Angled Tucked Flag Hold", "Twisted Flag Hold",
+                   "Tuck Human Flag Hold", "Straddle Human Flag Hold", "Full Human Flag Hold"],
+}
+
+
 def _clean_progress(data: Any) -> Dict[str, List[int]]:
-    """Keep only real skill keys and in-range stage indexes."""
+    """Keep only real skill keys and in-range legacy stage indexes."""
     clean: Dict[str, List[int]] = {}
     if not isinstance(data, dict):
         return clean
     for skill_key, indexes in data.items():
-        skill = SKILL_PROGRESSIONS.get(skill_key)
-        if not skill or not isinstance(indexes, list):
+        order = LEGACY_STATION_ORDER.get(skill_key)
+        if not order or not isinstance(indexes, list):
             continue
         valid = sorted({
             i for i in indexes
-            if isinstance(i, int) and not isinstance(i, bool) and 0 <= i < len(skill["progressions"])
+            if isinstance(i, int) and not isinstance(i, bool) and 0 <= i < len(order)
         })
         if valid:
             clean[skill_key] = valid
     return clean
 
 
-def _load_legacy_progress(db_conn: sqlite3.Connection, user_id: int) -> Dict[str, List[int]]:
-    """Stations a browser had marked conquered by hand, imported once from localStorage."""
+def _legacy_to_current(progress: Dict[str, List[int]]) -> Dict[str, List[int]]:
+    """Translate legacy stage indexes into today's ones; a dropped station is dropped."""
+    current: Dict[str, List[int]] = {}
+    for skill_key, indexes in progress.items():
+        steps = SKILL_PROGRESSIONS[skill_key]["progressions"]
+        by_name = {step["name"]: idx for idx, step in enumerate(steps)}
+        names = [
+            RENAMED_ENGLISH.get((skill_key, name), name)
+            for name in (LEGACY_STATION_ORDER[skill_key][i] for i in indexes)
+        ]
+        mapped = sorted({by_name[name] for name in names if name in by_name})
+        if mapped:
+            current[skill_key] = mapped
+    return current
+
+
+def _stored_legacy_progress(db_conn: sqlite3.Connection, user_id: int) -> Dict[str, List[int]]:
+    """The imported flags exactly as stored — in legacy station indexes."""
     row = db_conn.execute(
         "SELECT value FROM system_settings WHERE key = ?", (_legacy_progress_key(user_id),)
     ).fetchone()
@@ -858,6 +1160,11 @@ def _load_legacy_progress(db_conn: sqlite3.Connection, user_id: int) -> Dict[str
         return _clean_progress(json.loads(row["value"]))
     except (TypeError, ValueError):
         return {}
+
+
+def _load_legacy_progress(db_conn: sqlite3.Connection, user_id: int) -> Dict[str, List[int]]:
+    """Stations a browser had marked conquered by hand, in today's station order."""
+    return _legacy_to_current(_stored_legacy_progress(db_conn, user_id))
 
 
 def _resolve_user_id(request: Request, db_conn: sqlite3.Connection):
@@ -902,6 +1209,7 @@ def _fetch_history(db_conn: sqlite3.Connection, user_id: int) -> List[Dict[str, 
             "sets": r["total_sets"],
             "reps": r["total_reps"],
             "max_reps": r["max_reps"],
+            "unit_label": unit_label(_exercise_unit(r["exercise_name"], station)),
             "station": station,
         })
     return list(workout_sessions.values())
@@ -948,7 +1256,8 @@ async def workout_page(
         },
         "stations": {
             p["key"]: [
-                {"name": st["exercise_name"], "title": st["hebrew"], "reps": st["reps"], "rest": st["rest"]}
+                {"name": st["exercise_name"], "title": st["hebrew"], "reps": st["reps"],
+                 "rest": st["rest"], "unit": st["unit"], "unit_label": st["unit_label"]}
                 for st in p["stations"]
             ]
             for p in paths
@@ -1285,7 +1594,7 @@ async def import_legacy_progress(
     if user_id is None:
         return JSONResponse({"status": "error", "message": "Not authenticated"}, status_code=status.HTTP_401_UNAUTHORIZED)
 
-    merged = _load_legacy_progress(db_conn, user_id)
+    merged = _stored_legacy_progress(db_conn, user_id)  # merged and stored in legacy indexes
     for skill_key, indexes in _clean_progress(payload.progress).items():
         merged[skill_key] = sorted(set(merged.get(skill_key, [])) | set(indexes))
     db_conn.execute(

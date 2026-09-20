@@ -123,6 +123,10 @@ Calisthenics tracker built as a game ("הזירה"): `pages/workout.html` + `sta
   from `localStorage` (`workout_active_session_v2`) after a refresh.
 - XP, levels, ranks, streaks and achievements are derived from history in `routes/workouts.py` — never stored.
 - Quest paths = `SKILL_PROGRESSIONS`; a station is conquered by 5 workouts in its rep range (counted, no button).
+  Each station carries its `unit` (`reps`, or `sec` for a static hold — the UI labels the target accordingly),
+  one `how` line and its own two form cues. A saved row is matched back to its station **by name**
+  (`STATION_INDEX` / `STATION_RENAMES`), so re-ordering a path never re-credits old history; the imported
+  legacy flags stay numbered in `LEGACY_STATION_ORDER` and are translated on read.
   `POST /workouts/legacy-progress` imports the old browser-only "כבשתי!" flags once (kept in `system_settings`).
 - Exercise hologram: `static/holo/exercises.glb`, one animation clip per exercise (`holo_key()`),
   shown with `<model-viewer>` from jsDelivr. No file → the plain arena. The shipped model is

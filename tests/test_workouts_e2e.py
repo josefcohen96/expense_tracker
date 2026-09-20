@@ -131,7 +131,7 @@ def test_station_is_conquered_by_count(app_client, clean_workouts):
         assert body["rewards"]["new_stations"] == []
     body = _save(app_client, today.isoformat(), [station])
     assert body["rewards"]["new_stations"] == [{
-        "path": "עליית כוח", "icon": "🧗", "station": "עליות מתח בסיסיות", "next": "שכיבות סמיכה במקבילים",
+        "path": "עליית כוח", "icon": "🧗", "station": "עליות מתח בסיסיות", "next": "מקבילים",
     }]
 
     html = app_client.get("/workouts").text
@@ -252,10 +252,94 @@ def test_exercise_form_data():
     station = form["עליית כוח שלילית איטית (Negative Muscle-Up)"]
     assert station["holo_key"] == "negative_muscle_up"
     assert station["tempo"] == [5, 1, 1]
-    skill_cues = workouts.SKILL_PROGRESSIONS["muscle_up"]["cues"][:2]
-    assert [c["text"] for c in station["cues"]] == skill_cues
+    assert station["unit_label"] == "חזרות"
+    # A station carries its own cues and its own "how it is done" line, not the path's
+    step = next(s for s in workouts.SKILL_PROGRESSIONS["muscle_up"]["progressions"]
+                if s["name"] == "Negative Muscle-Up")
+    assert station["cues"] == step["cues"] and station["how"] == step["how"]
     assert form["פלאנץ' מלא (Full Planche Hold)"]["tempo"] is None  # static hold
     assert workouts.holo_key("Australian Pull-ups / Rows") == "australian_pull_ups_rows"
+
+
+def test_holds_are_counted_in_seconds():
+    """A hold's target is seconds, and it says so everywhere it is shown."""
+    hold = workouts.exercise_form_data()["סמיכה קדמית מלאה (Full Front Lever Hold)"]
+    assert hold["unit"] == "sec" and hold["unit_label"] == "שניות" and hold["tempo"] is None
+
+    paths = {p["key"]: p for p in workouts.compute_paths([], level=1)}
+    stations = {st["name"]: st for st in paths["front_lever"]["stations"]}
+    assert stations["Full Front Lever Hold"]["unit_label"] == "שניות"
+    assert stations["Hanging Leg Raises"]["unit_label"] == "חזרות"
+    # The time estimate uses the hold itself as the work time
+    assert all("unit_label" in ex for ex in paths["front_lever"]["plan"]["exercises"])
+
+
+def test_every_station_is_documented():
+    for skill_key, skill in workouts.SKILL_PROGRESSIONS.items():
+        assert skill["prereq"], skill_key
+        for step in skill["progressions"]:
+            where = f"{skill_key}/{step['name']}"
+            assert step["unit"] in ("reps", "sec"), where
+            assert step["how"].endswith("."), where
+            assert len(step["cues"]) == 2, where
+            assert all(c["pin"] and c["text"] for c in step["cues"]), where
+
+
+def test_stations_follow_the_accepted_order():
+    """An easier lever always comes before a longer one on the same path."""
+    def order(skill_key):
+        return [s["name"] for s in workouts.SKILL_PROGRESSIONS[skill_key]["progressions"]]
+
+    fl = order("front_lever")
+    assert fl.index("Tuck Front Lever Hold") < fl.index("Advanced Tuck FL Hold") \
+        < fl.index("One-Legged FL Hold") < fl.index("Straddle Front Lever Hold") \
+        < fl.index("Half Lay Front Lever Hold") < fl.index("Full Front Lever Hold")
+
+    pl = order("planche")
+    assert pl.index("Tuck Planche Hold") < pl.index("Advanced Tuck Planche") \
+        < pl.index("One-Legged Advanced Tuck") < pl.index("Straddle Planche Hold") \
+        < pl.index("Full Planche Hold")
+
+    # The false grip the muscle-up cues talk about is trained before it is needed
+    mu = order("muscle_up")
+    assert mu.index("False Grip Hang") < mu.index("False Grip Pull-ups") < mu.index("Full Muscle-Up")
+
+    # A freestanding handstand is a prerequisite of a freestanding press, not a surprise
+    hs = order("hspu")
+    assert hs.index("Wall-Assisted HSPU") < hs.index("Freestanding Handstand Hold") \
+        < hs.index("Straddle Freestanding HSPU")
+
+    # The flag starts vertical (feet up) and works down towards horizontal
+    hf = order("human_flag")
+    assert hf.index("Vertical Flag Hold") < hf.index("Angled Tucked Flag Hold") \
+        < hf.index("Tuck Human Flag Hold") < hf.index("One-Legged Human Flag Hold") \
+        < hf.index("Straddle Human Flag Hold") < hf.index("Full Human Flag Hold")
+
+
+def test_rows_survive_a_reordered_path():
+    """The saved name identifies the station, so a stale index never credits the wrong one."""
+    # Renamed station: the row still carries the name it was saved under
+    old_name = "עמידת ידיים נתמכת קיר (החזקה) (Wall-Assisted Handstand Hold)"
+    assert workouts._station_for("hspu", 0, old_name) == ("hspu", 0)
+    # A name that moved: the name wins over the index stored beside it
+    moved = "הרמות רגליים ישרות למוט (Hanging Leg Raises)"
+    assert workouts._station_for("front_lever", 3, moved) == ("front_lever", 1)
+    # An exercise that is not a station at all keeps its stored index
+    assert workouts._station_for("front_lever", 2, "Dips") == ("front_lever", 2)
+    assert workouts._station_for(None, None, "Dips") is None
+
+
+def test_legacy_flags_are_read_in_the_order_they_were_written(app_client, clean_workouts):
+    """Imported "כבשתי!" flags are stored in the old numbering and translated on the way out."""
+    # Old human_flag order: 3 = the vertical flag, 2 = the low flag (no longer a station)
+    r = app_client.post("/workouts/legacy-progress", json={"progress": {"human_flag": [2, 3]}})
+    assert r.json() == {"status": "success", "stations": 2}
+
+    paths = {p["key"]: p for p in workouts.compute_paths(
+        [], level=1, legacy_conquered=workouts._legacy_to_current({"human_flag": [2, 3]}))}
+    stations = paths["human_flag"]["stations"]
+    assert stations[workouts.STATION_INDEX[("human_flag", "דגל אנכי (רגליים למעלה) (Vertical Flag Hold)")]]["conquered"]
+    assert sum(1 for st in stations if st["conquered"]) == 1  # the dropped low flag brings nothing
 
 
 def test_shipped_model_asks_for_the_front_camera_on_flags():

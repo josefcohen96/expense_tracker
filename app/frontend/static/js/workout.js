@@ -169,6 +169,17 @@ function buildExercise(meta, setCount, reps, rest) {
     };
 }
 
+// A hold is measured in seconds, a rep set in repetitions — the server says which,
+// per exercise name, so a resumed session gets it right too.
+function unitLabelFor(name) {
+    const form = data().form[name];
+    return (form && form.unit_label) || 'חזרות';
+}
+
+function unitLabel(exercise) {
+    return unitLabelFor(exercise && exercise.name);
+}
+
 function exerciseIcon(exercise) {
     const path = exercise.skill_key && data().paths[exercise.skill_key];
     return path ? path.icon : (CATEGORY_ICONS[exercise.category] || CATEGORY_ICONS.general);
@@ -715,7 +726,7 @@ function renderSetPanel() {
     if (holo) paintTempo(panel, holo.tempo);
     ring.style.setProperty('--pct', `${Math.round(doneInExercise * 100 / exercise.sets.length)}%`);
     repsEl.textContent = set.reps;
-    $('#arena-reps-label').textContent = 'חזרות';
+    $('#arena-reps-label').textContent = unitLabel(exercise);
     $('#arena-set-xp').textContent = `+${XP_PER_SET + set.reps} XP`;
     $('#arena-set-label').innerHTML = `סט ${numHtml(exercise.sets.indexOf(set) + 1)} מתוך ${numHtml(exercise.sets.length)}`;
     $('#arena-ex-name').textContent = exercise.title;
@@ -758,7 +769,7 @@ function renderRestPanel() {
     if (next) {
         const { exercise, set } = next;
         const index = exercise.sets.indexOf(set);
-        const target = `יעד ${numHtml(set.reps)} חזרות`;
+        const target = `יעד ${numHtml(set.reps)} ${escapeHtml(unitLabel(exercise))}`;
         tile.textContent = exerciseIcon(exercise);
         title.innerHTML = `${escapeHtml(exercise.title)} · סט ${numHtml(index + 1)}`;
         if (exercise.sets.length > 1 && index === exercise.sets.length - 1) sub.innerHTML = `הסט האחרון בתרגיל · ${target}`;
@@ -998,6 +1009,9 @@ function openFormCheck(trigger) {
         pin.hidden = !cues[i];
         if (cues[i]) $('.form-pin-label', pin).textContent = cues[i].pin;
     });
+    const how = $('#form-how');
+    how.textContent = holo.how || '';
+    how.hidden = !holo.how;
     $('#form-cues').hidden = cues.length === 0;
     $('#form-cue-list').innerHTML = cues.map((cue, i) => `
         <li><span class="form-cue-num" dir="ltr">${i + 1}</span><span class="form-cue-text">${escapeHtml(cue.text)}</span></li>
@@ -1117,7 +1131,7 @@ function checkPersonalRecord(exercise, set) {
     const record = data().records[exercise.name];
     if (!record || prShown[exercise.name] || set.reps <= record.best) return null;
     prShown[exercise.name] = true;
-    return { title: exercise.title, reps: set.reps, previous: record.best };
+    return { title: exercise.title, reps: set.reps, previous: record.best, unit: unitLabel(exercise) };
 }
 
 let prToastTimer = null;
@@ -1127,7 +1141,7 @@ function showPrToast(record) {
     if (!layer) return;
     const inTitle = /^[֐-׿]/.test(record.title) ? `ב${record.title}` : `· ${record.title}`;
     $('#arena-pr-detail').innerHTML =
-        `${numHtml(record.reps)} חזרות ${escapeHtml(inTitle)} · הקודם ${numHtml(record.previous)}`;
+        `${numHtml(record.reps)} ${escapeHtml(record.unit || 'חזרות')} ${escapeHtml(inTitle)} · הקודם ${numHtml(record.previous)}`;
     $('#arena-pr-delta').textContent = `+${record.reps - record.previous}`;
     layer.hidden = false;
     requestAnimationFrame(() => layer.classList.add('is-open'));
@@ -1378,6 +1392,8 @@ function renderSheet() {
 }
 
 function sheetExerciseBody(ex, isCurrent) {
+    const unit = unitLabel(ex);
+    const one = unit === 'שניות' ? 'שנייה' : 'חזרה';
     const rows = ex.sets.map((set, idx) => {
         const toggleClass = set.done ? 'is-done' : (set.skipped ? 'is-skipped' : '');
         const toggleLabel = set.done ? '✓' : (set.skipped ? 'דולג' : '✓');
@@ -1385,12 +1401,12 @@ function sheetExerciseBody(ex, isCurrent) {
         <div class="sheet-set">
             <span class="sheet-set-index" aria-hidden="true">${idx + 1}</span>
             <div class="sheet-stepper">
-                <button type="button" onclick="stepSetValue('${ex.id}', '${set.id}', 'reps', -1)" aria-label="הפחת חזרה בסט ${idx + 1}">−</button>
+                <button type="button" onclick="stepSetValue('${ex.id}', '${set.id}', 'reps', -1)" aria-label="הפחת ${one} בסט ${idx + 1}">−</button>
                 <input type="number" value="${set.reps}" min="0" max="999" inputmode="numeric" pattern="[0-9]*"
-                       aria-label="חזרות בסט ${idx + 1}" data-set-input="${set.id}"
+                       aria-label="${unit} בסט ${idx + 1}" data-set-input="${set.id}"
                        onchange="updateSetData('${ex.id}', '${set.id}', 'reps', this.value)">
-                <span class="sheet-stepper-unit">חזרות</span>
-                <button type="button" onclick="stepSetValue('${ex.id}', '${set.id}', 'reps', 1)" aria-label="הוסף חזרה בסט ${idx + 1}">+</button>
+                <span class="sheet-stepper-unit">${unit}</span>
+                <button type="button" onclick="stepSetValue('${ex.id}', '${set.id}', 'reps', 1)" aria-label="הוסף ${one} בסט ${idx + 1}">+</button>
             </div>
             <button type="button" class="sheet-set-toggle ${toggleClass}" onclick="toggleSetDone('${ex.id}', '${set.id}')"
                     aria-pressed="${set.done}" aria-label="סט ${idx + 1} בוצע">${toggleLabel}</button>
@@ -1818,7 +1834,7 @@ function showReward(rewards, stats) {
     )));
     fillRows('#reward-records', (rewards.new_records || []).map(r => rewardRow(
         'record', '📈',
-        `שיא אישי · ${numHtml(r.reps)} חזרות`,
+        `שיא אישי · ${numHtml(r.reps)} ${escapeHtml(unitLabelFor(r.exercise_name))}`,
         `${escapeHtml(r.title)} · השיא הקודם היה ${numHtml(r.previous)}${r.previous_ago ? ` · ${escapeHtml(r.previous_ago)}` : ''}`
     )));
 

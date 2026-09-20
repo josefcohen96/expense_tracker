@@ -30,44 +30,70 @@ OUT = ROOT / "app" / "frontend" / "static" / "holo" / "exercises.glb"
 
 # ============================ figure ============================
 
-L = {"spine": 0.30, "neck": 0.13, "head": 0.14, "sh_up": 0.04, "sh_w": 0.18,
-     "uarm": 0.28, "farm": 0.26, "hand": 0.09, "hip_w": 0.10,
-     "thigh": 0.42, "shin": 0.40, "foot": 0.17}
+L = {"spine": 0.30, "neck": 0.12, "head": 0.14, "sh_up": 0.04, "sh_w": 0.18,
+     "uarm": 0.28, "farm": 0.26, "hand": 0.13, "hip_w": 0.10,
+     "thigh": 0.42, "shin": 0.40, "foot": 0.19}
 
-# (joint a, joint b, radius, shape) — the segments drawn between joints. Shapes are surfaces
-# of revolution (see SHAPES), sized by the node's scale, so the figure has a silhouette
-# instead of even sticks: a deeper chest, tapered limbs, wedge feet.
-BONES = [("pelvis", "chest", 0.105, "torso"), ("chest", "neck", 0.056, "neck"),
-         ("neck", "head", 0.048, "neck"),
-         ("shoulder_l", "shoulder_r", 0.045, "bar"), ("hip_l", "hip_r", 0.052, "bar")]
+# (joint a, joint b, radius, shape) — the segments drawn between joints. Shapes are lathes
+# (see SHAPES) sized by the node's scale, so the figure has a silhouette instead of even
+# sticks: a chest that widens into the shoulders over a narrow waist, muscled limbs, a
+# paddle hand, a shoe. Every segment is oriented in full (its own X runs across the body),
+# so the flat shapes stay flat the right way in any pose — see frame_quat().
+BONES = [("pelvis", "chest", 0.115, "torso"), ("chest", "neck", 0.050, "neck"),
+         ("neck", "head", 0.046, "neck"),
+         ("shoulder_l", "shoulder_r", 0.058, "bar"), ("hip_l", "hip_r", 0.060, "bar")]
 for _s in ("l", "r"):
-    BONES += [(f"shoulder_{_s}", f"elbow_{_s}", 0.053, "limb"),
-              (f"elbow_{_s}", f"wrist_{_s}", 0.044, "limb"),
-              (f"wrist_{_s}", f"hand_{_s}", 0.038, "hand"),
-              (f"hip_{_s}", f"knee_{_s}", 0.062, "limb"),
-              (f"knee_{_s}", f"ankle_{_s}", 0.050, "limb"),
-              (f"ankle_{_s}", f"toe_{_s}", 0.043, "foot")]
+    BONES += [(f"shoulder_{_s}", f"elbow_{_s}", 0.054, "uarm"),
+              (f"elbow_{_s}", f"wrist_{_s}", 0.046, "farm"),
+              (f"wrist_{_s}", f"hand_{_s}", 0.040, "hand"),
+              (f"hip_{_s}", f"knee_{_s}", 0.066, "thigh"),
+              (f"knee_{_s}", f"ankle_{_s}", 0.054, "shin"),
+              (f"ankle_{_s}", f"toe_{_s}", 0.048, "foot")]
 
-# (joint, radius, shape) — the balls that hide the seams at the joints
-BALLS = [("head", 0.112, "head"), ("pelvis", 0.072, "ball"), ("chest", 0.062, "ball")]
+# Parts that ride on a bone: (joint, radius, shape, offset). The balls hide the seams at the
+# joints; the offset (world units, in the bone's own frame: x across, y along, z forward)
+# places the deltoid caps out on the shoulders, the nose on the face, the heel behind the
+# ankle. `parent` names the bone to ride when a joint has more than one.
+BALLS = [("head", 0.112, "head", None), ("pelvis", 0.080, "pelvis", None),
+         ("chest", 0.064, "ball", None),
+         ("head", 0.030, "nose", dict(offset=(0.0, -0.02, 0.10), parent=("neck", "head")))]
 for _s in ("l", "r"):
-    BALLS += [(f"shoulder_{_s}", 0.056, "ball"), (f"elbow_{_s}", 0.046, "ball"),
-              (f"wrist_{_s}", 0.038, "ball"), (f"hip_{_s}", 0.056, "ball"),
-              (f"knee_{_s}", 0.048, "ball"), (f"ankle_{_s}", 0.040, "ball")]
+    BALLS += [(f"shoulder_{_s}", 0.066, "deltoid", dict(parent=(f"shoulder_{_s}", f"elbow_{_s}"))),
+              (f"elbow_{_s}", 0.046, "ball", None),
+              (f"wrist_{_s}", 0.036, "ball", None), (f"hip_{_s}", 0.062, "ball", None),
+              (f"knee_{_s}", 0.052, "ball", None), (f"ankle_{_s}", 0.040, "ball", None),
+              (f"ankle_{_s}", 0.040, "heel", dict(offset=(0.0, -0.045, 0.012),
+                                                  parent=(f"ankle_{_s}", f"toe_{_s}")))]
 
-# Lathe profiles up the segment: (y, radius), revolved over `sides` (4 sides = a box).
-# `depth` squashes the Z axis, `stretch` lengthens a ball along its own Y.
+# Lathe profiles up the segment: (y, width, depth) as fractions of the part's radius —
+# width across the body (local X), depth front to back (local Z) — revolved over `sides`.
+# `stretch` lengthens a ball along its own Y; `depth` squashes a whole sphere.
 SHAPES = {
-    "limb": dict(profile=[(0.0, 0.86), (0.06, 1.0), (0.55, 0.9), (0.94, 0.76), (1.0, 0.6)], sides=12),
-    "torso": dict(profile=[(0.0, 0.78), (0.2, 0.9), (0.62, 1.0), (0.9, 0.95), (1.0, 0.84)],
-                  sides=14, depth=0.6),
-    "neck": dict(profile=[(0.0, 1.0), (0.6, 0.95), (1.0, 0.88)], sides=10),
-    "bar": dict(profile=[(0.0, 0.88), (0.5, 1.0), (1.0, 0.88)], sides=8),
-    "hand": dict(profile=[(0.0, 0.9), (0.45, 1.05), (1.0, 0.5)], sides=8, depth=0.6),
-    "foot": dict(profile=[(0.0, 1.0), (0.7, 0.95), (1.0, 0.55)], sides=4, offset=45.0, depth=0.8),
-    "rod": dict(profile=[(0.0, 1.0), (1.0, 1.0)], sides=10),
+    "torso": dict(profile=[(0.0, 0.96, 0.68), (0.22, 0.88, 0.60), (0.42, 0.86, 0.58),
+                           (0.66, 1.12, 0.68), (0.86, 1.36, 0.70), (1.0, 1.30, 0.62)], sides=16),
+    "uarm": dict(profile=[(0.0, 0.88, 0.88), (0.18, 1.0, 1.0), (0.52, 1.02, 0.98),
+                          (0.86, 0.76, 0.76), (1.0, 0.66, 0.66)], sides=12),
+    "farm": dict(profile=[(0.0, 0.80, 0.80), (0.22, 1.0, 1.0), (0.62, 0.84, 0.84),
+                          (1.0, 0.60, 0.60)], sides=12),
+    "thigh": dict(profile=[(0.0, 0.96, 0.96), (0.22, 1.04, 1.04), (0.62, 0.92, 0.92),
+                           (1.0, 0.70, 0.70)], sides=12),
+    "shin": dict(profile=[(0.0, 0.74, 0.74), (0.28, 1.0, 1.0), (0.66, 0.78, 0.78),
+                          (1.0, 0.54, 0.54)], sides=12),
+    "neck": dict(profile=[(0.0, 1.0, 1.0), (0.6, 0.95, 0.95), (1.0, 0.88, 0.88)], sides=10),
+    "bar": dict(profile=[(0.0, 0.88, 0.88), (0.5, 1.0, 1.0), (1.0, 0.88, 0.88)], sides=8),
+    # a flat paddle: wide across the palm, thin through it, rounding off at the fingertips
+    "hand": dict(profile=[(0.0, 0.86, 0.60), (0.30, 1.20, 0.52), (0.62, 1.24, 0.44),
+                          (0.88, 1.0, 0.36), (1.0, 0.56, 0.24)], sides=10),
+    # a shoe: broad, low, squared off at the toe
+    "foot": dict(profile=[(0.0, 0.82, 0.90), (0.30, 1.0, 0.84), (0.72, 1.06, 0.66),
+                          (0.92, 0.96, 0.46), (1.0, 0.62, 0.30)], sides=10),
+    "rod": dict(profile=[(0.0, 1.0, 1.0), (1.0, 1.0, 1.0)], sides=10),
     "ball": dict(sphere=(14, 9)),
+    "pelvis": dict(sphere=(14, 9), depth=0.72),
+    "deltoid": dict(sphere=(14, 9), stretch=1.2),
     "head": dict(sphere=(16, 11), depth=0.92, stretch=1.14),
+    "nose": dict(sphere=(8, 6), depth=1.3, stretch=0.9),
+    "heel": dict(sphere=(10, 7), stretch=0.9),
 }
 
 
@@ -77,12 +103,16 @@ def shape_scale(shape, radius, length):
     return [radius, length * spec.get("stretch", 1.0), radius * spec.get("depth", 1.0)]
 
 
-def vec(angle, length, spread=0.0, sx=1.0):
-    """Sagittal direction: 0 = up (+Y), 90 = forward (+Z); spread splays sideways (+/-X)."""
+SIDEWAYS = (1.0, 0.0, 0.0)     # the body's own left-right axis in the sagittal authoring frame
+
+
+def vec(angle, length, spread=0.0, sx=1.0, lateral=SIDEWAYS):
+    """Sagittal direction: 0 = up (+Y), 90 = forward (+Z); spread splays out along `lateral`."""
     a, s = math.radians(angle), math.radians(spread)
-    return (sx * length * math.sin(s),
-            length * math.cos(a) * math.cos(s),
-            length * math.sin(a) * math.cos(s))
+    side = sx * length * math.sin(s)
+    return (side * lateral[0],
+            length * math.cos(a) * math.cos(s) + side * lateral[1],
+            length * math.sin(a) * math.cos(s) + side * lateral[2])
 
 
 def add(p, v):
@@ -90,36 +120,40 @@ def add(p, v):
 
 
 def body(**p):
-    """Joint positions for one pose. Angles are absolute; `_l` / `_r` suffixes override a side."""
+    """Joint positions for one pose. Angles are absolute; `_l` / `_r` suffixes override a side.
+    `lateral` is where the shoulders and hips spread out from the spine — sideways unless the
+    body is rolled, as in a human flag, where it is (0, 1, 0): one shoulder over the other."""
     def g(key, side, default=None):
         return p.get(f"{key}_{side}", p.get(key, default))
 
     torso = p.get("torso", 0.0)
+    lat = p.get("lateral", SIDEWAYS)
     j = {"pelvis": (0.0, 0.0, 0.0)}
     j["chest"] = add(j["pelvis"], vec(torso, L["spine"]))
     neck_a = p.get("neck_a", torso)
     j["neck"] = add(j["chest"], vec(neck_a, L["neck"]))
     j["head"] = add(j["neck"], vec(p.get("head", neck_a), L["head"]))
     for side, sx in (("l", -1.0), ("r", 1.0)):
-        shoulder = add(add(j["chest"], vec(torso, L["sh_up"])), (sx * L["sh_w"], 0.0, 0.0))
+        shoulder = add(add(j["chest"], vec(torso, L["sh_up"])),
+                       tuple(sx * L["sh_w"] * c for c in lat))
         j["shoulder_" + side] = shoulder
         arm, asp = g("arm", side, 180.0), g("arm_spread", side, 0.0)
-        elbow = add(shoulder, vec(arm, L["uarm"], asp, sx))
+        elbow = add(shoulder, vec(arm, L["uarm"], asp, sx, lat))
         j["elbow_" + side] = elbow
         fore, fsp = g("elbow", side, arm), g("fore_spread", side, g("arm_spread", side, 0.0))
-        wrist = add(elbow, vec(fore, L["farm"], fsp, sx))
+        wrist = add(elbow, vec(fore, L["farm"], fsp, sx, lat))
         j["wrist_" + side] = wrist
-        j["hand_" + side] = add(wrist, vec(g("hand", side, fore), L["hand"], fsp, sx))
+        j["hand_" + side] = add(wrist, vec(g("hand", side, fore), L["hand"], fsp, sx, lat))
 
-        hip = add(j["pelvis"], (sx * L["hip_w"], 0.0, 0.0))
+        hip = add(j["pelvis"], tuple(sx * L["hip_w"] * c for c in lat))
         j["hip_" + side] = hip
         thigh, lsp = g("hip", side, 180.0), g("leg_spread", side, 0.0)
-        knee = add(hip, vec(thigh, L["thigh"], lsp, sx))
+        knee = add(hip, vec(thigh, L["thigh"], lsp, sx, lat))
         j["knee_" + side] = knee
         shin = g("knee", side, thigh)
-        ankle = add(knee, vec(shin, L["shin"], lsp, sx))
+        ankle = add(knee, vec(shin, L["shin"], lsp, sx, lat))
         j["ankle_" + side] = ankle
-        j["toe_" + side] = add(ankle, vec(g("ankle", side, shin - 90.0), L["foot"], lsp, sx))
+        j["toe_" + side] = add(ankle, vec(g("ankle", side, shin - 90.0), L["foot"], lsp, sx, lat))
     return j
 
 
@@ -238,8 +272,12 @@ PLANK = dict(torso=91, arm=183, elbow=95, hand=90, hip=271, knee=270, ankle=215,
 LSIT = dict(torso=2, arm=180, elbow=180, hand=150, hip=92, knee=90, ankle=62, head=6)
 FL = dict(torso=92, arm=2, elbow=358, hand=20, hip=272, knee=271, ankle=266, head=80)
 PLANCHE = dict(torso=95, arm=205, elbow=185, hand=150, hip=272, knee=270, ankle=265, head=80)
-FLAG = dict(torso=272, neck_a=280, head=290, arm_l=268, elbow_l=270, hand_l=270,
-            arm_r=176, elbow_r=178, hand_r=178, hip=92, knee=91, ankle=86)
+# The flag is the one pose not in the sagittal plane: the body is rolled so the right shoulder
+# sits above the left and the chest faces out (towards the front camera). The top arm reaches
+# up the pole past the head, the bottom arm pushes down and in; both hands land on the pole.
+FLAG = dict(torso=272, neck_a=280, head=290, lateral=(0.0, 1.0, 0.0),
+            arm_l=226, elbow_l=226, hand_l=226, arm_r=282, elbow_r=282, hand_r=282,
+            hip=92, knee=91, ankle=86)
 
 # clip key -> pose spec. `a` is where the rep starts (lowering from), `b` where it turns
 # around; a hold uses `a` alone and breathes towards `b` if one is given.
@@ -452,8 +490,11 @@ def ease(x):
 
 
 def blend(a, b, u):
-    keys = set(a) | set(b)
-    return {k: a.get(k, b.get(k)) * (1.0 - u) + b.get(k, a.get(k)) * u for k in keys}
+    out = {}
+    for k in set(a) | set(b):
+        va, vb = a.get(k, b.get(k)), b.get(k, a.get(k))
+        out[k] = va if isinstance(va, tuple) else va * (1.0 - u) + vb * u   # `lateral` is a vector
+    return out
 
 
 def path_pose(spec, u):
@@ -464,22 +505,86 @@ def path_pose(spec, u):
     return blend(a, mid, u * 2) if u <= 0.5 else blend(mid, b, (u - 0.5) * 2)
 
 
+def ease_down(x):
+    """The lowering: under control, with a longer brake into the bottom."""
+    return 1.0 - (1.0 - ease(x)) ** 1.3
+
+
+def ease_up(x):
+    """The drive: out of the hole fast, easing into the lockout."""
+    return ease(x) ** 0.72
+
+
+HOLD_SPAN = 4.0          # one breath per hold loop, seconds
+FRAME_STEP = 0.2         # keyframe spacing; the arena interpolates linearly in between
+GAZE_LAG = 0.08          # the head trails the body by this much (seconds), keeping its gaze
+SETTLE = 0.03            # how far the body sinks past the turn during the pause
+BREATH = 0.035           # chest expansion on a hold's inhale
+TREMOR_DEG = 0.45        # the loaded arms shake this much on a hold
+TREMOR_PERIOD = 1.0      # seconds; must divide HOLD_SPAN so the loop stays seamless
+
+
+def rep_u(t, tempo):
+    """Where along a -> b the body is at time t of a rep (loops over the tempo).
+    During the pause it settles a touch past the turn, so the bottom reads as a bottom."""
+    down, pause, up = tempo
+    t %= down + pause + up
+    if t < down:
+        return ease_down(t / down)
+    if t < down + pause:
+        return 1.0 + SETTLE * math.sin(math.pi * (t - down) / pause)
+    return 1.0 - ease_up((t - down - pause) / up)
+
+
+def hold_u(t):
+    return 0.5 - 0.5 * math.cos(2 * math.pi * (t % HOLD_SPAN) / HOLD_SPAN)
+
+
+def pose_params(spec, u, u_head):
+    """Pose parameters at u, with the head following a moment behind the body."""
+    params = path_pose(spec, u)
+    if u_head != u:
+        lagged = path_pose(spec, u_head)
+        for k in ("head", "neck_a"):
+            if k in lagged:
+                params[k] = lagged[k]
+    return params
+
+
+def tremble(params, t):
+    """Isometric effort: the arms carrying the hold quiver, and the shake runs through the
+    body because the pose is anchored on the hands."""
+    wobble = TREMOR_DEG * math.sin(2 * math.pi * t / TREMOR_PERIOD)
+    for k in list(params):
+        if k.startswith("arm") and "spread" not in k:
+            params[k] += wobble
+        elif k.startswith("elbow"):
+            params[k] += wobble * 0.5
+    return params
+
+
 def frames_for(key, spec):
-    """(times, poses) for one clip: a rep over its tempo, or a hold with a slow breath."""
+    """(times, poses, us, chest) for one clip: a rep over its tempo, or a hold that breathes.
+    `chest` is the torso's width/depth factor per frame — the breath."""
     tempo = tempo_for(key)
     if tempo is None:
-        span, steps = 4.0, 8
-        pairs = [(span * i / steps, 0.5 - 0.5 * math.cos(2 * math.pi * i / steps))
-                 for i in range(steps + 1)]
-    else:
-        down, pause, up = tempo
-        pairs = [(down * i / 6.0, ease(i / 6.0)) for i in range(7)]
-        if pause:
-            pairs.append((down + pause, 1.0))
-        start = down + pause
-        pairs += [(start + up * i / 5.0, 1.0 - ease(i / 5.0)) for i in range(1, 6)]
-    return ([t for t, _ in pairs], [posed(path_pose(spec, u), spec) for _, u in pairs],
-            [u for _, u in pairs])
+        steps = round(HOLD_SPAN / FRAME_STEP)
+        times = [HOLD_SPAN * i / steps for i in range(steps + 1)]
+        us = [hold_u(t) for t in times]
+        poses = [posed(tremble(pose_params(spec, u, u), t), spec) for t, u in zip(times, us)]
+        chest = [1.0 + BREATH * u for u in us]
+        return times, poses, us, chest
+    down, pause, up = tempo
+    times = []
+    for start, span in ((0.0, down), (down, pause), (down + pause, up)):
+        if span:
+            steps = max(4, round(span / FRAME_STEP))
+            times += [start + span * i / steps for i in range(steps)]
+    times.append(down + pause + up)
+    us = [rep_u(t, tempo) for t in times]
+    poses = [posed(pose_params(spec, u, rep_u(t - GAZE_LAG, tempo)), spec)
+             for t, u in zip(times, us)]
+    return times, poses, us, [1.0] * len(times)
 
 
 def normalise(poses):
@@ -507,10 +612,57 @@ def quat_from_y(direction):
     return (ax * s, 0.0, az * s, math.cos(half))
 
 
-def node_trs(pose, a, b):
+def _unit(v):
+    length = math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) or 1.0
+    return (v[0] / length, v[1] / length, v[2] / length)
+
+
+def _cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def body_axes(pose):
+    """(right, forward) of the whole figure: across the shoulders, and out of the chest."""
+    sl, sr = pose["shoulder_l"], pose["shoulder_r"]
+    right = _unit((sr[0] - sl[0], sr[1] - sl[1], sr[2] - sl[2]))
+    p, c = pose["pelvis"], pose["chest"]
+    forward = _unit(_cross(right, (c[0] - p[0], c[1] - p[1], c[2] - p[2])))
+    return right, forward
+
+
+def frame_quat(direction, right, forward):
+    """Rotation whose Y runs along `direction` and whose X stays across the body, so a
+    segment's width, depth and front are its own in every pose (quat_from_y() fixes only the
+    axis and lets the roll fall where it may). A segment running across the body itself, like
+    the shoulder line, keys its roll on `forward` instead."""
+    y = _unit(direction)
+    ref = right if abs(y[0] * right[0] + y[1] * right[1] + y[2] * right[2]) < 0.9 else forward
+    dot = ref[0] * y[0] + ref[1] * y[1] + ref[2] * y[2]
+    x = _unit((ref[0] - dot * y[0], ref[1] - dot * y[1], ref[2] - dot * y[2]))
+    z = _cross(x, y)
+    # rotation matrix with columns x, y, z -> quaternion (x, y, z, w)
+    m00, m01, m02 = x[0], y[0], z[0]
+    m10, m11, m12 = x[1], y[1], z[1]
+    m20, m21, m22 = x[2], y[2], z[2]
+    trace = m00 + m11 + m22
+    if trace > 0:
+        s = 0.5 / math.sqrt(trace + 1.0)
+        return ((m21 - m12) * s, (m02 - m20) * s, (m10 - m01) * s, 0.25 / s)
+    if m00 > m11 and m00 > m22:
+        s = 2.0 * math.sqrt(1.0 + m00 - m11 - m22)
+        return (0.25 * s, (m01 + m10) / s, (m02 + m20) / s, (m21 - m12) / s)
+    if m11 > m22:
+        s = 2.0 * math.sqrt(1.0 + m11 - m00 - m22)
+        return ((m01 + m10) / s, 0.25 * s, (m12 + m21) / s, (m02 - m20) / s)
+    s = 2.0 * math.sqrt(1.0 + m22 - m00 - m11)
+    return ((m02 + m20) / s, (m12 + m21) / s, 0.25 * s, (m10 - m01) / s)
+
+
+def node_trs(pose, a, b, axes=None):
     """(translation, rotation) placing a segment from joint `a` to joint `b`."""
     pa, pb = pose[a], pose[b]
-    return pa, quat_from_y((pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]))
+    right, forward = axes or body_axes(pose)
+    return pa, frame_quat((pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]), right, forward)
 
 
 def bone_length(pose, a, b):
@@ -523,12 +675,13 @@ _GEO = {}
 
 
 def lathe(profile, sides, offset=0.0):
-    """Surface of revolution from a (y, radius) profile, with flat caps."""
+    """Surface of revolution from a (y, width, depth) profile — elliptical rings, so a part
+    can be wider than it is deep — with flat caps."""
     pos, nrm, idx, rings = [], [], [], []
-    for i, (y, r) in enumerate(profile):
-        y0, r0 = profile[max(0, i - 1)]
-        y1, r1 = profile[min(len(profile) - 1, i + 1)]
-        dy, dr = y1 - y0, r1 - r0
+    for i, (y, rw, rd) in enumerate(profile):
+        y0, w0, d0 = profile[max(0, i - 1)]
+        y1, w1, d1 = profile[min(len(profile) - 1, i + 1)]
+        dy, dr = y1 - y0, ((w1 + d1) - (w0 + d0)) / 2
         norm = math.hypot(dy, dr) or 1.0
         ny, nr = -dr / norm, dy / norm
         ring = []
@@ -536,21 +689,24 @@ def lathe(profile, sides, offset=0.0):
             a = math.radians(offset) + 2 * math.pi * j / sides
             c, sn = math.cos(a), math.sin(a)
             ring.append(len(pos))
-            pos.append((r * c, y, r * sn))
-            nrm.append((nr * c, ny, nr * sn))
+            pos.append((rw * c, y, rd * sn))
+            # the in-plane normal of an ellipse is (cos/rw, sin/rd), not the radius direction
+            ex, ez = c / (rw or 1e-6), sn / (rd or 1e-6)
+            el = math.hypot(ex, ez) or 1.0
+            nrm.append((nr * ex / el, ny, nr * ez / el))
         rings.append(ring)
     for lower, upper in zip(rings, rings[1:]):
         for j in range(sides):
             idx += [lower[j], upper[j], lower[j + 1], lower[j + 1], upper[j], upper[j + 1]]
-    for (y, r), normal, flip in (((profile[0]), (0.0, -1.0, 0.0), True),
-                                 ((profile[-1]), (0.0, 1.0, 0.0), False)):
+    for (y, rw, rd), normal, flip in (((profile[0]), (0.0, -1.0, 0.0), True),
+                                      ((profile[-1]), (0.0, 1.0, 0.0), False)):
         centre = len(pos)
         pos.append((0.0, y, 0.0))
         nrm.append(normal)
         first = len(pos)
         for j in range(sides + 1):
             a = math.radians(offset) + 2 * math.pi * j / sides
-            pos.append((r * math.cos(a), y, r * math.sin(a)))
+            pos.append((rw * math.cos(a), y, rd * math.sin(a)))
             nrm.append(normal)
         for j in range(sides):
             idx += [centre, first + j + 1, first + j] if flip else [centre, first + j, first + j + 1]
@@ -582,8 +738,14 @@ def geometry(shape):
     return _GEO[shape]
 
 
-def ball_parent(joint):
-    """(bone index, end) — the bone a joint's ball hangs off: 0 = its start, 1 = its far end."""
+def ball_parent(joint, ride=None):
+    """(bone index, end) — the bone a joint's ball hangs off: 0 = its start, 1 = its far end.
+    `ride` (a bone's (a, b)) picks the bone when the joint belongs to more than one."""
+    if ride:
+        for i, (a, b, _r, _shape) in enumerate(BONES):
+            if (a, b) == tuple(ride):
+                return i, 0 if a == joint else 1
+        raise KeyError(ride)
     for i, (a, _b, _r, _shape) in enumerate(BONES):
         if a == joint:
             return i, 0
@@ -591,6 +753,17 @@ def ball_parent(joint):
         if b == joint:
             return i, 1
     raise KeyError(joint)
+
+
+def ball_local(joint, radius, shape, extra, bone_scale):
+    """(translation, scale) of a ball in its bone's local space: the bone's scale is undone
+    and a local Y of 0 or 1 lands on the near or far joint; `offset` rides out from there."""
+    extra = extra or {}
+    _parent, end = ball_parent(joint, extra.get("parent"))
+    ox, oy, oz = extra.get("offset", (0.0, 0.0, 0.0))
+    want = shape_scale(shape, radius, radius)
+    return ([ox / bone_scale[0], float(end) + oy / bone_scale[1], oz / bone_scale[2]],
+            [want[i] / bone_scale[i] for i in range(3)])
 
 
 PROP_SLOTS = 5
@@ -608,19 +781,24 @@ def prop_trs(spec, pose):
     return out
 
 
-def parts(pose, spec=None, first=None):
+def parts(pose, spec=None, first=None, torso_scale=1.0):
     """Every drawable part of one pose as (shape, translation, rotation, scale) in world space."""
     out = ([("rod", t, q, s) for t, q, s in prop_trs(spec, first or pose) if s[1] > 0]
            if spec else [])
     bones = []
+    axes = body_axes(pose)
     for a, b, radius, shape in BONES:
-        translation, rotation = node_trs(pose, a, b)
+        translation, rotation = node_trs(pose, a, b, axes)
         scale = shape_scale(shape, radius, bone_length(pose, a, b))
+        if shape == "torso":
+            scale = [scale[0] * torso_scale, scale[1], scale[2] * torso_scale]
         bones.append((translation, rotation, scale))
         out.append((shape, translation, rotation, scale))
-    for joint, radius, shape in BALLS:
-        parent, _end = ball_parent(joint)
-        out.append((shape, pose[joint], bones[parent][1], shape_scale(shape, radius, radius)))
+    for joint, radius, shape, extra in BALLS:
+        parent, _end = ball_parent(joint, (extra or {}).get("parent"))
+        t, q, s = bones[parent]
+        local_t, local_s = ball_local(joint, radius, shape, extra, s)
+        out.append((shape, apply_trs(t, q, s, local_t), q, [local_s[i] * s[i] for i in range(3)]))
     return out
 
 
@@ -676,8 +854,8 @@ class Blob:
 
 def build(out_path):
     blob = Blob()
-    used = list(dict.fromkeys([shape for *_x, shape in BONES] + [shape for *_x, shape in BALLS]
-                              + ["rod"]))
+    used = list(dict.fromkeys([shape for *_x, shape in BONES]
+                              + [shape for _j, _r, shape, _e in BALLS] + ["rod"]))
     meshes, mesh_index = [], {}
     for shape in used:
         pos, nrm, idx = geometry(shape)
@@ -690,8 +868,8 @@ def build(out_path):
     clips = sorted(SPECS)
     baked = {}
     for key in clips:
-        times, poses, us = frames_for(key, SPECS[key])
-        baked[key] = (times, normalise(poses), us)
+        times, poses, us, chest = frames_for(key, SPECS[key])
+        baked[key] = (times, normalise(poses), us, chest)
 
     rest = baked["bodyweight_squats"][1][0]
     nodes, bone_scales = [], []
@@ -704,19 +882,31 @@ def build(out_path):
     for slot, (translation, rotation, scale) in enumerate(prop_trs(SPECS["bodyweight_squats"], rest)):
         nodes.append({"name": f"prop_{slot}", "mesh": mesh_index["rod"], "translation": list(translation),
                       "rotation": list(rotation), "scale": scale})
-    # The balls hang off their bone, so only the bones need animating. Their local scale undoes
-    # the bone's, and a local Y of 0 or 1 lands them on the near or far joint.
-    for joint, radius, shape in BALLS:
-        parent, end = ball_parent(joint)
-        want = shape_scale(shape, radius, radius)
-        nodes.append({"name": f"ball_{joint}", "mesh": mesh_index[shape],
-                      "translation": [0.0, float(end), 0.0],
-                      "scale": [want[i] / bone_scales[parent][i] for i in range(3)]})
+    # The balls hang off their bone, so only the bones need animating (see ball_local()).
+    for joint, radius, shape, extra in BALLS:
+        parent, _end = ball_parent(joint, (extra or {}).get("parent"))
+        translation, scale = ball_local(joint, radius, shape, extra, bone_scales[parent])
+        nodes.append({"name": f"{shape}_{joint}", "mesh": mesh_index[shape],
+                      "translation": translation, "scale": scale})
         nodes[parent].setdefault("children", []).append(len(nodes) - 1)
+    torso = next(i for i, (_a, _b, _r, shape) in enumerate(BONES) if shape == "torso")
+
+    # Where each clip lives: the box round every frame of the figure, so the arena can aim its
+    # camera per clip. The viewer frames the rest pose otherwise, and a figure hanging from a
+    # 2 m bar loses its head. The prop is left out on purpose — a bar's uprights run to the
+    # floor and would shrink the athlete to a third of the slot; they simply run off-stage.
+    bounds = {}
+    for key in clips:
+        _times, poses, _us, _chest = baked[key]
+        pts = [p for pose in poses for p in pose.values()]
+        lo = [min(p[i] for p in pts) - 0.13 for i in range(3)]
+        hi = [max(p[i] for p in pts) + 0.13 for i in range(3)]
+        bounds[key] = [round((lo[i] + hi[i]) / 2, 3) for i in range(3)] + \
+                      [round((hi[i] - lo[i]) / 2, 3) for i in range(3)]
 
     animations = []
     for key in clips:
-        times, poses, _us = baked[key]
+        times, poses, _us, chest = baked[key]
         time_acc = blob.floats(times, "SCALAR", bounds=True)
         still_acc = blob.floats([0.0], "SCALAR", bounds=True)  # props hold one constant keyframe
         samplers, channels = [], []
@@ -724,6 +914,11 @@ def build(out_path):
         for a, b, _r, _shape in BONES:
             trs = [node_trs(pose, a, b) for pose in poses]
             tracks.append(([t for t, _ in trs], [r for _, r in trs], None))
+        # The chest breathes on a hold; a rep pins it, so a hold's last breath never lingers.
+        sx, sy, sz = bone_scales[torso]
+        breath = [(sx * f, sy, sz * f) for f in chest]
+        tracks[torso] = (tracks[torso][0], tracks[torso][1],
+                         breath if any(abs(f - 1.0) > 1e-9 for f in chest) else [breath[0]])
         for translation, rotation, scale in prop_trs(SPECS[key], poses[0]):
             tracks.append(([translation], [rotation], [tuple(scale)]))
         for node_index, (translations, rotations, scales) in enumerate(tracks):
@@ -745,16 +940,21 @@ def build(out_path):
         "meshes": meshes,
         "materials": [{
             "name": "hologram",
-            "pbrMetallicRoughness": {"baseColorFactor": [0.42, 0.85, 1.0, 1.0],
-                                     "metallicFactor": 0.0, "roughnessFactor": 0.55},
-            "emissiveFactor": [0.16, 0.55, 0.72],
+            # Lit more than it glows: the neutral environment then shades the chest, the
+            # limbs and the face, and the page's own drop-shadow supplies the halo. A stronger
+            # emissive flattens the figure into one cyan silhouette.
+            "pbrMetallicRoughness": {"baseColorFactor": [0.22, 0.64, 0.92, 1.0],
+                                     "metallicFactor": 0.0, "roughnessFactor": 0.34},
+            "emissiveFactor": [0.03, 0.17, 0.27],
             "doubleSided": True,
         }],
         "animations": animations,
         # The flags read across the front camera, not the side one; the arena reads this back
         # so those clips open on the angle that shows the pose (see holo_clips in workouts.py).
         "extras": {"front_view_clips": sorted(k for k, spec in SPECS.items()
-                                              if spec.get("plane") == "front")},
+                                              if spec.get("plane") == "front"),
+                   # per clip: centre x, y, z and half-extents x, y, z (metres)
+                   "clip_bounds": bounds},
         "buffers": [{"byteLength": len(blob.data)}],
         "bufferViews": blob.views,
         "accessors": blob.accessors,
@@ -799,7 +999,7 @@ def preview(baked, path, cols=6, cell=200):
                     buf[i:i + 3] = bytes(colour)
 
     for n, key in enumerate(keys):
-        _times, poses, _us = baked[key]
+        _times, poses, _us, _chest = baked[key]
         ox, oy = (n % cols) * cell, (n // cols) * cell
         side = SPECS[key].get("plane") != "front"
         picks = [(poses[0], (70, 220, 255)), (poses[len(poses) // 2], (255, 90, 190))]
@@ -824,7 +1024,7 @@ def preview(baked, path, cols=6, cell=200):
                 steps = max(2, int(math.dist((x0, y0), (x1, y1))))
                 for step in range(steps + 1):
                     dot(x0 + (x1 - x0) * step / steps, y0 + (y1 - y0) * step / steps, r * scale, colour)
-            for j, r, _shape in BALLS:
+            for j, r, _shape, _extra in BALLS:
                 x0, y0 = screen(pose[j])
                 dot(x0, y0, r * scale, colour)
     png(path, width, height, buf)
@@ -859,7 +1059,7 @@ def camera(pose, view, pad=2.6):
     return eye, right, up, fwd, math.asin(min(1.0, radius / dist))
 
 
-def shade_pose(buf, width, height, ox, oy, cell, pose, view, spec=None, first=None):
+def shade_pose(buf, width, height, ox, oy, cell, pose, view, spec=None, first=None, chest=1.0):
     """Z-buffered render of the real geometry: soft cyan body with a bright silhouette rim."""
     eye, right, up, fwd, half = camera(pose, view)
     focal = (cell * 0.46) / math.tan(half)
@@ -873,7 +1073,7 @@ def shade_pose(buf, width, height, ox, oy, cell, pose, view, spec=None, first=No
         return (sum(d[i] * right[i] for i in range(3)), sum(d[i] * up[i] for i in range(3)),
                 sum(d[i] * fwd[i] for i in range(3)))
 
-    for shape, t, q, sc in parts(pose, spec, first):
+    for shape, t, q, sc in parts(pose, spec, first, chest):
         vpos, vnrm, vidx = geometry(shape)
         world = [apply_trs(t, q, sc, p) for p in vpos]
         normals = []
@@ -933,7 +1133,7 @@ def render(baked, path, keys, view="side", frame=0.0, cols=4, cell=240):
     for _ in range(width * height):
         buf += bytes((9, 12, 20))
     for n, key in enumerate(keys):
-        _times, poses, us = baked[key]
+        _times, poses, us, chest = baked[key]
         if frame == "turn":                       # the bottom of the rep, where depth shows
             index = max(range(len(us)), key=lambda i: us[i])
         else:
@@ -941,7 +1141,7 @@ def render(baked, path, keys, view="side", frame=0.0, cols=4, cell=240):
         pose = poses[index]
         use = view if view != "auto" else ("front" if SPECS[key].get("plane") == "front" else "side")
         shade_pose(buf, width, height, (n % cols) * cell, (n // cols) * cell, cell, pose, use,
-                   SPECS[key], poses[0])
+                   SPECS[key], poses[0], chest[index])
     png(path, width, height, buf)
 
 

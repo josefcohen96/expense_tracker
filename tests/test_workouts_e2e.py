@@ -357,6 +357,10 @@ def test_shipped_model_covers_every_exercise():
     wanted = {form["holo_key"] for form in workouts.exercise_form_data().values()}
     missing = sorted(wanted - clips)
     assert not missing, f"re-run tools/build_exercises_glb.py — no clip for: {missing}"
+    # ...and says where each clip lives, so the arena can frame a bar clip as well as a floor one
+    bounds = workouts.holo_clip_bounds()
+    assert not sorted(clips - set(bounds)), "clip_bounds missing from the model's extras"
+    assert bounds["pull_ups"][4] > bounds["push_ups"][4]  # a hanging clip is the taller box
 
 
 def _write_glb(path, clip_names):

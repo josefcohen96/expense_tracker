@@ -978,6 +978,8 @@ const HOLO_ANGLES = {
     top: '0deg 12deg 105%',
 };
 const HOLO_ANGLE_ORDER = ['side', 'front', 'top'];
+const HOLO_FOV_DEG = 30;      // fixed, so a clip's framing can be computed from its bounds
+const HOLO_FRAME_PAD = 1.12;  // breathing room round the clip's box
 
 let modelViewerLoading = null;
 let holoFailed = false;   // the viewer or the model could not load: fall back to the plain arena
@@ -1031,6 +1033,9 @@ function createViewer(container, interactive) {
     viewer.setAttribute('shadow-intensity', '0');
     viewer.setAttribute('environment-image', 'neutral');
     viewer.setAttribute('loading', 'eager');
+    // The clips are framed by hand (setOrbit), so the viewer's own limits must not clamp them
+    viewer.setAttribute('min-camera-orbit', 'auto auto 0.1m');
+    viewer.setAttribute('max-camera-orbit', 'auto auto 60m');
     if (interactive) viewer.setAttribute('camera-controls', '');
     viewer.addEventListener('error', disableHologram);
     viewer.addEventListener('load', syncHologram);
@@ -1059,10 +1064,38 @@ function rememberAngle(key, angle) {
     try { localStorage.setItem(HOLO_ANGLE_KEY, JSON.stringify(angles)); } catch (e) { /* storage unavailable */ }
 }
 
+// The viewer frames the model's rest pose once, at load; a clip hanging from a bar is twice as
+// tall. The model carries each clip's box (centre + half-extents), so the camera is aimed at
+// the clip and pulled back until the box fits the slot — from this angle, at this aspect.
+function clipFraming(viewer, key, angle) {
+    const bounds = data().holo.bounds && data().holo.bounds[key];
+    if (!bounds || bounds.length !== 6) return null;
+    const [cx, cy, cz, hx, hy, hz] = bounds;
+    const [theta, phi] = HOLO_ANGLES[angle].split(' ').map(parseFloat);
+    const elevation = (90 - phi) * Math.PI / 180;
+    const across = angle === 'side' ? hz : hx;          // what runs along the screen
+    const depth = angle === 'side' ? hx : hz;           // what points at the camera
+    const tall = hy * Math.cos(elevation) + depth * Math.sin(elevation);
+    const aspect = viewer.clientHeight > 0 ? viewer.clientWidth / viewer.clientHeight : 1.8;
+    const tan = Math.tan(HOLO_FOV_DEG / 2 * Math.PI / 180);
+    const radius = HOLO_FRAME_PAD * Math.max(tall / tan, across / (tan * aspect), 0.5);
+    return {
+        target: `${cx}m ${cy}m ${cz}m`,
+        orbit: `${theta}deg ${phi}deg ${radius.toFixed(3)}m`,
+    };
+}
+
 // Re-applies the preset even when the user dragged away from the same value
-function setOrbit(viewer, angle) {
+function setOrbit(viewer, angle, key) {
+    const framing = key ? clipFraming(viewer, key, angle) : null;
     viewer.cameraOrbit = '';
-    viewer.cameraOrbit = HOLO_ANGLES[angle];
+    if (framing) {
+        viewer.fieldOfView = `${HOLO_FOV_DEG}deg`;
+        viewer.cameraTarget = framing.target;
+        viewer.cameraOrbit = framing.orbit;
+    } else {
+        viewer.cameraOrbit = HOLO_ANGLES[angle];
+    }
 }
 
 function aimViewer(viewer, holo, angle) {
@@ -1072,7 +1105,7 @@ function aimViewer(viewer, holo, angle) {
     if (viewer.dataset.angle !== angle || viewer.dataset.clip !== holo.holo_key) {
         viewer.dataset.angle = angle;
         viewer.dataset.clip = holo.holo_key;
-        setOrbit(viewer, angle);
+        setOrbit(viewer, angle, holo.holo_key);
     }
 }
 
@@ -1223,7 +1256,7 @@ function wireHologram() {
             formAngle = angleChoice.dataset.formAngle;
             if (holo) rememberAngle(holo.holo_key, formAngle);
             formViewer.dataset.angle = formAngle;
-            setOrbit(formViewer, formAngle);
+            setOrbit(formViewer, formAngle, holo && holo.holo_key);
             paintFormAngles();
         }
     });

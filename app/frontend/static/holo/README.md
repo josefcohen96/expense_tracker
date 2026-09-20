@@ -4,8 +4,9 @@ The workout arena shows a looping hologram of the exercise pose (design turns `3
 It is driven by **one file**: `exercises.glb` in this folder. Without that file the arena
 shows its plain set screen, and nothing else changes.
 
-The file that ships is generated — a stylised rig (segments between joints, a ball on every
-joint) with one clip per exercise, built by `tools/build_exercises_glb.py`:
+The file that ships is generated — a stylised athlete (lathed body parts between the joints:
+a chest that widens into the shoulders over a narrow waist, muscled limbs, paddle hands, shoes,
+a face) with one clip per exercise, built by `tools/build_exercises_glb.py`:
 
 ```bash
 python3 tools/build_exercises_glb.py                      # writes exercises.glb
@@ -31,19 +32,35 @@ python3 tools/build_exercises_glb.py --render look.png --view side \
 the rep, which is where a bad pose shows up. Swapping in a better model by hand is fine too —
 nothing in the app knows how the file was made, it only reads the clip names.
 
-Two things beyond the poses make the difference in the arena:
+Beyond the poses, a few things make the difference in the arena:
 
+- **Orientation.** Every segment is placed with a full basis (`frame_quat()`): its width runs
+  across the body, its depth front to back. That is what keeps the chest flat the right way,
+  the palms on the floor and the nose on the face in a handstand as much as in a plank. The
+  human flag is the one pose outside the sagittal plane, so it rolls its shoulder line
+  (`lateral=(0, 1, 0)` in the pose) to face the camera.
+- **Motion.** A rep is sampled every 0.2 s: the lowering brakes into the bottom, the pause
+  settles a touch past it, the drive comes out fast and eases into the lockout, and the head
+  trails the body by 80 ms so the gaze holds. A hold breathes (the chest grows a few per
+  cent) and the loaded arms quiver — the constants sit at the top of the baking section.
 - **Props.** A pull-up with nothing to hang from just looks like someone standing with bent
   arms, so each clip carries the rig its grip implies — a bar with uprights, a pair of
   parallettes, or a pole — taken from the pose's own contact point.
 - **The clip's camera.** The arena opens on the side preset, which is edge-on for a human
   flag. The model lists the clips that read from the front in its glTF `extras`
   (`front_view_clips`), and `holo_clips()` passes that to the page.
+- **Framing.** `<model-viewer>` frames the model once, on its rest pose, so a clip hanging
+  from a 2 m bar would lose its head. The model's `extras.clip_bounds` gives each clip's box
+  (centre + half-extents, figure only — the bar's uprights are allowed to run off-stage), and
+  the arena aims and pulls back its camera per clip (`clipFraming()` in `workout.js`).
 
 ## What the file must contain
 
 - A glTF 2.0 binary (`.glb`) with a single figure. The app adds the cyan glow and the stage
-  itself; a light, slightly emissive cyan material on the figure reads best.
+  itself; a lit cyan material with only a little emissive reads best — a strongly emissive one
+  flattens the figure into a silhouette.
+- Optionally `extras.clip_bounds`: `{clip: [cx, cy, cz, hx, hy, hz]}` in metres. Without it
+  the arena falls back to the viewer's own framing.
 - **One animation clip per exercise**, named exactly as the clip key below. An exercise whose
   clip is missing keeps the plain set screen, so clips can be added one at a time.
 - Each clip is **one rep**: lowering → pause → pushing, in that order, returning to the start

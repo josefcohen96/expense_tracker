@@ -835,6 +835,25 @@ button.wk-path-row:active {
   font-size: 11px;
   color: var(--wk-meta-floor);
 }
+/* How the current station is done, and its two form cues */
+.wk-st-how {
+  margin: 8px 0 0;
+  font: 400 12px/1.6 var(--font-primary);
+  color: var(--wk-text-2);
+}
+.wk-st-cues {
+  margin: 7px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  font: 400 11px/1.55 var(--font-primary);
+  color: var(--wk-meta-floor);
+}
+.wk-st-cues b {
+  font-weight: 700;
+  color: var(--wk-gold-2);
+}
 .wk-st-card .wk-segs {
   gap: 4px;
   margin-top: 9px;
@@ -875,6 +894,14 @@ button.wk-path-row:active {
 .wk-cues-meta {
   font: 400 11px/1.7 var(--font-primary);
   color: var(--wk-meta-violet);
+}
+.wk-cues-prereq {
+  margin: 9px 0 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(250, 204, 21, .1);
+  font: 600 11.5px/1.6 var(--font-primary);
+  color: var(--wk-gold-2);
 }
 .wk-cues ul {
   margin: 8px 0 0;
@@ -2757,6 +2784,11 @@ button.wk-path-row:active {
   color: #a5f3fc;
   white-space: nowrap;
 }
+.form-how {
+  margin: 0;
+  font: 400 12px/1.6 var(--font-primary);
+  color: #a5f3fc;
+}
 .form-cues {
   padding: 13px 14px;
   border-radius: 16px;
@@ -3068,8 +3100,8 @@ button.wk-path-row:active {
   background: linear-gradient(135deg, #0891b2, #22d3ee);
   box-shadow: 0 14px 30px -12px rgba(34, 211, 238, .9);
 }
-.arena-set[data-unit="seconds"][data-hold="idle"] #arena-done-btn,
-.arena-set:not([data-unit="seconds"]) #arena-hold-btn,
+.arena-set[data-unit="sec"][data-hold="idle"] #arena-done-btn,
+.arena-set:not([data-unit="sec"]) #arena-hold-btn,
 .arena-set[data-hold="running"] #arena-hold-btn,
 .arena-set[data-hold="running"] .arena-steppers,
 .arena-set[data-hold="running"] .holo-steppers,

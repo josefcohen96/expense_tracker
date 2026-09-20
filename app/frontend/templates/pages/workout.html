@@ -4,7 +4,7 @@
 
 {% block head %}
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/workout.css?v=20260920-hold">
+<link rel="stylesheet" href="/static/css/workout.css?v=20260920-merge">
 {% endblock %}
 
 {% block body_class %}has-section-header workouts-page{% endblock %}
@@ -23,7 +23,7 @@
 </a>
 {%- endmacro %}
 
-{% set type_labels = {'Calisthenics': 'קליסטניקס', 'Push': 'דחיפה', 'Pull': 'משיכה', 'Core': 'ליבה', 'Legs': 'רגליים', 'Full Body': 'גוף מלא'} %}
+{#- type_labels comes from routes/workouts.py (WORKOUT_TYPE_LABELS) -#}
 {% set view_tabs = [] if first_workout else [('home', 'אימון', '#home'), ('map', 'מסלול', '#map'), ('profile', 'פרופיל', '#profile'), ('history', 'היסטוריה', '#history')] %}
 
 {% block content %}
@@ -193,6 +193,10 @@
                                 <span class="wk-here">אתה כאן</span>
                             </div>
                             <div class="wk-st-sub">{{ num(st.in_range) }} מתוך {{ num(sessions_to_conquer) }} אימונים לכיבוש · {{ num(st.rep_label) }} {{ st.unit_label }}</div>
+                            <p class="wk-st-how">{{ st.how }}</p>
+                            <ul class="wk-st-cues">
+                                {% for cue in st.cues %}<li><b>{{ cue.pin }}</b> · {{ cue.text }}</li>{% endfor %}
+                            </ul>
                             <div class="wk-segs" aria-hidden="true">
                                 {% for i in range(sessions_to_conquer) %}<span{% if i < st.in_range %} class="is-on"{% endif %}></span>{% endfor %}
                             </div>
@@ -225,6 +229,7 @@
                 <details class="wk-card wk-cues">
                     <summary>דגשים ביומכניים <span aria-hidden="true">⌄</span></summary>
                     <div class="wk-cues-meta">{{ p.difficulty }}<br>{{ p.muscles }}<br>{{ p.warmup }}</div>
+                    <p class="wk-cues-prereq">{{ p.prereq }}</p>
                     <ul>{% for cue in p.cues %}<li>{{ cue }}</li>{% endfor %}</ul>
                 </details>
 
@@ -319,8 +324,8 @@
         <!-- ===== HISTORY ===== -->
         <section class="wk-view" data-view="history" hidden>
             <div class="wk-view-head">
-                <h2>היסטוריה</h2>
-                <span class="wk-block-count" dir="ltr">{{ history|length }}</span>
+                <h2>היסטוריה <span class="wk-block-count" dir="ltr">{{ history|length }}</span></h2>
+                <a href="/workouts/admin" class="wk-link">ניהול אימונים ←</a>
             </div>
             <div class="wk-history">
                 {% for session in history %}
@@ -706,6 +711,7 @@
                     <span class="holo-tempo-value" data-tempo-value dir="ltr"></span>
                     <span class="form-tempo-legend" data-tempo-legend>ירידה · עצירה · דחיפה</span>
                 </div>
+                <p class="form-how" id="form-how"></p>
                 <div class="form-cues" id="form-cues">
                     <div class="form-cues-title">שתי נקודות לתיקון</div>
                     <ol id="form-cue-list"></ol>
@@ -799,5 +805,5 @@
 </div>
 
 <script type="application/json" id="workout-data">{{ client_data|tojson }}</script>
-<script src="/static/js/workout.js?v=20260920-hold" defer></script>
+<script src="/static/js/workout.js?v=20260920-merge" defer></script>
 {% endblock %}

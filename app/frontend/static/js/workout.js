@@ -173,6 +173,17 @@ function buildExercise(meta, setCount, reps, rest) {
     };
 }
 
+// A hold is measured in seconds, a rep set in repetitions — the server says which,
+// per exercise name, so a resumed session gets it right too.
+function unitLabelFor(name) {
+    const form = data().form[name];
+    return (form && form.unit_label) || 'חזרות';
+}
+
+function unitLabel(exercise) {
+    return unitLabelFor(exercise && exercise.name);
+}
+
 function exerciseIcon(exercise) {
     const path = exercise.skill_key && data().paths[exercise.skill_key];
     return path ? path.icon : (CATEGORY_ICONS[exercise.category] || CATEGORY_ICONS.general);
@@ -189,15 +200,10 @@ function sessionStats() {
     return { doneSets, doneReps, skipped, pending, total };
 }
 
-// 'seconds' for a timed hold (front lever, planche, L-sit…), 'reps' for everything else.
+// 'sec' for a timed hold (front lever, planche, L-sit…), 'reps' for everything else.
 function exerciseUnit(exercise) {
     const form = exercise && data().form[exercise.name];
-    return form && form.unit === 'seconds' ? 'seconds' : 'reps';
-}
-
-function unitWord(unit, n) {
-    if (unit === 'seconds') return n === 1 ? 'שנייה' : 'שניות';
-    return n === 1 ? 'חזרה' : 'חזרות';
+    return form && form.unit === 'sec' ? 'sec' : 'reps';
 }
 
 function isHolding() {
@@ -760,9 +766,9 @@ function renderSetPanel() {
     const unit = exerciseUnit(exercise);
     panel.dataset.unit = unit;
     repsEl.textContent = set.reps;
-    $('#arena-reps-label').textContent = unitWord(unit);
+    $('#arena-reps-label').textContent = unitLabel(exercise);
     $('#arena-done-label').textContent = 'סיימתי את הסט';
-    $all('.arena-step-label').forEach(el => { el.textContent = unit === 'seconds' ? 'כוונון שניות' : 'כוונון חזרות'; });
+    $all('.arena-step-label').forEach(el => { el.textContent = unit === 'sec' ? 'כוונון שניות' : 'כוונון חזרות'; });
     $('#arena-set-xp').textContent = `+${XP_PER_SET + set.reps} XP`;
     $('#arena-set-label').innerHTML = `סט ${numHtml(exercise.sets.indexOf(set) + 1)} מתוך ${numHtml(exercise.sets.length)}`;
     $('#arena-ex-name').textContent = exercise.title;
@@ -786,7 +792,7 @@ function renderFormGuide(exercise, unit) {
             <span class="arena-cue-text">${escapeHtml(c.text)}</span>
         </div>`).join('');
 
-    if (unit === 'seconds') {
+    if (unit === 'sec') {
         tempoEl.hidden = false;
         tempoEl.innerHTML = `<span class="arena-tempo-label">החזקה</span><span class="arena-tempo-text">נשימה שקטה לאורך כל ההחזקה — לא עוצרים אוויר. עוצרים כשהתנוחה נשברת.</span>`;
     } else if (Array.isArray(form.tempo) && form.tempo.length === 3) {
@@ -871,8 +877,8 @@ function compareLine(exercise, reps) {
     else if (need === 1) tail = 'עוד אחת והשיא נשבר';
     else if (need <= 3) tail = `עוד ${numHtml(need)} והשיא נשבר`;
     else tail = `השיא שלך ${numHtml(best)}`;
-    const verb = exerciseUnit(exercise) === 'seconds' ? 'החזקת' : 'עשית';
-    const unit = exerciseUnit(exercise) === 'seconds' ? ' שנ׳' : '';
+    const verb = exerciseUnit(exercise) === 'sec' ? 'החזקת' : 'עשית';
+    const unit = exerciseUnit(exercise) === 'sec' ? ' שנ׳' : '';
     return `בפעם שעברה ${verb} ${numHtml(record.last)}${unit} — ${tail}`;
 }
 
@@ -895,7 +901,7 @@ function renderRestPanel() {
     if (next) {
         const { exercise, set } = next;
         const index = exercise.sets.indexOf(set);
-        const target = `יעד ${numHtml(set.reps)} ${unitWord(exerciseUnit(exercise), set.reps)}`;
+        const target = `יעד ${numHtml(set.reps)} ${escapeHtml(unitLabel(exercise))}`;
         tile.textContent = exerciseIcon(exercise);
         title.innerHTML = `${escapeHtml(exercise.title)} · סט ${numHtml(index + 1)}`;
         if (exercise.sets.length > 1 && index === exercise.sets.length - 1) sub.innerHTML = `הסט האחרון בתרגיל · ${target}`;
@@ -1036,9 +1042,15 @@ function readAngles() {
     try { return JSON.parse(localStorage.getItem(HOLO_ANGLE_KEY)) || {}; } catch (e) { return {}; }
 }
 
+// The model names the clips that read from the front (the flags); everything else starts side-on.
+function defaultAngle(key) {
+    const holo = data().holo;
+    return holo && (holo.front || []).includes(key) ? 'front' : HOLO_ANGLE_ORDER[0];
+}
+
 function angleFor(key) {
     const angle = readAngles()[key];
-    return HOLO_ANGLES[angle] ? angle : HOLO_ANGLE_ORDER[0];
+    return HOLO_ANGLES[angle] ? angle : defaultAngle(key);
 }
 
 function rememberAngle(key, angle) {
@@ -1167,6 +1179,9 @@ function openFormCheck(trigger) {
         pin.hidden = !cues[i];
         if (cues[i]) $('.form-pin-label', pin).textContent = cues[i].pin;
     });
+    const how = $('#form-how');
+    how.textContent = holo.how || '';
+    how.hidden = !holo.how;
     $('#form-cues').hidden = cues.length === 0;
     $('#form-cue-list').innerHTML = cues.map((cue, i) => `
         <li><span class="form-cue-num" dir="ltr">${i + 1}</span><span class="form-cue-text">${escapeHtml(cue.text)}</span></li>
@@ -1291,7 +1306,7 @@ function checkPersonalRecord(exercise, set) {
     const record = data().records[exercise.name];
     if (!record || prShown[exercise.name] || set.reps <= record.best) return null;
     prShown[exercise.name] = true;
-    return { title: exercise.title, reps: set.reps, previous: record.best };
+    return { title: exercise.title, reps: set.reps, previous: record.best, unit: unitLabel(exercise) };
 }
 
 let prToastTimer = null;
@@ -1301,7 +1316,7 @@ function showPrToast(record) {
     if (!layer) return;
     const inTitle = /^[֐-׿]/.test(record.title) ? `ב${record.title}` : `· ${record.title}`;
     $('#arena-pr-detail').innerHTML =
-        `${numHtml(record.reps)} חזרות ${escapeHtml(inTitle)} · הקודם ${numHtml(record.previous)}`;
+        `${numHtml(record.reps)} ${escapeHtml(record.unit || 'חזרות')} ${escapeHtml(inTitle)} · הקודם ${numHtml(record.previous)}`;
     $('#arena-pr-delta').textContent = `+${record.reps - record.previous}`;
     layer.hidden = false;
     requestAnimationFrame(() => layer.classList.add('is-open'));
@@ -1552,7 +1567,8 @@ function renderSheet() {
 }
 
 function sheetExerciseBody(ex, isCurrent) {
-    const unitLabel = unitWord(exerciseUnit(ex));
+    const unit = unitLabel(ex);
+    const one = unit === 'שניות' ? 'שנייה' : 'חזרה';
     const rows = ex.sets.map((set, idx) => {
         const toggleClass = set.done ? 'is-done' : (set.skipped ? 'is-skipped' : '');
         const toggleLabel = set.done ? '✓' : (set.skipped ? 'דולג' : '✓');
@@ -1560,12 +1576,12 @@ function sheetExerciseBody(ex, isCurrent) {
         <div class="sheet-set">
             <span class="sheet-set-index" aria-hidden="true">${idx + 1}</span>
             <div class="sheet-stepper">
-                <button type="button" onclick="stepSetValue('${ex.id}', '${set.id}', 'reps', -1)" aria-label="הפחת חזרה בסט ${idx + 1}">−</button>
+                <button type="button" onclick="stepSetValue('${ex.id}', '${set.id}', 'reps', -1)" aria-label="הפחת ${one} בסט ${idx + 1}">−</button>
                 <input type="number" value="${set.reps}" min="0" max="999" inputmode="numeric" pattern="[0-9]*"
-                       aria-label="חזרות בסט ${idx + 1}" data-set-input="${set.id}"
+                       aria-label="${unit} בסט ${idx + 1}" data-set-input="${set.id}"
                        onchange="updateSetData('${ex.id}', '${set.id}', 'reps', this.value)">
-                <span class="sheet-stepper-unit">${unitLabel}</span>
-                <button type="button" onclick="stepSetValue('${ex.id}', '${set.id}', 'reps', 1)" aria-label="הוסף חזרה בסט ${idx + 1}">+</button>
+                <span class="sheet-stepper-unit">${unit}</span>
+                <button type="button" onclick="stepSetValue('${ex.id}', '${set.id}', 'reps', 1)" aria-label="הוסף ${one} בסט ${idx + 1}">+</button>
             </div>
             <button type="button" class="sheet-set-toggle ${toggleClass}" onclick="toggleSetDone('${ex.id}', '${set.id}')"
                     aria-pressed="${set.done}" aria-label="סט ${idx + 1} בוצע">${toggleLabel}</button>
@@ -1993,7 +2009,7 @@ function showReward(rewards, stats) {
     )));
     fillRows('#reward-records', (rewards.new_records || []).map(r => rewardRow(
         'record', '📈',
-        `שיא אישי · ${numHtml(r.reps)} חזרות`,
+        `שיא אישי · ${numHtml(r.reps)} ${escapeHtml(unitLabelFor(r.exercise_name))}`,
         `${escapeHtml(r.title)} · השיא הקודם היה ${numHtml(r.previous)}${r.previous_ago ? ` · ${escapeHtml(r.previous_ago)}` : ''}`
     )));
 

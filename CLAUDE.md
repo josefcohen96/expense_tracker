@@ -176,7 +176,12 @@ All tables in a single SQLite file at `app/backend/data/budget.db`. Connection u
 
 ## Authentication
 
-**No user table with hashed passwords.** Credentials come entirely from environment variables: `USER_PASSWORD_YOSEF` and `USER_PASSWORD_KARINA`. Username match is case-insensitive.
+**No user table with hashed passwords.** Credentials come entirely from environment variables: `USER_PASSWORD_<USERNAME>` for each name in `ALL_USERNAMES` (`services/access.py`). Username match is case-insensitive.
+
+**Per-user module access** lives in `services/access.py` and is enforced by `AuthMiddleware` (`can_access_path`) — a blocked GET is redirected to `home_path_for(user)`, a blocked API call gets 403:
+- `YOSEF` — everything. `KARINA` — everything except renovation.
+- `TSAHALA` — renovation only; `YONATAN` — workouts only (`MODULE_ONLY_USERS`: prefixes + landing page). Yonatan has his own `users` row (seeded in `db.py`) for `workouts.user_id`, but `people.household()` stays Yosef/Karina so he never appears as a finances payer or wedding task owner. In the workouts back office (`/workouts/admin`, `/api/workouts`) he only sees and edits his own sessions (`people.workout_people`); the household manages everyone who trains.
+- `layout/base.html` hides the tab bar and the other modules' links for single-module logins.
 
 **Session-based auth:**
 1. On login (`POST /login`), credentials are checked against env vars
@@ -263,6 +268,8 @@ Below `lg` the app uses a bottom tab bar (היום · חתונה · + · כספ�
 | `SESSION_SECRET_KEY` | **Yes** | Signs session and auth cookies. Missing = startup crash. |
 | `USER_PASSWORD_YOSEF` | **Yes** | Login password for Yosef |
 | `USER_PASSWORD_KARINA` | **Yes** | Login password for Karina |
+| `USER_PASSWORD_TSAHALA` | For that login | Password for Tsahala (renovation-only) |
+| `USER_PASSWORD_YONATAN` | For that login | Password for Yonatan (workouts-only) |
 | `BUDGET_DB_PATH` | No | Override DB file location (used in tests) |
 | `FORCE_DB_RESET=1` | No | Drop and recreate all tables at startup |
 | `AUTH_ENABLED=0` | No | Disable auth (pytest only — requires `PYTEST_CURRENT_TEST`) |

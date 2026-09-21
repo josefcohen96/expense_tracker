@@ -15,7 +15,8 @@ from pathlib import Path as FSPath
 
 from ..db import get_db_conn
 from ..schemas.workouts import WorkoutCreateSchema, WorkoutLegacyProgressSchema
-from ..services.people import household
+from ..services.access import is_module_only_user
+from ..services.people import workout_people
 
 logger = logging.getLogger(__name__)
 
@@ -1271,16 +1272,27 @@ def _load_legacy_progress(db_conn: sqlite3.Connection, user_id: int) -> Dict[str
     return _legacy_to_current(_stored_legacy_progress(db_conn, user_id))
 
 
+def _session_user(request: Request) -> Optional[Dict[str, Any]]:
+    """The logged-in user as AuthMiddleware resolved it (session, or the signed-cookie fallback)."""
+    return getattr(request.state, "user", None) or request.session.get("user")
+
+
 def _resolve_user_id(request: Request, db_conn: sqlite3.Connection):
     """Resolve logged-in user id, or None when auth is enabled and no session."""
     import os
-    user_obj = request.session.get("user")
+    user_obj = _session_user(request)
     auth_enabled = os.environ.get("AUTH_ENABLED", "1") == "1"
     if not user_obj and auth_enabled:
         return None
     username = (user_obj.get("username") if user_obj else "Yosef").title()
     user_row = db_conn.execute("SELECT id FROM users WHERE name = ?", (username,)).fetchone()
-    return user_row["id"] if user_row else 1
+    if user_row:
+        return user_row["id"]
+    # A login without a users row yet (a DB restored from before it was seeded):
+    # give it one rather than silently crediting its workouts to user 1.
+    cur = db_conn.execute("INSERT INTO users (name) VALUES (?)", (username,))
+    db_conn.commit()
+    return cur.lastrowid
 
 
 def _fetch_history(db_conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]]:
@@ -1396,6 +1408,7 @@ async def workout_page(
             "sessions_to_conquer": STATION_SESSIONS_TO_CONQUER,
             "game": game,
             "client_data": client_data,
+            "module_only": is_module_only_user(_session_user(request)),
             "show_sidebar": False,  # Hide standard finance sidebar to give space for mobile-first workout UI
         }
     )
@@ -1656,7 +1669,9 @@ async def workout_admin_page(
     if viewer_id is None:
         return HTMLResponse("Unauthorized", status_code=status.HTTP_401_UNAUTHORIZED)
 
-    people = household(db_conn)
+    # A workouts-only login (Yonatan) manages just their own sessions; the
+    # household picks anyone who trains.
+    people = workout_people(db_conn, _session_user(request))
     ids = [p["id"] for p in people]
     selected_id = user if user in ids else (viewer_id if viewer_id in ids else (ids[0] if ids else viewer_id))
     selected_person = next((p for p in people if p["id"] == selected_id), None)

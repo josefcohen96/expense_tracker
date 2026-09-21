@@ -92,20 +92,23 @@ Credentials and secrets come from environment variables — there are no default
 | `USER_PASSWORD_YOSEF` | Password for the `yosef` login. |
 | `USER_PASSWORD_KARINA` | Password for the `karina` login. |
 | `USER_PASSWORD_TSAHALA` | Password for the `tsahala` login (renovation module). |
+| `USER_PASSWORD_YONATAN` | Password for the `yonatan` login (workouts module). |
 | `ALLOWED_HOSTS` | Comma-separated hosts accepted by the Host-header check. |
 
 Each user only sees the modules they own — enforced in `app/backend/app/services/access.py`
 and applied by the auth middleware, so blocked pages **and** blocked API calls are both denied:
 
-| User | Finances / Wedding / Workouts | Renovation |
-| --- | --- | --- |
-| `yosef` | ✅ | ✅ full access |
-| `karina` | ✅ | 🚫 hidden and blocked |
-| `tsahala` | 🚫 blocked, redirected to `/renovation` | ✅ full access |
+| User | Finances / Wedding | Workouts | Renovation |
+| --- | --- | --- | --- |
+| `yosef` | ✅ | ✅ | ✅ full access |
+| `karina` | ✅ | ✅ | 🚫 hidden and blocked |
+| `tsahala` | 🚫 blocked, redirected to `/renovation` | 🚫 | ✅ full access |
+| `yonatan` | 🚫 blocked, redirected to `/workouts` | ✅ own sessions only | 🚫 |
 
 Adding a user means adding it to `ALL_USERNAMES` in `access.py` and setting the matching
 `USER_PASSWORD_<NAME>` variable; a missing variable fails that login loudly instead of
-falling back to a default.
+falling back to a default. A user limited to one module goes in `MODULE_ONLY_USERS`
+with its path prefixes and landing page.
 
 ## 🖼️ Uploaded files
 

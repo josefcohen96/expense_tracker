@@ -16,18 +16,21 @@ import sqlite3
 from datetime import date as date_cls
 from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ..db import get_db_conn
 from ..routes.workouts import (
     _clean_progress,
     _legacy_progress_key,
     _load_legacy_progress,
+    _resolve_user_id,
+    _session_user,
     _station_for,
     admin_session,
     admin_session_rows,
     admin_sessions,
 )
+from ..services.access import is_module_only_user
 from ..schemas.workouts import (
     WorkoutAdminExerciseSchema,
     WorkoutLegacyProgressWriteSchema,
@@ -42,6 +45,20 @@ def _valid_user_id(db_conn: sqlite3.Connection, user_id: int) -> int:
     if not row:
         raise HTTPException(status_code=400, detail="Unknown user_id")
     return row["id"]
+
+
+def _own_user_id(request: Request, db_conn: sqlite3.Connection) -> Optional[int]:
+    """The only user_id a workouts-only login (Yonatan) may touch; None = unrestricted."""
+    if not is_module_only_user(_session_user(request)):
+        return None
+    return _resolve_user_id(request, db_conn)
+
+
+def _assert_may_manage(request: Request, db_conn: sqlite3.Connection, user_id: int) -> None:
+    """403 when the caller is scoped to their own sessions and `user_id` is someone else's."""
+    own = _own_user_id(request, db_conn)
+    if own is not None and user_id != own:
+        raise HTTPException(status_code=403, detail="אין לך הרשאה לפעולה הזו")
 
 
 def _valid_date(value: str) -> str:
@@ -100,10 +117,17 @@ def _insert_row(db_conn: sqlite3.Connection, session: Dict[str, Any], values: Tu
 
 @router.get("/sessions")
 async def list_sessions(
+    request: Request,
     user_id: Optional[int] = None,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> List[Dict[str, Any]]:
     """Saved sessions, newest first — all of them, or one person's."""
+    own = _own_user_id(request, db_conn)
+    if own is not None:
+        # A scoped caller only ever lists their own sessions.
+        if user_id is not None and user_id != own:
+            raise HTTPException(status_code=403, detail="אין לך הרשאה לפעולה הזו")
+        user_id = own
     if user_id is not None:
         _valid_user_id(db_conn, user_id)
     return admin_sessions(db_conn, user_id)
@@ -112,9 +136,11 @@ async def list_sessions(
 @router.post("/sessions", status_code=201)
 async def create_session(
     body: WorkoutSessionWriteSchema,
+    request: Request,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> Dict[str, Any]:
     """Add a session by hand — one that was trained away from the arena, say."""
+    _assert_may_manage(request, db_conn, body.user_id)
     session = _validated_session(body, db_conn)
     row_ids = [_insert_row(db_conn, session, values) for values in session["exercises"]]
     db_conn.commit()
@@ -125,12 +151,16 @@ async def create_session(
 async def update_session(
     row_id: int,
     body: WorkoutSessionWriteSchema,
+    request: Request,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> Dict[str, Any]:
     """Replace a session: its details move to every row, and its exercise list becomes the payload."""
-    existing = {row["id"] for row in admin_session_rows(db_conn, row_id)}
+    rows = admin_session_rows(db_conn, row_id)
+    existing = {row["id"] for row in rows}
     if not existing:
         raise HTTPException(status_code=404, detail="Workout session not found")
+    _assert_may_manage(request, db_conn, rows[0]["user_id"])
+    _assert_may_manage(request, db_conn, body.user_id)
 
     session = _validated_session(body, db_conn)
     edited = [ex.id for ex in body.exercises if ex.id is not None]
@@ -168,12 +198,14 @@ async def update_session(
 @router.delete("/sessions/{row_id}")
 async def delete_session(
     row_id: int,
+    request: Request,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> Dict[str, Any]:
     """Delete a whole session — every exercise row saved under it."""
     rows = admin_session_rows(db_conn, row_id)
     if not rows:
         raise HTTPException(status_code=404, detail="Workout session not found")
+    _assert_may_manage(request, db_conn, rows[0]["user_id"])
     for row in rows:
         db_conn.execute("DELETE FROM workouts WHERE id = ?", (row["id"],))
     db_conn.commit()
@@ -183,9 +215,11 @@ async def delete_session(
 @router.put("/legacy-progress")
 async def replace_legacy_progress(
     body: WorkoutLegacyProgressWriteSchema,
+    request: Request,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> Dict[str, Any]:
     """Replace a user's imported "conquered by hand" stations — an empty progress clears them."""
+    _assert_may_manage(request, db_conn, body.user_id)
     user_id = _valid_user_id(db_conn, body.user_id)
     progress = _clean_progress(body.progress)
     key = _legacy_progress_key(user_id)

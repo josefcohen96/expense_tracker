@@ -25,4 +25,6 @@ services:
       - USER_PASSWORD_KARINA=${USER_PASSWORD_KARINA:?USER_PASSWORD_KARINA must be set}
       # Renovation module user (Tsahala). Only this user and Yosef can open it.
       - USER_PASSWORD_TSAHALA=${USER_PASSWORD_TSAHALA:?USER_PASSWORD_TSAHALA must be set}
+      # Workouts module user (Yonatan). He sees the arena and nothing else.
+      - USER_PASSWORD_YONATAN=${USER_PASSWORD_YONATAN:?USER_PASSWORD_YONATAN must be set}
     restart: unless-stopped

@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from ..db import get_db_conn
+from ..services.people import household
 
 ROOT_DIR = FSPath(__file__).resolve().parents[3]  # .../expense_tracker/app
 FRONTEND_DIR = ROOT_DIR / "frontend"
@@ -40,7 +41,7 @@ async def get_transaction_row(
     tx = _fetch_tx_row(db_conn, tx_id)
     # Get only expense categories (excluding income categories)
     cats = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
-    users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    users = household(db_conn)
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/transactions/row.html", {
         "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "read",
@@ -55,7 +56,7 @@ async def edit_transaction_row(
     tx = _fetch_tx_row(db_conn, tx_id)
     # Get only expense categories (excluding income categories)
     cats = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
-    users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    users = household(db_conn)
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/transactions/row.html", {
         "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "edit",
@@ -98,7 +99,7 @@ async def update_transaction_row(
     tx = _fetch_tx_row(db_conn, tx_id)
     # Get only expense categories (excluding income categories)
     cats = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
-    users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    users = household(db_conn)
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/transactions/row.html", {
         "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "read",
@@ -124,7 +125,7 @@ async def get_income_row(
 ) -> HTMLResponse:
     tx = _fetch_income_row(db_conn, tx_id)
     cats = db_conn.execute("SELECT id, name FROM categories WHERE name IN ('קליניקה', 'משכורת') ORDER BY name").fetchall()
-    users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    users = household(db_conn)
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/income/row.html", {
         "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "read",
@@ -139,7 +140,7 @@ async def edit_income_row(
 ) -> HTMLResponse:
     tx = _fetch_income_row(db_conn, tx_id)
     cats = db_conn.execute("SELECT id, name FROM categories WHERE name IN ('קליניקה', 'משכורת') ORDER BY name").fetchall()
-    users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    users = household(db_conn)
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/income/row.html", {
         "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "edit",
@@ -182,7 +183,7 @@ async def update_income_row(
 
     tx = _fetch_income_row(db_conn, tx_id)
     cats = db_conn.execute("SELECT id, name FROM categories WHERE name IN ('קליניקה', 'משכורת') ORDER BY name").fetchall()
-    users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    users = household(db_conn)
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse("partials/income/row.html", {
         "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "read",
@@ -271,7 +272,7 @@ async def edit_recurrence_row(
     r = _fetch_recurrence_row(db_conn, rec_id)
     # Recurrences are expenses: exclude income categories from the dropdown
     categories = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת','קליניקה') ORDER BY name").fetchall()
-    users = db_conn.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    users = household(db_conn)
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse(
         "partials/recurrences/edit_row.html",

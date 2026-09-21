@@ -316,6 +316,12 @@ def initialise_database() -> None:
         cur.execute("INSERT INTO users (name) VALUES ('Yosef')")
         cur.execute("INSERT INTO users (name) VALUES ('Karina')")
 
+    # Yonatan logs in for the workouts module only; his sessions need a users row
+    # (workouts.user_id), but he is not part of the household (finances / wedding
+    # read those two by name, so an extra row never shows up as a payer).
+    if not cur.execute("SELECT 1 FROM users WHERE name = 'Yonatan'").fetchone():
+        cur.execute("INSERT INTO users (name) VALUES ('Yonatan')")
+
     if not cur.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]:
         cur.execute("INSERT INTO accounts (name) VALUES ('מזומן')")
         cur.execute("INSERT INTO accounts (name) VALUES ('כרטיס אשראי')")

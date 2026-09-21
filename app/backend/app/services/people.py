@@ -9,10 +9,13 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Optional
 
-from .access import display_name, normalise_username
+from .access import display_name, is_module_only_user, normalise_username
 
-PERSON_COLORS = ("#4f46e5", "#0d9488")
-PERSON_TINTS = ("#eef2ff", "#f0fdfa")
+PERSON_COLORS = ("#4f46e5", "#0d9488", "#d97706")
+PERSON_TINTS = ("#eef2ff", "#f0fdfa", "#fffbeb")
+
+# Everyone with an arena: the household plus the workouts-only login (see access.py).
+WORKOUT_PARTICIPANTS = ("Yosef", "Karina", "Yonatan")
 
 
 def household(conn: sqlite3.Connection) -> list[dict]:
@@ -33,6 +36,34 @@ def household(conn: sqlite3.Connection) -> list[dict]:
             "color": PERSON_COLORS[idx % len(PERSON_COLORS)],
             "tint": PERSON_TINTS[idx % len(PERSON_TINTS)],
         })
+    return people
+
+
+def workout_people(conn: sqlite3.Connection, viewer: Any = None) -> list[dict]:
+    """Who the workouts back office may manage, as seen by `viewer`.
+
+    The household sees everyone who trains (Yosef, Karina, Yonatan); a login that
+    owns only the workouts module sees just their own entry.
+    """
+    placeholders = ",".join("?" * len(WORKOUT_PARTICIPANTS))
+    rows = conn.execute(
+        f"SELECT id, name FROM users WHERE name IN ({placeholders}) ORDER BY id",
+        WORKOUT_PARTICIPANTS,
+    ).fetchall()
+    people = []
+    for idx, row in enumerate(rows):
+        shown = display_name(row["name"])
+        people.append({
+            "id": row["id"],
+            "name": row["name"],
+            "display": shown,
+            "initial": shown[:1],
+            "color": PERSON_COLORS[idx % len(PERSON_COLORS)],
+            "tint": PERSON_TINTS[idx % len(PERSON_TINTS)],
+        })
+    if is_module_only_user(viewer):
+        own = find_person(people, viewer)
+        return [own] if own else []
     return people
 
 

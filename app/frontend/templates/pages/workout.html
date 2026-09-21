@@ -246,7 +246,12 @@
             <div class="wk-profile-head">
                 <div class="wk-profile-top">
                     <h2>הפרופיל שלי</h2>
+                    {% if module_only %}
+                    {#- No tab bar / "עוד" page for a workouts-only login: log out from here. -#}
+                    <a href="/logout" class="wk-link">יציאה ←</a>
+                    {% else %}
                     <a href="#history" class="wk-link">היסטוריה ←</a>
+                    {% endif %}
                 </div>
                 <div class="wk-profile-main">
                     <div class="wk-level-ring" style="--pct: {{ game.progress_pct }}%">

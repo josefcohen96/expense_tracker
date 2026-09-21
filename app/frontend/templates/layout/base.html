@@ -498,8 +498,12 @@
 {#- Resolved by AuthMiddleware; falls back to the session for public pages. -#}
 {% set current_username = ((request.state.user or request.session.get('user') or {}).get('username') or '') | upper %}
 {% set show_renovation = current_username in ['YOSEF', 'TSAHALA'] %}
-{#- Renovation-only users can't open wedding/finances, and logged-out visitors have nowhere to go. -#}
-{% set show_tab_bar = current_username and current_username != 'TSAHALA' %}
+{#- Single-module logins (MODULE_ONLY_USERS in services/access.py): Tsahala owns renovation, Yonatan owns workouts. -#}
+{% set module_only = current_username in ['TSAHALA', 'YONATAN'] %}
+{% set show_household_nav = not module_only %}
+{% set show_workouts = not module_only or current_username == 'YONATAN' %}
+{#- Single-module users can't open wedding/finances, and logged-out visitors have nowhere to go. -#}
+{% set show_tab_bar = current_username and not module_only %}
 {% set mobile_tab = 'today' %}
 {% if request.path.startswith('/wedding') %}
     {% set mobile_tab = 'wedding' %}
@@ -525,6 +529,7 @@
 
                 <!-- Main Categories Navigation -->
                 <div class="hidden md:flex space-x-8 space-x-reverse">
+                    {% if show_household_nav %}
                     <a href="/finances"
                         class="nav-link px-4 py-2 rounded-xl text-sm font-semibold transition-colors animate-sequence flex items-center gap-2 {% if request.path.startswith('/finances') %}is-active{% endif %}">
                         <i class="fas fa-wallet"></i>
@@ -535,11 +540,14 @@
                         <span>💍</span>
                         חתונה
                     </a>
+                    {% endif %}
+                    {% if show_workouts %}
                     <a href="/workouts"
                         class="nav-link px-4 py-2 rounded-xl text-sm font-semibold transition-colors animate-sequence flex items-center gap-2 {% if request.path.startswith('/workouts') %}is-active{% endif %}">
                         <i class="fas fa-dumbbell"></i>
                         אימונים
                     </a>
+                    {% endif %}
                     {% if show_renovation %}
                     <a href="/renovation"
                         class="nav-link px-4 py-2 rounded-xl text-sm font-semibold transition-colors animate-sequence flex items-center gap-2 {% if request.path.startswith('/renovation') %}is-active{% endif %}">
@@ -627,6 +635,7 @@
                 <div class="animate-sequence">
                     <h3 class="text-lg font-semibold mb-3">קישורים מהירים</h3>
                     <ul class="space-y-2 text-sm">
+                        {% if show_household_nav %}
                         <li><a href="/finances" class="text-gray-600 hover:text-purple-700 inline-flex items-center gap-2">
                             <i class="fas fa-gauge text-xs opacity-70"></i>דשבורד פיננסי
                         </a></li>
@@ -639,9 +648,12 @@
                         <li><a href="/wedding" class="text-gray-600 hover:text-purple-700 inline-flex items-center gap-2">
                             <span class="text-xs opacity-70">💍</span>תכנון חתונה
                         </a></li>
+                        {% endif %}
+                        {% if show_workouts %}
                         <li><a href="/workouts" class="text-gray-600 hover:text-purple-700 inline-flex items-center gap-2">
                             <i class="fas fa-dumbbell text-xs opacity-70"></i>אימונים
                         </a></li>
+                        {% endif %}
                         {% if show_renovation %}
                         <li><a href="/renovation" class="text-gray-600 hover:text-purple-700 inline-flex items-center gap-2">
                             <span class="text-xs opacity-70">🏡</span>שיפוץ הבית

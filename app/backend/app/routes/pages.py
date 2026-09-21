@@ -20,7 +20,7 @@ from urllib.parse import unquote_plus
 
 from ..db import get_db_conn
 from .. import db as _db
-from ..services.access import RENOVATION_ONLY_USERS, home_path_for, normalise_username, password_env_var
+from ..services.access import home_path_for, is_module_only_user, password_env_var
 from ..services import hebrew_dates as hd
 from ..services import wedding_plan
 from ..services.people import household
@@ -366,7 +366,8 @@ async def logout(request: Request) -> RedirectResponse:
 async def index(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     """היום — the cross-module action queue (mobile home; desktop forwards to /finances)."""
     user_obj = getattr(request.state, "user", None) or request.session.get("user")
-    if normalise_username(user_obj) in RENOVATION_ONLY_USERS:
+    if is_module_only_user(user_obj):
+        # Tsahala / Yonatan own one module: send them to it instead of the shared home.
         return RedirectResponse(url=home_path_for(user_obj), status_code=status.HTTP_302_FOUND)
     return templates.TemplateResponse("pages/today.html", {
         "request": request,

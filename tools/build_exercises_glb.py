@@ -180,30 +180,184 @@ def leg_to(dy, dz, bend=1.0):
     return {"hip": hip, "knee": knee}
 
 
-def posed(params, spec):
-    """One pose placed in the world: anchored on its contact point, tilted, mapped to its plane."""
+def rotate_about(pose, pivot, angle):
+    """The whole pose turned `angle` degrees about `pivot` in the sagittal (Y-Z) plane."""
+    a = math.radians(angle)
+    cos_a, sin_a = math.cos(a), math.sin(a)
+    return {k: (v[0],
+                pivot[1] + (v[1] - pivot[1]) * cos_a - (v[2] - pivot[2]) * sin_a,
+                pivot[2] + (v[1] - pivot[1]) * sin_a + (v[2] - pivot[2]) * cos_a)
+            for k, v in pose.items()}
+
+
+LEG_JOINTS = ("hip", "knee", "ankle", "toe")
+
+
+def contact_plan(pose, spec, base_tilt=0.0):
+    """What holds the pose's second contact still, worked out on the clip's first frame:
+    `pin` keeps a joint on the ray it started on from the anchor, `floor` keeps it at floor
+    level (the level of the lowest non-leg joint unless the spec gives one), `plant` solves
+    a leg so its ankle stays where it stood. None when the spec has no second contact."""
+    _anchor, target = spec["anchor"]
+    plan = {}
+    if spec.get("pin"):
+        joint = spec["pin"]
+        plan["pin"] = (joint, (pose[joint][1] - target[1], pose[joint][2] - target[2]))
+    if spec.get("floor"):
+        joint, level = ((spec["floor"], None) if isinstance(spec["floor"], str)
+                        else spec["floor"])
+        if level is None:
+            level = min(v[1] for k, v in pose.items() if k.split("_")[0] not in LEG_JOINTS)
+        plan["floor"] = (joint, level - target[1], pose[joint][2] - target[2] < 0)
+    if spec.get("plant"):
+        joint = spec["plant"]
+        plan["plant"] = (joint, pose[joint], pose["knee" + joint[-2:]])
+    if spec.get("fixed"):
+        # `pose` is the first frame already placed with its floor/pin: `base_tilt` is the
+        # incline every later frame starts from and its contact is the spot to hold
+        joint = spec["fixed"]
+        plan["fixed"] = (joint, pose[joint], base_tilt)
+    return plan or None
+
+
+def _turn_to(j, target, joint, want):
+    have = (j[joint][1] - target[1], j[joint][2] - target[2])
+    turn = math.atan2(want[1], want[0]) - math.atan2(have[1], have[0])
+    return rotate_about(j, target, math.degrees(turn)) if abs(turn) > 1e-9 else j
+
+
+def _place(params, spec, extra_tilt=0.0):
     j = body(**params)
-    tilt = spec.get("tilt", 0.0)
+    tilt = spec.get("tilt", 0.0) + extra_tilt
     anchor, target = spec["anchor"]
     if tilt:
-        a = math.radians(tilt)
-        pivot = j[anchor]
-        cos_a, sin_a = math.cos(a), math.sin(a)
-        j = {k: (v[0],
-                 pivot[1] + (v[1] - pivot[1]) * cos_a - (v[2] - pivot[2]) * sin_a,
-                 pivot[2] + (v[1] - pivot[1]) * sin_a + (v[2] - pivot[2]) * cos_a)
-             for k, v in j.items()}
+        j = rotate_about(j, j[anchor], tilt)
     off = tuple(target[i] - j[anchor][i] for i in range(3))
-    j = {k: add(v, off) for k, v in j.items()}
+    return {k: add(v, off) for k, v in j.items()}
+
+
+def _angle(v):
+    """Direction of a sagittal vector (y, z) in the rotate_about() convention."""
+    return math.degrees(math.atan2(v[1], v[0]))
+
+
+def pose_tilt(placed, plain, spec):
+    """How far `placed` was turned from `plain` (the same pose straight out of _place)."""
+    _anchor, target = spec["anchor"]
+    probe = "chest"
+    return (_angle((placed[probe][1] - target[1], placed[probe][2] - target[2]))
+            - _angle((plain[probe][1] - target[1], plain[probe][2] - target[2])))
+
+
+def _fixed_solve(params, spec, plan):
+    """Hands and the fixed joint both stay where they are; the body between the shoulders
+    and that joint keeps its authored angles and pivots on the fixed joint; the arms are
+    re-solved so the hands still land on the anchor. The authored pose only decides the
+    depth — how high the shoulders sit above the hands — which is what a real push-up or
+    row does: the toes or heels never skate, the body swings on them and the elbows give."""
+    joint, spot, base_tilt = plan["fixed"]
+    _anchor, target = spec["anchor"]
+    j = _place(params, spec, base_tilt)
+    shoulder, contact = j["shoulder_r"], j[joint]
+    depth = shoulder[1] - target[1]                       # authored shoulder height
+    reach = math.hypot(shoulder[1] - contact[1], shoulder[2] - contact[2])
+    dy = max(-reach, min(reach, target[1] + depth - spot[1]))
+    dz = math.sqrt(max(0.0, reach * reach - dy * dy)) * (1.0 if target[2] >= spot[2] else -1.0)
+    turn = _angle((dy, dz)) - _angle((shoulder[1] - contact[1], shoulder[2] - contact[2]))
+    tilt = base_tilt + turn
+    want_shoulder = (spot[1] + dy, spot[2] + dz)
+    # the arm chain, in the body's own (untilted) frame, from the shoulder to the anchor
+    to_wrist = (target[1] - want_shoulder[0], target[2] - want_shoulder[1])
+    a = math.radians(-tilt)
+    local = (to_wrist[0] * math.cos(a) - to_wrist[1] * math.sin(a),
+             to_wrist[0] * math.sin(a) + to_wrist[1] * math.cos(a))
+    upper = L["uarm"] * math.cos(math.radians(params.get("arm_spread", 0.0)))
+    lower = L["farm"] * math.cos(math.radians(params.get("fore_spread",
+                                                         params.get("arm_spread", 0.0))))
+    best = None
+    for bend in (1.0, -1.0):          # the elbow breaks the way the authored pose has it
+        arm, elbow = chain_to(local[0], local[1], upper, lower, bend)
+        score = abs((arm - params.get("arm", 180.0) + 180.0) % 360.0 - 180.0)
+        if best is None or score < best[0]:
+            best = (score, arm, elbow)
+    solved = dict(params, arm=best[1], elbow=best[2])
+    for side in ("_l", "_r"):
+        for k in ("arm", "elbow"):
+            solved.pop(k + side, None)
+    for k in ("hand", "hand_l", "hand_r"):    # the palms stay flat on the floor as the body turns
+        if k in solved:
+            solved[k] -= turn
+    return _place(solved, spec, tilt)
+
+
+def posed(params, spec, plan=None):
+    """One pose placed in the world: anchored on its contact point, tilted, mapped to its plane.
+    With a `plan` (see contact_plan()) the second contact holds too — the toes of a push-up
+    stay on the floor as the body pivots about the hands, the heels of a row stay put, the
+    rear foot of a split squat stays on its bench — instead of skating as the joints between
+    the two contacts move."""
+    _anchor, target = spec["anchor"]
+    if plan and "fixed" in plan:
+        j = _fixed_solve(params, spec, plan)
+        if spec.get("plane") == "front":
+            j = {k: (v[2], v[1], -v[0]) for k, v in j.items()}
+        return j
+    j = _place(params, spec)
+    if plan:
+        if "pin" in plan:
+            joint, want = plan["pin"]
+            j = _turn_to(j, target, joint, want)
+        if "floor" in plan:
+            joint, dy, behind = plan["floor"]
+            reach = math.hypot(j[joint][1] - target[1], j[joint][2] - target[2])
+            dy = max(-reach, min(reach, dy))
+            dz = math.sqrt(max(0.0, reach * reach - dy * dy)) * (-1.0 if behind else 1.0)
+            j = _turn_to(j, target, joint, (dy, dz))
+        if "plant" in plan:
+            # solve the planted leg for the ankle it started on; the knee breaks the way the
+            # authored pose had it (pick the solution whose knee lands nearer it)
+            joint, ankle, knee0 = plan["plant"]
+            side = joint[-2:]
+            hip = j["hip" + side]
+            best = None
+            for bend in (1.0, -1.0):
+                angles = leg_to(ankle[1] - hip[1], ankle[2] - hip[2], bend)
+                trial = _place(dict(params, **{"hip" + side: angles["hip"],
+                                                "knee" + side: angles["knee"]}), spec)
+                if "pin" in plan:
+                    trial = _turn_to(trial, target, plan["pin"][0], plan["pin"][1])
+                score = math.dist(trial["knee" + side], knee0)
+                if best is None or score < best[0]:
+                    best = (score, trial)
+            j = best[1]
     if spec.get("plane") == "front":     # flags: the body runs across the front camera
         j = {k: (v[2], v[1], -v[0]) for k, v in j.items()}
     return j
+
+
+def blend(a, b, u):
+    """Pose parameters between `a` (u = 0) and `b` (u = 1); u past either end extrapolates.
+    Angles take the short way round — a forearm going from 322deg to 4deg turns through 0,
+    not down through 180."""
+    out = {}
+    for k in set(a) | set(b):
+        va, vb = a.get(k, b.get(k)), b.get(k, a.get(k))
+        if isinstance(va, tuple):                    # `lateral` is a vector
+            out[k] = va
+        else:
+            out[k] = va + ((vb - va + 180.0) % 360.0 - 180.0) * u
+    return out
 
 
 # ============================ poses ============================
 
 # What the hands are holding, derived from the pose's anchor (a spec's own `prop` wins).
 # Without it a pull-up reads as a figure standing with bent arms.
+def front_view(spec):
+    """Whether the arena should open this clip on the front camera (flags and bar pulls)."""
+    return spec.get("plane") == "front" or spec.get("view") == "front"
+
+
 def anchor_prop(spec):
     return spec.get("prop", ANCHOR_PROP.get(spec["anchor"]))
 
@@ -258,8 +412,16 @@ SQUAT = dict(torso=44, arm=72, elbow=74, ankle=86, head=22, **leg_to(-0.45, 0.2,
 PRONE = dict(torso=92, arm=184, elbow=178, hand=110, hip=272, knee=271, ankle=215, head=74)
 PRONE_DOWN = d(PRONE, torso=87, arm_spread=16, hip=267, knee=266, head=70,
                **arm_to(-0.23, -0.05))
-HANG = dict(torso=354, arm=8, elbow=4, hip=182, knee=196, ankle=120, head=352)
-PULL_TOP = dict(torso=348, hip=184, knee=200, ankle=120, head=346, **arm_to(0.2, 0.12))
+GRIP_SPREAD = 10                 # hands a touch wider than the shoulders on the bar
+HANG = dict(torso=354, arm=8, elbow=4, hip=182, knee=196, ankle=120, head=352,
+            arm_spread=GRIP_SPREAD, fore_spread=GRIP_SPREAD)
+# Elbows out to the sides at the top (pronated grip); the forearm angles back in so the
+# hands stay where they were on the bar.
+PULL_TOP = dict(torso=348, hip=184, knee=200, ankle=120, head=346, arm_spread=35, fore_spread=-12,
+                **arm_to(0.2, 0.12))
+# Halfway up a pull-up the legs drift forward of the line and swing back at the top — the
+# small kip every real pull-up has; `mid` sits at the middle of the rep's timeline.
+PULL_MID = d(blend(PULL_TOP, HANG, 0.5), hip=176, knee=206)
 DIP_TOP = dict(torso=8, arm=181, elbow=177, hand=150, hip=188, knee=205, ankle=120, head=4)
 DIP_BOTTOM = d(DIP_TOP, torso=20, hand=250, head=14, **arm_to(-0.37, 0.03))
 HANDSTAND = dict(torso=186, neck_a=178, head=172, arm=178, elbow=182, hand=205,
@@ -280,26 +442,34 @@ FLAG = dict(torso=272, neck_a=280, head=290, lateral=(0.0, 1.0, 0.0),
             hip=92, knee=91, ankle=86)
 
 # clip key -> pose spec. `a` is where the rep starts (lowering from), `b` where it turns
-# around; a hold uses `a` alone and breathes towards `b` if one is given.
+# around; a hold uses `a` alone and breathes towards `b` if one is given. `plane="front"`
+# rotates the pose across the front camera (flags); `view="front"` only opens the clip on the
+# front camera — for bar pulls, which are edge-on from the side (a body rising under a bar
+# is a vertical line; the grip, the flaring elbows and the head clearing the bar all live in
+# the frontal plane). The second contact is held by `pin` (a joint kept on its ray from the
+# anchor), `floor` (a joint kept at floor level), `plant` (an ankle solved to stay put) or
+# `fixed` (the joint stays put and the arms give, the body pivoting on it) — see
+# contact_plan(); `family` picks the joint phasing of the rep (PHASING) when the anchor's own
+# default is wrong.
 SPECS = {
     # --- push ---
-    "push_ups": dict(a=PRONE, b=PRONE_DOWN, anchor=HANDS),
+    "push_ups": dict(a=PRONE, b=PRONE_DOWN, anchor=HANDS, floor="toe_r", fixed="toe_r"),
     "diamond_push_ups": dict(a=d(PRONE, arm_spread=-15, fore_spread=-20),
                              b=d(PRONE_DOWN, arm_spread=-2, fore_spread=-18,
                                  **arm_to(-0.26, -0.02)),
-                             anchor=HANDS),
-    "pike_push_ups": dict(a=PIKE, b=PIKE_DOWN, anchor=HANDS),
+                             anchor=HANDS, floor="toe_r", fixed="toe_r"),
+    "pike_push_ups": dict(a=PIKE, b=PIKE_DOWN, anchor=HANDS, floor="toe_r", fixed="toe_r"),
     "elevated_pike_push_ups": dict(a=d(PIKE, torso=140, hip=210), b=d(PIKE_DOWN, torso=136, hip=210),
-                                   anchor=HANDS),
+                                   anchor=HANDS, pin="toe_r", fixed="toe_r"),
     "handstand_push_ups": dict(a=HANDSTAND, b=HSPU_DOWN, anchor=HANDS),
     "full_freestanding_hspu": dict(a=d(HANDSTAND, hip=4, knee=2), b=HSPU_DOWN, anchor=HANDS),
     "straddle_freestanding_hspu": dict(a=d(HANDSTAND, leg_spread=34), b=d(HSPU_DOWN, leg_spread=34),
                                        anchor=HANDS),
     "wall_assisted_hspu": dict(a=d(HANDSTAND, torso=184, hip=356), b=d(HSPU_DOWN, torso=182),
-                               anchor=HANDS),
+                               anchor=HANDS, pin="ankle_r"),
     "partial_wall_hspu": dict(a=d(HANDSTAND, torso=184, hip=356),
                               b=d(HANDSTAND, torso=183, hip=355, **arm_to(-0.15, 0.08, bend=-1)),
-                              anchor=HANDS),
+                              anchor=HANDS, pin="ankle_r"),
     "freestanding_handstand_hold": dict(a=d(HANDSTAND, hip=2, knee=1, ankle=18),
                                         b=d(HANDSTAND, hip=358, knee=357, ankle=16), anchor=HANDS),
     # Hands by the hips and the shoulders kept out in front of them — the planche lean,
@@ -307,62 +477,70 @@ SPECS = {
     "pseudo_planche_push_ups": dict(a=d(PRONE, hand=118, torso=93, **arm_to(-0.50, -0.16)),
                                     b=d(PRONE, hand=104, torso=88, hip=267, knee=266, head=70,
                                         **arm_to(-0.26, -0.20)),
-                                    anchor=HANDS),
+                                    anchor=HANDS, floor="toe_r", fixed="toe_r"),
     "negative_wall_hspu": dict(a=d(HANDSTAND, torso=184, hip=356), b=d(HSPU_DOWN, torso=182),
-                               anchor=HANDS),
+                               anchor=HANDS, pin="ankle_r"),
     "wall_assisted_handstand_hold": dict(a=d(HANDSTAND, torso=184, hip=356),
                                          b=d(HANDSTAND, torso=182, hip=0), anchor=HANDS),
     "wall_walks_holds": dict(a=d(HANDSTAND, torso=162, hip=20, knee=16, ankle=30),
-                             b=d(HANDSTAND, torso=170, hip=12, knee=9, ankle=25), anchor=HANDS),
+                             b=d(HANDSTAND, torso=170, hip=12, knee=9, ankle=25), anchor=HANDS,
+                             pin="ankle_r"),
     "dips": dict(a=DIP_TOP, b=DIP_BOTTOM, anchor=DIP_BAR),
     "basic_dips": dict(a=DIP_TOP, b=d(DIP_BOTTOM, **arm_to(-0.43, 0.02)), anchor=DIP_BAR),
     "straight_bar_dips": dict(a=d(DIP_TOP, torso=14), b=d(DIP_BOTTOM, torso=26), anchor=DIP_BAR,
                               prop="bar"),
 
     # --- pull ---
-    "pull_ups": dict(a=PULL_TOP, b=HANG, anchor=BAR),
-    "basic_pull_ups": dict(a=PULL_TOP, b=HANG, anchor=BAR),
-    "chin_ups": dict(a=d(PULL_TOP, arm_spread=-8, **arm_to(0.24, 0.16)), b=d(HANG, arm_spread=-8),
-                     anchor=BAR),
-    "explosive_pull_ups": dict(a=d(PULL_TOP, torso=344, **arm_to(0.3, 0.14)), b=HANG, anchor=BAR),
+    "pull_ups": dict(a=PULL_TOP, mid=PULL_MID, b=HANG, anchor=BAR, view="front"),
+    "basic_pull_ups": dict(a=PULL_TOP, mid=PULL_MID, b=HANG, anchor=BAR, view="front"),
+    "chin_ups": dict(a=d(PULL_TOP, arm_spread=-8, fore_spread=-8, **arm_to(0.24, 0.16)),
+                     mid=d(PULL_MID, arm_spread=-8, fore_spread=-8, **arm_to(0.06, 0.12)),
+                     b=d(HANG, arm_spread=-8, fore_spread=-8), anchor=BAR, view="front"),
+    "explosive_pull_ups": dict(a=d(PULL_TOP, torso=344, **arm_to(0.3, 0.14)), b=HANG, anchor=BAR,
+                               view="front"),
     "australian_pull_ups_rows": dict(a=dict(torso=90, arm=52, elbow=318, hip=270, knee=269,
                                             ankle=200, head=76),
                                      b=dict(torso=90, arm=6, elbow=2, hip=270, knee=269,
                                             ankle=200, head=76),
-                                     anchor=LOW_BAR, tilt=-14),
+                                     anchor=LOW_BAR, floor=("ankle_r", 0.055), fixed="ankle_r"),
     "active_scapula_hangs": dict(a=d(HANG, arm=14, elbow=8, head=346), b=d(HANG, arm=4, elbow=2),
-                                 anchor=BAR),
+                                 anchor=BAR, view="front"),
     "scapula_shrugs": dict(a=d(HANG, arm=14, elbow=8, head=346), b=d(HANG, arm=4, elbow=2),
-                           anchor=BAR),
+                           anchor=BAR, view="front"),
     "one_arm_active_hang": dict(a=d(HANG, arm_r=10, elbow_r=5, arm_l=200, elbow_l=196, torso=8),
                                 b=d(HANG, arm_r=6, elbow_r=3, arm_l=200, elbow_l=196, torso=6),
                                 anchor=BAR),
-    "false_grip_hang": dict(a=d(HANG, hand=60, fore_spread=4), b=d(HANG, hand=64, arm=6, elbow=3),
-                            anchor=BAR),
+    "false_grip_hang": dict(a=d(HANG, hand=60), b=d(HANG, hand=64, arm=6, elbow=3),
+                            anchor=BAR, view="front"),
     "false_grip_pull_ups": dict(a=d(PULL_TOP, hand=60, torso=346, **arm_to(0.16, 0.16)),
-                                b=d(HANG, hand=60), anchor=BAR),
+                                mid=d(PULL_MID, hand=60, **arm_to(0.04, 0.12)),
+                                b=d(HANG, hand=60), anchor=BAR, view="front"),
     "low_bar_transitions": dict(a=d(DIP_TOP, torso=10, hip=150, knee=250, ankle=200),
                                 mid=d(PULL_TOP, hip=150, knee=250, ankle=200, **arm_to(0.28, 0.2)),
                                 b=d(HANG, hip=155, knee=250, ankle=200), anchor=LOW_BAR),
-    "muscle_ups": dict(a=d(DIP_TOP, torso=6, hip=184, knee=196), mid=d(PULL_TOP, **arm_to(0.3, 0.2)),
+    "muscle_ups": dict(a=d(DIP_TOP, torso=6, hip=184, knee=196, arm_spread=GRIP_SPREAD),
+                      mid=d(PULL_TOP, **arm_to(0.3, 0.2)), view="front",
                        b=HANG, anchor=BAR),
-    "full_muscle_up": dict(a=d(DIP_TOP, torso=6, hip=184, knee=196), mid=d(PULL_TOP, **arm_to(0.3, 0.2)),
+    "full_muscle_up": dict(a=d(DIP_TOP, torso=6, hip=184, knee=196, arm_spread=GRIP_SPREAD),
+                          mid=d(PULL_TOP, **arm_to(0.3, 0.2)), view="front",
                            b=HANG, anchor=BAR),
-    "negative_muscle_up": dict(a=d(DIP_TOP, torso=6, hip=184, knee=196), mid=d(PULL_TOP, **arm_to(0.3, 0.2)),
+    "negative_muscle_up": dict(a=d(DIP_TOP, torso=6, hip=184, knee=196, arm_spread=GRIP_SPREAD),
+                              mid=d(PULL_TOP, **arm_to(0.3, 0.2)), view="front",
                                b=HANG, anchor=BAR),
-    "assisted_muscle_up_band": dict(a=d(DIP_TOP, torso=6, hip=184, knee=150),
+    "assisted_muscle_up_band": dict(a=d(DIP_TOP, torso=6, hip=184, knee=150, arm_spread=GRIP_SPREAD),
                                     mid=d(PULL_TOP, knee=160, **arm_to(0.3, 0.2)),
-                                    b=d(HANG, knee=150), anchor=BAR),
+                                    b=d(HANG, knee=150), anchor=BAR, view="front"),
 
     # --- core ---
     "hanging_leg_raises": dict(a=d(HANG, hip=96, knee=92, ankle=60, torso=350),
-                               b=d(HANG, hip=180, knee=180, ankle=100), anchor=BAR),
+                               b=d(HANG, hip=180, knee=180, ankle=100), anchor=BAR, family="core"),
     "toes_to_bar": dict(a=d(HANG, hip=46, knee=40, ankle=20, torso=344),
-                        b=d(HANG, hip=180, knee=180, ankle=100), anchor=BAR),
+                        b=d(HANG, hip=180, knee=180, ankle=100), anchor=BAR, family="core"),
     "l_sit": dict(a=LSIT, b=d(LSIT, hip=88, torso=4), anchor=PARALLETTE),
     "tucked_l_sit": dict(a=d(LSIT, hip=96, knee=172, ankle=120),
                          b=d(LSIT, hip=92, knee=168, ankle=118, torso=4), anchor=PARALLETTE),
-    "plank": dict(a=PLANK, b=d(PLANK, torso=92, hip=272), anchor=("elbow_r", (0.0, 0.05, 0.0))),
+    "plank": dict(a=PLANK, b=d(PLANK, torso=92, hip=272), anchor=("elbow_r", (0.0, 0.05, 0.0)),
+                  floor="toe_r"),
     "ab_wheel_rollouts": dict(a=dict(torso=36, arm=150, elbow=126, hand=104, hip=208, knee=280,
                                      ankle=255, head=28),
                               b=dict(torso=82, arm=98, elbow=94, hand=88, hip=246, knee=270,
@@ -388,7 +566,7 @@ SPECS = {
                                        arm=172, elbow=174),
                                    b=d(STAND, torso=20, hip_r=112, knee_r=192, ankle_r=84,
                                        hip_l=262, knee_l=126, ankle_l=100, arm=168, elbow=170),
-                                   anchor=FLOOR),
+                                   anchor=FLOOR, plant="ankle_l"),
     "calf_raises": dict(a=d(STAND, ankle=126, torso=1), b=d(STAND, ankle=74, torso=4),
                         anchor=("toe_r", (0.0, 0.0, 0.0))),
 
@@ -489,102 +667,204 @@ def ease(x):
     return x * x * (3.0 - 2.0 * x)
 
 
-def blend(a, b, u):
-    out = {}
-    for k in set(a) | set(b):
-        va, vb = a.get(k, b.get(k)), b.get(k, a.get(k))
-        out[k] = va if isinstance(va, tuple) else va * (1.0 - u) + vb * u   # `lateral` is a vector
-    return out
-
-
 def path_pose(spec, u):
     """u in [0, 1]: `a` -> (`mid`) -> `b`."""
     a, b, mid = spec["a"], spec.get("b", spec["a"]), spec.get("mid")
     if mid is None:
         return blend(a, b, u)
+    # one key set along the whole path: a parameter one pose leaves out holds its neighbour's
+    # value instead of dropping back to its default halfway through the rep
+    keys = set(a) | set(mid) | set(b)
+    a = {k: a.get(k, mid.get(k, b.get(k))) for k in keys}
+    b = {k: b.get(k, mid.get(k, a.get(k))) for k in keys}
+    mid = {k: mid.get(k, a[k] if isinstance(a[k], tuple) else (a[k] + b[k]) / 2) for k in keys}
     return blend(a, mid, u * 2) if u <= 0.5 else blend(mid, b, (u - 0.5) * 2)
 
 
-def ease_down(x):
-    """The lowering: under control, with a longer brake into the bottom."""
-    return 1.0 - (1.0 - ease(x)) ** 1.3
+def ease_down(x, snap=False):
+    """The lowering: under control, with a longer brake into the bottom — a shorter one when
+    the rep has no pause and swings straight through the turn."""
+    return 1.0 - (1.0 - ease(x)) ** (1.1 if snap else 1.3)
 
 
 def ease_up(x):
-    """The drive: out of the hole fast, easing into the lockout."""
-    return ease(x) ** 0.72
+    """The drive: out of the hole with real speed, slowing into the lockout."""
+    return 1.0 - (1.0 - x) ** 2.4
 
 
 HOLD_SPAN = 4.0          # one breath per hold loop, seconds
-FRAME_STEP = 0.2         # keyframe spacing; the arena interpolates linearly in between
+SAMPLE_STEP = 0.04       # the motion is sampled this often, then thinned (see thin_keys)
+KEY_TOLERANCE = 0.004    # metres a joint may stray from the sampled path between kept keys
 GAZE_LAG = 0.08          # the head trails the body by this much (seconds), keeping its gaze
 SETTLE = 0.03            # how far the body sinks past the turn during the pause
+OVERSHOOT = 0.025        # how far the drive carries past the lockout before it settles
 BREATH = 0.035           # chest expansion on a hold's inhale
 TREMOR_DEG = 0.45        # the loaded arms shake this much on a hold
 TREMOR_PERIOD = 1.0      # seconds; must divide HOLD_SPAN so the loop stays seamless
+SAG_DEG = 1.8            # a hold's slow fight: the hips give this much and are pulled back
+
+# Joint phasing: how far each joint group runs ahead of (-) or behind (+) the body's clock,
+# in seconds. This is what separates a movement from a morph between two photographs —
+# distal joints lead the lowering, the proximal ones set first for the drive, and the legs
+# trail the pull like a pendulum. Real lags are a tenth of a second or so whatever the tempo.
+PHASING = {
+    "press": {"elbow": -0.06, "arm": -0.03, "torso": +0.05, "hip": +0.08, "knee": +0.08},
+    "pull": {"arm": -0.10, "elbow": +0.02, "torso": +0.06, "hip": +0.12, "knee": +0.16},
+    "squat": {"hip": -0.10, "torso": -0.08, "knee": 0.0, "ankle": +0.04, "arm": +0.12,
+              "elbow": +0.12},
+    "core": {"knee": -0.06, "hip": 0.0, "torso": +0.08, "arm": +0.06},
+}
+# pose parameter prefix -> the joint group whose clock it follows
+PHASE_GROUP = {"arm": "arm", "fore": "arm", "elbow": "elbow", "hand": "elbow", "torso": "torso",
+               "hip": "hip", "leg": "hip", "knee": "knee", "ankle": "ankle",
+               "neck": "head", "head": "head"}
 
 
-def rep_u(t, tempo):
-    """Where along a -> b the body is at time t of a rep (loops over the tempo).
-    During the pause it settles a touch past the turn, so the bottom reads as a bottom."""
+def family_for(spec):
+    """Which phasing a rep uses, from what the body is anchored on unless the spec says."""
+    if "family" in spec:
+        return spec["family"]
+    anchor = spec["anchor"]
+    if anchor in (BAR, LOW_BAR):
+        return "pull"
+    if anchor == FLOOR:
+        return "squat"
+    if anchor in (HANDS, DIP_BAR, PARALLETTE):
+        return "press"
+    return None
+
+
+def rep_u(t, tempo, offset=0.0):
+    """Where along a -> b the body is at time t of a rep (loops over the tempo). `offset`
+    shifts this joint's clock by that many seconds (positive trails the body).
+    During the pause the body settles a touch past the turn, so the bottom reads as a
+    bottom; the drive carries a touch past the lockout and settles back."""
     down, pause, up = tempo
-    t %= down + pause + up
+    total = down + pause + up
+    t = (t - offset) % total
+    snap = pause == 0
     if t < down:
-        return ease_down(t / down)
+        return ease_down(t / down, snap)
     if t < down + pause:
         return 1.0 + SETTLE * math.sin(math.pi * (t - down) / pause)
-    return 1.0 - ease_up((t - down - pause) / up)
+    x = (t - down - pause) / up
+    over = OVERSHOOT * (1.6 if snap else 1.0)
+    settle = math.sin(math.pi * (x - 0.65) / 0.35) if x > 0.65 else 0.0
+    return 1.0 - ease_up(x) - over * settle
 
 
 def hold_u(t):
     return 0.5 - 0.5 * math.cos(2 * math.pi * (t % HOLD_SPAN) / HOLD_SPAN)
 
 
-def pose_params(spec, u, u_head):
-    """Pose parameters at u, with the head following a moment behind the body."""
-    params = path_pose(spec, u)
-    if u_head != u:
-        lagged = path_pose(spec, u_head)
-        for k in ("head", "neck_a"):
-            if k in lagged:
-                params[k] = lagged[k]
-    return params
+def sag_u(t):
+    """The slow fight of a hold: the position gives through the middle of the loop and is
+    pulled back by its end (0 at both ends, so the loop closes)."""
+    return math.sin(math.pi * (t % HOLD_SPAN) / HOLD_SPAN) ** 3
 
 
-def tremble(params, t):
-    """Isometric effort: the arms carrying the hold quiver, and the shake runs through the
-    body because the pose is anchored on the hands."""
-    wobble = TREMOR_DEG * math.sin(2 * math.pi * t / TREMOR_PERIOD)
+def pose_params(spec, t, tempo, offsets):
+    """Pose parameters at time t of a rep, each joint group on its own clock (see PHASING);
+    the head trails a moment behind everything, keeping its gaze."""
+    clocks = dict(offsets)
+    clocks["head"] = clocks.get("head", 0.0) + GAZE_LAG
+    base = path_pose(spec, rep_u(t, tempo))
+    shifted = {}
+    out = {}
+    for k, v in base.items():
+        off = clocks.get(PHASE_GROUP.get(k.split("_")[0]), 0.0)
+        if isinstance(v, tuple) or off == 0.0:
+            out[k] = v
+            continue
+        if off not in shifted:
+            shifted[off] = path_pose(spec, rep_u(t, tempo, off))
+        out[k] = shifted[off][k]
+    return out
+
+
+def hold_params(spec, t):
+    """A hold at time t: breathing towards `b`, the loaded arms shivering in two tones that
+    build on the exhale, the hips slowly giving and being pulled back, the gaze alive."""
+    params = path_pose(spec, hold_u(t))
+    shiver = (math.sin(2 * math.pi * t / TREMOR_PERIOD)
+              + 0.6 * math.sin(4 * math.pi * t / TREMOR_PERIOD + 0.7))
+    wobble = TREMOR_DEG * shiver * (0.5 + 0.5 * hold_u(t))
+    sag = SAG_DEG * sag_u(t)
+    nod = 0.6 * math.sin(2 * math.pi * t / HOLD_SPAN + 1.1)
     for k in list(params):
-        if k.startswith("arm") and "spread" not in k:
+        if isinstance(params[k], tuple):
+            continue
+        group = PHASE_GROUP.get(k.split("_")[0])
+        if group == "arm" and "spread" not in k:
             params[k] += wobble
-        elif k.startswith("elbow"):
+        elif group == "elbow":
             params[k] += wobble * 0.5
+        elif group in ("hip", "knee") and "spread" not in k:
+            params[k] += sag
+        elif group == "torso":
+            params[k] += sag * 0.5
+        elif group == "head":
+            params[k] += nod
     return params
 
 
 def frames_for(key, spec):
     """(times, poses, us, chest) for one clip: a rep over its tempo, or a hold that breathes.
-    `chest` is the torso's width/depth factor per frame — the breath."""
+    `chest` is the torso's width/depth factor per frame — the breath. Sampled densely; the
+    keys that survive thin_keys() go into the file."""
     tempo = tempo_for(key)
+    span = HOLD_SPAN if tempo is None else sum(tempo)
+    steps = round(span / SAMPLE_STEP)
+    times = [span * i / steps for i in range(steps + 1)]
     if tempo is None:
-        steps = round(HOLD_SPAN / FRAME_STEP)
-        times = [HOLD_SPAN * i / steps for i in range(steps + 1)]
         us = [hold_u(t) for t in times]
-        poses = [posed(tremble(pose_params(spec, u, u), t), spec) for t, u in zip(times, us)]
+        params = [hold_params(spec, t) for t in times]
         chest = [1.0 + BREATH * u for u in us]
-        return times, poses, us, chest
-    down, pause, up = tempo
-    times = []
-    for start, span in ((0.0, down), (down, pause), (down + pause, up)):
-        if span:
-            steps = max(4, round(span / FRAME_STEP))
-            times += [start + span * i / steps for i in range(steps)]
-    times.append(down + pause + up)
-    us = [rep_u(t, tempo) for t in times]
-    poses = [posed(pose_params(spec, u, rep_u(t - GAZE_LAG, tempo)), spec)
-             for t, u in zip(times, us)]
-    return times, poses, us, [1.0] * len(times)
+    else:
+        offsets = PHASING.get(family_for(spec), {})
+        us = [rep_u(t, tempo) for t in times]
+        params = [pose_params(spec, t, tempo, offsets) for t in times]
+        chest = [1.0] * len(times)
+    plain = posed(params[0], spec)
+    first = contact_plan(plain, spec)          # the floor / pin set the first frame's incline
+    if first and "fixed" in first:
+        placed = posed(params[0], spec, first)
+        plan = contact_plan(placed, spec, pose_tilt(placed, plain, spec))
+    else:
+        plan = first
+    poses = [posed(p, spec, plan) for p in params]
+    return thin_keys(times, poses, us, chest)
+
+
+def thin_keys(times, poses, us, chest):
+    """Drop the sampled frames the viewer's linear interpolation would reproduce anyway: a key
+    is kept once any joint on the way to the next candidate strays past KEY_TOLERANCE from
+    the straight line between the kept keys. Dense through the turn and the drive, sparse
+    along a slow eccentric; the first and last frames always stay so the loop closes."""
+    keep = [0]
+    last = len(times) - 1
+    while keep[-1] < last:
+        i = keep[-1]
+        j = i + 1
+        while j < last:
+            candidate = j + 1
+            ok = True
+            for k in range(i + 1, candidate):
+                f = (times[k] - times[i]) / (times[candidate] - times[i])
+                for joint, p in poses[k].items():
+                    a, b = poses[i][joint], poses[candidate][joint]
+                    err = math.dist(p, tuple(a[c] + (b[c] - a[c]) * f for c in range(3)))
+                    if err > KEY_TOLERANCE:
+                        ok = False
+                        break
+                if not ok:
+                    break
+            if not ok:
+                break
+            j = candidate
+        keep.append(j)
+    return ([times[i] for i in keep], [poses[i] for i in keep], [us[i] for i in keep],
+            [chest[i] for i in keep])
 
 
 def normalise(poses):
@@ -949,10 +1229,9 @@ def build(out_path):
             "doubleSided": True,
         }],
         "animations": animations,
-        # The flags read across the front camera, not the side one; the arena reads this back
-        # so those clips open on the angle that shows the pose (see holo_clips in workouts.py).
-        "extras": {"front_view_clips": sorted(k for k, spec in SPECS.items()
-                                              if spec.get("plane") == "front"),
+        # Flags and bar pulls read from the front camera, not the side one; the arena reads this
+        # back so those clips open on the angle that shows the pose (see holo_clips in workouts.py).
+        "extras": {"front_view_clips": sorted(k for k, spec in SPECS.items() if front_view(spec)),
                    # per clip: centre x, y, z and half-extents x, y, z (metres)
                    "clip_bounds": bounds},
         "buffers": [{"byteLength": len(blob.data)}],
@@ -1001,7 +1280,7 @@ def preview(baked, path, cols=6, cell=200):
     for n, key in enumerate(keys):
         _times, poses, _us, _chest = baked[key]
         ox, oy = (n % cols) * cell, (n // cols) * cell
-        side = SPECS[key].get("plane") != "front"
+        side = not front_view(SPECS[key])
         picks = [(poses[0], (70, 220, 255)), (poses[len(poses) // 2], (255, 90, 190))]
         pts = [p for pose, _ in picks for p in pose.values()]
         flat = [(p[2] if side else p[0], p[1]) for p in pts]
@@ -1059,9 +1338,11 @@ def camera(pose, view, pad=2.6):
     return eye, right, up, fwd, math.asin(min(1.0, radius / dist))
 
 
-def shade_pose(buf, width, height, ox, oy, cell, pose, view, spec=None, first=None, chest=1.0):
-    """Z-buffered render of the real geometry: soft cyan body with a bright silhouette rim."""
-    eye, right, up, fwd, half = camera(pose, view)
+def shade_pose(buf, width, height, ox, oy, cell, pose, view, spec=None, first=None, chest=1.0,
+               frame=None):
+    """Z-buffered render of the real geometry: soft cyan body with a bright silhouette rim.
+    `frame` (joint positions) fixes the camera on something other than the pose itself."""
+    eye, right, up, fwd, half = camera(frame or pose, view)
     focal = (cell * 0.46) / math.tan(half)
     light = [0.55 * right[i] - 0.35 * fwd[i] + 0.75 * up[i] for i in range(3)]
     norm = math.sqrt(sum(c * c for c in light))
@@ -1139,7 +1420,7 @@ def render(baked, path, keys, view="side", frame=0.0, cols=4, cell=240):
         else:
             index = min(len(poses) - 1, max(0, round(float(frame) * (len(poses) - 1))))
         pose = poses[index]
-        use = view if view != "auto" else ("front" if SPECS[key].get("plane") == "front" else "side")
+        use = view if view != "auto" else ("front" if front_view(SPECS[key]) else "side")
         shade_pose(buf, width, height, (n % cols) * cell, (n // cols) * cell, cell, pose, use,
                    SPECS[key], poses[0], chest[index])
     png(path, width, height, buf)

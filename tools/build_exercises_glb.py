@@ -10,6 +10,12 @@ One animation clip per exercise, named by holo_key() in app/backend/app/routes/w
 A rep clip is authored as lowering -> pause -> pushing over its tempo in seconds; a hold clip
 is the position itself with a slow breath. The arena time-scales whatever it finds.
 
+Two poses (`a`, `b`) per clip are the authoring; what makes them move like a body rather
+than a morph lives in the baking section: each joint group runs on its own clock (PHASING),
+the drive has momentum and an overshoot, holds shiver and sag, and a pose's second contact
+is held still by contact_plan() — a push-up pivots on its toes with the arms re-solved, a
+row on its heels — so nothing skates along the floor.
+
 Usage:
     python3 tools/build_exercises_glb.py [--out PATH] [--preview PATH]
 

@@ -39,10 +39,25 @@ Beyond the poses, a few things make the difference in the arena:
   the palms on the floor and the nose on the face in a handstand as much as in a plank. The
   human flag is the one pose outside the sagittal plane, so it rolls its shoulder line
   (`lateral=(0, 1, 0)` in the pose) to face the camera.
-- **Motion.** A rep is sampled every 0.2 s: the lowering brakes into the bottom, the pause
-  settles a touch past it, the drive comes out fast and eases into the lockout, and the head
-  trails the body by 80 ms so the gaze holds. A hold breathes (the chest grows a few per
-  cent) and the loaded arms quiver — the constants sit at the top of the baking section.
+- **Motion.** A rep is not a morph between two photographs. Every joint group runs on its own
+  clock (`PHASING`, in seconds, per family: press / pull / squat / core): the elbows lead the
+  lowering, the hips and torso set first for the drive, the legs trail a pull like a
+  pendulum, and the head trails everything by 80 ms so the gaze holds. The lowering brakes
+  into the bottom, the pause settles a touch past it, the drive leaves the hole with real
+  speed, carries a touch past the lockout (`OVERSHOOT`) and settles back. Angles blend the
+  short way round, so a forearm going from 322° to 4° turns through 0, not down through 180.
+  A hold breathes (the chest grows a few per cent), the loaded arms shiver in two tones that
+  build on the exhale, and the hips slowly give and are pulled back (`SAG_DEG`). The motion
+  is sampled every 40 ms and thinned to the keys the viewer's linear interpolation cannot
+  reproduce (`KEY_TOLERANCE`) — dense through the turn and the drive, sparse on a slow
+  eccentric. The constants sit at the top of the baking section.
+- **Contacts.** A pose is anchored on one contact point; the second one is held too, or the
+  feet skate along the floor as the joints between the two move. `fixed` (push-ups, rows)
+  keeps both contacts still: the body between the shoulders and the toes or heels keeps its
+  authored angles and pivots on them while the arms are re-solved, and the authored pose only
+  decides the depth. `floor` puts a contact on the floor, `pin` keeps it on its ray from the
+  anchor (heels on a wall), `plant` solves a leg for an ankle that must not move (the rear
+  foot of a split squat). See `contact_plan()`.
 - **Props.** A pull-up with nothing to hang from just looks like someone standing with bent
   arms, so each clip carries the rig its grip implies — a bar with uprights, a pair of
   parallettes, or a pole — taken from the pose's own contact point.

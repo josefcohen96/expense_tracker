@@ -4,7 +4,7 @@
 
 {% block head %}
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/workout.css?v=20260921-verdict">
+<link rel="stylesheet" href="/static/css/workout.css?v=20260921-holo-fallback">
 {% endblock %}
 
 {% block body_class %}has-section-header workouts-page{% endblock %}
@@ -811,5 +811,5 @@
 </div>
 
 <script type="application/json" id="workout-data">{{ client_data|tojson }}</script>
-<script src="/static/js/workout.js?v=20260921-verdict" defer></script>
+<script src="/static/js/workout.js?v=20260921-holo-fallback" defer></script>
 {% endblock %}

@@ -760,7 +760,7 @@ function renderSetPanel() {
     const doneInExercise = exercise.sets.filter(s => s.done).length;
     panel.dataset.state = 'active';
     const holo = holoFor(exercise);
-    panel.dataset.holo = holo ? 'on' : 'off';
+    panel.dataset.holo = holoState(holo);
     if (holo) paintTempo(panel, holo.tempo);
     ring.style.setProperty('--pct', `${Math.round(doneInExercise * 100 / exercise.sets.length)}%`);
     const unit = exerciseUnit(exercise);
@@ -980,6 +980,7 @@ const HOLO_ANGLES = {
 const HOLO_ANGLE_ORDER = ['side', 'front', 'top'];
 const HOLO_FOV_DEG = 30;      // fixed, so a clip's framing can be computed from its bounds
 const HOLO_FRAME_PAD = 1.12;  // breathing room round the clip's box
+const HOLO_LOAD_TIMEOUT_MS = 20000;  // no model on screen by then → the plain arena for this session
 
 let modelViewerLoading = null;
 let holoFailed = false;   // the viewer or the model could not load: fall back to the plain arena
@@ -1002,6 +1003,14 @@ function currentHolo() {
     const pos = arenaPhase === 'set' ? currentPosition() : null;
     const form = pos && holoFor(pos.exercise);
     return form ? { exercise: pos.exercise, ...form } : null;
+}
+
+// The set screen's hologram state: 'on' only once the model is really on screen. Until then
+// (and for good, if it never arrives) the plain cues and tempo stand in, so a slow or dead
+// CDN never leaves an empty stage.
+function holoState(holo) {
+    if (!holo) return 'off';
+    return stageViewer && stageViewer.loaded ? 'on' : 'loading';
 }
 
 function loadModelViewer() {
@@ -1039,6 +1048,15 @@ function createViewer(container, interactive) {
     if (interactive) viewer.setAttribute('camera-controls', '');
     viewer.addEventListener('error', disableHologram);
     viewer.addEventListener('load', syncHologram);
+    // A viewer that never fires load or error (blocked CDN, stalled download) would leave
+    // the stage empty for the whole workout — give it a deadline instead.
+    const deadline = setTimeout(() => {
+        if (!viewer.loaded) {
+            console.warn('Hologram did not load in time — using the plain arena');
+            disableHologram();
+        }
+    }, HOLO_LOAD_TIMEOUT_MS);
+    viewer.addEventListener('load', () => clearTimeout(deadline), { once: true });
     container.appendChild(viewer);
     return viewer;
 }
@@ -1158,6 +1176,9 @@ function syncHologram() {
         if (!stageViewer) stageViewer = createViewer($('#holo-figure'), false);
         aimViewer(stageViewer, holo, angleFor(holo.holo_key));
         if (formOpen && formViewer) aimViewer(formViewer, holo, formAngle);
+        // The viewer's load event lands here: swap the plain cues for the figure
+        const panel = $('[data-phase-panel="set"]');
+        if (panel) panel.dataset.holo = holoState(holo);
     } else if (formOpen) {
         closeFormCheck();
         return;

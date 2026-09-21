@@ -1414,6 +1414,42 @@ async def workout_page(
     )
 
 
+def _station_progress(exercises: List[Any], paths: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Whether each station trained in a just-saved session counted towards conquering it.
+
+    The rule is the one compute_paths applies: the average set has to reach the station's
+    rep floor, and only the first exercise of a station in a session is looked at. The
+    reward screen uses this to say so right away instead of leaving the map to be silent.
+    """
+    stations = {(p["key"], st["index"]): (p, st) for p in paths for st in p["stations"]}
+    verdicts = []
+    seen = set()
+    for ex in exercises:
+        if ex.total_sets <= 0:
+            continue
+        station = _station_for(ex.skill_key, ex.stage_index, ex.exercise_name)
+        if not station or station in seen or station not in stations:
+            continue
+        seen.add(station)
+        path, st = stations[station]
+        low, high = _rep_range(st["reps"])
+        average = ex.total_reps / ex.total_sets
+        verdicts.append({
+            "path": path["name"],
+            "icon": path["icon"],
+            "station": st["hebrew"],
+            "unit_label": st["unit_label"],
+            "average": round(average, 1),
+            "floor": low,
+            "target": high,
+            "counted": average >= low,
+            "in_range": st["in_range"],
+            "to_conquer": STATION_SESSIONS_TO_CONQUER,
+            "conquered": st["conquered"],
+        })
+    return verdicts
+
+
 @router.post("/workouts")
 async def save_workout(
     payload: WorkoutCreateSchema,
@@ -1480,8 +1516,9 @@ async def save_workout(
             if a["unlocked"] and a["id"] not in unlocked_before
         ]
 
+        paths_after = compute_paths(history_after, game_after["level"], legacy, today)
         new_stations = []
-        for p in compute_paths(history_after, game_after["level"], legacy, today):
+        for p in paths_after:
             for st in p["stations"]:
                 if st["conquered"] and (p["key"], st["index"]) not in conquered_before:
                     new_stations.append({
@@ -1490,6 +1527,7 @@ async def save_workout(
                         "station": st["hebrew"],
                         "next": p["current"]["hebrew"] if p["current"] else None,
                     })
+        station_progress = _station_progress(payload.exercises, paths_after)
 
         # Personal records only count against real history for the same exercise
         new_records = []
@@ -1522,6 +1560,7 @@ async def save_workout(
                 "streak": game_after["streak"],
                 "new_achievements": new_achievements,
                 "new_stations": new_stations,
+                "station_progress": station_progress,
                 "new_records": new_records,
             },
         }

@@ -106,6 +106,7 @@ def test_save_workout_success(app_client, db_conn, clean_workouts):
     assert rewards["next_rank"]["xp_needed"] > 0
     assert isinstance(rewards["new_achievements"], list)
     assert rewards["new_records"] == []  # no earlier history to beat
+    assert rewards["station_progress"] == []  # no station trained
     assert 0 <= rewards["progress_pct"] <= 100
 
     rows = db_conn.execute(
@@ -123,16 +124,25 @@ def test_station_is_conquered_by_count(app_client, clean_workouts):
     today = date.today()
     station = {"exercise_name": MU_BASIC, "total_sets": 3, "total_reps": 30, "max_reps": 10,
                "skill_key": "muscle_up", "stage_index": 0}
-    # Below the rep range (avg 5 < 8) — trained, but doesn't count
-    _save(app_client, (today - timedelta(days=10)).isoformat(),
-          [{**station, "total_reps": 15, "max_reps": 5}])
+    # Below the rep range (avg 5 < 8) — trained, but doesn't count, and the reward says so
+    body = _save(app_client, (today - timedelta(days=10)).isoformat(),
+                 [{**station, "total_reps": 15, "max_reps": 5}])
+    assert body["rewards"]["station_progress"] == [{
+        "path": "עליית כוח", "icon": "🧗", "station": "עליות מתח בסיסיות", "unit_label": "חזרות",
+        "average": 5, "floor": 8, "target": 10, "counted": False,
+        "in_range": 0, "to_conquer": 5, "conquered": False,
+    }]
     for i in range(4):
         body = _save(app_client, (today - timedelta(days=8 - i)).isoformat(), [station])
         assert body["rewards"]["new_stations"] == []
+        verdict, = body["rewards"]["station_progress"]
+        assert (verdict["counted"], verdict["in_range"], verdict["conquered"]) == (True, i + 1, False)
     body = _save(app_client, today.isoformat(), [station])
     assert body["rewards"]["new_stations"] == [{
         "path": "עליית כוח", "icon": "🧗", "station": "עליות מתח בסיסיות", "next": "מקבילים",
     }]
+    verdict, = body["rewards"]["station_progress"]
+    assert (verdict["counted"], verdict["in_range"], verdict["conquered"]) == (True, 5, True)
 
     html = app_client.get("/workouts").text
     assert "is-conquered" in html

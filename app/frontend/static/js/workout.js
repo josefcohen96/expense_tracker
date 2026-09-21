@@ -1972,6 +1972,11 @@ function rewardRow(kind, tileHtml, title, sub) {
     </div>`;
 }
 
+// 7.5 stays 7.5, 12 stays 12 — the reward screen quotes the average set as saved
+function formatAverage(value) {
+    return Number.isInteger(value) ? formatNumber(value) : String(value);
+}
+
 function fillRows(containerId, rows) {
     const container = $(containerId);
     if (!container) return;
@@ -2040,6 +2045,19 @@ function showReward(rewards, stats) {
         `תחנה נכבשה · ${escapeHtml(s.station)}`,
         s.next ? `מסלול ${escapeHtml(s.path)} · התחנה הבאה: ${escapeHtml(s.next)}` : `מסלול ${escapeHtml(s.path)} הושלם`
     )));
+    // Whether each station trained today counted towards conquering it. A conquered
+    // station has nothing left to count, and one just conquered has its own row above.
+    fillRows('#reward-progress', (rewards.station_progress || [])
+        .filter(s => !s.conquered)
+        .map(s => s.counted
+            ? rewardRow('progress', escapeHtml(s.icon),
+                `נספר לכיבוש · ${escapeHtml(s.station)}`,
+                `מסלול ${escapeHtml(s.path)} · ${numHtml(s.in_range)} מתוך ${numHtml(s.to_conquer)} אימונים בטווח`)
+            : rewardRow('miss', '🎯',
+                `לא נספר לכיבוש · ${escapeHtml(s.station)}`,
+                `ממוצע ${numHtml(formatAverage(s.average))} ${escapeHtml(s.unit_label)} לסט · `
+                + `הטווח לכיבוש הוא ${numHtml(`${s.floor}–${s.target}`)} · עדיין ${numHtml(s.in_range)} מתוך ${numHtml(s.to_conquer)}`)
+        ));
     fillRows('#reward-records', (rewards.new_records || []).map(r => rewardRow(
         'record', '📈',
         `שיא אישי · ${numHtml(r.reps)} ${escapeHtml(unitLabelFor(r.exercise_name))}`,

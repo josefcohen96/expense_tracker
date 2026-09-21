@@ -1921,6 +1921,26 @@ button.wk-path-row:active {
 .reward-row.is-station .reward-row-sub {
   color: var(--wk-meta-violet);
 }
+.reward-row.is-progress {
+  background: rgba(13, 148, 136, .14);
+  border: 1px solid rgba(45, 212, 191, .32);
+}
+.reward-row.is-progress .reward-row-tile {
+  background: rgba(13, 148, 136, .28);
+}
+.reward-row.is-progress .reward-row-sub {
+  color: #99f6e4;
+}
+.reward-row.is-miss {
+  background: rgba(245, 158, 11, .14);
+  border: 1px solid rgba(251, 191, 36, .36);
+}
+.reward-row.is-miss .reward-row-tile {
+  background: rgba(245, 158, 11, .26);
+}
+.reward-row.is-miss .reward-row-sub {
+  color: #fde68a;
+}
 .reward-row.is-record {
   background: rgba(34, 197, 94, .12);
   border: 1px solid rgba(34, 197, 94, .3);

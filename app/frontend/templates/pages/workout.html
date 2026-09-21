@@ -4,7 +4,7 @@
 
 {% block head %}
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/workout.css?v=20260920-merge">
+<link rel="stylesheet" href="/static/css/workout.css?v=20260921-verdict">
 {% endblock %}
 
 {% block body_class %}has-section-header workouts-page{% endblock %}
@@ -683,6 +683,7 @@
                 <div id="victory-levelup" class="reward-levelup" hidden></div>
                 <div id="victory-achievements" class="reward-rows" hidden></div>
                 <div id="reward-stations" class="reward-rows" hidden></div>
+                <div id="reward-progress" class="reward-rows" hidden></div>
                 <div id="reward-records" class="reward-rows" hidden></div>
                 <button type="button" id="reward-home-btn" class="reward-home" onclick="closeVictoryModal()">חזרה למפת המסע</button>
             </div>
@@ -810,5 +811,5 @@
 </div>
 
 <script type="application/json" id="workout-data">{{ client_data|tojson }}</script>
-<script src="/static/js/workout.js?v=20260920-holo" defer></script>
+<script src="/static/js/workout.js?v=20260921-verdict" defer></script>
 {% endblock %}

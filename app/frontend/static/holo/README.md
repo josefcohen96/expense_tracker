@@ -128,6 +128,7 @@ Clip keys come from `holo_key()` in `app/backend/app/routes/workouts.py`
 | `muscle_ups` | Muscle-ups | 2-0-1 |
 | `negative_muscle_up` | Negative Muscle-Up | 5-1-1 |
 | `negative_wall_hspu` | Negative Wall HSPU | 5-1-1 |
+| `nordic_hamstring_curls` | Nordic Hamstring Curls | 4-1-1 |
 | `one_arm_active_hang` | One Arm Active Hang | hold |
 | `one_arm_inverted_support` | One Arm Inverted Support | hold |
 | `one_legged_advanced_tuck` | One-Legged Advanced Tuck | hold |

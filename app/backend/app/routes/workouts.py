@@ -56,6 +56,7 @@ DEFAULT_EXERCISES = {
         {"name": "Bulgarian Split Squats", "hebrew": "סקוואט בולגרי"},
         {"name": "Shrimp Squats", "hebrew": "שרימפ סקוואט"},
         {"name": "Airborne Squats", "hebrew": "איירבורן סקוואט"},
+        {"name": "Nordic Hamstring Curls", "hebrew": "כפיפות ברכיים נורדיות"},
         {"name": "Calf Raises", "hebrew": "עליות תאומים"},
         {"name": "Bodyweight Squats", "hebrew": "סקוואט משקל גוף"}
     ]
@@ -479,6 +480,7 @@ TEMPO_BY_EXERCISE = {
     "Scapula Shrugs": (2, 1, 1),
     "Toes to Bar": (2, 1, 1),
     "Calf Raises": (2, 1, 1),
+    "Nordic Hamstring Curls": (4, 1, 1),
 }
 # Static positions among the free-workout exercises: the clip is the hold itself, so
 # there is no rep tempo. A path station says so itself, through its "sec" unit.
@@ -573,6 +575,8 @@ FORM_CUES = {
                       ("גו קדימה", "הטיית גו קדימה שומרת על האיזון.")),
     "Airborne Squats": (("ברך אחורית", "הברך האחורית יורדת לרצפה בשליטה."),
                         ("זרועות קדימה", "זרועות קדימה לאיזון, גו זקוף ככל האפשר.")),
+    "Nordic Hamstring Curls": (("אגן נעול", "ישבן מכווץ וקו ישר מהברכיים לכתפיים — בלי לקפל את הירכיים."),
+                               ("ירידה איטית", "יורדים לאט ככל האפשר, והידיים תופסות רק בסוף.")),
     "Calf Raises": (("טווח מלא", "מלמטה עמוק ועד קצות האצבעות."),
                     ("עצירה למעלה", "שנייה של עצירה בנקודה הגבוהה.")),
     "Bodyweight Squats": (("עקבים על הרצפה", "משקל על כל כף הרגל, העקבים לא מתרוממים."),

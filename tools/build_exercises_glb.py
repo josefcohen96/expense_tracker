@@ -575,6 +575,13 @@ SPECS = {
                                    anchor=FLOOR, plant="ankle_l"),
     "calf_raises": dict(a=d(STAND, ankle=126, torso=1), b=d(STAND, ankle=74, torso=4),
                         anchor=("toe_r", (0.0, 0.0, 0.0))),
+    # kneeling tall with the shins along the floor (heels held), the body hinges forward on
+    # the knees as one line from shoulders to knees and the hands land to catch the fall
+    "nordic_hamstring_curls": dict(a=dict(torso=2, arm=172, elbow=106, hand=100, hip=180,
+                                          knee=270, ankle=265, head=2),
+                                   b=dict(torso=50, hip=230, knee=270, ankle=265, head=40,
+                                          hand=96, **arm_to(-0.46, 0.26)),
+                                   anchor=("knee_r", (0.0, 0.055, 0.0)), family="squat"),
 
     # --- planche family (hands on the floor, body above) ---
     "planche_lean": dict(a=d(PLANCHE, hip=272, knee=271, arm=200, elbow=178, torso=92),
@@ -660,7 +667,8 @@ TEMPOS = {"explosive_pull_ups": (2, 0, 1), "assisted_muscle_up_band": (2, 0, 1),
           "negative_muscle_up": (5, 1, 1), "negative_wall_hspu": (5, 1, 1),
           "vertical_flag_negatives": (4, 1, 1),
           "active_scapula_hangs": (2, 1, 1), "scapula_shrugs": (2, 1, 1),
-          "toes_to_bar": (2, 1, 1), "calf_raises": (2, 1, 1)}
+          "toes_to_bar": (2, 1, 1), "calf_raises": (2, 1, 1),
+          "nordic_hamstring_curls": (4, 1, 1)}
 
 
 def tempo_for(key):

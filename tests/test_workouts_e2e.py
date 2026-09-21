@@ -325,6 +325,11 @@ def test_stations_follow_the_accepted_order():
         < hf.index("Tuck Human Flag Hold") < hf.index("One-Legged Human Flag Hold") \
         < hf.index("Straddle Human Flag Hold") < hf.index("Full Human Flag Hold")
 
+    # The nordic curl is earned from the back up: bridges, then the hinge on the knees, and
+    # the eccentric before the full rep
+    nc = order("nordic_curl")
+    assert nc.index("Glute Bridge") < nc.index("Single-Leg Glute Bridge") < nc.index("Sliding Leg Curl")         < nc.index("Nordic Curl Hold") < nc.index("Nordic Negatives") < nc.index("Partial Nordic Curl")         < nc.index("Nordic Hamstring Curls")
+
 
 def test_rows_survive_a_reordered_path():
     """The saved name identifies the station, so a stale index never credits the wrong one."""

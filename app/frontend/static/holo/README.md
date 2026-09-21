@@ -100,6 +100,7 @@ Clip keys come from `holo_key()` in `app/backend/app/routes/workouts.py`
 | `angled_tucked_flag_hold` | Angled Tucked Flag Hold | hold |
 | `assisted_muscle_up_band` | Assisted Muscle-Up (Band) | 2-0-1 |
 | `australian_pull_ups_rows` | Australian Pull-ups / Rows | 3-1-1 |
+| `band_assisted_nordic_curl` | Band-Assisted Nordic Curl | 4-1-1 |
 | `basic_dips` | Basic Dips | 3-1-1 |
 | `basic_pull_ups` | Basic Pull-ups | 3-1-1 |
 | `bodyweight_squats` | Bodyweight Squats | 3-1-1 |
@@ -119,6 +120,7 @@ Clip keys come from `holo_key()` in `app/backend/app/routes/workouts.py`
 | `full_human_flag_hold` | Full Human Flag Hold | hold |
 | `full_muscle_up` | Full Muscle-Up | 2-0-1 |
 | `full_planche_hold` | Full Planche Hold | hold |
+| `glute_bridge` | Glute Bridge | 2-1-1 |
 | `half_lay_front_lever_hold` | Half Lay Front Lever Hold | hold |
 | `half_lay_planche_hold` | Half Lay Planche Hold | hold |
 | `handstand_push_ups` | Handstand Push-ups | 3-1-1 |
@@ -128,12 +130,15 @@ Clip keys come from `holo_key()` in `app/backend/app/routes/workouts.py`
 | `muscle_ups` | Muscle-ups | 2-0-1 |
 | `negative_muscle_up` | Negative Muscle-Up | 5-1-1 |
 | `negative_wall_hspu` | Negative Wall HSPU | 5-1-1 |
+| `nordic_curl_hold` | Nordic Curl Hold | hold |
 | `nordic_hamstring_curls` | Nordic Hamstring Curls | 4-1-1 |
+| `nordic_negatives` | Nordic Negatives | 5-1-1 |
 | `one_arm_active_hang` | One Arm Active Hang | hold |
 | `one_arm_inverted_support` | One Arm Inverted Support | hold |
 | `one_legged_advanced_tuck` | One-Legged Advanced Tuck | hold |
 | `one_legged_fl_hold` | One-Legged FL Hold | hold |
 | `one_legged_human_flag_hold` | One-Legged Human Flag Hold | hold |
+| `partial_nordic_curl` | Partial Nordic Curl | 4-1-1 |
 | `partial_wall_hspu` | Partial Wall HSPU | 3-1-1 |
 | `pike_push_ups` | Pike Push-ups | 3-1-1 |
 | `pistol_squats` | Pistol Squats | 3-1-1 |
@@ -145,6 +150,8 @@ Clip keys come from `holo_key()` in `app/backend/app/routes/workouts.py`
 | `reversed_deadlift_fl_pulls` | Reversed Deadlift (FL Pulls) | 3-1-1 |
 | `scapula_shrugs` | Scapula Shrugs | 2-1-1 |
 | `shrimp_squats` | Shrimp Squats | 3-1-1 |
+| `single_leg_glute_bridge` | Single-Leg Glute Bridge | 2-1-1 |
+| `sliding_leg_curl` | Sliding Leg Curl | 3-1-1 |
 | `straddle_freestanding_hspu` | Straddle Freestanding HSPU | 3-1-1 |
 | `straddle_front_lever_hold` | Straddle Front Lever Hold | hold |
 | `straddle_human_flag_hold` | Straddle Human Flag Hold | hold |

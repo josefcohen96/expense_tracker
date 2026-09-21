@@ -416,6 +416,14 @@ ANCHOR_PROP = {BAR: "bar", LOW_BAR: "bar", DIP_BAR: "rails", PARALLETTE: "rails"
 STAND = dict(torso=3, arm=177, elbow=178, hip=180, knee=180, ankle=92, head=1)
 SQUAT = dict(torso=44, arm=72, elbow=74, ankle=86, head=22, **leg_to(-0.45, 0.2, bend=-1))
 PRONE = dict(torso=92, arm=184, elbow=178, hand=110, hip=272, knee=271, ankle=215, head=74)
+# kneeling tall, shins along the floor behind: forearms forward, or arms crossed on the chest
+KNEEL = dict(torso=2, arm=172, elbow=106, hand=100, hip=180, knee=270, ankle=265, head=2)
+KNEEL_CROSSED = d(KNEEL, arm=158, elbow=22, hand=30)
+KNEEL_ANCHOR = ("knee_r", (0.0, 0.055, 0.0))
+# lying on the back, knees bent and feet flat, arms along the floor towards the feet
+SUPINE = dict(torso=270, neck_a=270, head=270, arm=90, elbow=90, hand=90, hip=40, knee=150,
+              ankle=90)
+SUPINE_ANCHOR = ("shoulder_r", (0.0, 0.09, 0.0))
 PRONE_DOWN = d(PRONE, torso=87, arm_spread=16, hip=267, knee=266, head=70,
                **arm_to(-0.23, -0.05))
 GRIP_SPREAD = 10                 # hands a touch wider than the shoulders on the bar
@@ -577,11 +585,35 @@ SPECS = {
                         anchor=("toe_r", (0.0, 0.0, 0.0))),
     # kneeling tall with the shins along the floor (heels held), the body hinges forward on
     # the knees as one line from shoulders to knees and the hands land to catch the fall
-    "nordic_hamstring_curls": dict(a=dict(torso=2, arm=172, elbow=106, hand=100, hip=180,
-                                          knee=270, ankle=265, head=2),
+    "nordic_hamstring_curls": dict(a=KNEEL,
                                    b=dict(torso=50, hip=230, knee=270, ankle=265, head=40,
                                           hand=96, **arm_to(-0.46, 0.26)),
-                                   anchor=("knee_r", (0.0, 0.055, 0.0)), family="squat"),
+                                   anchor=KNEEL_ANCHOR, family="squat"),
+
+    # --- nordic curl path: bridges lie on the back (shoulders anchored, feet planted), the
+    # nordic family kneels with the shins along the floor and hinges forward on the knees ---
+    "glute_bridge": dict(a=SUPINE, b=d(SUPINE, torso=250, neck_a=278, head=285, hip=70, knee=160),
+                         anchor=SUPINE_ANCHOR, plant="ankle_r", family="core"),
+    "single_leg_glute_bridge": dict(a=d(SUPINE, hip_l=20, knee_l=20, ankle_l=300),
+                                    b=d(SUPINE, torso=250, neck_a=278, head=285, hip=70, knee=160,
+                                        hip_l=48, knee_l=48, ankle_l=330),
+                                    anchor=SUPINE_ANCHOR, plant="ankle_r", family="core"),
+    "sliding_leg_curl": dict(a=d(SUPINE, torso=262, neck_a=274, head=278, hip=84, knee=100, ankle=20),
+                             b=d(SUPINE, torso=250, neck_a=278, head=285, hip=60, knee=150, ankle=60),
+                             anchor=SUPINE_ANCHOR, family="core"),
+    "nordic_curl_hold": dict(a=d(KNEEL_CROSSED, torso=30, hip=210, head=24),
+                             b=d(KNEEL_CROSSED, torso=31, hip=211, head=25),
+                             anchor=KNEEL_ANCHOR, family="squat"),
+    "band_assisted_nordic_curl": dict(a=KNEEL_CROSSED,
+                                      b=d(KNEEL_CROSSED, torso=48, hip=228, head=40),
+                                      anchor=KNEEL_ANCHOR, family="squat"),
+    "nordic_negatives": dict(a=KNEEL,
+                             b=dict(torso=82, hip=262, knee=270, ankle=265, head=70, hand=96,
+                                    **arm_to(-0.13, 0.30)),
+                             anchor=KNEEL_ANCHOR, family="squat"),
+    "partial_nordic_curl": dict(a=KNEEL_CROSSED,
+                                b=d(KNEEL_CROSSED, torso=40, hip=220, head=32),
+                                anchor=KNEEL_ANCHOR, family="squat"),
 
     # --- planche family (hands on the floor, body above) ---
     "planche_lean": dict(a=d(PLANCHE, hip=272, knee=271, arm=200, elbow=178, torso=92),
@@ -652,6 +684,7 @@ SPECS = {
 
 # Tempo per clip, mirroring exercise_tempo() in routes/workouts.py (None = static hold).
 HOLD_KEYS = {"advanced_tuck_fl_hold", "advanced_tuck_planche", "angled_tucked_flag_hold", "frog_stand",
+             "nordic_curl_hold",
              "false_grip_hang", "freestanding_handstand_hold", "full_front_lever_hold",
              "full_human_flag_hold", "full_planche_hold", "half_lay_front_lever_hold",
              "half_lay_planche_hold",
@@ -668,7 +701,9 @@ TEMPOS = {"explosive_pull_ups": (2, 0, 1), "assisted_muscle_up_band": (2, 0, 1),
           "vertical_flag_negatives": (4, 1, 1),
           "active_scapula_hangs": (2, 1, 1), "scapula_shrugs": (2, 1, 1),
           "toes_to_bar": (2, 1, 1), "calf_raises": (2, 1, 1),
-          "nordic_hamstring_curls": (4, 1, 1)}
+          "nordic_hamstring_curls": (4, 1, 1), "glute_bridge": (2, 1, 1),
+          "single_leg_glute_bridge": (2, 1, 1), "band_assisted_nordic_curl": (4, 1, 1),
+          "nordic_negatives": (5, 1, 1), "partial_nordic_curl": (4, 1, 1)}
 
 
 def tempo_for(key):

@@ -1,4 +1,10 @@
+import re
 from datetime import date
+
+
+def _visible_text(html: str) -> str:
+    """The page as words: tags dropped, whitespace collapsed (labels wrap over a <br> on phones)."""
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html))
 
 
 def test_root_redirect_and_dashboard_loads(app_client):
@@ -34,11 +40,12 @@ def test_dashboard_kpis_and_recent_transactions(app_client, db_conn):
     r = app_client.get(f"/finances?month={month_str}")
     assert r.status_code == 200
     # KPI labels present
-    assert "סה\"כ הוצאות החודש" in r.text
-    assert "סה\"כ הכנסות החודש" in r.text
-    assert "מספר עסקאות" in r.text
+    text = _visible_text(r.text)
+    assert "הוצאות החודש" in text
+    assert "הכנסות החודש" in text
+    assert "מספר עסקאות" in text
     # Recent transactions should include the new note
-    assert note_txt in r.text
+    assert note_txt in text
 
     # Cleanup: remove created transaction
     tx_id = created.json()["id"]

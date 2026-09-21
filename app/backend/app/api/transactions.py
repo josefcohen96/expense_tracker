@@ -103,6 +103,8 @@ async def api_create_transaction(
     tr_dict['amount'] = amount
     return schemas.Transaction(id=new_id, **tr_dict)
 
+# The transactions page edits with PUT, API clients with PATCH; both are a partial update.
+@router.put("/{tx_id}", response_model=schemas.Transaction)
 @router.patch("/{tx_id}", response_model=schemas.Transaction)
 async def api_update_transaction(
     tx_id: int,

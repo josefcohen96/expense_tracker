@@ -485,15 +485,18 @@ class TestReentryGuard:
     """Re-entrant call must raise RuntimeError."""
 
     def test_monthly_backup_reentrancy_blocked(self, tmp_path):
-        import app.backend.app.services.backup_service as svc
+        # Other suites re-import the app package, so a fresh `import backup_service` here can
+        # be a different module object from the one create_monthly_backup was imported from.
+        # Flip the flag where the function under test actually reads it.
+        svc_globals = create_monthly_backup.__globals__
         conn = _setup_isolated_db(tmp_path)
         today = date.today()
 
-        original = svc._IN_PROGRESS
-        svc._IN_PROGRESS = True
+        original = svc_globals["_IN_PROGRESS"]
+        svc_globals["_IN_PROGRESS"] = True
         try:
             with pytest.raises(RuntimeError, match="already in progress"):
                 create_monthly_backup(today.year, today.month, db_conn=conn)
         finally:
-            svc._IN_PROGRESS = original
+            svc_globals["_IN_PROGRESS"] = original
             conn.close()

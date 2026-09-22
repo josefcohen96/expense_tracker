@@ -1336,6 +1336,28 @@ button.wk-path-row:active {
   font-size: 13px;
   margin-inline-start: auto;
 }
+.arena-sound {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .07);
+  border: 1px solid var(--wk-line-strong);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity .15s ease, transform .15s ease;
+}
+.arena-sound:active {
+  transform: scale(.92);
+}
+.arena-sound[aria-pressed="false"] {
+  opacity: .5;
+}
 .arena-xp-value {
   font: 700 19px var(--font-mono);
   color: var(--wk-gold);

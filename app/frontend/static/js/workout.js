@@ -29,6 +29,7 @@ let restAutoAdvance = null;
 let restEndsAt = null;
 let restDuration = 0;
 let isTimerFinished = false;
+let restLastTick = null; // last second (3, 2, 1) already ticked aloud
 
 // --- Gamification State ---
 // Mirrors the server XP formula for the live counter only: every completed set is
@@ -125,6 +126,94 @@ function vibrate(pattern) {
     if (reducedMotion.matches || !navigator.vibrate) return;
     navigator.vibrate(pattern);
 }
+
+// ====================== SOUND CUES ======================
+// iOS Safari has no Vibration API, so every haptic moment has an audible twin: short
+// oscillator notes from a Web Audio context that the first tap in the arena unlocks.
+const SOUND_KEY = 'workout_sound_v1';
+let soundOn = readSoundPref();
+let audioCtx = null;
+
+function readSoundPref() {
+    try { return localStorage.getItem(SOUND_KEY) !== 'off'; } catch (e) { return true; }
+}
+
+function setSoundOn(on) {
+    soundOn = !!on;
+    try { localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off'); } catch (e) { /* private mode */ }
+    renderSoundToggle();
+}
+
+function toggleSound() {
+    setSoundOn(!soundOn);
+    if (soundOn) {
+        unlockAudio();
+        beep('set'); // hear what you just turned on
+    }
+}
+
+function renderSoundToggle() {
+    const btn = $('#arena-sound-btn');
+    if (!btn) return;
+    btn.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    btn.setAttribute('aria-label', soundOn ? 'צלילים פועלים — השתק' : 'צלילים מושתקים — הפעל');
+    const icon = btn.querySelector('[data-sound-icon]');
+    if (icon) icon.textContent = soundOn ? '🔔' : '🔕';
+}
+
+// Must be reached from a user gesture (tap / click) — browsers keep a context silent otherwise.
+function unlockAudio() {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    if (!audioCtx) {
+        try { audioCtx = new Ctx(); } catch (e) { return null; }
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    return audioCtx;
+}
+
+// Per note: [frequency Hz, start offset s, length s]
+const SOUND_PATTERNS = {
+    tick: [[880, 0, .06]],                                                   // 3-2-1 countdown
+    start: [[660, 0, .08]],                                                  // a hold began
+    set: [[660, 0, .07], [880, .09, .1]],                                    // set logged
+    end: [[660, 0, .1], [660, .16, .1], [990, .32, .22]],                    // rest over / hold over
+    pr: [[523, 0, .09], [659, .1, .09], [784, .2, .09], [1047, .3, .26]],    // personal record
+    levelup: [[523, 0, .12], [659, .14, .12], [784, .28, .12], [1047, .42, .12], [1319, .56, .4]],
+};
+
+function beep(kind) {
+    if (!soundOn) return;
+    const notes = SOUND_PATTERNS[kind];
+    const ctx = audioCtx || unlockAudio();
+    // A context that is not running yet would queue the notes and dump them all on unlock
+    if (!notes || !ctx || ctx.state !== 'running') return;
+    const t0 = ctx.currentTime + .01;
+    notes.forEach(([freq, at, len]) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, t0 + at);
+        gain.gain.linearRampToValueAtTime(.25, t0 + at + .01);
+        gain.gain.exponentialRampToValueAtTime(.001, t0 + at + len);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t0 + at);
+        osc.stop(t0 + at + len + .02);
+    });
+}
+
+// One call per moment: the phone buzzes where it can and beeps everywhere.
+function cue(kind, pattern) {
+    vibrate(pattern);
+    beep(kind);
+}
+
+// Any tap inside the arena counts as the unlocking gesture (a session resumed after a
+// refresh never passes through the start button).
+document.addEventListener('pointerdown', (e) => {
+    if (e.target && e.target.closest && e.target.closest('#arena')) unlockAudio();
+}, { capture: true, passive: true });
 
 let workoutData = null;
 function data() {
@@ -632,6 +721,8 @@ function openArena() {
     arena.hidden = false;
     document.body.classList.add('arena-open');
     lockPageScroll();
+    unlockAudio();
+    renderSoundToggle();
     ARENA_BACKGROUND.forEach(sel => $all(sel).forEach(el => el.setAttribute('inert', '')));
     arena.focus({ preventScroll: true });
 }
@@ -820,7 +911,7 @@ function startHold() {
     panel.dataset.hold = 'running';
     $('#arena-done-label').textContent = 'עצור — סיימתי';
     $('#arena-set-xp').textContent = '';
-    vibrate(20);
+    cue('start', 20);
     if (holdInterval) clearInterval(holdInterval);
     holdInterval = setInterval(tickHold, 100);
     tickHold();
@@ -838,7 +929,7 @@ function tickHold() {
     $('#arena-ring').style.setProperty('--pct', `${Math.min(100, elapsed * 100 / target)}%`);
     if (shown <= 3 && shown > 0 && holdLastBeep !== shown) {
         holdLastBeep = shown;
-        vibrate(15);
+        cue('tick', 15);
     }
     if (remaining <= 0) finishHold(target);
 }
@@ -862,8 +953,8 @@ function finishHold(seconds) {
         return;
     }
     pos.set.reps = Math.min(pos.set.reps, held);
-    vibrate([40, 60, 40]);
-    completeCurrentSet();
+    cue('end', [40, 60, 40]); // the one signal that has to reach someone upside down
+    completeCurrentSet({ silent: true });
 }
 
 // "בפעם שעברה עשית 11 — עוד אחת והשיא נשבר" — only when there is history for the exercise.
@@ -1298,7 +1389,7 @@ function wireHologram() {
 
 // ====================== SET ACTIONS ======================
 
-function completeCurrentSet() {
+function completeCurrentSet(opts = {}) {
     const pos = currentPosition();
     if (!pos) return;
     if (isHolding()) {
@@ -1315,7 +1406,7 @@ function completeCurrentSet() {
     set.skipped = false;
     comboCount++;
     spawnXpFloat($('#arena-done-btn'), XP_PER_SET + set.reps);
-    vibrate(12);
+    if (!opts.silent) cue('set', 12);
 
     const record = checkPersonalRecord(exercise, set);
     const next = advanceCursor();
@@ -1368,6 +1459,7 @@ let prToastTimer = null;
 function showPrToast(record) {
     const layer = $('#arena-pr-layer');
     if (!layer) return;
+    cue('pr', [30, 40, 30]);
     const inTitle = /^[֐-׿]/.test(record.title) ? `ב${record.title}` : `· ${record.title}`;
     $('#arena-pr-detail').innerHTML =
         `${numHtml(record.reps)} ${escapeHtml(record.unit || 'חזרות')} ${escapeHtml(inTitle)} · הקודם ${numHtml(record.previous)}`;
@@ -1457,6 +1549,7 @@ function startRestTimer(seconds) {
 function resumeRest(endsAt, duration) {
     clearTimeout(restAutoAdvance);
     isTimerFinished = false;
+    restLastTick = null;
     restDuration = duration;
     restEndsAt = endsAt;
     if (!restTip) {
@@ -1479,6 +1572,10 @@ function resumeRest(endsAt, duration) {
 function tickRestTimer() {
     const remaining = restRemainingSeconds();
     updateRestTimerDisplay(remaining);
+    if (remaining <= 3 && remaining > 0 && restLastTick !== remaining) {
+        restLastTick = remaining;
+        cue('tick', 15);
+    }
     if (remaining <= 0) {
         if (restTimerInterval) clearInterval(restTimerInterval);
         handleRestTimerCompletion();
@@ -1500,7 +1597,7 @@ function handleRestTimerCompletion() {
     isTimerFinished = true;
     $('[data-phase-panel="rest"]').classList.add('is-finished');
     $('#rest-ring-label').textContent = 'הזמן עבר';
-    vibrate([40, 60, 40]);
+    cue('end', [40, 60, 40]);
 
     // After a short alert, bring the next set on screen by itself
     const wait = Math.max(0, restEndsAt + REST_AUTO_ADVANCE_MS - Date.now());
@@ -1526,6 +1623,7 @@ function stopRestTimer() {
     if (restTimerInterval) clearInterval(restTimerInterval);
     clearTimeout(restAutoAdvance);
     isTimerFinished = false;
+    restLastTick = null;
     restEndsAt = null;
     restTip = '';
 }
@@ -2054,7 +2152,7 @@ function showReward(rewards, stats) {
     levelUp.hidden = !rewards.leveled_up;
     if (rewards.leveled_up) {
         levelUp.innerHTML = `עלית שלב! ברוך הבא לשלב ${numHtml(rewards.new_level)} · ${escapeHtml(rewards.rank.title)}`;
-        vibrate([30, 50, 30, 50, 80]);
+        cue('levelup', [30, 50, 30, 50, 80]);
     }
 
     fillRows('#victory-achievements', (rewards.new_achievements || []).map(a => rewardRow(

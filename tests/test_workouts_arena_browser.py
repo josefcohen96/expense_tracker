@@ -1,5 +1,5 @@
 """The arena as the phone sees it: set → rest → next set, a hold timer, a refresh mid-workout,
-and the plain-arena fallback when the hologram cannot load.
+the plain-arena fallback when the hologram cannot load, and the sound cues.
 
 The other workouts suites drive the routes with TestClient; these open the real page in a
 headless Chromium (Playwright) against the app served by uvicorn on a free port. They skip
@@ -115,6 +115,33 @@ def _rest_then_next(page):
     expect(_arena(page)).to_have_attribute("data-phase", "set")
 
 
+# A stand-in AudioContext that records the frequency of every note started. iPhones have no
+# Vibration API, so the beeps are the only cue the phone can give; headless Chromium has no
+# audio output, so this is also the only way to see them.
+FAKE_AUDIO = """
+window.__notes = [];
+class FakeAudioContext {
+    constructor() { this.state = 'running'; this.currentTime = 0; this.destination = {}; }
+    resume() { return Promise.resolve(); }
+    createGain() {
+        const gain = { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} };
+        return { gain, connect(node) { return node; } };
+    }
+    createOscillator() {
+        const osc = { type: 'sine', frequency: { value: 0 }, connect(node) { return node; },
+                      start() { window.__notes.push(osc.frequency.value); }, stop() {} };
+        return osc;
+    }
+}
+window.AudioContext = FakeAudioContext;
+window.webkitAudioContext = undefined;
+"""
+
+
+def _notes(page):
+    return page.evaluate("() => window.__notes")
+
+
 def _rows(db_conn, name):
     return db_conn.execute(
         "SELECT total_sets, total_reps, max_reps FROM workouts WHERE exercise_name = ?", (name,)
@@ -211,3 +238,53 @@ def test_plain_arena_when_the_hologram_cannot_load(page):
     expect(page.locator("#arena-tempo")).to_be_visible()
     expect(page.locator(".holo-block .holo-stage")).to_be_hidden()
     expect(page.locator("#holo-form-btn")).to_be_hidden()
+
+
+def test_rest_and_hold_cues_beep_and_the_toggle_mutes_them(page):
+    page.context.add_init_script(FAKE_AUDIO)
+    page.reload()
+    _start_path(page, "muscle_up")
+    expect(page.locator("#arena-sound-btn")).to_have_attribute("aria-pressed", "true")
+
+    # A logged set plays its two-note cue
+    page.locator("#arena-done-btn").click()
+    assert _after_set(page) == "rest"
+    assert _notes(page) == [660, 880]
+
+    # Pull the rest down to its last seconds: 3-2-1 ticks, then the "time's up" chord
+    page.evaluate("() => adjustRestTimer(-(restRemainingSeconds() - 3))")
+    page.wait_for_function("() => document.querySelector('#rest-ring-label').textContent === 'הזמן עבר'")
+    notes = _notes(page)
+    assert notes[2:5] == [880, 880, 880], notes
+    assert notes[-3:] == [660, 660, 990], notes
+
+    # Muting is remembered and silences the next cue
+    page.locator("#arena-sound-btn").click()
+    expect(page.locator("#arena-sound-btn")).to_have_attribute("aria-pressed", "false")
+    assert page.evaluate("() => localStorage.getItem('workout_sound_v1')") == "off"
+    before = len(_notes(page))
+    # The finished rest moves on to the next set by itself
+    expect(_arena(page)).to_have_attribute("data-phase", "set", timeout=10_000)
+    page.locator("#arena-done-btn").click()
+    assert _after_set(page) == "rest"
+    assert len(_notes(page)) == before
+
+    # Turning the sound back on (from the set screen, where the toggle lives) confirms itself audibly
+    _rest_then_next(page)
+    page.locator("#arena-sound-btn").click()
+    assert _notes(page)[before:] == [660, 880]
+
+
+def test_hold_countdown_ticks_before_the_end_chord(page):
+    page.context.add_init_script(FAKE_AUDIO)
+    page.reload()
+    _start_path(page, "hspu")
+    page.locator("#arena-hold-btn").click()
+    assert _notes(page) == [660], "a hold announces its start"
+    # Shorten the 30 s hold to its last seconds and let it run out on its own
+    page.evaluate("() => { holdStartedAt = Date.now() - 27500; }")
+    assert _after_set(page) == "rest"
+    notes = _notes(page)
+    assert notes[1:4] == [880, 880, 880], notes
+    assert notes[4:7] == [660, 660, 990], notes
+    assert len(notes) == 7, "the set cue stays silent after a hold — the end chord already said it"

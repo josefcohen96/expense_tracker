@@ -4,7 +4,7 @@
 
 {% block head %}
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/workout.css?v=20260921-holo-fallback">
+<link rel="stylesheet" href="/static/css/workout.css?v=20260922-arena-sound">
 {% endblock %}
 
 {% block body_class %}has-section-header workouts-page{% endblock %}
@@ -520,6 +520,9 @@
             <div class="arena-status">
                 <span class="arena-status-meta"><span id="arena-ex-count"></span> · <span id="workout-timer" class="wk-num" dir="ltr">00:00</span></span>
                 <span class="arena-xp" aria-label="XP באימון"><span id="session-score" class="arena-xp-value" dir="ltr">0</span><span aria-hidden="true">⭐</span></span>
+                <button type="button" id="arena-sound-btn" class="arena-sound" aria-pressed="true" aria-label="צלילים פועלים — השתק" onclick="toggleSound()">
+                    <span data-sound-icon aria-hidden="true">🔔</span>
+                </button>
             </div>
             <div id="arena-rail" class="arena-rail" aria-hidden="true"></div>
 
@@ -811,5 +814,5 @@
 </div>
 
 <script type="application/json" id="workout-data">{{ client_data|tojson }}</script>
-<script src="/static/js/workout.js?v=20260921-holo-fallback" defer></script>
+<script src="/static/js/workout.js?v=20260922-arena-sound" defer></script>
 {% endblock %}

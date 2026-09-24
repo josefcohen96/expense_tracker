@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EAF8FD"/>
+      <stop offset="1" stop-color="#BFE7F4"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.28" r="0.5">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="leafA" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#7FD4A0"/>
+      <stop offset="1" stop-color="#B8ECC8"/>
+    </linearGradient>
+    <linearGradient id="leafB" x1="1" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#6CCB92"/>
+      <stop offset="1" stop-color="#AEE8C1"/>
+    </linearGradient>
+    <linearGradient id="stem" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#5FBF86"/>
+      <stop offset="1" stop-color="#8ADBA8"/>
+    </linearGradient>
+    <linearGradient id="soil" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#D2F1DE"/>
+      <stop offset="1" stop-color="#A9E2C0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- background (iOS rounds the corners itself) -->
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+
+  <!-- soft ground mound -->
+  <ellipse cx="256" cy="418" rx="136" ry="34" fill="url(#soil)"/>
+
+  <!-- stem -->
+  <path d="M256 410 C 256 356, 262 306, 256 262"
+        fill="none" stroke="url(#stem)" stroke-width="24" stroke-linecap="round"/>
+
+  <!-- left leaf -->
+  <path d="M256 306 C 204 320, 136 290, 104 210 C 180 190, 244 232, 256 306 Z" fill="url(#leafA)"/>
+  <path d="M250 298 C 218 270, 178 244, 134 224" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- right leaf (larger, reaching up) -->
+  <path d="M256 262 C 262 192, 318 122, 408 104 C 412 196, 348 268, 256 262 Z" fill="url(#leafB)"/>
+  <path d="M266 254 C 304 218, 346 176, 386 130" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- dew drop -->
+  <circle cx="332" cy="176" r="11" fill="#FFFFFF" fill-opacity="0.8"/>
+</svg>

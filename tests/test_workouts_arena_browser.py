@@ -5,6 +5,7 @@ The other workouts suites drive the routes with TestClient; these open the real 
 headless Chromium (Playwright) against the app served by uvicorn on a free port. They skip
 themselves when Playwright or its Chromium is not installed, so the plain suite still runs.
 """
+import re
 import socket
 import threading
 import time
@@ -325,7 +326,9 @@ def test_training_starts_only_when_start_is_pressed_after_the_warmup(page):
 
 
 def test_arena_rest_shows_spanish_card(page, live_server, db_conn):
-    """A 90 s rest carries one Spanish card: reveal, grade, one review row; the toggle silences it."""
+    """A 90 s rest opens the Spanish cards: reveal, grade, one review row, and the next card
+    follows at once; "הקודם" brings the graded word back; while studying the rest waits for
+    "אני מוכן" instead of walking to the next set; the toggle silences it all."""
     from datetime import datetime, timedelta
 
     yosef = db_conn.execute("SELECT id FROM users WHERE name = 'Yosef'").fetchone()["id"]
@@ -341,8 +344,8 @@ def test_arena_rest_shows_spanish_card(page, live_server, db_conn):
         page.goto(f"{live_server}/workouts")
 
         # The decision helpers, as pure functions
-        assert page.evaluate("() => [30, 44, 45, 90, 119, 120, 180].map(s => Spanish.cardsForRest(s))") == [0, 0, 1, 1, 1, 2, 2]
-        assert page.evaluate("() => Spanish.cardsForRest(90, false)") == 0
+        assert page.evaluate("() => [30, 44, 45, 90, 180].map(s => Spanish.restHasCards(s))") == [False, False, True, True, True]
+        assert page.evaluate("() => Spanish.restHasCards(90, false)") is False
         assert page.evaluate("() => [null, 'on', 'off'].map(v => Spanish.readEnabled(v))") == [True, True, False]
         assert page.evaluate("() => Spanish.gradeFromSpeech('donde esta el bano', '¿Dónde está el baño?')") == 2
         assert page.evaluate("() => Spanish.gradeFromSpeech('el baño', '¿Dónde está el baño?')") == 1
@@ -360,7 +363,32 @@ def test_arena_rest_shows_spanish_card(page, live_server, db_conn):
         card.get_by_role("button", name="הצג", exact=True).click()
         expect(card.locator(".sp-es mark")).to_have_text("baño")
         card.get_by_role("button", name="טוב", exact=True).click()
-        expect(card).to_contain_text("נשמר")
+
+        # The next card follows at once, whatever the clock says
+        expect(card.locator(".sp-card")).to_have_attribute("data-mode", "intro")
+        expect(card).to_contain_text("Hola, ¿cómo estás?")
+
+        # Back to the word that was just graded — shown, saved, not graded again — and forward
+        card.get_by_role("button", name="‹ הקודם").click()
+        expect(card.locator(".sp-card")).to_have_attribute("data-mode", "past")
+        expect(card).to_contain_text("¿Dónde está el baño?")
+        expect(card).to_contain_text("✓ נשמר")
+        expect(card.locator("[data-sp-grade]")).to_have_count(0)
+        card.get_by_role("button", name="הבא ›").click()
+        expect(card.locator(".sp-card")).to_have_attribute("data-mode", "intro")
+        expect(card).to_contain_text("Hola, ¿cómo estás?")
+        card.get_by_role("button", name="הבנתי", exact=True).click()
+        expect(card).to_contain_text("Estoy bien, gracias.")
+
+        # The athlete is studying: when the timer runs out the arena stays on the rest,
+        # the clock counts overtime, and "אני מוכן" is the way out
+        assert page.evaluate("() => Spanish.holdsRest()") is True
+        page.evaluate("() => { restEndsAt = Date.now() + 300; }")
+        page.wait_for_function("() => document.querySelector('#rest-ring-label').textContent === 'הזמן עבר'")
+        page.wait_for_timeout(7000)
+        expect(_arena(page)).to_have_attribute("data-phase", "rest")
+        expect(card.locator(".sp-card")).to_be_visible()
+        expect(page.locator("#timer-banner-clock")).to_have_text(re.compile(r"^\+0:0\d$"))
 
         deadline = time.time() + 5
         rows = []
@@ -383,6 +411,11 @@ def test_arena_rest_shows_spanish_card(page, live_server, db_conn):
         assert _after_set(page) == "rest"
         expect(card).to_be_hidden()
         assert page.evaluate("() => localStorage.getItem('workout_spanish_v1')") == "off"
+
+        # Nobody studying: the rest still walks to the next set by itself after the timer
+        assert page.evaluate("() => Spanish.holdsRest()") is False
+        page.evaluate("() => { restEndsAt = Date.now() + 300; }")
+        page.wait_for_function("() => document.querySelector('#arena').dataset.phase === 'set'", timeout=10000)
     finally:
         db_conn.execute("DELETE FROM spanish_reviews")
         db_conn.commit()

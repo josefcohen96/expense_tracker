@@ -15,8 +15,11 @@ from pathlib import Path as FSPath
 
 from ..db import get_db_conn
 from ..schemas.workouts import WorkoutCreateSchema, WorkoutLegacyProgressSchema
-from ..services.access import is_module_only_user
+from ..services.access import USER_YOSEF, is_module_only_user, normalise_username
+from ..services.hebrew_dates import in_days_label
 from ..services.people import workout_people
+from ..services import spanish as spanish_service
+from ..services.wedding_plan import get_wedding_date
 
 logger = logging.getLogger(__name__)
 
@@ -947,8 +950,16 @@ def _eta_label(weeks: float) -> str:
     return "בערך חודשיים" if months == 2 else f"בערך {months} חודשים"
 
 
-def compute_gamification(history: List[Dict[str, Any]], today: Optional[date_cls] = None) -> Dict[str, Any]:
-    """Aggregate workout history into the full player-profile game state."""
+def compute_gamification(
+    history: List[Dict[str, Any]],
+    today: Optional[date_cls] = None,
+    spanish_in_pocket: int = 0,
+) -> Dict[str, Any]:
+    """Aggregate workout history into the full player-profile game state.
+
+    `spanish_in_pocket` is the derived "words in your pocket" count (services/spanish.py),
+    passed in so the one Spanish achievement sits in the same list as the training ones.
+    """
     today = today or date_cls.today()
     total_workouts = len(history)
     total_sets = 0
@@ -986,6 +997,7 @@ def compute_gamification(history: List[Dict[str, Any]], today: Optional[date_cls
         ("streak_7", "fa-calendar-week", "שבוע מושלם", "7 ימי אימון ברצף", streak, 7),
         ("marathon", "fa-stopwatch", "מרתוניסט", "אימון של 60 דקות ומעלה", longest_session, 60),
         ("variety", "fa-shapes", "מגוון אישי", "5 תרגילים שונים באימון אחד", max_exercises_in_session, 5),
+        ("spanish_50", "fa-language", "50 מילים בכיס", "50 מילים בספרדית ששרדו שבוע בלי לשכוח", spanish_in_pocket, 50),
     ]
     achievements = [
         {
@@ -1301,6 +1313,65 @@ def plan_today(paths: List[Dict[str, Any]], history: List[Dict[str, Any]], today
     return chosen["key"], note
 
 
+BOSS_PACE_WINDOW_DAYS = 56   # cadence is measured over the last 8 weeks
+BOSS_BAR_WINDOW_DAYS = 28    # trainings done shown on the banner's bar
+BOSS_MIN_PACE_DAYS = 3       # below this many training days the pace is assumed
+BOSS_ASSUMED_PER_WEEK = 2.0
+
+
+def _days_in_window(days: Set[date_cls], today: date_cls, window: int) -> int:
+    return sum(1 for d in days if 0 <= (today - d).days < window)
+
+
+def wedding_boss(
+    history: List[Dict[str, Any]],
+    paths: List[Dict[str, Any]],
+    wedding_date: date_cls,
+    today: date_cls,
+) -> Optional[Dict[str, Any]]:
+    """The wedding as the game's final boss: trainings left at the user's own pace, and
+    where each unlocked, unfinished path will stand on the wedding day. None once it passed."""
+    days_left = (wedding_date - today).days
+    if days_left < 0:
+        return None
+
+    days = _workout_days(s["date"] for s in history)
+    pace_days = _days_in_window(days, today, BOSS_PACE_WINDOW_DAYS)
+    assumed = pace_days < BOSS_MIN_PACE_DAYS
+    per_week = BOSS_ASSUMED_PER_WEEK if assumed else round(pace_days / (BOSS_PACE_WINDOW_DAYS / 7), 1)
+    trainings_left = max(0, round(per_week * days_left / 7))
+
+    forecasts: Dict[str, Dict[str, Any]] = {}
+    for path in paths:
+        if not path["unlocked"] or path["complete"]:
+            continue
+        budget = trainings_left
+        reached = None
+        for st in path["stations"]:
+            if st["conquered"]:
+                continue
+            if budget >= st["remaining"]:
+                budget -= st["remaining"]
+                continue
+            reached = st
+            break
+        forecasts[path["key"]] = {
+            "finishes": reached is None,
+            "station_number": reached["number"] if reached else None,
+            "station_hebrew": reached["hebrew"] if reached else None,
+        }
+
+    return {
+        "days_left": days_left,
+        "days_label": in_days_label(days_left),
+        "per_week": per_week,
+        "assumed": assumed,
+        "trainings_left": trainings_left,
+        "recent_28": _days_in_window(days, today, BOSS_BAR_WINDOW_DAYS),
+        "paths": forecasts,
+    }
+
+
 def _legacy_progress_key(user_id: int) -> str:
     return f"workouts_legacy_conquered:{user_id}"
 
@@ -1438,6 +1509,9 @@ def _fetch_history(db_conn: sqlite3.Connection, user_id: int) -> List[Dict[str, 
     return list(workout_sessions.values())
 
 
+SPANISH_QUEUE_IN_PAGE = 12  # cards rendered into client_data; the JS tops up from the queue endpoint
+
+
 @router.get("/workouts", response_class=HTMLResponse)
 async def workout_page(
     request: Request,
@@ -1451,12 +1525,21 @@ async def workout_page(
 
     today = date_cls.today()
     history = _fetch_history(db_conn, user_id)
-    game = compute_gamification(history, today)
+    # Spanish between sets: the first cards ship with the page so a rest never waits on the network
+    spanish = spanish_service.snapshot(db_conn, user_id, today, limit=SPANISH_QUEUE_IN_PAGE)
+    game = compute_gamification(history, today, spanish_in_pocket=spanish["stats"]["in_pocket"])
     paths = compute_paths(history, game["level"], _load_legacy_progress(db_conn, user_id), today)
     records = compute_records(history)
     unlocked = [p for p in paths if p["unlocked"]]
     default_path, coach_note = plan_today(paths, history, today)
     first_workout = game["total_workouts"] == 0
+
+    # The wedding as the final boss is Yosef's alone; everyone else gets None.
+    boss = None
+    if normalise_username(_session_user(request)) == USER_YOSEF:
+        wedding_date = get_wedding_date(db_conn)
+        if wedding_date:
+            boss = wedding_boss(history, paths, wedding_date, today)
 
     for session in history:
         day = _parse_day(session["date"])
@@ -1490,6 +1573,11 @@ async def workout_page(
         "catalog": EXERCISE_CATALOG,
         "form": exercise_form_data(),
         "first_workout": first_workout,
+        "spanish": {
+            "queue": spanish["items"],
+            "stats": spanish["stats"],
+            "study_new_cap": spanish_service.STUDY_NEW_CAP,
+        },
     }
     clips = holo_clips()
     if clips:
@@ -1510,10 +1598,15 @@ async def workout_page(
             "paths_by_key": {p["key"]: p for p in paths},
             "default_path": default_path,
             "coach_note": coach_note,
+            "wedding_boss": boss,
             "first_workout": first_workout,
             "first_workout_xp": min(p["plan"]["xp"] for p in unlocked),
             "sessions_to_conquer": STATION_SESSIONS_TO_CONQUER,
             "game": game,
+            "spanish": {
+                **spanish["stats"],
+                "themes": spanish_service.theme_progress(spanish_service.load_deck(), spanish["stats"]),
+            },
             "client_data": client_data,
             "module_only": is_module_only_user(_session_user(request)),
             "show_sidebar": False,  # Hide standard finance sidebar to give space for mobile-first workout UI

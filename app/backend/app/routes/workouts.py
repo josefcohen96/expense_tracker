@@ -863,6 +863,44 @@ def _current_streak(day_set: Set[date_cls], today: date_cls) -> int:
     return streak
 
 
+STREAK_MILESTONES = (7, 14, 21, 30, 60, 100, 365)   # the next one is the streak card's goal
+
+
+def _streak_details(current: int, best: int, day_set: Set[date_cls], today: date_cls) -> Dict[str, Any]:
+    """What the streak card shows once a run is longer than the 7-day strip can tell.
+
+    weeks/extra_days split the run for the Hebrew label ("שבועיים ו-3 ימים"); the next
+    milestone drives a progress bar; ``at_risk`` means the run is alive only thanks to
+    yesterday, so today's workout is what keeps it; ``grid`` is the last 4 weeks, oldest
+    row first, for the long-streak variant of the card.
+    """
+    nxt = next((m for m in STREAK_MILESTONES if m > current), None)
+    prev = max((m for m in STREAK_MILESTONES if m <= current), default=0)
+    milestone = None
+    if nxt:
+        milestone = {
+            "target": nxt,
+            "remaining": nxt - current,
+            "pct": round(100 * (current - prev) / (nxt - prev)) if current else 0,
+        }
+    grid = [
+        [
+            {"date": d.isoformat(), "trained": d in day_set, "is_today": d == today}
+            for d in (today - timedelta(days=offset) for offset in range(week_end, week_end - 7, -1))
+        ]
+        for week_end in (27, 20, 13, 6)
+    ]
+    return {
+        "streak_weeks": current // 7,
+        "streak_extra_days": current % 7,
+        "streak_milestone": milestone,
+        "streak_at_risk": current > 0 and today not in day_set,
+        "streak_is_best": current > 0 and current >= best,
+        "streak_grid": grid,
+        "streak_grid_count": sum(1 for row in grid for d in row if d["trained"]),
+    }
+
+
 def _best_streak(day_set: Set[date_cls]) -> int:
     best = 0
     for day in day_set:
@@ -974,7 +1012,11 @@ def compute_gamification(history: List[Dict[str, Any]], today: Optional[date_cls
         for d in (today - timedelta(days=offset) for offset in range(6, -1, -1))
     ]
 
+    current_streak = _current_streak(days, today)
+    best_streak = _best_streak(days)
+
     return {
+        **_streak_details(current_streak, best_streak, days, today),
         "total_xp": total_xp,
         "level": level,
         "xp_in_level": level_info["xp_in_level"],
@@ -985,8 +1027,8 @@ def compute_gamification(history: List[Dict[str, Any]], today: Optional[date_cls
         "ranks": ranks,
         "rank_position": next(i for i, r in enumerate(ranks) if r["state"] == "current") + 1,
         "streak": streak,
-        "current_streak": _current_streak(days, today),
-        "best_streak": _best_streak(days),
+        "current_streak": current_streak,
+        "best_streak": best_streak,
         "week": week,
         "week_count": sum(1 for d in week if d["trained"]),
         "total_workouts": total_workouts,

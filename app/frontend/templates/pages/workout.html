@@ -4,7 +4,7 @@
 
 {% block head %}
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/workout.css?v=20260922-arena-sound">
+<link rel="stylesheet" href="/static/css/workout.css?v=20260924-streak">
 {% endblock %}
 
 {% block body_class %}has-section-header workouts-page{% endblock %}
@@ -128,18 +128,51 @@
                 </div>
             </div>
 
-            <div class="wk-card wk-streak">
+            {%- set long_streak = game.current_streak > 7 %}
+            <div class="wk-card wk-streak{% if long_streak %} is-long{% endif %}{% if game.streak_at_risk %} is-at-risk{% endif %}">
                 <div class="wk-streak-head">
                     <span class="wk-streak-title">🔥
                         {% if game.current_streak == 1 %}רצף של יום אחד
                         {% elif game.current_streak %}רצף {{ num(game.current_streak) }} ימים
                         {% else %}רצף חדש מתחיל באימון הבא{% endif %}
                     </span>
+                    {% if long_streak %}
+                    <span class="wk-streak-sub">
+                        {%- set w = game.streak_weeks %}{% set x = game.streak_extra_days -%}
+                        {%- if w == 1 %}שבוע{% elif w == 2 %}שבועיים{% else %}{{ num(w) }} שבועות{% endif -%}
+                        {%- if x == 1 %} ויום{% elif x == 2 %} ויומיים{% elif x %} ו-{{ num(x) }} ימים{% endif -%}
+                        {%- if game.streak_is_best %} · שיא אישי{% endif -%}
+                    </span>
+                    {% else %}
                     <span class="wk-streak-sub">{{ num(game.week_count) }} מתוך 7 הימים האחרונים</span>
+                    {% endif %}
                 </div>
+                {% if long_streak %}
+                <div class="wk-weeks" role="img" aria-label="ימי אימון בארבעת השבועות האחרונים: {{ game.streak_grid_count }} מתוך 28">
+                    {% for row in game.streak_grid %}<div class="wk-week">
+                        {%- for d in row %}<span class="wk-day{% if d.trained %} is-on{% elif d.is_today %} is-today{% endif %}" title="{{ d.date }}"></span>{% endfor -%}
+                    </div>{% endfor %}
+                </div>
+                {% if game.streak_milestone %}
+                {%- set m = game.streak_milestone %}
+                <div class="wk-streak-goal">
+                    <div class="wk-streak-goal-row">
+                        <span>{% if m.remaining == 1 %}עוד יום אחד{% elif m.remaining == 2 %}עוד יומיים{% else %}עוד {{ num(m.remaining) }} ימים{% endif %} ל-{{ num(m.target) }}</span>
+                        <span class="wk-streak-goal-target">🏁 {{ num(m.target) }}</span>
+                    </div>
+                    <div class="wk-streak-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ m.pct }}" aria-label="התקדמות ליעד הרצף הבא">
+                        <span style="width: {{ m.pct }}%"></span>
+                    </div>
+                </div>
+                {% endif %}
+                {% else %}
                 <div class="wk-week" role="img" aria-label="ימי אימון בשבוע האחרון: {{ game.week_count }} מתוך 7">
                     {% for d in game.week %}<span class="wk-day{% if d.trained %} is-on{% elif d.is_today %} is-today{% endif %}" title="{{ d.date }}"></span>{% endfor %}
                 </div>
+                {% endif %}
+                {% if game.streak_at_risk %}
+                <div class="wk-streak-risk">⏳ הרצף נשמר עד סוף היום — אימון היום ממשיך אותו</div>
+                {% endif %}
             </div>
 
             <button type="button" class="wk-free-link" data-start-free>או התחל אימון חופשי בלי מסלול</button>

@@ -523,6 +523,82 @@ button.wk-path-row:active {
   border: 1px dashed rgba(255, 255, 255, .22);
 }
 
+/* Long streak (> 7 days): four week rows, a milestone bar, and a warm glow */
+.wk-streak.is-long {
+  background: linear-gradient(160deg, rgba(250, 204, 21, .12), var(--wk-card) 55%);
+  border-color: rgba(250, 204, 21, .28);
+}
+.wk-streak.is-long .wk-streak-sub {
+  color: var(--wk-gold-3);
+  font-weight: 600;
+}
+.wk-weeks {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 11px;
+}
+.wk-weeks .wk-week {
+  margin-top: 0;
+  gap: 5px;
+}
+.wk-weeks .wk-day {
+  height: 12px;
+  border-radius: 4px;
+}
+.wk-weeks .wk-day.is-on {
+  background: rgba(250, 204, 21, .55);
+}
+.wk-weeks .wk-week:last-child .wk-day {
+  height: 18px;
+  border-radius: 6px;
+}
+.wk-weeks .wk-week:last-child .wk-day.is-on {
+  background: rgba(250, 204, 21, .9);
+  box-shadow: 0 0 8px rgba(250, 204, 21, .35);
+}
+.wk-streak-goal {
+  margin-top: 12px;
+}
+.wk-streak-goal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font: 400 10.5px var(--font-primary);
+  color: var(--wk-meta-floor);
+}
+.wk-streak-goal-target {
+  font: 600 10.5px var(--font-primary);
+  color: var(--wk-gold-2);
+}
+.wk-streak-bar {
+  height: 5px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .08);
+  overflow: hidden;
+}
+.wk-streak-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--wk-orange), var(--wk-gold));
+  transition: width .6s ease;
+}
+.wk-streak-risk {
+  margin-top: 10px;
+  padding: 6px 9px;
+  border-radius: 9px;
+  background: rgba(251, 146, 60, .12);
+  border: 1px solid rgba(251, 146, 60, .3);
+  font: 500 10.5px var(--font-primary);
+  color: var(--wk-orange-light);
+}
+.wk-streak.is-at-risk .wk-day.is-today {
+  border-color: rgba(251, 146, 60, .6);
+}
+
 /* ===== Empty state (2c) ===== */
 
 .wk-empty {

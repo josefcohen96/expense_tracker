@@ -244,6 +244,40 @@ def test_streaks_week_and_ranks():
     assert stale["current_streak"] == 0  # a streak that ended days ago isn't shown as live
 
 
+def test_long_streak_details():
+    today = date(2026, 9, 24)
+    days = [(today - timedelta(days=n)).isoformat() for n in range(17)]  # 17 days ending today
+    game = workouts.compute_gamification([_session(d, [("Dips", 1, 1)]) for d in days], today)
+    assert game["current_streak"] == 17
+    assert (game["streak_weeks"], game["streak_extra_days"]) == (2, 3)
+    assert game["streak_milestone"] == {"target": 21, "remaining": 4, "pct": 43}
+    assert game["streak_is_best"] is True
+    assert game["streak_at_risk"] is False
+    assert len(game["streak_grid"]) == 4 and all(len(row) == 7 for row in game["streak_grid"])
+    assert game["streak_grid"][-1][-1]["is_today"] is True
+    assert game["streak_grid_count"] == 17
+    assert [d["trained"] for d in game["streak_grid"][1]] == [False] * 4 + [True] * 3  # run starts mid-row
+
+    # Trained through yesterday only: the run is alive but today's workout keeps it
+    risky = workouts.compute_gamification([_session(d, [("Dips", 1, 1)]) for d in days[1:]], today)
+    assert risky["current_streak"] == 16 and risky["streak_at_risk"] is True
+
+    # Past the last milestone there is no goal bar
+    far = workouts.compute_gamification(
+        [_session((today - timedelta(days=n)).isoformat(), [("Dips", 1, 1)]) for n in range(400)], today
+    )
+    assert far["streak_milestone"] is None
+
+
+def test_long_streak_card_html(app_client, clean_workouts):
+    for n in range(10):
+        _save(app_client, (date.today() - timedelta(days=n)).isoformat(), [{"exercise_name": "Dips", "total_sets": 1, "total_reps": 1}])
+    html = app_client.get("/workouts").text
+    assert "wk-streak is-long" in html
+    assert "שבוע ו-" in html and "wk-weeks" in html and "wk-streak-bar" in html
+    assert 'ל-<span class="wk-num" dir="ltr">14</span>' in html
+
+
 def test_labels():
     assert workouts._ago_label(0) == "היום"
     assert workouts._ago_label(2) == "לפני יומיים"

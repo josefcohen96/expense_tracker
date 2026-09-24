@@ -9,7 +9,7 @@ let activeExercises = [];
 let sessionActive = false;
 
 // --- Arena State ---
-let arenaPhase = 'set';      // 'warmup' | 'set' | 'rest' | 'reward'
+let arenaPhase = 'set';      // 'warmup' | 'ready' | 'set' | 'rest' | 'reward'
 let warmupDone = [];         // indexes of warm-up items ticked off
 let holdStartedAt = null;    // Date.now() when the current hold began (null = not holding)
 let holdInterval = null;
@@ -334,7 +334,7 @@ function saveSession() {
             type: typeSelect ? typeSelect.value : '',
             exercises: activeExercises,
             cursor,
-            phase: arenaPhase === 'rest' ? 'rest' : (arenaPhase === 'warmup' ? 'warmup' : 'set'),
+            phase: ['rest', 'warmup', 'ready'].includes(arenaPhase) ? arenaPhase : 'set',
             warmupDone,
             restEndsAt,
             restDuration,
@@ -654,7 +654,9 @@ function resumeWorkoutSession(saved) {
     holdStartedAt = null;
 
     const pathWarmup = sessionPath && data().paths[sessionPath] && data().paths[sessionPath].warmup;
-    arenaPhase = saved.phase === 'warmup' && pathWarmup && pathWarmup.length ? 'warmup' : 'set';
+    if (saved.phase === 'warmup' && pathWarmup && pathWarmup.length) arenaPhase = 'warmup';
+    else if (saved.phase === 'ready' && sessionPath) arenaPhase = 'ready';
+    else arenaPhase = 'set';
     openArena();
     startWorkoutTimer();
     requestWakeLock();
@@ -782,6 +784,11 @@ function renderArena() {
 
     if (arenaPhase === 'warmup') {
         renderWarmup();
+        syncHologram();
+        return;
+    }
+    if (arenaPhase === 'ready') {
+        renderReady();
         syncHologram();
         return;
     }
@@ -1048,10 +1055,56 @@ function toggleWarmupItem(index) {
     saveSession();
 }
 
+// The warm-up never drops straight into the first set: it leads to the "ready" screen,
+// and the training starts only when the athlete presses start there.
 function finishWarmup(skipped = false) {
     if (arenaPhase !== 'warmup') return;
     if (!skipped) vibrate(12);
+    arenaPhase = 'ready';
+    renderArena();
+    saveSession();
+}
+
+// ====================== READY PHASE ======================
+// Between the warm-up and the first set: what is about to happen, and one start button.
+
+function renderReady() {
+    const path = sessionPath && data().paths[sessionPath];
+    $('#ready-path').textContent = path ? `מסלול ${path.name}` : 'אימון';
+
+    const first = currentPosition();
+    const tile = $('#ready-first-tile');
+    const title = $('#ready-first-title');
+    const sub = $('#ready-first-sub');
+    if (first) {
+        const { exercise, set } = first;
+        tile.textContent = exerciseIcon(exercise);
+        title.textContent = exercise.title;
+        sub.innerHTML = `${countHtml(exercise.sets.length, 'סט אחד', 'סטים')} · יעד ${numHtml(set.reps)} ${escapeHtml(unitLabel(exercise))}`;
+    } else {
+        tile.textContent = '🏁';
+        title.textContent = 'אין סטים לביצוע';
+        sub.textContent = 'אפשר להוסיף תרגיל בזירה';
+    }
+
+    const stats = sessionStats();
+    $('#ready-plan').innerHTML = `${countHtml(activeExercises.length, 'תרגיל אחד', 'תרגילים')} · ${countHtml(stats.total, 'סט אחד', 'סטים')}`;
+    $('#ready-warmup-note').hidden = warmupDone.length === 0;
+}
+
+function startTraining() {
+    if (arenaPhase !== 'ready') return;
+    vibrate(12);
     arenaPhase = 'set';
+    renderArena();
+    saveSession();
+}
+
+function backToWarmup() {
+    if (arenaPhase !== 'ready') return;
+    const path = sessionPath && data().paths[sessionPath];
+    if (!path || !path.warmup || !path.warmup.length) return;
+    arenaPhase = 'warmup';
     renderArena();
     saveSession();
 }

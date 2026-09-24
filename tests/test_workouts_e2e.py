@@ -493,7 +493,8 @@ def test_page_shows_units_note_and_warmup(app_client, clean_workouts):
     assert "wk-mission-note" in html
     assert "אתמול היה יום משיכה — היום דחיפה" in html
     # Warm-up phase and the plain-arena form guide are on the page
-    for marker in ('data-phase-panel="warmup"', 'id="warmup-list"', 'id="arena-hold-btn"',
+    for marker in ('data-phase-panel="warmup"', 'id="warmup-list"', 'data-phase-panel="ready"',
+                   'id="arena-start-btn"', 'id="arena-hold-btn"',
                    'id="arena-cues"', 'id="arena-tempo"'):
         assert marker in html
     data = json.loads(html.split('id="workout-data">')[1].split("</script>")[0])

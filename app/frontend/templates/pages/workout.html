@@ -4,7 +4,7 @@
 
 {% block head %}
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/workout.css?v=20260924-streak">
+<link rel="stylesheet" href="/static/css/workout.css?v=20260925-spanish">
 {% endblock %}
 
 {% block body_class %}has-section-header workouts-page{% endblock %}
@@ -20,6 +20,18 @@
 <a href="#profile" class="wk-level-pill" aria-label="הפרופיל שלי — שלב {{ game.level }}">
     <span class="wk-level-pill-level">שלב {{ game.level }}</span>
     <span class="wk-level-pill-xp" dir="ltr">{{ "{:,}".format(game.total_xp) }} XP</span>
+</a>
+{%- endmacro %}
+
+{#- Spanish between sets: the way into #spanish from the home view (services/spanish.py) -#}
+{% macro spanish_link() -%}
+<a href="#spanish" class="wk-spanish-row">
+    <span class="wk-spanish-tile" aria-hidden="true">ñ</span>
+    <span class="wk-spanish-row-text">
+        <span class="wk-spanish-row-title">ספרדית</span>
+        <span class="wk-spanish-row-sub"><span class="wk-num" dir="ltr" data-spanish-stat="in_pocket">{{ spanish.in_pocket }}</span> מילים בכיס · <span class="wk-num" dir="ltr" data-spanish-stat="due_today">{{ spanish.due_today }}</span> לחזרה היום</span>
+    </span>
+    <span class="wk-mission-link">חזרה קצרה ←</span>
 </a>
 {%- endmacro %}
 
@@ -67,11 +79,31 @@
                 <span class="wk-num" dir="ltr">+{{ first_workout_xp }} XP</span>
             </div>
             <button type="button" class="wk-free-link" data-start-free>או התחל אימון חופשי בלי מסלול</button>
+            {{ spanish_link() }}
         </section>
         {% else %}
 
         <!-- ===== QUEST SELECT (1a · 1) ===== -->
         <section class="wk-view" data-view="home">
+            {% if wedding_boss %}
+            {%- set b = wedding_boss %}
+            {%- set pace = (b.per_week|int) if b.per_week == (b.per_week|int) else b.per_week %}
+            {%- set bar_total = b.recent_28 + b.trainings_left %}
+            <div class="wk-boss">
+                <div class="wk-mission-sheen" aria-hidden="true"></div>
+                <div class="wk-boss-body">
+                    <span class="wk-eyebrow">הבוס הסופי</span>
+                    <h2 class="wk-boss-title">החתונה {{ b.days_label }}</h2>
+                    <div class="wk-boss-line">
+                        {%- if b.assumed %}עוד ~{{ num(b.trainings_left) }} אימונים בקצב של {{ num(2) }} בשבוע
+                        {%- else %}עוד ~{{ num(b.trainings_left) }} אימונים בקצב שלך ({{ num(pace) }} בשבוע){% endif -%}
+                    </div>
+                    <div class="wk-boss-bar" aria-hidden="true">
+                        <span style="width: {{ ((b.recent_28 * 100 / bar_total)|round|int) if bar_total else 0 }}%"></span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
             {% for p in paths if p.unlocked %}
             <article class="wk-mission" data-mission="{{ p.key }}"{% if p.key != default_path %} hidden{% endif %}>
                 <div class="wk-mission-sheen" aria-hidden="true"></div>
@@ -83,6 +115,13 @@
                     <h2 class="wk-mission-title">מסלול {{ p.name }} · {% if p.complete %}הושלם{% else %}תחנה {{ num(p.position) }}{% endif %}</h2>
                     <div class="wk-mission-station">{{ p.plan.exercises[0].title }}</div>
                     <div class="wk-mission-sub">{{ num(p.plan.exercises|length) }} תרגילים · {{ num(p.plan.sets) }} סטים · בערך {{ num(p.plan.minutes) }} דקות</div>
+                    {% if wedding_boss and wedding_boss.paths[p.key] %}
+                    {%- set f = wedding_boss.paths[p.key] %}
+                    <div class="wk-mission-boss"><span aria-hidden="true">💍</span>
+                        {%- if f.finishes %}<span>תסיים את המסלול לפני החתונה</span>
+                        {%- else %}<span>עד החתונה תגיע לתחנה {{ num(f.station_number) }} · {{ f.station_hebrew }}</span>{% endif -%}
+                    </div>
+                    {% endif %}
                     {% if coach_note and p.key == default_path %}
                     <div class="wk-mission-note"><span aria-hidden="true">💡</span><span>{{ coach_note }}</span></div>
                     {% endif %}
@@ -101,6 +140,8 @@
                 </div>
             </article>
             {% endfor %}
+
+            {{ spanish_link() }}
 
             <div class="wk-block">
                 <div class="wk-block-head"><h3>מסלולים אחרים</h3></div>
@@ -315,6 +356,15 @@
                 <div class="wk-stat is-streak"><div class="wk-stat-label">הרצף הארוך</div><div class="wk-stat-value" dir="ltr">{{ game.best_streak }}</div></div>
             </div>
 
+            <a href="#spanish" class="wk-card wk-spanish-card">
+                <span class="wk-spanish-tile" aria-hidden="true">ñ</span>
+                <span class="wk-spanish-row-text">
+                    <span class="wk-spanish-row-title">ספרדית: <span class="wk-num" dir="ltr" data-spanish-stat="in_pocket">{{ spanish.in_pocket }}</span> מילים בכיס</span>
+                    <span class="wk-spanish-row-sub"><span class="wk-num" dir="ltr" data-spanish-stat="learning">{{ spanish.learning }}</span> בדרך · רצף <span class="wk-num" dir="ltr" data-spanish-stat="review_days_streak">{{ spanish.review_days_streak }}</span> ימים</span>
+                </span>
+                <span class="wk-spanish-chev" aria-hidden="true">‹</span>
+            </a>
+
             <div class="wk-block">
                 <div class="wk-block-head">
                     <h3>סולם הדרגות</h3>
@@ -385,6 +435,45 @@
             </div>
         </section>
         {% endif %}
+
+        <!-- ===== SPANISH BETWEEN SETS (outside the gym) ===== -->
+        <section class="wk-view wk-spanish" data-view="spanish" hidden>
+            <div class="wk-view-head">
+                <h2>ספרדית</h2>
+                <a href="#home" class="wk-link">חזרה לאימון ←</a>
+            </div>
+
+            <div class="wk-stats wk-spanish-stats">
+                <div class="wk-stat"><div class="wk-stat-label">מילים בכיס</div><div class="wk-stat-value" dir="ltr" data-spanish-stat="in_pocket">{{ spanish.in_pocket }}</div></div>
+                <div class="wk-stat"><div class="wk-stat-label">בדרך</div><div class="wk-stat-value" dir="ltr" data-spanish-stat="learning">{{ spanish.learning }}</div></div>
+                <div class="wk-stat"><div class="wk-stat-label">לחזרה היום</div><div class="wk-stat-value" dir="ltr" data-spanish-stat="due_today">{{ spanish.due_today }}</div></div>
+                <div class="wk-stat is-streak"><div class="wk-stat-label">רצף ימים</div><div class="wk-stat-value" dir="ltr" data-spanish-stat="review_days_streak">{{ spanish.review_days_streak }}</div></div>
+            </div>
+
+            <div class="wk-card wk-spanish-study" data-spanish-study>
+                <div class="wk-spanish-dots" data-spanish-dots aria-hidden="true" hidden></div>
+                <div class="wk-spanish-host" data-spanish-card></div>
+                <p class="wk-spanish-summary" data-spanish-summary hidden></p>
+                <p class="wk-spanish-empty" data-spanish-empty hidden>אין מה לחזור עליו עכשיו — המילים הבאות יחכו במנוחה הבאה</p>
+                <button type="button" class="wk-free-link wk-spanish-more" data-spanish-more>עוד חדשות</button>
+            </div>
+
+            <div class="wk-block">
+                <div class="wk-block-head">
+                    <h3>נושאים</h3>
+                    <span class="wk-block-count" dir="ltr"><span data-spanish-stat="in_pocket">{{ spanish.in_pocket }}</span> / {{ spanish.total }}</span>
+                </div>
+                <ul class="wk-spanish-themes">
+                    {% for t in spanish.themes %}
+                    <li class="wk-spanish-theme" data-spanish-theme="{{ t.key }}">
+                        <span class="wk-spanish-theme-name">{{ t.title }}</span>
+                        <span class="wk-spanish-theme-count wk-num" dir="ltr" data-spanish-theme-count>{{ t.in_pocket }} / {{ t.total }}</span>
+                        <span class="wk-spanish-theme-bar" aria-hidden="true"><span data-spanish-theme-bar style="width: {{ t.pct }}%"></span></span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </section>
     </main>
 
     <!-- ===== DESKTOP SIDEBAR: history + skill guide ===== -->
@@ -587,6 +676,9 @@
                 <button type="button" id="arena-sound-btn" class="arena-sound" aria-pressed="true" aria-label="צלילים פועלים — השתק" onclick="toggleSound()">
                     <span data-sound-icon aria-hidden="true">🔔</span>
                 </button>
+                <button type="button" id="arena-spanish-btn" class="arena-sound arena-spanish-toggle" data-spanish-toggle aria-pressed="true" onclick="window.Spanish && window.Spanish.toggle()">
+                    <span data-spanish-toggle-label>ספרדית: פועל</span>
+                </button>
             </div>
             <div id="arena-rail" class="arena-rail" aria-hidden="true"></div>
 
@@ -692,6 +784,10 @@
             </div>
 
             <div class="rest-foot">
+                <div id="rest-spanish" class="rest-card rest-spanish" hidden>
+                    <div class="rest-card-eyebrow">ספרדית · <span class="wk-num" dir="ltr" data-spanish-stat="in_pocket">{{ spanish.in_pocket }}</span> מילים בכיס</div>
+                    <div class="rest-spanish-host" data-spanish-card aria-live="polite"></div>
+                </div>
                 <div class="rest-card">
                     <div class="rest-card-eyebrow">הבא בתור</div>
                     <div class="rest-next">
@@ -878,5 +974,6 @@
 </div>
 
 <script type="application/json" id="workout-data">{{ client_data|tojson }}</script>
-<script src="/static/js/workout.js?v=20260922-arena-sound" defer></script>
+<script src="/static/js/spanish.js?v=20260925-spanish" defer></script>
+<script src="/static/js/workout.js?v=20260925-spanish" defer></script>
 {% endblock %}

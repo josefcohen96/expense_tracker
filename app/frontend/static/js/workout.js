@@ -512,7 +512,7 @@ function wirePage() {
 
 // ====================== VIEWS & ACTIVE PATH ======================
 
-const VIEWS = ['home', 'map', 'profile', 'history'];
+const VIEWS = ['home', 'map', 'profile', 'history', 'spanish'];
 let activePath = null;
 
 function applyRoute() {
@@ -531,6 +531,7 @@ function showView(name) {
         else tab.removeAttribute('aria-current');
     });
     if (name === 'profile') scrollLadderToCurrent();
+    if (name === 'spanish' && window.Spanish) window.Spanish.mountStudy($('[data-view="spanish"]'));
 }
 
 function initActivePath() {
@@ -1620,6 +1621,8 @@ function resumeRest(endsAt, duration) {
     restTimerInterval = setInterval(tickRestTimer, 250);
     tickRestTimer();
     saveSession();
+    // The rest is the study slot: one Spanish card (two on a long rest) — static/js/spanish.js
+    if (window.Spanish) window.Spanish.onRestStart(Math.round((endsAt - Date.now()) / 1000));
 }
 
 function tickRestTimer() {
@@ -1679,6 +1682,7 @@ function stopRestTimer() {
     restLastTick = null;
     restEndsAt = null;
     restTip = '';
+    if (window.Spanish) window.Spanish.onRestEnd();
 }
 
 // "אני מוכן" — end the rest and show the next set

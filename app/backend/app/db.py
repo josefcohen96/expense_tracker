@@ -818,6 +818,25 @@ def initialise_database() -> None:
     except Exception:
         pass
 
+    # Spanish between sets: one row per graded card. Stage, due date, "words in your pocket"
+    # and streaks are replayed from these rows at read time (services/spanish.py), never stored.
+    # item_id references an id in static/spanish/deck.json (a file, not a table).
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS spanish_reviews (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            item_id TEXT NOT NULL,
+            reviewed_at TEXT NOT NULL,
+            grade INTEGER NOT NULL,
+            mode TEXT NOT NULL,
+            context TEXT NOT NULL DEFAULT 'rest',
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    """)
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_spanish_reviews_user_item ON spanish_reviews (user_id, item_id)"
+    )
+
     conn.commit()
     conn.close()
 

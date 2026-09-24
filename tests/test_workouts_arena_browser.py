@@ -322,3 +322,67 @@ def test_training_starts_only_when_start_is_pressed_after_the_warmup(page):
     page.get_by_role("button", name="התחל אימון", exact=True).click()
     expect(_arena(page)).to_have_attribute("data-phase", "set")
     expect(_set_panel(page)).to_have_attribute("data-state", "active")
+
+
+def test_arena_rest_shows_spanish_card(page, live_server, db_conn):
+    """A 90 s rest carries one Spanish card: reveal, grade, one review row; the toggle silences it."""
+    from datetime import datetime, timedelta
+
+    yosef = db_conn.execute("SELECT id FROM users WHERE name = 'Yosef'").fetchone()["id"]
+    db_conn.execute("DELETE FROM spanish_reviews")
+    # One sentence met earlier today, so the rest opens on a recall card (due now)
+    db_conn.execute(
+        "INSERT INTO spanish_reviews (user_id, item_id, reviewed_at, grade, mode, context) "
+        "VALUES (?, 'basics-001', ?, 2, 'intro', 'study')",
+        (yosef, (datetime.now() - timedelta(minutes=5)).replace(microsecond=0).isoformat()),
+    )
+    db_conn.commit()
+    try:
+        page.goto(f"{live_server}/workouts")
+
+        # The decision helpers, as pure functions
+        assert page.evaluate("() => [30, 44, 45, 90, 119, 120, 180].map(s => Spanish.cardsForRest(s))") == [0, 0, 1, 1, 1, 2, 2]
+        assert page.evaluate("() => Spanish.cardsForRest(90, false)") == 0
+        assert page.evaluate("() => [null, 'on', 'off'].map(v => Spanish.readEnabled(v))") == [True, True, False]
+        assert page.evaluate("() => Spanish.gradeFromSpeech('donde esta el bano', '¿Dónde está el baño?')") == 2
+        assert page.evaluate("() => Spanish.gradeFromSpeech('el baño', '¿Dónde está el baño?')") == 1
+
+        _start_path(page, "muscle_up")
+        page.locator("#arena-done-btn").click()
+        assert _after_set(page) == "rest"
+
+        card = page.locator("#rest-spanish")
+        expect(card).to_be_visible()
+        expect(card).to_contain_text("מילים בכיס")
+        expect(card.locator(".sp-card")).to_have_attribute("data-mode", "recall")
+        expect(card).to_contain_text("איפה השירותים?")
+        expect(card).to_contain_text("תגיד את זה בספרדית")
+        card.get_by_role("button", name="הצג", exact=True).click()
+        expect(card.locator(".sp-es mark")).to_have_text("baño")
+        card.get_by_role("button", name="טוב", exact=True).click()
+        expect(card).to_contain_text("נשמר")
+
+        deadline = time.time() + 5
+        rows = []
+        while time.time() < deadline:
+            rows = db_conn.execute(
+                "SELECT item_id, grade, mode, context FROM spanish_reviews WHERE mode = 'recall'").fetchall()
+            if rows:
+                break
+            time.sleep(0.1)
+        assert [tuple(r) for r in rows] == [("basics-001", 2, "recall", "rest")]
+
+        _rest_then_next(page)
+        expect(card).to_be_hidden()
+
+        # Switched off: the next rest has no card, and the choice persists
+        page.locator("#arena-spanish-btn").click()
+        expect(page.locator("#arena-spanish-btn")).to_have_attribute("aria-pressed", "false")
+        expect(page.locator("#arena-spanish-btn")).to_contain_text("ספרדית: כבוי")
+        page.locator("#arena-done-btn").click()
+        assert _after_set(page) == "rest"
+        expect(card).to_be_hidden()
+        assert page.evaluate("() => localStorage.getItem('workout_spanish_v1')") == "off"
+    finally:
+        db_conn.execute("DELETE FROM spanish_reviews")
+        db_conn.commit()

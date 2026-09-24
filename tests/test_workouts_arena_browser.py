@@ -98,6 +98,9 @@ def _start_path(page, key):
     expect(_arena(page)).to_be_visible()
     expect(_arena(page)).to_have_attribute("data-phase", "warmup")
     page.get_by_role("button", name="דילוג על החימום").click()
+    # The warm-up never drops into the first set: the training waits for the start button.
+    expect(_arena(page)).to_have_attribute("data-phase", "ready")
+    page.get_by_role("button", name="התחל אימון", exact=True).click()
     expect(_arena(page)).to_have_attribute("data-phase", "set")
 
 
@@ -288,3 +291,34 @@ def test_hold_countdown_ticks_before_the_end_chord(page):
     assert notes[1:4] == [880, 880, 880], notes
     assert notes[4:7] == [660, 660, 990], notes
     assert len(notes) == 7, "the set cue stays silent after a hold — the end chord already said it"
+
+
+def test_training_starts_only_when_start_is_pressed_after_the_warmup(page):
+    page.locator('[data-start-path="muscle_up"]').first.click()
+    expect(_arena(page)).to_have_attribute("data-phase", "warmup")
+
+    # Ticking every warm-up item and pressing "warmed up" leads to the ready screen, not a set
+    items = page.locator("#warmup-list .warmup-item")
+    for i in range(items.count()):
+        items.nth(i).click()
+    page.get_by_role("button", name="מחומם — לזירה").click()
+    expect(_arena(page)).to_have_attribute("data-phase", "ready")
+    expect(page.locator("#ready-warmup-note")).to_be_visible()
+    expect(page.locator("#ready-first-title")).not_to_be_empty()
+    expect(_set_panel(page)).not_to_be_visible()
+
+    # A refresh keeps the athlete on the ready screen
+    page.reload()
+    expect(_arena(page)).to_have_attribute("data-phase", "ready")
+
+    # Back to the warm-up is possible; the ticks are kept
+    page.get_by_role("button", name="חזרה לחימום").click()
+    expect(_arena(page)).to_have_attribute("data-phase", "warmup")
+    expect(page.locator("#warmup-list .warmup-item.is-done")).to_have_count(items.count())
+    page.get_by_role("button", name="מחומם — לזירה").click()
+    expect(_arena(page)).to_have_attribute("data-phase", "ready")
+
+    # Only the start button opens the first set
+    page.get_by_role("button", name="התחל אימון", exact=True).click()
+    expect(_arena(page)).to_have_attribute("data-phase", "set")
+    expect(_set_panel(page)).to_have_attribute("data-state", "active")

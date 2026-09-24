@@ -119,7 +119,8 @@ A full second sub-app inside the same codebase:
 ### 3. Workouts Module
 Calisthenics tracker built as a game ("הזירה"): `pages/workout.html` + `static/js/workout.js` + `static/css/workout.css`.
 - Views on one page, switched by hash: `#home` (today's mission per quest path), `#map`, `#profile`, `#history`.
-- A workout runs in a full-screen arena (set → rest → reward), one set at a time; the session resumes
+- A workout runs in a full-screen arena (warm-up → ready → set → rest → reward), one set at a time; after the
+  warm-up the training waits on a "ready" screen until the athlete presses start. The session resumes
   from `localStorage` (`workout_active_session_v2`) after a refresh.
 - XP, levels, ranks, streaks and achievements are derived from history in `routes/workouts.py` — never stored.
 - Quest paths = `SKILL_PROGRESSIONS`; a station is conquered by 5 workouts in its rep range (counted, no button).

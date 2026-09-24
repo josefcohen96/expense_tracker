@@ -515,6 +515,37 @@
             </div>
         </section>
 
+        <!-- READY — after the warm-up, the training waits for the start button -->
+        <section class="arena-phase arena-ready" data-phase-panel="ready">
+            <div class="ready-top">
+                <div class="rest-eyebrow">מוכנים?</div>
+                <h2 class="ready-title">האימון מתחיל כשתלחץ</h2>
+                <p class="ready-sub"><span id="ready-path"></span> · <span id="ready-plan"></span></p>
+                <div id="ready-warmup-note" class="ready-warmup-note" hidden><span aria-hidden="true">✓</span><span>החימום הושלם</span></div>
+            </div>
+            <div class="ready-foot">
+                <div class="rest-card">
+                    <div class="rest-card-eyebrow">הראשון בתור</div>
+                    <div class="rest-next">
+                        <span id="ready-first-tile" class="rest-next-tile" aria-hidden="true"></span>
+                        <div class="rest-next-text">
+                            <div id="ready-first-title" class="rest-next-title"></div>
+                            <div id="ready-first-sub" class="rest-next-sub"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="arena-foot">
+                <button type="button" id="arena-start-btn" class="arena-primary" onclick="startTraining()">
+                    <span aria-hidden="true">▶</span><span>התחל אימון</span>
+                </button>
+                <div class="arena-secondary-row">
+                    <button type="button" onclick="backToWarmup()">חזרה לחימום</button>
+                    <button type="button" onclick="cancelWorkout()">ביטול</button>
+                </div>
+            </div>
+        </section>
+
         <!-- SET (1a · 2) -->
         <section class="arena-phase arena-set" data-phase-panel="set" data-state="active" data-holo="off">
             <div class="arena-status">

@@ -125,6 +125,26 @@
         <p id="admin-no-results" class="hidden text-center text-sm text-gray-500 py-8">אין אימון שמתאים לחיפוש.</p>
     </div>
 
+    <!-- Start over: drop everything before a date, keep training from it -->
+    {% if sessions %}
+    <section class="mt-8">
+        <h2 class="text-sm font-bold text-gray-700 mb-2">להתחיל מחדש מתאריך</h2>
+        <p class="text-xs text-gray-500 mb-3">
+            מוחק את כל האימונים{% if selected_person %} של {{ selected_person.display }}{% endif %} שלפני התאריך שנבחר. האימונים מהתאריך והלאה נשארים,
+            והרצף, הניקוד והקצב עד החתונה נספרים מחדש משם.
+        </p>
+        <div class="flex gap-2">
+            <input id="reset-before" type="date" value="{{ sessions[-1].date }}" dir="ltr"
+                   class="flex-1 px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-red-200"
+                   aria-label="למחוק אימונים שלפני התאריך">
+            <button type="button" onclick="resetBefore()"
+                    class="px-4 py-2 rounded-xl border border-red-200 bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 transition-colors whitespace-nowrap">
+                מחיקת הישן
+            </button>
+        </div>
+    </section>
+    {% endif %}
+
     <!-- Stations that were imported from the old browser flags, not counted from history -->
     {% if legacy_stations %}
     <section class="mt-8">
@@ -430,6 +450,18 @@
     window.deleteSession = function (sessionId, dateLabel) {
         if (!confirm(`למחוק את האימון מ-${dateLabel}? כל התרגילים שנשמרו בו יימחקו.`)) return;
         fetch(`/api/workouts/sessions/${sessionId}`, { method: 'DELETE', credentials: 'same-origin' })
+            .then(res => { if (!res.ok) throw new Error(res.status); location.reload(); })
+            .catch(() => alert('המחיקה נכשלה.'));
+    };
+
+    window.resetBefore = function () {
+        const before = document.getElementById('reset-before').value;
+        if (!before) { alert('צריך לבחור תאריך.'); return; }
+        const doomed = DATA.sessions.filter(s => s.date < before).length;
+        if (!doomed) { alert('אין אימונים לפני ' + before + '.'); return; }
+        if (!confirm(`למחוק ${doomed} אימונים שלפני ${before}? האימונים מ-${before} והלאה נשארים.`)) return;
+        const query = new URLSearchParams({ user_id: DATA.user_id, before: before });
+        fetch(`/api/workouts/sessions?${query}`, { method: 'DELETE', credentials: 'same-origin' })
             .then(res => { if (!res.ok) throw new Error(res.status); location.reload(); })
             .catch(() => alert('המחיקה נכשלה.'));
     };

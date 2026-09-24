@@ -212,6 +212,28 @@ async def delete_session(
     return {"deleted": True, "exercises": len(rows)}
 
 
+@router.delete("/sessions")
+async def delete_sessions_before(
+    request: Request,
+    user_id: int,
+    before: str,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> Dict[str, Any]:
+    """Start over from a date: delete every session of one person dated before `before`
+    (YYYY-MM-DD, exclusive — that day's training stays). The game state follows the rows,
+    so the streak, XP and the pace towards the wedding restart from that day."""
+    _assert_may_manage(request, db_conn, user_id)
+    user_id = _valid_user_id(db_conn, user_id)
+    before = _valid_date(before)
+    rows = db_conn.execute(
+        "SELECT id FROM workouts WHERE user_id = ? AND date < ?", (user_id, before)
+    ).fetchall()
+    for row in rows:
+        db_conn.execute("DELETE FROM workouts WHERE id = ?", (row["id"],))
+    db_conn.commit()
+    return {"deleted": True, "exercises": len(rows), "before": before}
+
+
 @router.put("/legacy-progress")
 async def replace_legacy_progress(
     body: WorkoutLegacyProgressWriteSchema,

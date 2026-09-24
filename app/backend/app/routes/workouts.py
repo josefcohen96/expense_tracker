@@ -1313,7 +1313,8 @@ def plan_today(paths: List[Dict[str, Any]], history: List[Dict[str, Any]], today
     return chosen["key"], note
 
 
-BOSS_PACE_WINDOW_DAYS = 56   # cadence is measured over the last 8 weeks
+BOSS_PACE_WINDOW_DAYS = 56   # cadence is measured over the last 8 weeks at most
+BOSS_PACE_MIN_WINDOW_DAYS = 7  # ...and over the last week at least, so a fresh start reads as a pace
 BOSS_BAR_WINDOW_DAYS = 28    # trainings done shown on the banner's bar
 BOSS_MIN_PACE_DAYS = 3       # below this many training days the pace is assumed
 BOSS_ASSUMED_PER_WEEK = 2.0
@@ -1321,6 +1322,17 @@ BOSS_ASSUMED_PER_WEEK = 2.0
 
 def _days_in_window(days: Set[date_cls], today: date_cls, window: int) -> int:
     return sum(1 for d in days if 0 <= (today - d).days < window)
+
+
+def _pace_window(days: Set[date_cls], today: date_cls) -> int:
+    """How many days the cadence is measured over: the last 8 weeks, or, for someone who
+    started (or started over) more recently, the days since their first training — so five
+    trainings in the first five days count as a daily pace, not as five spread over two months."""
+    past = [d for d in days if d <= today]
+    if not past:
+        return BOSS_PACE_WINDOW_DAYS
+    since_first = (today - min(past)).days + 1
+    return max(BOSS_PACE_MIN_WINDOW_DAYS, min(BOSS_PACE_WINDOW_DAYS, since_first))
 
 
 def wedding_boss(
@@ -1336,9 +1348,10 @@ def wedding_boss(
         return None
 
     days = _workout_days(s["date"] for s in history)
-    pace_days = _days_in_window(days, today, BOSS_PACE_WINDOW_DAYS)
+    window = _pace_window(days, today)
+    pace_days = _days_in_window(days, today, window)
     assumed = pace_days < BOSS_MIN_PACE_DAYS
-    per_week = BOSS_ASSUMED_PER_WEEK if assumed else round(pace_days / (BOSS_PACE_WINDOW_DAYS / 7), 1)
+    per_week = BOSS_ASSUMED_PER_WEEK if assumed else round(pace_days / (window / 7), 1)
     trainings_left = max(0, round(per_week * days_left / 7))
 
     forecasts: Dict[str, Dict[str, Any]] = {}
@@ -1366,6 +1379,7 @@ def wedding_boss(
         "days_label": in_days_label(days_left),
         "per_week": per_week,
         "assumed": assumed,
+        "pace_window_days": window,
         "trainings_left": trainings_left,
         "recent_28": _days_in_window(days, today, BOSS_BAR_WINDOW_DAYS),
         "paths": forecasts,

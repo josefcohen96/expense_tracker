@@ -168,6 +168,30 @@ def test_delete_session_removes_every_row(app_client, db_conn, user_id, clean_wo
     assert db_conn.execute("SELECT COUNT(*) c FROM workouts").fetchone()["c"] == 0
 
 
+def test_delete_before_a_date_keeps_that_day_onwards(app_client, db_conn, user_id, clean_workouts):
+    other = db_conn.execute("SELECT id FROM users WHERE name = 'Karina'").fetchone()["id"]
+    for day in ("2026-08-30", "2026-09-13", "2026-09-19"):
+        _create(app_client, user_id, day=day)
+    _create(app_client, user_id, day="2026-09-20")
+    _create(app_client, user_id, day="2026-09-21", workout_type="Push")
+    _create(app_client, other, day="2026-09-01")
+
+    html, _ = _admin_data(app_client, user_id)
+    assert "להתחיל מחדש מתאריך" in html
+
+    r = app_client.delete("/api/workouts/sessions", params={"user_id": user_id, "before": "2026-09-20"})
+    assert r.status_code == 200
+    assert r.json() == {"deleted": True, "exercises": 6, "before": "2026-09-20"}
+
+    kept = [s["date"] for s in app_client.get("/api/workouts/sessions", params={"user_id": user_id}).json()]
+    assert kept == ["2026-09-21", "2026-09-20"]
+    # The other person's history is untouched
+    assert [s["date"] for s in app_client.get("/api/workouts/sessions", params={"user_id": other}).json()] == ["2026-09-01"]
+
+    assert app_client.delete("/api/workouts/sessions", params={"user_id": user_id, "before": "20/9"}).status_code == 400
+    assert app_client.delete("/api/workouts/sessions", params={"user_id": 9999, "before": "2026-09-20"}).status_code == 400
+
+
 def test_list_sessions_endpoint(app_client, user_id, clean_workouts):
     _create(app_client, user_id, day="2026-06-13")
     _create(app_client, user_id, day="2026-06-20")

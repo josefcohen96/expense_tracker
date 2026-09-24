@@ -66,6 +66,29 @@ def test_wedding_boss_pace_measured_and_assumed():
     assert workouts.wedding_boss([], [], today - timedelta(days=1), today) is None
 
 
+def test_wedding_boss_pace_of_a_fresh_start_is_measured_since_the_first_training():
+    today = date(2026, 9, 24)
+    wedding = today + timedelta(days=397)
+
+    # Started on Sunday and trained every day since: five trainings in five days
+    five_days = _history([today - timedelta(days=n) for n in range(5)])
+    boss = workouts.wedding_boss(five_days, [], wedding, today)
+    assert boss["pace_window_days"] == 7          # never shorter than a week
+    assert boss["per_week"] == 5.0                # not 5 / 8 weeks = 0.6
+    assert boss["assumed"] is False
+    assert boss["trainings_left"] == round(5 * 397 / 7)
+
+    # Three weeks in, three trainings a week: the window follows the first training
+    three_weeks = _history([today - timedelta(days=n) for n in (0, 2, 4, 7, 9, 11, 14, 16, 18, 20)])
+    boss = workouts.wedding_boss(three_weeks, [], wedding, today)
+    assert boss["pace_window_days"] == 21
+    assert boss["per_week"] == 3.3
+
+    # A history older than eight weeks is still measured over the last eight
+    old = _history([today - timedelta(days=n) for n in (0, 3, 70, 90)])
+    assert workouts.wedding_boss(old, [], wedding, today)["pace_window_days"] == 56
+
+
 def test_wedding_boss_forecast_walks_remaining_stations():
     today = date(2026, 9, 25)
     paths = [

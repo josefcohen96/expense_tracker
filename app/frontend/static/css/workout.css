@@ -1360,6 +1360,7 @@ button.wk-path-row:active {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .arena[data-phase="warmup"] [data-phase-panel="warmup"],
+.arena[data-phase="ready"] [data-phase-panel="ready"],
 .arena[data-phase="set"] [data-phase-panel="set"],
 .arena[data-phase="rest"] [data-phase-panel="rest"],
 .arena[data-phase="reward"] [data-phase-panel="reward"] {
@@ -1367,6 +1368,9 @@ button.wk-path-row:active {
 }
 .arena[data-phase="warmup"] {
   --arena-bg: radial-gradient(110% 60% at 50% 20%, #7c2d12 0%, #2a1a3d 50%, #0b0a1c 100%);
+}
+.arena[data-phase="ready"] {
+  --arena-bg: radial-gradient(110% 60% at 50% 20%, #14532d 0%, #1e1b4b 50%, #0b0a1c 100%);
 }
 
 /* One panel, three states: active set / every set resolved / nothing added yet */
@@ -3356,6 +3360,52 @@ button.wk-path-row:active {
 #warmup-done-btn.is-ready {
   background: linear-gradient(135deg, #16a34a, #22c55e);
   box-shadow: 0 14px 30px -12px rgba(34, 197, 94, .9);
+}
+
+/* ----- Ready: between the warm-up and the first set ----- */
+
+.ready-top {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(14px, 3vh, 24px) 18px 0;
+  text-align: center;
+}
+.ready-title {
+  margin-top: 8px;
+  font: 800 26px/1.2 var(--font-heading);
+  color: #fff;
+}
+.ready-sub {
+  margin-top: 8px;
+  font: 400 12px/1.5 var(--font-primary);
+  color: var(--wk-meta);
+}
+.ready-warmup-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, .14);
+  border: 1px solid rgba(74, 222, 128, .35);
+  font: 600 12px var(--font-primary);
+  color: #86efac;
+}
+.ready-warmup-note[hidden] {
+  display: none;
+}
+.ready-foot {
+  flex: none;
+  padding: 0 16px;
+}
+#arena-start-btn {
+  display: flex;
+  height: 70px;
+  font-size: 21px;
 }
 
 /* ====================== RECOVERY NOTE ON THE MISSION CARD ====================== */

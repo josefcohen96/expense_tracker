@@ -4,6 +4,10 @@
  * shows cards, speaks them, listens for an answer and posts the grade. The first cards come
  * with the page (client_data.spanish.queue) so a rest never waits on the network.
  *
+ * A rest never opens on a card: the slot first asks "Spanish?" and the first card (spoken out
+ * loud) mounts only when the athlete taps the offer; on a long rest the second card follows the
+ * first without asking again.
+ *
  * Exposes window.Spanish = { onRestStart(seconds), onRestEnd(), mountStudy(el), toggle(), ... }
  * plus the pure decision helpers (cardsForRest, readEnabled, normalise, tokenJaccard,
  * gradeFromSpeech, highlight) so they can be checked without a rest on screen.
@@ -385,7 +389,7 @@
 
     // ------------------------------------------------------------ in the arena (rest panel)
 
-    let rest = null;   // { budget, shown, endsAt }
+    let rest = null;   // { budget, shown, endsAt, accepted }
 
     function restSlot() {
         return document.getElementById('rest-spanish');
@@ -401,10 +405,27 @@
         if (panel) panel.classList.remove('has-spanish');
     }
 
-    function showRestCard() {
+    /* The slot as a rest opens: an invitation, not a card. Nothing is spoken until it is tapped. */
+    function showRestOffer() {
         const slot = restSlot();
         const host = slot && slot.querySelector('[data-spanish-card]');
         if (!host || !rest) return;
+        if (!queue[0]) { hideRestSlot(); topUp(); return; }
+        slot.hidden = false;
+        host.innerHTML = '<div class="sp-offer">' +
+            '<p class="sp-offer-text">מילה בספרדית בזמן המנוחה?</p>' +
+            '<button type="button" class="sp-primary" data-sp-start>כן, בוא נתחיל</button></div>';
+        host.querySelector('[data-sp-start]').addEventListener('click', () => {
+            if (!rest) return;
+            rest.accepted = true;
+            showRestCard();
+        });
+    }
+
+    function showRestCard() {
+        const slot = restSlot();
+        const host = slot && slot.querySelector('[data-spanish-card]');
+        if (!host || !rest || !rest.accepted) return;
         const card = queue[0];
         if (!card) { hideRestSlot(); topUp(); return; }
         slot.hidden = false;
@@ -430,8 +451,8 @@
         }
         const budget = cardsForRest(seconds, isEnabled());
         if (!budget) { hideRestSlot(); return; }
-        rest = { budget, shown: 0, endsAt };
-        showRestCard();
+        rest = { budget, shown: 0, endsAt, accepted: false };
+        showRestOffer();
     }
 
     function onRestEnd() {

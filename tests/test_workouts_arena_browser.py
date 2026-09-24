@@ -325,7 +325,7 @@ def test_training_starts_only_when_start_is_pressed_after_the_warmup(page):
 
 
 def test_arena_rest_shows_spanish_card(page, live_server, db_conn):
-    """A 90 s rest carries one Spanish card: reveal, grade, one review row; the toggle silences it."""
+    """A 90 s rest offers Spanish; only a tap opens the card: reveal, grade, one review row; the toggle silences it."""
     from datetime import datetime, timedelta
 
     yosef = db_conn.execute("SELECT id FROM users WHERE name = 'Yosef'").fetchone()["id"]
@@ -354,6 +354,11 @@ def test_arena_rest_shows_spanish_card(page, live_server, db_conn):
         card = page.locator("#rest-spanish")
         expect(card).to_be_visible()
         expect(card).to_contain_text("מילים בכיס")
+        # The rest opens on the invitation, not on a card — the athlete chooses
+        expect(card).to_contain_text("מילה בספרדית בזמן המנוחה?")
+        expect(card.locator(".sp-card")).to_have_count(0)
+        assert page.evaluate("() => document.querySelector('.arena-rest').classList.contains('has-spanish')") is False
+        card.get_by_role("button", name="כן, בוא נתחיל", exact=True).click()
         expect(card.locator(".sp-card")).to_have_attribute("data-mode", "recall")
         expect(card).to_contain_text("איפה השירותים?")
         expect(card).to_contain_text("תגיד את זה בספרדית")

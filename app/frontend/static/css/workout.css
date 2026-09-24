@@ -3627,6 +3627,23 @@ button.wk-path-row:active {
   background: rgba(250, 204, 21, .18);
   border-color: var(--wk-gold);
 }
+/* The invitation a rest opens on; the card replaces it once tapped */
+.sp-offer {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sp-offer-text {
+  flex: 1;
+  margin: 0;
+  font: 600 14px/1.4 var(--font-primary);
+  color: #fff;
+}
+.sp-offer .sp-primary {
+  flex: none;
+  padding: 0 16px;
+}
 .sp-done {
   margin: 8px 0 0;
   font: 600 12.5px var(--font-primary);

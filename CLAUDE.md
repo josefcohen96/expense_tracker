@@ -326,3 +326,20 @@ Or with Docker:
 ```bash
 docker-compose up
 ```
+
+---
+
+## AI workflow (Claude Code)
+
+The session model is Fable; it does the thinking. Opus does the typing. Skills and agents live in `.claude/`.
+
+| Ask | Use | What happens |
+|---|---|---|
+| A new feature or screen | `/feature <idea>` | Fable designs it with `feature-design`, writes `docs/specs/<date>-<slug>.md`, pauses for approval (`--go` skips), spawns the **`implementer`** agent (Opus) to build and test it, reviews the diff in-session, then ships. |
+| Just the design | `/feature-design <idea>` | Three framings (straight / house style / subtraction), the generic detector, a Hebrew name, one signature detail, a spec file. No code. |
+| A settled spec or a precise fix, no design needed | `Agent(subagent_type: "implementer")` | Opus implements from the spec, runs the pinned test suite, never commits. |
+| Commit / push / PR | `/ship [-m "..."] [--main] [--no-pr]` | Preflight for stray `*.db`/backups/secrets, tests, `claude/<slug>` branch, conventional commit with attribution, push, PR via `gh` or the compare URL. |
+
+Rules the skills enforce and every change should respect: Hebrew UI / English code; desktop pixel-identical unless the feature is desktop; derive, never store what rows already imply; inline idempotent migrations; no new dependencies or build steps; the implementer never touches git.
+
+Existing task skills (`add-transaction-category`, `add-recurrence-frequency`, `api-endpoint`, `db-migration`, `wedding-vendor-workflow`) encode the exact code patterns; the implementer reads the ones that apply.

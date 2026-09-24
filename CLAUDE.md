@@ -24,7 +24,7 @@ It is deployed on **Railway** as a Docker container and is a server-rendered mon
 | Frontend JS | Vanilla JS, no bundler, no framework |
 | Charts | Chart.js (vendor-bundled) |
 | CSS | Single `main.css` |
-| PWA | Service worker at `/sw.js` |
+| PWA | Service worker at `/sw.js`; icons + `manifest.json` under `static/` (`layout/_icons.html`) |
 
 ---
 
@@ -76,10 +76,12 @@ expense_tracker/
 │       │   ├── finances/            # base.html, index, transactions, statistics, backup
 │       │   ├── wedding/             # 15 wedding feature templates
 │       │   ├── pages/               # login.html
-│       │   ├── layout/              # Shared layout fragments
+│       │   ├── layout/              # Shared layout fragments (_icons.html = favicon / home-screen icon links)
 │       │   └── partials/            # Reusable partial HTML
 │       └── static/
 │           ├── css/main.css
+│           ├── icons/               # App icon: icon.svg (source) + PNGs rendered from it
+│           ├── manifest.json        # Web app manifest (name, icons, colors)
 │           └── js/
 │               ├── charts/          # donut.js, monthly.js, helpers.js
 │               ├── components/      # form-manager.js

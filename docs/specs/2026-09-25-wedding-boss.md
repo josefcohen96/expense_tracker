@@ -41,7 +41,8 @@ def wedding_boss(history, paths, wedding_date, today) -> Optional[dict]
 ```
 
 - `days_left = (wedding_date - today).days`; return `None` if `< 0`.
-- Cadence: distinct workout days in the last 56 days (8 weeks) from `history`, `per_week = round(days / 8, 1)`. If fewer than 3 distinct days in that window, `per_week = 2.0` and `assumed = True`.
+- Cadence: distinct workout days in the pace window from `history`, `per_week = round(days / (window / 7), 1)`. The window is the last 56 days (8 weeks), or, for a history that starts more recently, the days since the first training (never under 7) — so five trainings in the first five days read as a daily pace, not as five spread over two months. If fewer than 3 distinct days in that window, `per_week = 2.0` and `assumed = True`.
+- Starting over: `DELETE /api/workouts/sessions?user_id=&before=YYYY-MM-DD` (admin back office, "להתחיל מחדש מתאריך") drops every session before that day; the pace window then follows the first remaining training.
 - `trainings_left = max(0, round(per_week * days_left / 7))`.
 - `recent_28 = distinct workout days in the last 28 days`.
 - Per path forecast: walk the unconquered stations in order, consuming `remaining` (the existing `STATION_SESSIONS_TO_CONQUER - in_range`) from a budget of `trainings_left`; the station where the budget runs out is the one reached (`number`, `hebrew`); if the budget covers every station, `finishes = True`. Skip locked paths and complete paths.

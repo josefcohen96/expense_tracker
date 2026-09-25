@@ -54,10 +54,12 @@ The rest timer is the study timer. A session has about ten rests of 60–180 sec
 ### In the arena (rest panel)
 A new card at the top of `.rest-foot`, before "הבא בתור": `.rest-card.rest-spanish`.
 
-- Shown only when the rest is ≥ 45 seconds and the toggle is on. Rest ≥ 120 s may show a second card after the first is graded.
+- Shown only when the rest is ≥ 45 seconds and the toggle is on. After each grade the next card follows at once, whatever the clock says; the athlete decides when to leave with "אני מוכן".
+- **The timer runs in the background.** Once a card has been touched in a rest (`Spanish.holdsRest()`), the arena no longer walks to the next set by itself when the timer ends: the ring shows `הזמן עבר` and the clock counts overtime (`+0:12`), so the athlete sees how far past the rest they are. A rest nobody studied in still auto-advances as before.
+- **Back.** Every graded card stays on a trail; `‹ הקודם` re-opens the previous word (Spanish, Hebrew, audio, a `✓ נשמר` tag, no grade buttons — nothing is recorded twice) and `הבא ›` walks forward to the live card. The same trail runs in the `#spanish` study view.
 - Eyebrow: `ספרדית · {{ in_pocket }} מילים בכיס`, and a small toggle button (`ספרדית: פועל / כבוי`) next to the existing sound toggle, persisted in `localStorage` (`workout_spanish_v1`, default on).
 - **Intro card:** the Spanish sentence large, `dir="ltr"`, target word emphasised; Hebrew underneath; 🔊 button (auto-plays once on show); button `הבנתי` → records `{mode: "intro", grade: 2}`.
-- **Recall card:** the Hebrew prompt large; hint line `תגיד את זה בספרדית`; 🎤 button when speech recognition exists; button `הצג`. After reveal: the Spanish sentence with the target emphasised, audio auto-plays, then four grade buttons in one row: `שוב · קשה · טוב · קל`. Tapping one records the review and, if time remains and this is the first card, may show the next.
+- **Recall card:** the Hebrew prompt large; hint line `תגיד את זה בספרדית`; 🎤 button when speech recognition exists; button `הצג`. After reveal: the Spanish sentence with the target emphasised, audio auto-plays, then four grade buttons in one row: `שוב · קשה · טוב · קל`. Tapping one records the review and shows the next card.
 - The `theme` title shows small under the sentence (`במסעדה`), and the `note` if any.
 - If the rest ends before grading, nothing is recorded; the item stays where it was.
 - Cards come from `client_data.spanish.queue` (first 12 items rendered into the page) so a rest never waits on the network; when fewer than 3 remain, the JS fetches more from the queue endpoint. Reviews are posted with `fetch(..., {keepalive: true})`; on failure they are kept in `localStorage` (`workout_spanish_pending_v1`) and flushed on the next page load.
@@ -130,7 +132,7 @@ New router `app/backend/app/api/spanish.py`, `prefix="/api/workouts/spanish"` (u
 5. Reviews are per user: reviews recorded for Yonatan do not change Yosef's queue or stats.
 6. API: `POST` with an unknown `item_id` or grade 4 → 422; a valid post → 201 with the new stage; Tsahala gets 403 on `/api/workouts/spanish/queue` and Yonatan gets 200 (use the `can_access_path` unit-test style from `tests/test_workouts_access_e2e.py`).
 7. The workouts page HTML contains the rest card markup (`rest-spanish`), the `data-view="spanish"` section, the profile card, and `client_data.spanish.queue` with items for a fresh user.
-8. `spanish.js` shows no card for a rest under 45 s, one card at 90 s, and respects the localStorage toggle (unit-testable by exporting the decision helpers as pure functions on `window.Spanish`; if the Playwright browser tests in `tests/test_workouts_arena_browser.py` run in the pinned venv, add one browser test that completes a set, sees the Spanish card during rest, reveals, grades, and finds one row in `spanish_reviews`).
+8. `spanish.js` shows no card for a rest under 45 s, cards from 45 s on, and respects the localStorage toggle (unit-testable by exporting the decision helpers as pure functions on `window.Spanish`; if the Playwright browser tests in `tests/test_workouts_arena_browser.py` run in the pinned venv, add one browser test that completes a set, sees the Spanish card during rest, reveals, grades, and finds one row in `spanish_reviews`).
 9. Achievement `spanish_50` appears in the achievements list, locked for a fresh user.
 10. Full test suite: no new failures beyond the pre-existing ones.
 

@@ -1,12 +1,18 @@
-/* Spanish between sets — one spaced-repetition card per rest, and the #spanish study view.
+/* Spanish between sets — spaced-repetition cards during the rest, and the #spanish study view.
  *
  * The server owns the spacing (services/spanish.py replays the review rows); this file only
  * shows cards, speaks them, listens for an answer and posts the grade. The first cards come
  * with the page (client_data.spanish.queue) so a rest never waits on the network.
  *
- * Exposes window.Spanish = { onRestStart(seconds), onRestEnd(), mountStudy(el), toggle(), ... }
- * plus the pure decision helpers (cardsForRest, readEnabled, normalise, tokenJaccard,
- * gradeFromSpeech, highlight) so they can be checked without a rest on screen.
+ * A rest of 45 s or more opens the cards; after each grade the next card follows at once,
+ * whatever the clock says, and the athlete decides when to leave ("אני מוכן"). Once a card
+ * has been touched the rest no longer walks to the next set by itself (holdsRest), the timer
+ * just keeps counting in the background. Every graded card stays on a trail, so "‹ הקודם"
+ * brings a word back to look at (already saved, nothing is recorded twice).
+ *
+ * Exposes window.Spanish = { onRestStart(seconds), onRestEnd(), holdsRest(), mountStudy(el),
+ * toggle(), ... } plus the pure decision helpers (restHasCards, readEnabled, normalise,
+ * tokenJaccard, gradeFromSpeech, highlight) so they can be checked without a rest on screen.
  */
 (function () {
     'use strict';
@@ -15,8 +21,6 @@
     const PENDING_KEY = 'workout_spanish_pending_v1';
     const API = '/api/workouts/spanish';
     const MIN_REST = 45;            // shorter rests stay quiet
-    const SECOND_CARD_REST = 120;   // long rests may show a second card after the first is graded
-    const SECOND_CARD_MIN_LEFT = 20;
     const STUDY_SIZE = 15;
     const TOP_UP_BELOW = 3;
     const MATCH_GOOD = 0.6;
@@ -29,11 +33,9 @@
 
     // ------------------------------------------------------------ pure helpers
 
-    function cardsForRest(seconds, enabled) {
-        if (enabled === false) return 0;
-        const s = Number(seconds) || 0;
-        if (s < MIN_REST) return 0;
-        return s >= SECOND_CARD_REST ? 2 : 1;
+    function restHasCards(seconds, enabled) {
+        if (enabled === false) return false;
+        return (Number(seconds) || 0) >= MIN_REST;
     }
 
     function readEnabled(stored) {
@@ -299,16 +301,56 @@
         return `<p class="sp-es" dir="ltr" lang="es">${highlight(card.es, card.target_es)}</p>`;
     }
 
-    /* Renders `card` into `host`; calls onGraded(grade, mode) once the learner answers. */
-    function mountCard(host, card, context, onGraded) {
-        stopListening();
-        const mode = card.mode === 'recall' ? 'recall' : 'intro';
+    /* "‹ הקודם" / "הבא ›" under a card: back along the trail of graded cards, forward to the live one. */
+    function navRow(nav) {
+        if (!nav || (!nav.back && !nav.forward)) return '';
+        const back = nav.back
+            ? '<button type="button" class="sp-nav-btn" data-sp-back>‹ הקודם</button>' : '<span></span>';
+        const forward = nav.forward
+            ? '<button type="button" class="sp-nav-btn" data-sp-forward>הבא ›</button>' : '<span></span>';
+        return `<div class="sp-nav">${back}${forward}</div>`;
+    }
+
+    function wireNav(el, nav) {
+        const back = el.querySelector('[data-sp-back]');
+        const forward = el.querySelector('[data-sp-forward]');
+        if (back && nav && nav.back) back.addEventListener('click', () => { stopListening(); nav.back(); });
+        if (forward && nav && nav.forward) forward.addEventListener('click', () => { stopListening(); nav.forward(); });
+    }
+
+    function newCardEl(host, card, mode) {
         host.innerHTML = '';
         const el = document.createElement('div');
         el.className = 'sp-card';
         el.dataset.mode = mode;
         el.dataset.itemId = card.id;
         host.appendChild(el);
+        return el;
+    }
+
+    /* A card that was already graded, brought back to look at: everything shown, nothing recorded. */
+    function mountPastCard(host, card, nav) {
+        stopListening();
+        const el = newCardEl(host, card, 'past');
+        el.dataset.stage = 'revealed';
+        el.innerHTML = `<p class="sp-he">${escapeHtml(card.he)}</p>` + spanishLine(card) + metaLine(card) +
+            `<div class="sp-actions is-past">${audioButtons()}<span class="sp-saved">✓ נשמר</span></div>` +
+            navRow(nav);
+        const say = el.querySelector('[data-sp-say]');
+        const slow = el.querySelector('[data-sp-slow]');
+        if (say) say.addEventListener('click', () => speak(card.es, false));
+        if (slow) slow.addEventListener('click', () => speak(card.es, true));
+        wireNav(el, nav);
+        speak(card.es, false);
+        return el;
+    }
+
+    /* Renders `card` into `host`; calls onGraded(grade, mode) once the learner answers.
+       `nav.back` (optional) opens the previously graded card. */
+    function mountCard(host, card, context, onGraded, nav) {
+        stopListening();
+        const mode = card.mode === 'recall' ? 'recall' : 'intro';
+        const el = newCardEl(host, card, mode);
 
         let answered = false;
         function grade(value) {
@@ -332,8 +374,9 @@
             el.innerHTML = spanishLine(card) +
                 `<p class="sp-he">${escapeHtml(card.he)}</p>` + metaLine(card) +
                 `<div class="sp-actions">${audioButtons()}` +
-                '<button type="button" class="sp-primary" data-sp-got>הבנתי</button></div>';
+                '<button type="button" class="sp-primary" data-sp-got>הבנתי</button></div>' + navRow(nav);
             wireAudio();
+            wireNav(el, nav);
             el.querySelector('[data-sp-got]').addEventListener('click', () => grade(2));
             speak(card.es, false);
             return el;
@@ -344,7 +387,9 @@
             ? '<button type="button" class="sp-mic" data-sp-mic aria-label="דבר — המיקרופון מקשיב">🎤</button>' : '';
         el.innerHTML = `<p class="sp-he is-prompt">${escapeHtml(card.he)}</p>` +
             '<p class="sp-hint">תגיד את זה בספרדית</p>' +
-            `<div class="sp-actions">${mic}<button type="button" class="sp-primary" data-sp-reveal>הצג</button></div>`;
+            `<div class="sp-actions">${mic}<button type="button" class="sp-primary" data-sp-reveal>הצג</button></div>` +
+            navRow(nav);
+        wireNav(el, nav);
 
         let suggested = null;
         let heard = '';
@@ -360,8 +405,9 @@
                 '<div class="sp-grades" role="group" aria-label="כמה זה היה קל?">' +
                 GRADES.map(g => `<button type="button" class="sp-grade${g.grade === suggested ? ' is-suggested' : ''}"` +
                     ` data-sp-grade="${g.grade}">${g.label}</button>`).join('') +
-                '</div>';
+                '</div>' + navRow(nav);
             wireAudio();
+            wireNav(el, nav);
             el.querySelectorAll('[data-sp-grade]').forEach(btn => {
                 btn.addEventListener('click', () => grade(Number(btn.dataset.spGrade)));
             });
@@ -383,9 +429,37 @@
         return el;
     }
 
+    // ------------------------------------------------------------ the trail (back / forward)
+
+    /* A run of cards in one host (a rest, or a study session): the graded ones stay on the
+       trail so the athlete can step back to a word; forward returns to the live card. */
+    function makeTrail(host, live, onGraded) {
+        const trail = { host, past: [], live, onGraded };
+        trail.showLive = function () {
+            const card = queue[0];
+            const back = trail.past.length ? () => trail.showPast(trail.past.length - 1) : null;
+            if (!card) { trail.live(null, back); return; }
+            trail.live(card, back);
+        };
+        trail.showPast = function (i) {
+            const nav = {
+                back: i > 0 ? () => trail.showPast(i - 1) : null,
+                forward: () => (i + 1 < trail.past.length ? trail.showPast(i + 1) : trail.showLive()),
+            };
+            mountPastCard(host, trail.past[i], nav);
+        };
+        trail.mount = function (card, back, context) {
+            mountCard(host, card, context, (grade, mode) => {
+                trail.past.push(card);
+                trail.onGraded(grade, mode);
+            }, { back });
+        };
+        return trail;
+    }
+
     // ------------------------------------------------------------ in the arena (rest panel)
 
-    let rest = null;   // { budget, shown, endsAt }
+    let rest = null;   // { endsAt, engaged, trail }
 
     function restSlot() {
         return document.getElementById('rest-spanish');
@@ -401,25 +475,32 @@
         if (panel) panel.classList.remove('has-spanish');
     }
 
-    function showRestCard() {
+    function openRestSlot() {
         const slot = restSlot();
         const host = slot && slot.querySelector('[data-spanish-card]');
-        if (!host || !rest) return;
-        const card = queue[0];
-        if (!card) { hideRestSlot(); topUp(); return; }
+        if (!host) return null;
         slot.hidden = false;
         const panel = slot.closest('.arena-rest');
         if (panel) panel.classList.add('has-spanish');
-        mountCard(host, card, 'rest', () => {
-            if (!rest) return;
-            rest.shown += 1;
-            const left = (rest.endsAt - Date.now()) / 1000;
-            if (rest.shown < rest.budget && left >= SECOND_CARD_MIN_LEFT && queue.length) {
-                showRestCard();
-            } else {
-                host.innerHTML = '<p class="sp-done">✓ נשמר · נתראה במנוחה הבאה</p>';
-            }
-        });
+        if (!host.dataset.spanishWired) {
+            host.dataset.spanishWired = '1';
+            // Any tap on a card means the athlete is studying: the rest is theirs to end.
+            host.addEventListener('click', () => { if (rest) rest.engaged = true; });
+        }
+        return host;
+    }
+
+    function showRestLive(card, back) {
+        const host = openRestSlot();
+        if (!host || !rest) return;
+        if (!card) {
+            host.innerHTML = '<p class="sp-done">✓ הכל נשמר · אין עוד כרטיסים כרגע</p>' +
+                navRow({ back });
+            wireNav(host, { back });
+            topUp().then(() => { if (rest && queue.length && host.querySelector('.sp-done')) rest.trail.showLive(); });
+            return;
+        }
+        rest.trail.mount(card, back, 'rest');
     }
 
     function onRestStart(seconds) {
@@ -428,10 +509,19 @@
             rest.endsAt = endsAt;
             return;
         }
-        const budget = cardsForRest(seconds, isEnabled());
-        if (!budget) { hideRestSlot(); return; }
-        rest = { budget, shown: 0, endsAt };
-        showRestCard();
+        if (!restHasCards(seconds, isEnabled())) { hideRestSlot(); return; }
+        rest = { endsAt, engaged: false, trail: null };
+        const host = openRestSlot();
+        if (!host) { rest = null; return; }
+        // After every grade the next card follows at once — the clock does not decide.
+        rest.trail = makeTrail(host, showRestLive, () => { if (rest) rest.trail.showLive(); });
+        rest.trail.showLive();
+    }
+
+    /* True while the athlete is studying in this rest: the arena then waits for "אני מוכן"
+       instead of walking to the next set by itself when the timer ends. */
+    function holdsRest() {
+        return !!(rest && rest.engaged);
     }
 
     function onRestEnd() {
@@ -454,9 +544,12 @@
         dots.hidden = !study.size;
     }
 
-    function showSummary(root) {
+    function showSummary(root, back) {
         const host = root.querySelector('[data-spanish-card]');
-        if (host) host.innerHTML = '';
+        if (host) {
+            host.innerHTML = navRow({ back });
+            wireNav(host, { back });
+        }
         const summary = root.querySelector('[data-spanish-summary]');
         const empty = root.querySelector('[data-spanish-empty]');
         const didSomething = study && study.graded > 0;
@@ -473,12 +566,27 @@
     }
 
     function nextStudyCard(root) {
+        if (!study) return;
+        study.trail.showLive();
+    }
+
+    function showStudyLive(root, card, back) {
         const host = root.querySelector('[data-spanish-card]');
         if (!host || !study) return;
-        const card = queue[0];
-        if (!card || study.graded >= study.size) { showSummary(root); return; }
+        if (!card || study.graded >= study.size) { showSummary(root, back); return; }
         renderDots(root);
-        mountCard(host, card, 'study', (grade, mode) => {
+        study.trail.mount(card, back, 'study');
+    }
+
+    function startStudy(root) {
+        const summary = root.querySelector('[data-spanish-summary]');
+        const empty = root.querySelector('[data-spanish-empty]');
+        if (summary) summary.hidden = true;
+        if (empty) empty.hidden = true;
+        const host = root.querySelector('[data-spanish-card]');
+        if (!host) return;
+        study = { size: Math.min(STUDY_SIZE, queue.length), graded: 0, intros: 0, recalls: 0, trail: null };
+        study.trail = makeTrail(host, (card, back) => showStudyLive(root, card, back), (grade, mode) => {
             if (mode === 'intro') {
                 study.intros += 1;
                 // its recall comes back later in this same session
@@ -490,14 +598,6 @@
             renderDots(root);
             nextStudyCard(root);
         });
-    }
-
-    function startStudy(root) {
-        const summary = root.querySelector('[data-spanish-summary]');
-        const empty = root.querySelector('[data-spanish-empty]');
-        if (summary) summary.hidden = true;
-        if (empty) empty.hidden = true;
-        study = { size: Math.min(STUDY_SIZE, queue.length), graded: 0, intros: 0, recalls: 0 };
         if (!study.size) { showSummary(root); return; }
         nextStudyCard(root);
     }
@@ -548,6 +648,7 @@
     window.Spanish = {
         onRestStart,
         onRestEnd,
+        holdsRest,
         mountStudy,
         toggle,
         isEnabled,
@@ -555,13 +656,12 @@
         queue: () => queue.slice(),
         stats: () => stats,
         // pure decision helpers
-        cardsForRest,
+        restHasCards,
         readEnabled,
         normalise,
         tokenJaccard,
         gradeFromSpeech,
         highlight,
         MIN_REST,
-        SECOND_CARD_REST,
     };
 })();

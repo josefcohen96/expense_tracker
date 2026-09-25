@@ -1621,21 +1621,43 @@ function resumeRest(endsAt, duration) {
     restTimerInterval = setInterval(tickRestTimer, 250);
     tickRestTimer();
     saveSession();
-    // The rest is the study slot: one Spanish card (two on a long rest) — static/js/spanish.js
+    // The rest is the study slot: Spanish cards, one after another — static/js/spanish.js
     if (window.Spanish) window.Spanish.onRestStart(Math.round((endsAt - Date.now()) / 1000));
+}
+
+function spanishHoldsRest() {
+    return !!(window.Spanish && window.Spanish.holdsRest && window.Spanish.holdsRest());
 }
 
 function tickRestTimer() {
     const remaining = restRemainingSeconds();
-    updateRestTimerDisplay(remaining);
-    if (remaining <= 3 && remaining > 0 && restLastTick !== remaining) {
-        restLastTick = remaining;
-        cue('tick', 15);
+    if (remaining > 0) {
+        updateRestTimerDisplay(remaining);
+        if (remaining <= 3 && restLastTick !== remaining) {
+            restLastTick = remaining;
+            cue('tick', 15);
+        }
+        return;
     }
-    if (remaining <= 0) {
-        if (restTimerInterval) clearInterval(restTimerInterval);
+    if (!isTimerFinished) {
+        updateRestTimerDisplay(0);
         handleRestTimerCompletion();
     }
+    if (spanishHoldsRest()) {
+        // Studying through the end of the rest: the clock keeps counting, now as overtime,
+        // so the athlete sees how far past the rest they are and leaves when they choose.
+        updateRestOvertime();
+    } else if (restTimerInterval) {
+        clearInterval(restTimerInterval);
+        restTimerInterval = null;
+    }
+}
+
+function updateRestOvertime() {
+    const clock = $('#timer-banner-clock');
+    if (!clock || !restEndsAt) return;
+    const over = Math.max(0, Math.floor((Date.now() - restEndsAt) / 1000));
+    clock.textContent = `+${formatRestTime(over)}`;
 }
 
 function updateRestTimerDisplay(remaining) {
@@ -1655,10 +1677,16 @@ function handleRestTimerCompletion() {
     $('#rest-ring-label').textContent = 'הזמן עבר';
     cue('end', [40, 60, 40]);
 
-    // After a short alert, bring the next set on screen by itself
+    // After a short alert, bring the next set on screen by itself — unless the athlete is in
+    // the middle of the Spanish cards: then the rest is theirs to end with "אני מוכן".
     const wait = Math.max(0, restEndsAt + REST_AUTO_ADVANCE_MS - Date.now());
     restAutoAdvance = setTimeout(() => {
-        if (isTimerFinished && arenaPhase === 'rest') skipRestTimer();
+        if (!isTimerFinished || arenaPhase !== 'rest') return;
+        if (spanishHoldsRest()) {
+            if (!restTimerInterval) restTimerInterval = setInterval(tickRestTimer, 250);
+            return;
+        }
+        skipRestTimer();
     }, wait);
 }
 
@@ -1677,6 +1705,7 @@ function adjustRestTimer(amount) {
 
 function stopRestTimer() {
     if (restTimerInterval) clearInterval(restTimerInterval);
+    restTimerInterval = null;
     clearTimeout(restAutoAdvance);
     isTimerFinished = false;
     restLastTick = null;

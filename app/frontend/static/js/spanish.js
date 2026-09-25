@@ -10,6 +10,9 @@
  * just keeps counting in the background. Every graded card stays on a trail, so "‹ הקודם"
  * brings a word back to look at (already saved, nothing is recorded twice).
  *
+ * The mic on a recall card is a toggle — one tap listens, the next hands the answer over — and
+ * listening is bounded by LISTEN (maxMs / settleMs), so the athlete is never stuck in it.
+ *
  * Exposes window.Spanish = { onRestStart(seconds), onRestEnd(), holdsRest(), mountStudy(el),
  * toggle(), ... } plus the pure decision helpers (restHasCards, readEnabled, normalise,
  * tokenJaccard, gradeFromSpeech, highlight) so they can be checked without a rest on screen.
@@ -257,32 +260,78 @@
     }
 
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
-    let listening = null;
 
-    function listen(onHeard, onEnd) {
-        if (!Recognition) return;
+    /* One answer is a few words, so listening is bounded: after `maxMs` the recogniser is
+       told to stop, and if it has not ended `settleMs` later whatever was heard is used.
+       iOS Safari does not end a recognition by itself when the speaker goes quiet, delivers
+       its words only once stopped, and sometimes never fires `onend` — without the clock the
+       mic would pulse forever and the answer would never be graded. */
+    const LISTEN = { maxMs: 8000, settleMs: 1500 };
+    let listening = null;   // { rec, transcript, done, stopping, timers, finish }
+
+    /* Listens for one answer; calls onDone(transcript, error) exactly once — '' when nothing was
+       heard or the listening was cancelled, `error` the recogniser's error name if it gave one.
+       Returns false when it could not start. */
+    function listen(onDone) {
+        if (!Recognition) return false;
         stopListening();
+        const session = { rec: null, transcript: '', error: '', done: false, stopping: false, timers: [] };
+        function finish(deliver) {
+            if (session.done) return;
+            session.done = true;
+            session.timers.forEach(clearTimeout);
+            if (listening === session) listening = null;
+            try { session.rec.abort(); } catch (e) { /* already ended */ }
+            onDone(deliver ? session.transcript : '', session.error);
+        }
+        session.finish = finish;
         let rec;
         try {
             rec = new Recognition();
             rec.lang = 'es-ES';
-            rec.interimResults = false;
+            rec.continuous = false;
+            rec.interimResults = true;     // iOS may hand over only interim results before it is stopped
             rec.maxAlternatives = 1;
-        } catch (e) { onEnd(); return; }
+        } catch (e) { onDone(''); return false; }
+        session.rec = rec;
         rec.onresult = (event) => {
-            const result = event.results && event.results[0] && event.results[0][0];
-            if (result && result.transcript) onHeard(result.transcript);
+            const results = event.results || [];
+            let text = '';
+            let final = false;
+            for (let i = 0; i < results.length; i++) {
+                const alt = results[i] && results[i][0];
+                if (alt && alt.transcript) text += (text ? ' ' : '') + alt.transcript;
+                if (results[i] && results[i].isFinal) final = true;
+            }
+            if (text.trim()) session.transcript = text.trim();
+            if (final) finish(true);       // the answer is in: no need to wait for an onend that may never come
         };
-        rec.onerror = () => { /* no permission / nothing heard: leave the grades alone */ };
-        rec.onend = () => { listening = null; onEnd(); };
-        listening = rec;
-        try { rec.start(); } catch (e) { listening = null; onEnd(); }
+        rec.onerror = (event) => {         // no permission / nothing heard: '' leaves the grades alone
+            session.error = (event && event.error) || 'error';
+            finish(true);
+        };
+        rec.onend = () => finish(true);
+        session.timers.push(setTimeout(() => stopListening(true), LISTEN.maxMs));
+        listening = session;
+        try { rec.start(); } catch (e) { finish(false); return false; }
+        return true;
     }
 
-    function stopListening() {
-        if (!listening) return;
-        try { listening.abort(); } catch (e) { /* ignore */ }
-        listening = null;
+    /* deliver=true: the athlete is done talking — stop() lets the last words through, and the
+       answer is handed over when the recogniser ends (or after settleMs, whichever comes first).
+       Otherwise the listening is dropped and nothing is delivered. */
+    function stopListening(deliver) {
+        const session = listening;
+        if (!session) return;
+        if (!deliver) { session.finish(false); return; }
+        if (session.stopping) return;
+        session.stopping = true;
+        try { session.rec.stop(); } catch (e) { session.finish(true); return; }
+        session.timers.push(setTimeout(() => session.finish(true), LISTEN.settleMs));
+    }
+
+    function isListening() {
+        return !!(listening && !listening.stopping);
     }
 
     // ------------------------------------------------------------ the card component
@@ -416,14 +465,36 @@
 
         el.querySelector('[data-sp-reveal]').addEventListener('click', reveal);
         const micBtn = el.querySelector('[data-sp-mic]');
+        const hint = el.querySelector('.sp-hint');
         if (micBtn) {
+            const setHint = text => { if (hint) hint.textContent = text; };
+            function micIdle() {
+                micBtn.classList.remove('is-listening');
+                micBtn.textContent = '🎤';
+                micBtn.setAttribute('aria-label', 'דבר — המיקרופון מקשיב');
+            }
+            // One tap listens, the next tap ends it: the mic is never a state the athlete
+            // cannot leave (and it ends by itself after a few seconds either way).
             micBtn.addEventListener('click', () => {
+                if (isListening()) { stopListening(true); return; }
+                if (listening) return;                       // still handing over the last answer
                 micBtn.classList.add('is-listening');
-                listen(text => {
+                micBtn.textContent = '⏹ סיימתי';
+                micBtn.setAttribute('aria-label', 'מקשיב — הקש לסיום');
+                setHint('מקשיב… הקש שוב כשסיימת');
+                const started = listen((text, error) => {
+                    micIdle();
+                    if (el.dataset.stage === 'revealed') return;
+                    if (!text) {
+                        const denied = error === 'not-allowed' || error === 'service-not-allowed';
+                        setHint(denied ? 'אין הרשאה למיקרופון — הצג' : 'לא שמעתי — נסה שוב, או הצג');
+                        return;
+                    }
                     heard = text;
                     suggested = gradeFromSpeech(text, card.es);
                     reveal();
-                }, () => micBtn.classList.remove('is-listening'));
+                });
+                if (!started) { micIdle(); setHint('המיקרופון לא זמין — הצג'); }
             });
         }
         return el;
@@ -663,5 +734,7 @@
         gradeFromSpeech,
         highlight,
         MIN_REST,
+        LISTEN,
+        isListening,
     };
 })();

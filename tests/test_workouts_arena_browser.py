@@ -419,3 +419,99 @@ def test_arena_rest_shows_spanish_card(page, live_server, db_conn):
     finally:
         db_conn.execute("DELETE FROM spanish_reviews")
         db_conn.commit()
+
+
+# A stand-in speech recogniser that behaves like iOS Safari: it never ends by itself, hands
+# over only interim results while running, and never fires onend — not even after stop().
+FAKE_RECOGNITION = """
+window.__recs = [];
+class FakeRecognition {
+    constructor() { this.started = 0; this.stopped = 0; this.aborted = 0; window.__recs.push(this); }
+    start() { this.started += 1; }
+    stop() { this.stopped += 1; }
+    abort() { this.aborted += 1; }
+    hear(text) {
+        const alternatives = [{ transcript: text }];
+        alternatives.isFinal = false;
+        this.onresult({ results: [alternatives] });
+    }
+}
+window.SpeechRecognition = FakeRecognition;
+window.webkitSpeechRecognition = FakeRecognition;
+"""
+
+
+def test_rest_card_mic_can_always_be_stopped(page, live_server, db_conn):
+    """Safari on the phone never ends a recognition by itself: the mic must be a toggle the
+    athlete can leave — a second tap stops it and grades what was heard, a tap with nothing
+    said just returns the card, and listening ends by itself after LISTEN.maxMs."""
+    from datetime import datetime, timedelta
+
+    yosef = db_conn.execute("SELECT id FROM users WHERE name = 'Yosef'").fetchone()["id"]
+    db_conn.execute("DELETE FROM spanish_reviews")
+    db_conn.execute(
+        "INSERT INTO spanish_reviews (user_id, item_id, reviewed_at, grade, mode, context) "
+        "VALUES (?, 'basics-001', ?, 2, 'intro', 'study')",
+        (yosef, (datetime.now() - timedelta(minutes=5)).replace(microsecond=0).isoformat()),
+    )
+    db_conn.commit()
+    try:
+        page.add_init_script(FAKE_RECOGNITION)
+        page.goto(f"{live_server}/workouts")
+        page.evaluate("() => { Spanish.LISTEN.maxMs = 600; Spanish.LISTEN.settleMs = 200; }")
+
+        _start_path(page, "muscle_up")
+        page.locator("#arena-done-btn").click()
+        assert _after_set(page) == "rest"
+
+        card = page.locator("#rest-spanish")
+        expect(card.locator(".sp-card")).to_have_attribute("data-mode", "recall")
+        mic = card.locator("[data-sp-mic]")
+        expect(mic).to_be_visible()
+
+        # Tap: listening, and the button says how to leave
+        mic.click()
+        expect(mic).to_have_class(re.compile(r"is-listening"))
+        expect(mic).to_have_text("⏹ סיימתי")
+        expect(card.locator(".sp-hint")).to_have_text("מקשיב… הקש שוב כשסיימת")
+        assert page.evaluate("() => window.__recs.length") == 1
+        assert page.evaluate("() => Spanish.isListening()") is True
+
+        # Tap again without a word said: the recogniser is stopped (not restarted, not re-asked
+        # for permission), nothing is graded, and the card is back in the athlete's hands
+        mic.click()
+        assert page.evaluate("() => window.__recs.length") == 1
+        assert page.evaluate("() => window.__recs[0].stopped") == 1
+        expect(mic).not_to_have_class(re.compile(r"is-listening"))
+        expect(mic).to_have_text("🎤")
+        expect(card.locator(".sp-hint")).to_have_text("לא שמעתי — נסה שוב, או הצג")
+        expect(card.locator(".sp-card")).to_have_attribute("data-stage", "prompt")
+        assert page.evaluate("() => Spanish.isListening()") is False
+        assert page.evaluate("() => window.__recs[0].aborted") == 1   # nothing left holding the mic
+
+        # Permission refused: the card says so, and the mic is free again at once
+        mic.click()
+        assert page.evaluate("() => window.__recs.length") == 2
+        page.evaluate("() => window.__recs[1].onerror({ error: 'not-allowed' })")
+        expect(mic).not_to_have_class(re.compile(r"is-listening"))
+        expect(card.locator(".sp-hint")).to_have_text("אין הרשאה למיקרופון — הצג")
+        assert page.evaluate("() => Spanish.isListening()") is False
+
+        # Tap, speak (interim words only, as iOS does), and say nothing more: listening ends by
+        # itself after maxMs and the words heard are graded — the athlete never had to act
+        mic.click()
+        assert page.evaluate("() => window.__recs.length") == 3
+        page.evaluate("() => window.__recs[2].hear('donde esta el bano')")
+        expect(card.locator(".sp-card")).to_have_attribute("data-stage", "revealed", timeout=3000)
+        assert page.evaluate("() => window.__recs[2].stopped") == 1
+        expect(card.locator(".sp-heard")).to_have_text("donde esta el bano")
+        expect(card.locator(".sp-grade.is-suggested")).to_have_text("טוב")
+        expect(mic).to_have_count(0)
+
+        # The rest is still the athlete's to leave
+        expect(page.get_by_role("button", name="אני מוכן")).to_be_visible()
+        _rest_then_next(page)
+        expect(card).to_be_hidden()
+    finally:
+        db_conn.execute("DELETE FROM spanish_reviews")
+        db_conn.commit()

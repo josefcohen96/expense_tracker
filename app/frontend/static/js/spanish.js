@@ -10,8 +10,11 @@
  * just keeps counting in the background. Every graded card stays on a trail, so "‹ הקודם"
  * brings a word back to look at (already saved, nothing is recorded twice).
  *
- * The mic on a recall card is a toggle — one tap listens, the next hands the answer over — and
- * listening is bounded by LISTEN (maxMs / settleMs), so the athlete is never stuck in it.
+ * Every card opens on the Hebrew alone: the Spanish stays hidden until the athlete has tried
+ * (or asks for it with "הצג"). The mic is a toggle — one tap listens, the next hands the answer
+ * over — and listening is bounded by LISTEN (maxMs / settleMs), so the athlete is never stuck
+ * in it. A correct answer reveals the Spanish, is saved as טוב, and the next card follows by
+ * itself after ADVANCE.ms; a wrong one shows the answer and leaves the grade to the athlete.
  *
  * Exposes window.Spanish = { onRestStart(seconds), onRestEnd(), holdsRest(), mountStudy(el),
  * toggle(), ... } plus the pure decision helpers (restHasCards, readEnabled, normalise,
@@ -27,6 +30,7 @@
     const STUDY_SIZE = 15;
     const TOP_UP_BELOW = 3;
     const MATCH_GOOD = 0.6;
+    const ADVANCE = { ms: 1400 };   // how long "✓ נכון" stays before the next card
     const GRADES = [
         { grade: 0, label: 'שוב' },
         { grade: 1, label: 'קשה' },
@@ -63,8 +67,12 @@
         return both / (x.size + y.size - both);
     }
 
+    function isCorrect(heard, expected) {
+        return tokenJaccard(heard, expected) >= MATCH_GOOD;
+    }
+
     function gradeFromSpeech(heard, expected) {
-        return tokenJaccard(heard, expected) >= MATCH_GOOD ? 2 : 1;
+        return isCorrect(heard, expected) ? 2 : 1;
     }
 
     function escapeHtml(str) {
@@ -395,21 +403,48 @@
     }
 
     /* Renders `card` into `host`; calls onGraded(grade, mode) once the learner answers.
-       `nav.back` (optional) opens the previously graded card. */
+       `nav.back` (optional) opens the previously graded card.
+
+       Every card opens on the Hebrew alone — the Spanish is never on screen before the athlete
+       has tried. The mic checks what was said: a correct answer reveals the Spanish with
+       "✓ נכון", is saved as טוב, and the next card follows by itself after ADVANCE.ms; a wrong
+       one reveals the answer next to what was heard and leaves the grade to the athlete.
+       "הצג" reveals without a try (a new word: "הבנתי"; a recall: the four grades). */
     function mountCard(host, card, context, onGraded, nav) {
         stopListening();
         const mode = card.mode === 'recall' ? 'recall' : 'intro';
         const el = newCardEl(host, card, mode);
 
         let answered = false;
-        function grade(value) {
+        let pendingAdvance = null;   // { timer, value } while "✓ נכון" is on screen
+
+        function advance(value) {
+            pendingAdvance = null;
+            onGraded(value, mode);
+        }
+
+        /* Records the grade at once; with `after` the card stays on screen that long first. */
+        function grade(value, after) {
             if (answered) return;
             answered = true;
             stopListening();
             record({ item_id: card.id, grade: value, mode, context });
             afterGrade(card, value, mode);
-            onGraded(value, mode);
+            if (!after) { advance(value); return; }
+            pendingAdvance = { value, timer: setTimeout(() => advance(value), after) };
         }
+
+        // Stepping away while the next card is on its way: hand over now, so the trail is in
+        // order (this card graded and behind, the live one ahead) before the step is taken.
+        function flushAdvance() {
+            if (!pendingAdvance) return;
+            clearTimeout(pendingAdvance.timer);
+            advance(pendingAdvance.value);
+        }
+        const cardNav = nav ? {
+            back: nav.back ? () => { flushAdvance(); nav.back(); } : null,
+            forward: nav.forward ? () => { flushAdvance(); nav.forward(); } : null,
+        } : null;
 
         function wireAudio() {
             const say = el.querySelector('[data-sp-say]');
@@ -418,52 +453,54 @@
             if (slow) slow.addEventListener('click', () => speak(card.es, true));
         }
 
-        if (mode === 'intro') {
-            el.dataset.stage = 'revealed';
-            el.innerHTML = spanishLine(card) +
-                `<p class="sp-he">${escapeHtml(card.he)}</p>` + metaLine(card) +
-                `<div class="sp-actions">${audioButtons()}` +
-                '<button type="button" class="sp-primary" data-sp-got>הבנתי</button></div>' + navRow(nav);
-            wireAudio();
-            wireNav(el, nav);
-            el.querySelector('[data-sp-got]').addEventListener('click', () => grade(2));
-            speak(card.es, false);
-            return el;
-        }
-
         el.dataset.stage = 'prompt';
         const mic = Recognition
             ? '<button type="button" class="sp-mic" data-sp-mic aria-label="דבר — המיקרופון מקשיב">🎤</button>' : '';
+        const promptHint = mode === 'intro' ? 'מילה חדשה · נסה בספרדית, או הצג' : 'תגיד את זה בספרדית';
         el.innerHTML = `<p class="sp-he is-prompt">${escapeHtml(card.he)}</p>` +
-            '<p class="sp-hint">תגיד את זה בספרדית</p>' +
+            `<p class="sp-hint">${promptHint}</p>` +
             `<div class="sp-actions">${mic}<button type="button" class="sp-primary" data-sp-reveal>הצג</button></div>` +
-            navRow(nav);
-        wireNav(el, nav);
+            navRow(cardNav);
+        wireNav(el, cardNav);
 
-        let suggested = null;
         let heard = '';
 
-        function reveal() {
+        /* result: 'correct' | 'wrong' after the mic, or undefined when shown by hand */
+        function reveal(result) {
             if (el.dataset.stage === 'revealed') return;
             stopListening();
             el.dataset.stage = 'revealed';
-            const heardLine = heard ? `<p class="sp-heard" dir="ltr" lang="es">${escapeHtml(heard)}</p>` : '';
+            if (result) el.dataset.result = result;
+            const heardLine = heard
+                ? `<p class="sp-heard${result === 'wrong' ? ' is-wrong' : ''}" dir="ltr" lang="es">${escapeHtml(heard)}</p>` : '';
+            let actions;
+            if (result === 'correct') {
+                actions = `<div class="sp-actions is-correct">${audioButtons()}<span class="sp-correct">✓ נכון</span></div>`;
+            } else if (mode === 'intro') {
+                actions = `<div class="sp-actions">${audioButtons()}` +
+                    '<button type="button" class="sp-primary" data-sp-got>הבנתי</button></div>';
+            } else {
+                const suggested = result === 'wrong' ? gradeFromSpeech(heard, card.es) : null;
+                actions = `<div class="sp-actions is-audio">${audioButtons()}</div>` +
+                    '<div class="sp-grades" role="group" aria-label="כמה זה היה קל?">' +
+                    GRADES.map(g => `<button type="button" class="sp-grade${g.grade === suggested ? ' is-suggested' : ''}"` +
+                        ` data-sp-grade="${g.grade}">${g.label}</button>`).join('') +
+                    '</div>';
+            }
             el.innerHTML = `<p class="sp-he">${escapeHtml(card.he)}</p>` + spanishLine(card) + metaLine(card) +
-                heardLine +
-                `<div class="sp-actions is-audio">${audioButtons()}</div>` +
-                '<div class="sp-grades" role="group" aria-label="כמה זה היה קל?">' +
-                GRADES.map(g => `<button type="button" class="sp-grade${g.grade === suggested ? ' is-suggested' : ''}"` +
-                    ` data-sp-grade="${g.grade}">${g.label}</button>`).join('') +
-                '</div>' + navRow(nav);
+                heardLine + actions + navRow(cardNav);
             wireAudio();
-            wireNav(el, nav);
+            wireNav(el, cardNav);
+            const got = el.querySelector('[data-sp-got]');
+            if (got) got.addEventListener('click', () => grade(2));
             el.querySelectorAll('[data-sp-grade]').forEach(btn => {
                 btn.addEventListener('click', () => grade(Number(btn.dataset.spGrade)));
             });
             speak(card.es, false);
+            if (result === 'correct') grade(2, ADVANCE.ms);
         }
 
-        el.querySelector('[data-sp-reveal]').addEventListener('click', reveal);
+        el.querySelector('[data-sp-reveal]').addEventListener('click', () => reveal());
         const micBtn = el.querySelector('[data-sp-mic]');
         const hint = el.querySelector('.sp-hint');
         if (micBtn) {
@@ -491,8 +528,7 @@
                         return;
                     }
                     heard = text;
-                    suggested = gradeFromSpeech(text, card.es);
-                    reveal();
+                    reveal(isCorrect(text, card.es) ? 'correct' : 'wrong');
                 });
                 if (!started) { micIdle(); setHint('המיקרופון לא זמין — הצג'); }
             });
@@ -731,10 +767,12 @@
         readEnabled,
         normalise,
         tokenJaccard,
+        isCorrect,
         gradeFromSpeech,
         highlight,
         MIN_REST,
         LISTEN,
+        ADVANCE,
         isListening,
     };
 })();

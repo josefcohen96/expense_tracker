@@ -364,9 +364,11 @@ def test_arena_rest_shows_spanish_card(page, live_server, db_conn):
         expect(card.locator(".sp-es mark")).to_have_text("baño")
         card.get_by_role("button", name="טוב", exact=True).click()
 
-        # The next card follows at once, whatever the clock says
+        # The next card follows at once, whatever the clock says — a new word, and even a new
+        # word opens on the Hebrew alone: the Spanish waits for a try or for "הצג"
         expect(card.locator(".sp-card")).to_have_attribute("data-mode", "intro")
-        expect(card).to_contain_text("Hola, ¿cómo estás?")
+        expect(card).to_contain_text("היי, מה שלומך?")
+        expect(card).not_to_contain_text("Hola, ¿cómo estás?")
 
         # Back to the word that was just graded — shown, saved, not graded again — and forward
         card.get_by_role("button", name="‹ הקודם").click()
@@ -376,9 +378,12 @@ def test_arena_rest_shows_spanish_card(page, live_server, db_conn):
         expect(card.locator("[data-sp-grade]")).to_have_count(0)
         card.get_by_role("button", name="הבא ›").click()
         expect(card.locator(".sp-card")).to_have_attribute("data-mode", "intro")
+        expect(card).to_contain_text("היי, מה שלומך?")
+        card.get_by_role("button", name="הצג", exact=True).click()
         expect(card).to_contain_text("Hola, ¿cómo estás?")
         card.get_by_role("button", name="הבנתי", exact=True).click()
-        expect(card).to_contain_text("Estoy bien, gracias.")
+        expect(card).to_contain_text("אני בסדר, תודה.")
+        expect(card).not_to_contain_text("Estoy bien, gracias.")
 
         # The athlete is studying: when the timer runs out the arena stays on the rest,
         # the clock counts overtime, and "אני מוכן" is the way out
@@ -444,7 +449,9 @@ window.webkitSpeechRecognition = FakeRecognition;
 def test_rest_card_mic_can_always_be_stopped(page, live_server, db_conn):
     """Safari on the phone never ends a recognition by itself: the mic must be a toggle the
     athlete can leave — a second tap stops it and grades what was heard, a tap with nothing
-    said just returns the card, and listening ends by itself after LISTEN.maxMs."""
+    said just returns the card, and listening ends by itself after LISTEN.maxMs. What was
+    heard is checked: a right answer reveals the Spanish, is saved as טוב and the next word
+    follows by itself; a wrong one reveals the answer and waits for the athlete."""
     from datetime import datetime, timedelta
 
     yosef = db_conn.execute("SELECT id FROM users WHERE name = 'Yosef'").fetchone()["id"]
@@ -458,7 +465,7 @@ def test_rest_card_mic_can_always_be_stopped(page, live_server, db_conn):
     try:
         page.add_init_script(FAKE_RECOGNITION)
         page.goto(f"{live_server}/workouts")
-        page.evaluate("() => { Spanish.LISTEN.maxMs = 600; Spanish.LISTEN.settleMs = 200; }")
+        page.evaluate("() => { Spanish.LISTEN.maxMs = 600; Spanish.LISTEN.settleMs = 200; Spanish.ADVANCE.ms = 400; }")
 
         _start_path(page, "muscle_up")
         page.locator("#arena-done-btn").click()
@@ -498,15 +505,48 @@ def test_rest_card_mic_can_always_be_stopped(page, live_server, db_conn):
         assert page.evaluate("() => Spanish.isListening()") is False
 
         # Tap, speak (interim words only, as iOS does), and say nothing more: listening ends by
-        # itself after maxMs and the words heard are graded — the athlete never had to act
+        # itself after maxMs and the words heard are checked — the athlete never had to act.
+        # Said right: the Spanish comes up with "✓ נכון", no grade to pick, and the next word
+        # follows by itself
+        expect(card).not_to_contain_text("¿Dónde está el baño?")
         mic.click()
         assert page.evaluate("() => window.__recs.length") == 3
         page.evaluate("() => window.__recs[2].hear('donde esta el bano')")
         expect(card.locator(".sp-card")).to_have_attribute("data-stage", "revealed", timeout=3000)
         assert page.evaluate("() => window.__recs[2].stopped") == 1
+        expect(card.locator(".sp-card")).to_have_attribute("data-result", "correct")
+        expect(card.locator(".sp-es mark")).to_have_text("baño")
         expect(card.locator(".sp-heard")).to_have_text("donde esta el bano")
-        expect(card.locator(".sp-grade.is-suggested")).to_have_text("טוב")
+        expect(card.locator(".sp-correct")).to_have_text("✓ נכון")
+        expect(card.locator("[data-sp-grade]")).to_have_count(0)
         expect(mic).to_have_count(0)
+        expect(card.locator(".sp-card")).to_have_attribute("data-mode", "intro", timeout=3000)
+        expect(card).to_contain_text("היי, מה שלומך?")
+        expect(card).not_to_contain_text("Hola, ¿cómo estás?")
+        expect(card.locator(".sp-card")).to_have_attribute("data-stage", "prompt")
+
+        deadline = time.time() + 5
+        rows = []
+        while time.time() < deadline:
+            rows = db_conn.execute(
+                "SELECT item_id, grade, mode, context FROM spanish_reviews WHERE mode = 'recall'").fetchall()
+            if rows:
+                break
+            time.sleep(0.1)
+        assert [tuple(r) for r in rows] == [("basics-001", 2, "recall", "rest")]
+
+        # Said wrong: the answer is shown next to what was heard, and the card waits
+        card.locator("[data-sp-mic]").click()
+        assert page.evaluate("() => window.__recs.length") == 4
+        page.evaluate("() => window.__recs[3].hear('buenos dias')")
+        expect(card.locator(".sp-card")).to_have_attribute("data-stage", "revealed", timeout=3000)
+        expect(card.locator(".sp-card")).to_have_attribute("data-result", "wrong")
+        expect(card).to_contain_text("Hola, ¿cómo estás?")
+        expect(card.locator(".sp-heard.is-wrong")).to_have_text("buenos dias")
+        expect(card.locator(".sp-correct")).to_have_count(0)
+        page.wait_for_timeout(700)
+        expect(card.locator(".sp-card")).to_have_attribute("data-mode", "intro")
+        expect(card.get_by_role("button", name="הבנתי", exact=True)).to_be_visible()
 
         # The rest is still the athlete's to leave
         expect(page.get_by_role("button", name="אני מוכן")).to_be_visible()

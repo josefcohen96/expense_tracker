@@ -3557,6 +3557,24 @@ button.wk-path-row:active {
 .sp-heard::before {
   content: '🎤 ';
 }
+.sp-heard.is-wrong {
+  color: var(--wk-red-light);
+  text-decoration: line-through;
+  text-decoration-color: rgba(252, 165, 165, .5);
+}
+/* Said right: the Spanish comes up green and the next card follows by itself */
+.sp-actions.is-correct {
+  justify-content: space-between;
+}
+.sp-correct {
+  margin-inline-start: auto;
+  font: 700 13px var(--font-primary);
+  color: var(--wk-green-light);
+}
+.sp-card[data-result="correct"] .sp-es mark {
+  color: var(--wk-green-light);
+  border-bottom-color: rgba(134, 239, 172, .55);
+}
 .sp-actions {
   display: flex;
   align-items: center;

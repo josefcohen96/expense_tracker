@@ -1,10 +1,15 @@
 from typing import List, Optional, Any
+import hmac
+import os
 import sqlite3
+from datetime import date as _date
 from io import BytesIO
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from .. import schemas
+from ..auth import public
 from ..db import get_db_conn
+from ..services import card_statement
 from ..services.cache_service import cache_service
 from openpyxl import Workbook
 
@@ -102,6 +107,239 @@ async def api_create_transaction(
     tr_dict = tr.dict()
     tr_dict['amount'] = amount
     return schemas.Transaction(id=new_id, **tr_dict)
+
+# ─── Card statement import (Max xlsx) ───────────────────────────────────────
+
+_NOT_A_MAX_STATEMENT = "הקובץ לא נראה כמו דוח של max"
+_CREDIT_CARD_ACCOUNT = "כרטיס אשראי"
+_AUTO_IMPORT_OFF = "ייבוא אוטומטי כבוי"
+_BAD_IMPORT_TOKEN = "אסימון לא תקין"
+
+
+def _insert_import_rows(
+    db_conn: sqlite3.Connection,
+    user_id: Optional[int],
+    account_id: Optional[int],
+    rows: List[tuple],
+) -> List[int]:
+    """Insert statement rows as ordinary transactions and drop the stats cache.
+
+    rows: (iso date, statement charge, category_id, merchant) — a charge becomes a
+    negative amount, a refund a positive one. Shared by the page import and the
+    mailbox import so the two paths cannot drift.
+    """
+    created: List[int] = []
+    for iso, amount, category_id, merchant in rows:
+        cur = db_conn.execute(
+            "INSERT INTO transactions (date, amount, category_id, user_id, account_id, notes, tags) "
+            "VALUES (?, ?, ?, ?, ?, ?, NULL)",
+            (
+                iso,
+                -round(amount, 2),
+                category_id,
+                user_id,
+                account_id,
+                card_statement.normalise_merchant(merchant) or None,
+            ),
+        )
+        created.append(cur.lastrowid)
+    db_conn.commit()
+    _invalidate_stats_cache()
+    return created
+
+
+def _import_categories(db_conn: sqlite3.Connection) -> List[sqlite3.Row]:
+    """The categories an imported charge may take: everything but income (as the transactions page)."""
+    placeholders = ",".join("?" * len(INCOME_CATEGORIES))
+    return db_conn.execute(
+        f"SELECT id, name, is_saving FROM categories WHERE TRIM(name) NOT IN ({placeholders}) ORDER BY name",
+        INCOME_CATEGORIES,
+    ).fetchall()
+
+
+@router.post("/import/preview")
+async def api_import_preview(
+    request: Request,
+    file: UploadFile = File(...),
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> JSONResponse:
+    """Parse a Max statement and say, per row, whether the app already has it."""
+    content = await file.read()
+    try:
+        parsed = card_statement.parse_statement(content)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=_NOT_A_MAX_STATEMENT)
+
+    categories = _import_categories(db_conn)
+    rows = card_statement.classify(db_conn, parsed["rows"])
+    counts = {"new": 0, "exists": 0, "recurring": 0}
+    out_rows = []
+    for index, row in enumerate(rows):
+        category_id, source = card_statement.guess_category(
+            db_conn, row["merchant"], row["max_category"], categories
+        )
+        counts[row["status"]] += 1
+        out_rows.append({
+            "index": index,
+            "date": row["date"],
+            "merchant": row["merchant"],
+            "amount": row["amount"],
+            "max_category": row["max_category"],
+            "sheet": row["sheet"],
+            "status": row["status"],
+            "matched_id": row["matched_id"],
+            "category_id": category_id,
+            "category_source": source,
+        })
+
+    session_user = getattr(request.state, "user", None) or request.session.get("user")
+    account = db_conn.execute(
+        "SELECT id FROM accounts WHERE name = ?", (_CREDIT_CARD_ACCOUNT,)
+    ).fetchone()
+    return JSONResponse(content={
+        "holder": parsed["holder"],
+        "statement_month": parsed["statement_month"],
+        "card_last4": parsed["card_last4"],
+        "user_id": card_statement.guess_payer(db_conn, parsed["holder"], session_user),
+        "account_id": account["id"] if account else None,
+        "rows": out_rows,
+        "counts": counts,
+    })
+
+
+@router.post("/import")
+async def api_import_transactions(
+    body: schemas.ImportRequest,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> JSONResponse:
+    """Add the kept statement rows as ordinary transactions (charge → negative amount)."""
+    if not body.rows:
+        raise HTTPException(status_code=400, detail="אין עסקאות להוספה")
+    if not db_conn.execute("SELECT 1 FROM users WHERE id = ?", (body.user_id,)).fetchone():
+        raise HTTPException(status_code=400, detail="משתמש לא קיים")
+    if body.account_id is not None and not db_conn.execute(
+        "SELECT 1 FROM accounts WHERE id = ?", (body.account_id,)
+    ).fetchone():
+        raise HTTPException(status_code=400, detail="חשבון לא קיים")
+    category_ids = {r.category_id for r in body.rows}
+    placeholders = ",".join("?" * len(category_ids))
+    known = {
+        r[0] for r in db_conn.execute(
+            f"SELECT id FROM categories WHERE id IN ({placeholders})", tuple(category_ids)
+        ).fetchall()
+    }
+    if category_ids - known:
+        raise HTTPException(status_code=400, detail="קטגוריה לא קיימת")
+    dates = []
+    for r in body.rows:
+        try:
+            dates.append(_date.fromisoformat(r.date).isoformat())
+        except ValueError:
+            raise HTTPException(status_code=400, detail="תאריך לא תקין")
+
+    created = _insert_import_rows(
+        db_conn,
+        body.user_id,
+        body.account_id,
+        [(iso, r.amount, r.category_id, r.merchant) for r, iso in zip(body.rows, dates)],
+    )
+    return JSONResponse(content={
+        "created": created,
+        "count": len(created),
+        "date_from": min(dates),
+        "date_to": max(dates),
+    })
+
+
+@router.post("/import/auto")
+@public
+async def api_import_auto(
+    request: Request,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> JSONResponse:
+    """Mailbox import (Google Apps Script): add only the statement's new rows, no session.
+
+    Guarded by the IMPORT_TOKEN bearer token instead of a login. The token is checked
+    before the upload is read, so an unauthorised caller never gets the file parsed.
+    """
+    expected = os.environ.get("IMPORT_TOKEN") or ""
+    if not expected.strip():
+        raise HTTPException(status_code=403, detail=_AUTO_IMPORT_OFF)
+    scheme, _, supplied = (request.headers.get("authorization") or "").partition(" ")
+    if scheme.lower() != "bearer" or not hmac.compare_digest(
+        supplied.strip().encode("utf-8"), expected.encode("utf-8")
+    ):
+        raise HTTPException(status_code=401, detail=_BAD_IMPORT_TOKEN)
+
+    form = await request.form()
+    upload = form.get("file")
+    if upload is None or isinstance(upload, str):
+        raise HTTPException(status_code=400, detail=_NOT_A_MAX_STATEMENT)
+    content = await upload.read()
+    try:
+        parsed = card_statement.parse_statement(content)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=_NOT_A_MAX_STATEMENT)
+
+    categories = _import_categories(db_conn)
+    rows = card_statement.classify(db_conn, parsed["rows"])
+    skipped = {"exists": 0, "recurring": 0}
+    to_add: List[tuple] = []
+    unsorted = 0
+    for row in rows:
+        if row["status"] != "new":
+            skipped[row["status"]] += 1
+            continue
+        category_id, source = card_statement.guess_category(
+            db_conn, row["merchant"], row["max_category"], categories
+        )
+        if source == "fallback":
+            unsorted += 1
+        to_add.append((row["date"], row["amount"], category_id, row["merchant"]))
+
+    created: List[int] = []
+    if to_add:
+        account = db_conn.execute(
+            "SELECT id FROM accounts WHERE name = ?", (_CREDIT_CARD_ACCOUNT,)
+        ).fetchone()
+        created = _insert_import_rows(
+            db_conn,
+            card_statement.guess_payer(db_conn, parsed["holder"], None),
+            account["id"] if account else None,
+            to_add,
+        )
+    added_dates = [r[0] for r in to_add]
+    return JSONResponse(content={
+        "added": len(created),
+        "skipped": skipped,
+        "unsorted": unsorted,
+        "created": created,
+        "holder": parsed["holder"],
+        "statement_month": parsed["statement_month"],
+        "date_from": min(added_dates) if added_dates else None,
+        "date_to": max(added_dates) if added_dates else None,
+    })
+
+
+@router.post("/import/undo")
+async def api_import_undo(
+    body: schemas.ImportUndoRequest,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> JSONResponse:
+    """Delete the rows an import created. Recurrence-booked rows are never touched."""
+    ids = sorted(set(body.ids))
+    deleted = 0
+    if ids:
+        placeholders = ",".join("?" * len(ids))
+        cur = db_conn.execute(
+            f"DELETE FROM transactions WHERE id IN ({placeholders}) AND recurrence_id IS NULL",
+            ids,
+        )
+        deleted = cur.rowcount
+        db_conn.commit()
+    _invalidate_stats_cache()
+    return JSONResponse(content={"deleted": deleted})
+
 
 # The transactions page edits with PUT, API clients with PATCH; both are a partial update.
 @router.put("/{tx_id}", response_model=schemas.Transaction)

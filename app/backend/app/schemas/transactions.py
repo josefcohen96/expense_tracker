@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel
 
 class TransactionBase(BaseModel):
@@ -28,3 +28,19 @@ class TransactionUpdate(BaseModel):
 
 class Transaction(TransactionBase):
     id: int
+
+
+# Card statement import (Max xlsx): the rows the user kept in the preview.
+class ImportRow(BaseModel):
+    date: str
+    amount: float  # the statement's charge: positive for a charge, negative for a refund
+    merchant: str
+    category_id: int
+
+class ImportRequest(BaseModel):
+    user_id: int
+    account_id: Optional[int] = None
+    rows: List[ImportRow]
+
+class ImportUndoRequest(BaseModel):
+    ids: List[int]

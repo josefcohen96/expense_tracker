@@ -273,6 +273,7 @@ Below `lg` the app uses a bottom tab bar (היום · חתונה · + · כספ�
 | `USER_PASSWORD_KARINA` | **Yes** | Login password for Karina |
 | `USER_PASSWORD_TSAHALA` | For that login | Password for Tsahala (renovation-only) |
 | `USER_PASSWORD_YONATAN` | For that login | Password for Yonatan (workouts-only) |
+| `IMPORT_TOKEN` | No | Bearer token for `POST /api/transactions/import/auto` (the Gmail Apps Script in `tools/gmail_max_import.gs`). Unset = endpoint off. |
 | `BUDGET_DB_PATH` | No | Override DB file location (used in tests) |
 | `FORCE_DB_RESET=1` | No | Drop and recreate all tables at startup |
 | `AUTH_ENABLED=0` | No | Disable auth (pytest only — requires `PYTEST_CURRENT_TEST`) |

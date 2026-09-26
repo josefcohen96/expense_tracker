@@ -845,6 +845,29 @@ async def finances_transactions(
 
 
 # -----------------------------
+# Finances: Card statement import (Max xlsx)
+# -----------------------------
+@router.get("/finances/transactions/import", response_class=HTMLResponse)
+async def finances_transactions_import(
+    request: Request,
+    db_conn: sqlite3.Connection = Depends(get_db_conn),
+) -> HTMLResponse:
+    # Same category list as the transactions page: expenses only.
+    categories = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת','קליניקה') ORDER BY name").fetchall()
+    accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
+    return templates.TemplateResponse(
+        "finances/transactions_import.html",
+        {
+            "request": request,
+            "categories": [dict(c) for c in categories],
+            "users": household(db_conn),
+            "accounts": [dict(a) for a in accounts],
+            "show_sidebar": True,
+        },
+    )
+
+
+# -----------------------------
 # Finances: Income page
 # -----------------------------
 @router.get("/finances/income", response_class=HTMLResponse)

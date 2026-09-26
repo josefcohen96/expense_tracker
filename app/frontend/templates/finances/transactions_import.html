@@ -71,6 +71,7 @@
 
         <details id="ci-skipped" class="card" hidden>
             <summary id="ci-skipped-title" class="card-body cursor-pointer select-none font-semibold text-gray-700"></summary>
+            <p class="text-xs text-gray-500 px-4 -mt-2 mb-1">סמן שורה כדי להוסיף אותה בכל זאת</p>
             <ul id="ci-skipped-list" class="divide-y divide-gray-100 px-4 pb-3"></ul>
         </details>
 
@@ -235,28 +236,47 @@
         return select;
     }
 
-    function newRow(row) {
+    // One line per statement row: a checkbox (the user decides), the date, and the
+    // merchant name, amount and category as editable fields. Rows the app already
+    // has come unchecked with the reason; ticking one adds it anyway.
+    function rowItem(row, checked) {
         var li = el('li', 'py-3 flex items-start gap-3');
         li.dataset.index = row.index;
 
-        var box = el('input', 'mt-1 w-5 h-5 flex-shrink-0 accent-blue-600');
+        var box = el('input', 'mt-2 w-5 h-5 flex-shrink-0 accent-blue-600');
         box.type = 'checkbox';
-        box.checked = true;
+        box.checked = checked;
         box.setAttribute('aria-label', row.merchant);
         box.addEventListener('change', updateSubmit);
         li.appendChild(box);
 
-        var body = el('div', 'flex-1 min-w-0 flex flex-col lg:flex-row lg:items-center gap-2');
+        var body = el('div', 'flex-1 min-w-0 flex flex-col lg:flex-row lg:items-start gap-2');
+
         var line = el('div', 'flex items-center gap-2 min-w-0 flex-1');
         line.appendChild(el('span', 'text-sm text-gray-500 whitespace-nowrap', shortDate(row.date)));
-        line.appendChild(el('span', 'text-gray-300', '·'));
-        line.appendChild(el('span', 'text-gray-900 truncate flex-1 min-w-0', row.merchant));
-        line.appendChild(amountNode(row.amount));
+        var name = el('input', 'form-input text-sm flex-1 min-w-0');
+        name.type = 'text';
+        name.value = row.merchant;
+        name.setAttribute('aria-label', 'שם בית העסק');
+        name.dataset.field = 'merchant';
+        name.addEventListener('input', function () { if (!box.checked) { box.checked = true; } updateSubmit(); });
+        line.appendChild(name);
+        var amount = el('input', 'form-input text-sm w-28 flex-shrink-0');
+        amount.type = 'number';
+        amount.step = '0.01';
+        amount.value = String(row.amount);
+        amount.setAttribute('dir', 'ltr');
+        amount.setAttribute('aria-label', 'סכום');
+        amount.dataset.field = 'amount';
+        amount.addEventListener('input', function () { if (!box.checked) { box.checked = true; } updateSubmit(); });
+        line.appendChild(amount);
         body.appendChild(line);
 
         var pickCat = el('div', 'lg:w-48 flex-shrink-0');
         pickCat.appendChild(categorySelect(row.category_id));
-        if (row.category_source === 'merchant') {
+        if (row.status !== 'new') {
+            pickCat.appendChild(el('p', 'text-xs text-gray-500 mt-1', REASONS[row.status] || ''));
+        } else if (row.category_source === 'merchant') {
             pickCat.appendChild(el('p', 'text-xs text-gray-500 mt-1', 'כמו בפעם הקודמת'));
         } else if (row.category_source === 'fallback') {
             pickCat.appendChild(el('p', 'text-xs text-amber-600 font-medium mt-1', 'לא זוהתה קטגוריה'));
@@ -266,28 +286,25 @@
         return li;
     }
 
-    function skippedRow(row) {
-        var li = el('li', 'py-2 flex items-center gap-2 text-sm');
-        li.appendChild(el('span', 'text-gray-500 whitespace-nowrap', shortDate(row.date)));
-        li.appendChild(el('span', 'text-gray-300', '·'));
-        li.appendChild(el('span', 'text-gray-700 truncate flex-1 min-w-0', row.merchant));
-        li.appendChild(amountNode(row.amount));
-        li.appendChild(el('span', 'text-xs text-gray-500 bg-gray-100 rounded-full px-2 py-0.5 whitespace-nowrap',
-            REASONS[row.status] || ''));
-        return li;
-    }
-
+    // The ticked rows of both lists, as edited. A row whose amount is not a
+    // number (or is zero) is flagged and left out until it is fixed.
     function checkedRows() {
         var rows = [];
-        Array.prototype.forEach.call(newList.children, function (li) {
-            var box = li.querySelector('input[type="checkbox"]');
-            if (!box || !box.checked) return;
-            var row = current.rows[Number(li.dataset.index)];
-            rows.push({
-                date: row.date,
-                amount: row.amount,
-                merchant: row.merchant,
-                category_id: Number(li.querySelector('select').value),
+        [newList, skippedList].forEach(function (list) {
+            Array.prototype.forEach.call(list.children, function (li) {
+                var box = li.querySelector('input[type="checkbox"]');
+                var amountInput = li.querySelector('[data-field="amount"]');
+                var amount = Number(amountInput.value);
+                var bad = box.checked && (!isFinite(amount) || amount === 0 || amountInput.value.trim() === '');
+                amountInput.classList.toggle('border-red-400', bad);
+                if (!box.checked || bad) return;
+                var row = current.rows[Number(li.dataset.index)];
+                rows.push({
+                    date: row.date,
+                    amount: amount,
+                    merchant: li.querySelector('[data-field="merchant"]').value.trim() || row.merchant,
+                    category_id: Number(li.querySelector('select').value),
+                });
             });
         });
         return rows;
@@ -322,18 +339,18 @@
 
         newTitle.textContent = 'חדשות (' + fresh.length + ')';
         newList.textContent = '';
-        fresh.forEach(function (r) { newList.appendChild(newRow(r)); });
+        fresh.forEach(function (r) { newList.appendChild(rowItem(r, true)); });
         newEmpty.hidden = fresh.length > 0;
         newList.hidden = fresh.length === 0;
 
         skippedTitle.textContent = 'כבר רשומות (' + old.length + ')';
         skippedList.textContent = '';
-        old.forEach(function (r) { skippedList.appendChild(skippedRow(r)); });
+        old.forEach(function (r) { skippedList.appendChild(rowItem(r, false)); });
         skipped.hidden = old.length === 0;
         skipped.open = false;
 
         submitError.hidden = true;
-        submitBtn.hidden = fresh.length === 0;
+        submitBtn.hidden = data.rows.length === 0;
         updateSubmit();
         show('preview');
     }

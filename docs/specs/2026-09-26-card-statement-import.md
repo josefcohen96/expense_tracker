@@ -119,8 +119,34 @@ Pydantic models go in `schemas/transactions.py` (`ImportRow`, `ImportRequest`, `
 - `test_preview_rejects_unknown_file` — criterion 8.
 - `test_import_page_and_link` — criterion 9.
 
+## Part 2 — from the mailbox, by itself (Google Apps Script)
+
+The statement arrives by mail; a free Google Apps Script (`tools/gmail_max_import.gs`) runs once a day in Yosef's Gmail, finds the Max mail with the xlsx attachment, and posts it to the app. The app does the same work as the page (parse, match, learn categories) and adds only the new rows, without anyone looking. The script then labels the mail `max-imported` so it is never posted twice, and mails a one-line summary with a link to the month's transactions.
+
+### API
+`POST /api/transactions/import/auto` — multipart `file`, marked `@public` (from `..auth`) so no session is needed. Guarded by a dedicated token instead:
+- The env var `IMPORT_TOKEN` holds the token. When it is unset or empty the endpoint answers 403 `detail: "ייבוא אוטומטי כבוי"` for every caller, before reading the file.
+- The request must carry `Authorization: Bearer <token>`; compared with `hmac.compare_digest`. Missing or wrong → 401 `detail: "אסימון לא תקין"`. Nothing else in the response distinguishes the two.
+- Otherwise: `parse_statement` (400 with the same Hebrew detail as the preview when it fails), `classify`, `guess_category` with `_import_categories`, payer = `guess_payer(conn, holder, None)` (holder name, else the first household member), account = `כרטיס אשראי` if it exists. Every row with `status == "new"` is inserted exactly as `POST /api/transactions/import` inserts (reuse one helper for the INSERT + cache invalidation so the two paths cannot drift). Rows whose `category_source == "fallback"` are still added (the summary counts them so Yosef can fix them on the transactions page).
+- Response: `{"added": n, "skipped": {"exists": n, "recurring": n}, "unsorted": n, "created": [ids], "holder", "statement_month", "date_from", "date_to"}` (`date_from`/`date_to` are the min/max date of the added rows, `null` when nothing was added). Posting the same file again adds 0.
+
+### Files to touch
+- `app/backend/app/api/transactions.py` — the endpoint, `@public`, token check, shared insert helper.
+- `tools/gmail_max_import.gs` — the Apps Script (written in the main session, not by the implementer).
+- `CLAUDE.md` — one row in the environment-variable table for `IMPORT_TOKEN` (main session).
+- `tests/test_card_import_e2e.py` — the tests below.
+
+### Acceptance criteria
+11. With `IMPORT_TOKEN` unset, `POST /api/transactions/import/auto` is 403 even with a well-formed file and header.
+12. With `IMPORT_TOKEN` set, a missing or wrong bearer token is 401 and nothing is inserted.
+13. With the right token, the new rows of a Max-shaped workbook are inserted (negative amounts, notes = merchant, payer from the holder), the response counts match, and a second post of the same file adds 0 with every row counted under `skipped.exists`.
+14. The route is registered as public: `build_public_route_matchers(app)` contains a matcher for `/api/transactions/import/auto` with `POST`.
+
+### Tests to add
+- `test_auto_import_disabled_without_token`, `test_auto_import_rejects_bad_token`, `test_auto_import_adds_only_new_and_is_idempotent`, `test_auto_import_route_is_public` — criteria 11–14. Set and clear `IMPORT_TOKEN` with `monkeypatch.setenv` / `monkeypatch.delenv` so the suite order does not matter.
+
 ## Out of scope
-- Automatic pickup from the mailbox (Apps Script / share target); a token-authenticated variant of the import endpoint would be the follow-up if wanted.
+- A share target on the phone (needs `display: standalone` in the manifest).
 - Other card companies' layouts; only the Max export is recognised.
 - Editing dates or amounts in the preview; the transactions page already edits inline.
 - A Web Share Target in the manifest (needs `display: standalone`, which changes how the whole app installs).

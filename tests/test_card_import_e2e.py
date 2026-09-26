@@ -311,3 +311,125 @@ def test_import_page_and_link(app_client):
     assert listing.status_code == 200
     assert 'href="/finances/transactions/import"' in listing.text
     assert "טען דוח אשראי" in listing.text
+
+
+# ─── Part 2: the mailbox import (POST /api/transactions/import/auto) ──────────
+
+def _auto(client, data, token=None):
+    headers = {"Authorization": f"Bearer {token}"} if token is not None else {}
+    return client.post(
+        "/api/transactions/import/auto",
+        files={"file": ("transaction-details_export_1.xlsx", data,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        headers=headers,
+    )
+
+
+def _count_notes(db_conn, prefix):
+    return db_conn.execute(
+        "SELECT COUNT(*) FROM transactions WHERE notes LIKE ?", (prefix + "%",)
+    ).fetchone()[0]
+
+
+def test_auto_import_disabled_without_token(app_client, db_conn, monkeypatch):
+    monkeypatch.delenv("IMPORT_TOKEN", raising=False)
+    data = _max_workbook({"עסקאות במועד החיוב": [
+        ("03-01-2032", "pytest-ci-auto-off", "מזון וצריכה", 10),
+    ]})
+    r = _auto(app_client, data, token="anything")
+    assert r.status_code == 403
+    assert r.json()["detail"] == "ייבוא אוטומטי כבוי"
+    monkeypatch.setenv("IMPORT_TOKEN", "")
+    r = _auto(app_client, data, token="")
+    assert r.status_code == 403
+    assert r.json()["detail"] == "ייבוא אוטומטי כבוי"
+    assert _count_notes(db_conn, "pytest-ci-auto-off") == 0
+
+
+def test_auto_import_rejects_bad_token(app_client, db_conn, monkeypatch):
+    monkeypatch.setenv("IMPORT_TOKEN", "pytest-ci-secret-token")
+    data = _max_workbook({"עסקאות במועד החיוב": [
+        ("04-01-2032", "pytest-ci-auto-bad", "מזון וצריכה", 10),
+    ]})
+    missing = _auto(app_client, data)
+    wrong = _auto(app_client, data, token="pytest-ci-wrong-token")
+    not_bearer = app_client.post(
+        "/api/transactions/import/auto",
+        files={"file": ("x.xlsx", data, "application/octet-stream")},
+        headers={"Authorization": "Basic pytest-ci-secret-token"},
+    )
+    for r in (missing, wrong, not_bearer):
+        assert r.status_code == 401
+        assert r.json() == {"detail": "אסימון לא תקין"}
+    assert _count_notes(db_conn, "pytest-ci-auto-bad") == 0
+
+
+def test_auto_import_adds_only_new_and_is_idempotent(app_client, db_conn, monkeypatch):
+    monkeypatch.setenv("IMPORT_TOKEN", "pytest-ci-secret-token")
+    cat = _category_id(db_conn, "פנאי")
+    existing = _insert_tx(db_conn, "2032-02-05", -40.0, "pytest-ci-auto-known", cat)
+    data = _max_workbook({
+        "עסקאות במועד החיוב": [
+            ("05-02-2032", "pytest-ci-auto-known", "פנאי, בידור וספורט", 40),   # already in the app
+            ("06-02-2032", "pytest-ci-auto  CAFE", "מסעדות, קפה וברים", 55.5),
+            ("07-02-2032", "pytest-ci-auto-transfer", "העברת כספים", 20),       # no category → fallback
+        ],
+        'עסקאות חו"ל ומט"ח': [("09-02-2032", "pytest-ci-auto-refund", "אופנה", -15)],
+    }, holder="קארינה כהן-000000000", month="02/2032")
+    ids = []
+    try:
+        r = _auto(app_client, data, token="pytest-ci-secret-token")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        ids = body["created"]
+        assert body["added"] == 3 and len(ids) == 3
+        assert body["skipped"] == {"exists": 1, "recurring": 0}
+        assert body["unsorted"] == 1
+        assert body["holder"] == "קארינה כהן"
+        assert body["statement_month"] == "02/2032"
+        assert (body["date_from"], body["date_to"]) == ("2032-02-06", "2032-02-09")
+
+        placeholders = ",".join("?" * len(ids))
+        saved = db_conn.execute(
+            f"SELECT * FROM transactions WHERE id IN ({placeholders}) ORDER BY id", ids
+        ).fetchall()
+        assert [(s["date"], s["amount"], s["notes"]) for s in saved] == [
+            ("2032-02-06", -55.5, "pytest-ci-auto CAFE"),
+            ("2032-02-07", -20.0, "pytest-ci-auto-transfer"),
+            ("2032-02-09", 15.0, "pytest-ci-auto-refund"),
+        ]
+        karina = _user_id(db_conn, "Karina")
+        account = db_conn.execute("SELECT id FROM accounts WHERE name = 'כרטיס אשראי'").fetchone()
+        assert all(s["user_id"] == karina for s in saved)
+        assert all(s["account_id"] == (account["id"] if account else None) for s in saved)
+        assert all(s["recurrence_id"] is None and s["tags"] is None for s in saved)
+        assert saved[0]["category_id"] == _category_id(db_conn, "אוכל בחוץ")
+        assert saved[1]["category_id"] == _category_id(db_conn, "הוצאות בית")
+        assert _count_notes(db_conn, "pytest-ci-auto-known") == 1
+
+        again = _auto(app_client, data, token="pytest-ci-secret-token")
+        assert again.status_code == 200, again.text
+        second = again.json()
+        assert second["added"] == 0 and second["created"] == []
+        assert second["skipped"] == {"exists": 4, "recurring": 0}
+        assert second["unsorted"] == 0
+        assert (second["date_from"], second["date_to"]) == (None, None)
+        assert _count_notes(db_conn, "pytest-ci-auto") == 4
+    finally:
+        _delete_tx(db_conn, ids + [existing])
+
+
+def test_auto_import_route_is_public():
+    from app.backend.app.auth import build_public_route_matchers
+    from app.backend.app.main import app
+
+    matchers = build_public_route_matchers(app)
+    assert any(
+        regex.match("/api/transactions/import/auto") and "POST" in methods
+        for regex, methods in matchers
+    )
+    # The rest of the import API still needs a session.
+    assert not any(
+        regex.match("/api/transactions/import") or regex.match("/api/transactions/import/preview")
+        for regex, _methods in matchers
+    )

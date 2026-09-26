@@ -3,6 +3,9 @@ from .transactions import (
     TransactionCreate,
     TransactionUpdate,
     Transaction,
+    ImportRow,
+    ImportRequest,
+    ImportUndoRequest,
 )
 
 from .recurrences import (

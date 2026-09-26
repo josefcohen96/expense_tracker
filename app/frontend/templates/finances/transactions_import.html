@@ -1,0 +1,407 @@
+{% extends "finances/base.html" %}
+{% block finances_title %}דוח האשראי{% endblock %}
+
+{% block finances_content %}
+<style>
+    /* `hidden` must win over .btn / .flex / .card display rules on this page. */
+    #card-import [hidden] { display: none !important; }
+</style>
+<div id="card-import" class="max-w-3xl space-y-5" dir="rtl">
+
+    <!-- Page Header -->
+    <div class="flex items-center gap-3 min-w-0">
+        <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-file-import text-blue-600"></i>
+        </div>
+        <h1 class="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">דוח האשראי</h1>
+    </div>
+
+    <!-- State 1: pick a file -->
+    <section id="ci-pick" class="card">
+        <div class="card-body">
+            <label id="ci-drop" for="ci-file"
+                   class="flex flex-col items-center justify-center gap-3 text-center cursor-pointer rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/40 hover:bg-blue-50 transition-colors px-4 py-10">
+                <i class="fas fa-file-import text-3xl text-blue-500"></i>
+                <span class="font-semibold text-gray-800">דוח מקס (xlsx) — גרור לכאן או לחץ לבחירה</span>
+            </label>
+            <input type="file" id="ci-file" accept=".xlsx" class="sr-only">
+            <p class="text-sm text-gray-500 mt-3">הדוח החודשי שמגיע במייל מ-max. נוסיף רק עסקאות שעוד לא רשומות.</p>
+            <p id="ci-loading" class="text-sm text-blue-700 mt-2" hidden>
+                <i class="fas fa-spinner fa-spin"></i>
+                קורא את הדוח…
+            </p>
+            <p id="ci-error" class="text-sm text-red-600 font-medium mt-2" role="alert" hidden></p>
+        </div>
+    </section>
+
+    <!-- State 2: preview -->
+    <section id="ci-preview" class="space-y-5" hidden>
+        <div class="card">
+            <div class="card-body space-y-4">
+                <p id="ci-summary" class="font-semibold text-gray-800"></p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="form-group !mb-0">
+                        <label for="ci-payer" class="form-label">מי שילם</label>
+                        <select id="ci-payer" class="form-select">
+                            {% for u in users %}
+                            <option value="{{ u.id }}">{{ u.display }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group !mb-0">
+                        <label for="ci-account" class="form-label">חשבון</label>
+                        <select id="ci-account" class="form-select">
+                            <option value="">—</option>
+                            {% for a in accounts %}
+                            <option value="{{ a.id }}">{{ a.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h2 id="ci-new-title" class="text-base sm:text-lg font-semibold text-gray-900 mb-3"></h2>
+                <ul id="ci-new-list" class="divide-y divide-gray-100"></ul>
+                <p id="ci-new-empty" class="text-gray-600 py-4 text-center" hidden>הכל כבר רשום 🙌</p>
+            </div>
+        </div>
+
+        <details id="ci-skipped" class="card" hidden>
+            <summary id="ci-skipped-title" class="card-body cursor-pointer select-none font-semibold text-gray-700"></summary>
+            <ul id="ci-skipped-list" class="divide-y divide-gray-100 px-4 pb-3"></ul>
+        </details>
+
+        <div>
+            <button type="button" id="ci-submit" class="btn btn-primary w-full lg:w-auto text-base" style="min-height:48px;"></button>
+            <p id="ci-submit-error" class="text-sm text-red-600 font-medium mt-2" role="alert" hidden></p>
+        </div>
+    </section>
+
+    <!-- State 3: done -->
+    <section id="ci-done" class="card" hidden>
+        <div class="card-body flex flex-col sm:flex-row sm:items-center gap-3">
+            <p class="font-semibold text-gray-900 flex items-center gap-2">
+                <i class="fas fa-check-circle text-green-600"></i>
+                <span id="ci-done-text"></span>
+            </p>
+            <a id="ci-done-link" href="/finances/transactions" class="text-blue-600 hover:underline text-sm"></a>
+            <button type="button" id="ci-undo" class="btn btn-outline btn-sm sm:mr-auto" hidden>ביטול</button>
+        </div>
+    </section>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var CATEGORIES = {{ categories|tojson }};
+
+    var pick = document.getElementById('ci-pick');
+    var drop = document.getElementById('ci-drop');
+    var fileInput = document.getElementById('ci-file');
+    var loading = document.getElementById('ci-loading');
+    var errorLine = document.getElementById('ci-error');
+    var preview = document.getElementById('ci-preview');
+    var summary = document.getElementById('ci-summary');
+    var payerSelect = document.getElementById('ci-payer');
+    var accountSelect = document.getElementById('ci-account');
+    var newTitle = document.getElementById('ci-new-title');
+    var newList = document.getElementById('ci-new-list');
+    var newEmpty = document.getElementById('ci-new-empty');
+    var skipped = document.getElementById('ci-skipped');
+    var skippedTitle = document.getElementById('ci-skipped-title');
+    var skippedList = document.getElementById('ci-skipped-list');
+    var submitBtn = document.getElementById('ci-submit');
+    var submitError = document.getElementById('ci-submit-error');
+    var done = document.getElementById('ci-done');
+    var doneText = document.getElementById('ci-done-text');
+    var doneLink = document.getElementById('ci-done-link');
+    var undoBtn = document.getElementById('ci-undo');
+
+    var NOT_MAX = 'הקובץ לא נראה כמו דוח של max';
+    var READ_FAILED = 'שגיאה בקריאת הקובץ';
+    var REASONS = { exists: 'קיימת', recurring: 'הוצאה קבועה' };
+
+    var current = null;   // last preview response
+    var created = [];     // ids from the last import
+
+    function show(state) {
+        pick.hidden = state !== 'pick';
+        preview.hidden = state !== 'preview';
+        done.hidden = state !== 'done';
+    }
+
+    function el(tag, className, text) {
+        var node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined && text !== null) node.textContent = text;
+        return node;
+    }
+
+    function shortDate(iso) {
+        var p = String(iso || '').split('-');
+        return p.length === 3 ? p[2] + '.' + p[1] : iso;
+    }
+
+    function money(amount) {
+        var n = Number(amount) || 0;
+        var s = '₪' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return n < 0 ? '-' + s : s;
+    }
+
+    function amountNode(amount) {
+        var span = el('span', 'font-semibold text-gray-900 whitespace-nowrap', money(amount));
+        span.setAttribute('dir', 'ltr');
+        return span;
+    }
+
+    function toastOnPhone(msg, actionLabel, onAction) {
+        // The tab-bar toast only exists (and only makes sense) below lg.
+        var desktop = window.matchMedia && window.matchMedia('(min-width: 1024px)').matches;
+        if (window.AppToast && document.getElementById('qa-toast') && !desktop) {
+            window.AppToast(msg, actionLabel, onAction, 6000);
+            return true;
+        }
+        return false;
+    }
+
+    // ── State 1 ────────────────────────────────────────────────────────────
+    function resetPick() {
+        fileInput.value = '';
+        loading.hidden = true;
+        errorLine.hidden = true;
+        current = null;
+        created = [];
+        show('pick');
+    }
+
+    function showError(text) {
+        loading.hidden = true;
+        errorLine.textContent = text;
+        errorLine.hidden = false;
+    }
+
+    function upload(file) {
+        if (!file) return;
+        errorLine.hidden = true;
+        loading.hidden = false;
+        var form = new FormData();
+        form.append('file', file);
+        fetch('/api/transactions/import/preview', { method: 'POST', body: form, credentials: 'same-origin' })
+            .then(function (res) {
+                return res.json().catch(function () { return {}; }).then(function (data) {
+                    if (!res.ok) {
+                        showError(res.status === 400 && data.detail === NOT_MAX ? NOT_MAX : READ_FAILED);
+                        return;
+                    }
+                    loading.hidden = true;
+                    renderPreview(data);
+                });
+            })
+            .catch(function () { showError(READ_FAILED); });
+    }
+
+    fileInput.addEventListener('change', function () { upload(fileInput.files[0]); });
+    ['dragenter', 'dragover'].forEach(function (type) {
+        drop.addEventListener(type, function (e) {
+            e.preventDefault();
+            drop.classList.add('bg-blue-50', 'border-blue-400');
+        });
+    });
+    ['dragleave', 'drop'].forEach(function (type) {
+        drop.addEventListener(type, function (e) {
+            e.preventDefault();
+            drop.classList.remove('bg-blue-50', 'border-blue-400');
+        });
+    });
+    drop.addEventListener('drop', function (e) {
+        var files = e.dataTransfer && e.dataTransfer.files;
+        if (files && files.length) upload(files[0]);
+    });
+
+    // ── State 2 ────────────────────────────────────────────────────────────
+    function categorySelect(selected) {
+        var select = el('select', 'form-select text-sm');
+        select.setAttribute('aria-label', 'קטגוריה');
+        CATEGORIES.forEach(function (c) {
+            var opt = el('option', null, c.name);
+            opt.value = c.id;
+            if (c.id === selected) opt.selected = true;
+            select.appendChild(opt);
+        });
+        return select;
+    }
+
+    function newRow(row) {
+        var li = el('li', 'py-3 flex items-start gap-3');
+        li.dataset.index = row.index;
+
+        var box = el('input', 'mt-1 w-5 h-5 flex-shrink-0 accent-blue-600');
+        box.type = 'checkbox';
+        box.checked = true;
+        box.setAttribute('aria-label', row.merchant);
+        box.addEventListener('change', updateSubmit);
+        li.appendChild(box);
+
+        var body = el('div', 'flex-1 min-w-0 flex flex-col lg:flex-row lg:items-center gap-2');
+        var line = el('div', 'flex items-center gap-2 min-w-0 flex-1');
+        line.appendChild(el('span', 'text-sm text-gray-500 whitespace-nowrap', shortDate(row.date)));
+        line.appendChild(el('span', 'text-gray-300', '·'));
+        line.appendChild(el('span', 'text-gray-900 truncate flex-1 min-w-0', row.merchant));
+        line.appendChild(amountNode(row.amount));
+        body.appendChild(line);
+
+        var pickCat = el('div', 'lg:w-48 flex-shrink-0');
+        pickCat.appendChild(categorySelect(row.category_id));
+        if (row.category_source === 'merchant') {
+            pickCat.appendChild(el('p', 'text-xs text-gray-500 mt-1', 'כמו בפעם הקודמת'));
+        } else if (row.category_source === 'fallback') {
+            pickCat.appendChild(el('p', 'text-xs text-amber-600 font-medium mt-1', 'לא זוהתה קטגוריה'));
+        }
+        body.appendChild(pickCat);
+        li.appendChild(body);
+        return li;
+    }
+
+    function skippedRow(row) {
+        var li = el('li', 'py-2 flex items-center gap-2 text-sm');
+        li.appendChild(el('span', 'text-gray-500 whitespace-nowrap', shortDate(row.date)));
+        li.appendChild(el('span', 'text-gray-300', '·'));
+        li.appendChild(el('span', 'text-gray-700 truncate flex-1 min-w-0', row.merchant));
+        li.appendChild(amountNode(row.amount));
+        li.appendChild(el('span', 'text-xs text-gray-500 bg-gray-100 rounded-full px-2 py-0.5 whitespace-nowrap',
+            REASONS[row.status] || ''));
+        return li;
+    }
+
+    function checkedRows() {
+        var rows = [];
+        Array.prototype.forEach.call(newList.children, function (li) {
+            var box = li.querySelector('input[type="checkbox"]');
+            if (!box || !box.checked) return;
+            var row = current.rows[Number(li.dataset.index)];
+            rows.push({
+                date: row.date,
+                amount: row.amount,
+                merchant: row.merchant,
+                category_id: Number(li.querySelector('select').value),
+            });
+        });
+        return rows;
+    }
+
+    function updateSubmit() {
+        var n = checkedRows().length;
+        submitBtn.textContent = 'הוסף ' + n + ' עסקאות';
+        submitBtn.disabled = n === 0;
+    }
+
+    function renderPreview(data) {
+        current = data;
+        var parts = [];
+        if (data.holder) parts.push(data.holder);
+        if (data.card_last4) parts.push('כרטיס ' + data.card_last4);
+        if (data.statement_month) parts.push(data.statement_month);
+        summary.textContent = parts.join(' · ');
+        summary.hidden = parts.length === 0;
+
+        if (data.user_id !== null && data.user_id !== undefined) payerSelect.value = String(data.user_id);
+        accountSelect.value = data.account_id ? String(data.account_id) : '';
+
+        var fresh = data.rows.filter(function (r) { return r.status === 'new'; });
+        // Rows that need a look first; the rest keep file order.
+        fresh.sort(function (a, b) {
+            var fa = a.category_source === 'fallback' ? 0 : 1;
+            var fb = b.category_source === 'fallback' ? 0 : 1;
+            return fa - fb || a.index - b.index;
+        });
+        var old = data.rows.filter(function (r) { return r.status !== 'new'; });
+
+        newTitle.textContent = 'חדשות (' + fresh.length + ')';
+        newList.textContent = '';
+        fresh.forEach(function (r) { newList.appendChild(newRow(r)); });
+        newEmpty.hidden = fresh.length > 0;
+        newList.hidden = fresh.length === 0;
+
+        skippedTitle.textContent = 'כבר רשומות (' + old.length + ')';
+        skippedList.textContent = '';
+        old.forEach(function (r) { skippedList.appendChild(skippedRow(r)); });
+        skipped.hidden = old.length === 0;
+        skipped.open = false;
+
+        submitError.hidden = true;
+        submitBtn.hidden = fresh.length === 0;
+        updateSubmit();
+        show('preview');
+    }
+
+    submitBtn.addEventListener('click', function () {
+        var rows = checkedRows();
+        if (!rows.length || submitBtn.disabled) return;
+        submitBtn.disabled = true;
+        submitError.hidden = true;
+        fetch('/api/transactions/import', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: Number(payerSelect.value),
+                account_id: accountSelect.value ? Number(accountSelect.value) : null,
+                rows: rows,
+            }),
+        })
+            .then(function (res) {
+                return res.json().catch(function () { return {}; }).then(function (data) {
+                    if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : '');
+                    renderDone(data);
+                });
+            })
+            .catch(function (err) {
+                submitError.textContent = (err && err.message) || 'שגיאה בשמירה';
+                submitError.hidden = false;
+                updateSubmit();
+            });
+    });
+
+    // ── State 3 ────────────────────────────────────────────────────────────
+    function renderDone(data) {
+        created = data.created || [];
+        var msg = 'נוספו ' + data.count + ' עסקאות';
+        doneText.textContent = msg;
+        var month = current && current.statement_month;
+        doneLink.textContent = month ? 'לעסקאות של ' + month : 'לעסקאות';
+        doneLink.href = '/finances/transactions?date_from=' + encodeURIComponent(data.date_from) +
+            '&date_to=' + encodeURIComponent(data.date_to);
+        undoBtn.disabled = false;
+        // The inline button stays even where the toast shows, so undo outlives the pill.
+        undoBtn.hidden = false;
+        toastOnPhone(msg, 'ביטול', undo);
+        show('done');
+    }
+
+    function undo() {
+        if (!created.length) return;
+        undoBtn.disabled = true;
+        fetch('/api/transactions/import/undo', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: created }),
+        })
+            .then(function (res) {
+                if (!res.ok) throw new Error('undo failed');
+                if (!toastOnPhone('בוטל') && window.showToast) window.showToast('בוטל', 'success');
+                resetPick();
+            })
+            .catch(function () {
+                undoBtn.disabled = false;
+                if (window.showToast) window.showToast('שגיאה', 'error');
+            });
+    }
+    undoBtn.addEventListener('click', undo);
+})();
+</script>
+{% endblock %}

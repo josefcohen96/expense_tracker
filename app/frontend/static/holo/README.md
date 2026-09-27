@@ -156,6 +156,7 @@ Clip keys come from `holo_key()` in `app/backend/app/routes/workouts.py`
 | `straddle_front_lever_hold` | Straddle Front Lever Hold | hold |
 | `straddle_human_flag_hold` | Straddle Human Flag Hold | hold |
 | `straddle_planche_hold` | Straddle Planche Hold | hold |
+| `straight_bar_dip_negatives` | Straight Bar Dip Negatives | 5-1-1 |
 | `straight_bar_dips` | Straight Bar Dips | 3-1-1 |
 | `toes_to_bar` | Toes to Bar | 2-1-1 |
 | `tuck_fl_rows` | Tuck FL Rows | 3-1-1 |

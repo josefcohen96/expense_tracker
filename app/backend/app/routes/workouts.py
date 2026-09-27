@@ -71,10 +71,14 @@ DEFAULT_EXERCISES = {
 # short form cues of its own. Station order follows the accepted progression for each
 # skill — an easier lever always comes before a longer one.
 
-def _station(name, hebrew, reps, rest, how, cues, unit="reps"):
-    """One quest station. `reps` is a count, or seconds when unit is 'sec'."""
+def _station(name, hebrew, reps, rest, how, cues, unit="reps", prep=False):
+    """One quest station. `reps` is a count, or seconds when unit is 'sec'.
+
+    A `prep` station is an entry step for whoever can't do the next one yet: it is
+    also conquered once the station after it is, so nobody past it is sent back.
+    """
     return {"name": name, "hebrew": hebrew, "unit": unit, "reps": reps, "rest": rest,
-            "how": how, "cues": [{"pin": pin, "text": text} for pin, text in cues]}
+            "how": how, "cues": [{"pin": pin, "text": text} for pin, text in cues], "prep": prep}
 
 
 SKILL_PROGRESSIONS = {
@@ -91,6 +95,11 @@ SKILL_PROGRESSIONS = {
             "תנופת רגליים (Kipping) מותרת בשלבים הראשונים, אבל היעד הוא עלייה נקייה מכוח הכתף והגב.",
         ],
         "progressions": [
+            _station("Negative Pull-ups", "עליות מתח שליליות", 5, 90,
+                     "קופצים או עולים על כיסא עד שהסנטר מעל המוט, ויורדים 4-5 שניות עד תלייה עם זרועות ישרות.",
+                     [("4-5 שניות למטה", "הירידה האיטית היא התרגיל — היא שבונה את הכוח למשיכה."),
+                      ("טווח מלא", "יורדים עד זרועות ישרות לגמרי לפני שעולים שוב.")],
+                     prep=True),
             _station("Basic Pull-ups", "עליות מתח בסיסיות", 10, 90,
                      "תלייה מלאה בתחתית, משיכה עד שהסנטר עובר את המוט, בלי תנופה מהאגן.",
                      [("שכמות קודם", "מתחילים מהורדת השכמות ורק אז מכופפים מרפקים."),
@@ -104,10 +113,6 @@ SKILL_PROGRESSIONS = {
                      [("שורש מעל המוט", "המוט יושב על בסיס כף היד, האגודל מעליו."),
                       ("להעלות בהדרגה", "מתחילים ב-15 שניות ומוסיפים — העור והגידים צריכים זמן.")],
                      unit="sec"),
-            _station("Straight Bar Dip Negatives", "ירידות איטיות על מוט ישר", 5, 90,
-                     "קופצים לתמיכה נעולה מעל מוט ישר ויורדים 4-5 שניות עד שהמוט כמעט נוגע בחזה, ואז יורדים לרצפה וחוזרים לתמיכה.",
-                     [("4-5 שניות למטה", "הירידה האיטית בונה את הכוח לדחיפה חזרה."),
-                      ("לעלות בקפיצה", "לא דוחפים למעלה — קופצים חזרה לתמיכה בכל חזרה.")]),
             _station("Straight Bar Dips", "מקבילים על מוט ישר", 8, 90,
                      "תמיכה על מוט ישר בגובה האגן: יורדים כשהמוט כמעט נוגע בחזה ודוחפים חזרה לנעילה.",
                      [("מוט קרוב לחזה", "המוט מלווה את הגוף — לא מתרחק ממנו."),
@@ -529,7 +534,7 @@ TEMPO_BY_EXERCISE = {
     "Full Muscle-Up": (2, 0, 1),
     "Muscle-ups": (2, 0, 1),
     "Negative Muscle-Up": (5, 1, 1),
-    "Straight Bar Dip Negatives": (5, 1, 1),
+    "Negative Pull-ups": (5, 1, 1),
     "Negative Wall HSPU": (5, 1, 1),
     "Low Bar Transitions": (2, 0, 1),
     "Vertical Flag Negatives": (4, 1, 1),
@@ -1177,7 +1182,11 @@ def compute_paths(
                 "in_range": min(counts["in_range"], STATION_SESSIONS_TO_CONQUER),
                 "remaining": max(0, STATION_SESSIONS_TO_CONQUER - counts["in_range"]),
                 "conquered": counts["in_range"] >= STATION_SESSIONS_TO_CONQUER or idx in legacy_done,
+                "skipped": False,
             })
+        for step, st, after in zip(skill["progressions"], stations, stations[1:]):
+            if step["prep"] and not st["conquered"] and after["conquered"]:
+                st["conquered"] = st["skipped"] = True
 
         current = next((st for st in stations if not st["conquered"]), None)
         for st in stations:
@@ -1196,7 +1205,7 @@ def compute_paths(
         planned = [(focus, PLAN_FOCUS_SETS)] + [
             (stations[focus["index"] - back], PLAN_SUPPORT_SETS)
             for back in range(1, PLAN_SUPPORT_STATIONS + 1)
-            if focus["index"] - back >= 0
+            if focus["index"] - back >= 0 and not stations[focus["index"] - back]["skipped"]
         ]
         plan_sets = sum(sets for _, sets in planned)
         plan_reps = sum(sets * st["reps"] for st, sets in planned)
@@ -1739,7 +1748,7 @@ async def save_workout(
         new_stations = []
         for p in paths_after:
             for st in p["stations"]:
-                if st["conquered"] and (p["key"], st["index"]) not in conquered_before:
+                if st["conquered"] and not st["skipped"] and (p["key"], st["index"]) not in conquered_before:
                     new_stations.append({
                         "path": p["name"],
                         "icon": p["icon"],
@@ -1902,18 +1911,26 @@ def admin_exercise_options() -> List[Dict[str, Any]]:
 
 
 def admin_legacy_stations(db_conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]]:
-    """Stations imported from the old browser-only "כבשתי!" flags, as rows the admin can clear."""
-    return [
-        {
-            "skill_key": skill_key,
-            "path": PATHS[skill_key]["name"],
-            "icon": PATHS[skill_key]["icon"],
-            "stage_index": idx,
-            "station": SKILL_PROGRESSIONS[skill_key]["progressions"][idx]["hebrew"],
-        }
-        for skill_key, indexes in _load_legacy_progress(db_conn, user_id).items()
-        for idx in indexes
-    ]
+    """Stations imported from the old browser-only "כבשתי!" flags, as rows the admin can clear.
+
+    `stage_index` stays the legacy index the flag is stored under, so a chip sent back
+    to PUT /api/workouts/legacy-progress names the same station after a path changes.
+    """
+    rows = []
+    for skill_key, indexes in _stored_legacy_progress(db_conn, user_id).items():
+        steps = SKILL_PROGRESSIONS[skill_key]["progressions"]
+        for legacy_idx in indexes:
+            current = _legacy_to_current({skill_key: [legacy_idx]}).get(skill_key)
+            if not current:
+                continue  # a station dropped from the path
+            rows.append({
+                "skill_key": skill_key,
+                "path": PATHS[skill_key]["name"],
+                "icon": PATHS[skill_key]["icon"],
+                "stage_index": legacy_idx,
+                "station": steps[current[0]]["hebrew"],
+            })
+    return rows
 
 
 @router.get("/workouts/admin", response_class=HTMLResponse)

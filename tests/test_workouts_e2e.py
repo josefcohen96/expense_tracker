@@ -6,7 +6,8 @@ import pytest
 
 import app.backend.app.routes.workouts as workouts
 
-MU_BASIC = "עליות מתח בסיסיות (Basic Pull-ups)"  # muscle_up station 0, target 10 reps
+MU_PREP = "עליות מתח שליליות (Negative Pull-ups)"  # muscle_up station 0, target 5 reps
+MU_BASIC = "עליות מתח בסיסיות (Basic Pull-ups)"  # muscle_up station 1, target 10 reps
 
 
 @pytest.fixture()
@@ -70,7 +71,7 @@ def test_first_run_page(app_client, clean_workouts):
 
 def test_page_with_history(app_client, clean_workouts):
     _save(app_client, date.today().isoformat(), [
-        {"exercise_name": MU_BASIC, "total_sets": 4, "total_reps": 40, "max_reps": 10,
+        {"exercise_name": MU_PREP, "total_sets": 4, "total_reps": 20, "max_reps": 5,
          "skill_key": "muscle_up", "stage_index": 0},
     ])
     html = app_client.get("/workouts").text
@@ -154,14 +155,16 @@ def test_rows_saved_before_station_columns_still_count():
     history = [_session(f"2026-09-0{i}", [(MU_BASIC, 3, 30)]) for i in range(5, 0, -1)]
     paths = {p["key"]: p for p in workouts.compute_paths(history, level=1, today=date(2026, 9, 10))}
     mu = paths["muscle_up"]
-    assert mu["stations"][0]["state"] == "conquered"
-    assert mu["current"]["index"] == 1
-    assert mu["stations"][2]["state"] == "next"
-    assert mu["stations"][3]["state"] == "locked"
-    assert mu["position"] == 2 and mu["stations_to_goal"] == mu["total"] - 2
+    assert mu["stations"][1]["state"] == "conquered"
+    # The prep station before it counts as passed — nobody is sent back to it
+    assert mu["stations"][0]["state"] == "conquered" and mu["stations"][0]["skipped"]
+    assert mu["current"]["index"] == 2
+    assert mu["stations"][3]["state"] == "next"
+    assert mu["stations"][4]["state"] == "locked"
+    assert mu["position"] == 3 and mu["stations_to_goal"] == mu["total"] - 3
     assert mu["last_ago"] == "לפני 5 ימים"
-    # Plan: the station being conquered first, then the conquered one as volume
-    assert [(e["stage_index"], e["sets"]) for e in mu["plan"]["exercises"]] == [(1, 4), (0, 3)]
+    # Plan: the station being conquered first, then the conquered one as volume (not the skipped prep)
+    assert [(e["stage_index"], e["sets"]) for e in mu["plan"]["exercises"]] == [(2, 4), (1, 3)]
     assert mu["plan"]["minutes"] == 30  # median of the recent sessions on this path
     assert mu["plan"]["xp"] == workouts._session_xp(7, 4 * 12 + 3 * 10, 30)
     # 5 sessions over ~1 week on this path → an ETA is shown

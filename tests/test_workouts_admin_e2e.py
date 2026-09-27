@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 
-MU_BASIC = "עליות מתח בסיסיות (Basic Pull-ups)"  # muscle_up station 0
+MU_BASIC = "עליות מתח בסיסיות (Basic Pull-ups)"  # muscle_up station 1
 
 
 @pytest.fixture()
@@ -83,7 +83,7 @@ def test_create_session_feeds_the_game(app_client, db_conn, user_id, clean_worko
         "FROM workouts ORDER BY id"
     ).fetchall()
     assert [tuple(r) for r in rows] == [
-        (MU_BASIC, 4, 40, 11, "muscle_up", 0),
+        (MU_BASIC, 4, 40, 11, "muscle_up", 1),
         ("Dips", 3, 30, None, None, None),
     ]
     # The arena picks the manual session up like any other workout
@@ -96,7 +96,7 @@ def test_create_resolves_the_station_by_name(app_client, db_conn, user_id, clean
         {"exercise_name": MU_BASIC, "total_sets": 3, "total_reps": 30},
     ])
     row = db_conn.execute("SELECT skill_key, stage_index FROM workouts").fetchone()
-    assert (row["skill_key"], row["stage_index"]) == ("muscle_up", 0)
+    assert (row["skill_key"], row["stage_index"]) == ("muscle_up", 1)
 
 
 def test_update_session_edits_details_and_rows(app_client, db_conn, user_id, clean_workouts):
@@ -210,7 +210,7 @@ def test_imported_stations_are_shown_and_can_be_cleared(app_client, db_conn, use
     r = app_client.put("/api/workouts/legacy-progress",
                        json={"user_id": user_id, "progress": {"muscle_up": [1]}})
     assert r.status_code == 200
-    assert r.json()["progress"] == {"muscle_up": [1]}
+    assert r.json()["progress"] == {"muscle_up": [2]}  # legacy 1 = Basic Dips, station 2 today
 
     r = app_client.put("/api/workouts/legacy-progress", json={"user_id": user_id, "progress": {}})
     assert r.json() == {"status": "success", "progress": {}, "stations": 0}

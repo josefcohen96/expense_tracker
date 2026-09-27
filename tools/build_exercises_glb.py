@@ -503,12 +503,11 @@ SPECS = {
     "basic_dips": dict(a=DIP_TOP, b=d(DIP_BOTTOM, **arm_to(-0.43, 0.02)), anchor=DIP_BAR),
     "straight_bar_dips": dict(a=d(DIP_TOP, torso=14), b=d(DIP_BOTTOM, torso=26), anchor=DIP_BAR,
                               prop="bar"),
-    "straight_bar_dip_negatives": dict(a=d(DIP_TOP, torso=14), b=d(DIP_BOTTOM, torso=26),
-                                       anchor=DIP_BAR, prop="bar"),
 
     # --- pull ---
     "pull_ups": dict(a=PULL_TOP, mid=PULL_MID, b=HANG, anchor=BAR, view="front"),
     "basic_pull_ups": dict(a=PULL_TOP, mid=PULL_MID, b=HANG, anchor=BAR, view="front"),
+    "negative_pull_ups": dict(a=PULL_TOP, mid=PULL_MID, b=HANG, anchor=BAR, view="front"),
     "chin_ups": dict(a=d(PULL_TOP, arm_spread=-8, fore_spread=-8, **arm_to(0.24, 0.16)),
                      mid=d(PULL_MID, arm_spread=-8, fore_spread=-8, **arm_to(0.06, 0.12)),
                      b=d(HANG, arm_spread=-8, fore_spread=-8), anchor=BAR, view="front"),
@@ -700,7 +699,7 @@ HOLD_KEYS = {"advanced_tuck_fl_hold", "advanced_tuck_planche", "angled_tucked_fl
 TEMPOS = {"explosive_pull_ups": (2, 0, 1), "assisted_muscle_up_band": (2, 0, 1),
           "full_muscle_up": (2, 0, 1), "muscle_ups": (2, 0, 1), "low_bar_transitions": (2, 0, 1),
           "negative_muscle_up": (5, 1, 1), "negative_wall_hspu": (5, 1, 1),
-          "straight_bar_dip_negatives": (5, 1, 1),
+          "negative_pull_ups": (5, 1, 1),
           "vertical_flag_negatives": (4, 1, 1),
           "active_scapula_hangs": (2, 1, 1), "scapula_shrugs": (2, 1, 1),
           "toes_to_bar": (2, 1, 1), "calf_raises": (2, 1, 1),

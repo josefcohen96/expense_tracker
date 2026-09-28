@@ -13,13 +13,13 @@ Real lock-screen push notifications from the arena: a morning call with today's 
 - B (house style): the texts come from what the arena already knows (`plan_today`, current streak, `streak_at_risk`), the evening push is skipped when you trained, and one toggle turns everything on. **Chosen.**
 - C (subtraction): no push, just rely on היום. Lost because the user explicitly wants lock-screen notifications. היום only helps once the app is already open.
 
-Calendar: fixed, predictable times (07:30 / 21:00). Messaging app: one line and a tap that opens the right screen. Board game: the evening push reads like "your turn, the streak is on the table". Bank statement: nothing.
+Calendar: fixed, predictable times (08:40 / 21:00). Messaging app: one line and a tap that opens the right screen. Board game: the evening push reads like "your turn, the streak is on the table". Bank statement: nothing.
 
 ## Behaviour
 
 ### Turning it on (the `#profile` view, mobile and desktop are the same page)
 A new card under the stats row (`wk-stats`) and above the Spanish card:
-- Title `🔔 קריאה לזירה`, sub-line `בוקר 07:30 · ערב 21:00, רק אם עוד לא התאמנת`.
+- Title `🔔 קריאה לזירה`, sub-line `בוקר 08:40 · ערב 21:00, רק אם עוד לא התאמנת`.
 - The action button depends on state (all decided in JS):
   - Push not supported by the browser, or the server has no VAPID key (`enabled: false`): card hidden entirely.
   - iPhone/iPad not running as an installed app (`navigator.standalone !== true` and not `display-mode: standalone`): no button; the sub-line becomes `באייפון: שתף ← "הוסף למסך הבית", ואז פותחים את האפליקציה משם`.
@@ -31,7 +31,7 @@ A new card under the stats row (`wk-stats`) and above the Spanish card:
 ### The notifications (server-side, Asia/Jerusalem)
 Each is sent to every subscription of each user who has one.
 
-**Morning, 07:30.** Derived from the same inputs as `workout_page` (history, gamification, paths, `plan_today`):
+**Morning, 08:40.** Derived from the same inputs as `workout_page` (history, gamification, paths, `plan_today`):
 - Rest-day recommendation (`plan_today` returned the recovery note, i.e. streak ≥ `RECOVERY_STREAK_DAYS`): title `☀️ בוקר טוב — יום מנוחה`, body `{n} ימים ברצף. היום נחים, והכוח נבנה.`
 - Otherwise: title `☀️ המשימה של היום`, body `{path icon} {path name} · {next unconquered station Hebrew name}` (if the path has none left, just the path). If `streak_at_risk`, append ` · הרצף ({n}) מחכה לך`.
 - URL: `/workouts#home`.
@@ -95,7 +95,7 @@ New router `api/push.py`, prefix `/api/workouts/push` (inside `WORKOUTS_PREFIXES
 - `app/backend/app/services/push_service.py` (new): `vapid_config()`, `is_enabled()`, `save_subscription`, `delete_subscription`, `send_to_user(conn, user_id, payload) -> int` (handles 404/410 cleanup), `morning_message(conn, user_id, today)` / `evening_message(conn, user_id, today)` returning a payload dict or `None`, `run_daily(kind, today=None)` (idempotent via `system_settings`). Import helpers from `routes/workouts.py` lazily inside functions to avoid import cycles.
 - `app/backend/app/api/push.py` (new): the four routes.
 - `app/backend/app/main.py`: include the router.
-- `app/backend/app/services/cron_service.py`: two `CronTrigger` jobs (07:30, 21:00, `timezone="Asia/Jerusalem"`), added only when `push_service.is_enabled()`, `coalesce=True`, `max_instances=1`, `misfire_grace_time=1800`.
+- `app/backend/app/services/cron_service.py`: two `CronTrigger` jobs (08:40, 21:00, `timezone="Asia/Jerusalem"`), added only when `push_service.is_enabled()`, `coalesce=True`, `max_instances=1`, `misfire_grace_time=1800`.
 - `app/frontend/static/js/sw.js`: `push` + `notificationclick` handlers, cache version bump.
 - `app/frontend/static/manifest.json`: standalone + id.
 - `app/frontend/templates/pages/workout.html`: the profile card (markup only, `hidden` by default).
@@ -132,7 +132,7 @@ New router `api/push.py`, prefix `/api/workouts/push` (inside `WORKOUTS_PREFIXES
 Use a dedicated test user id or clean up the workout rows each test inserts, so other tests' history is unaffected.
 
 ## Out of scope
-- Choosing custom times per user (fixed 07:30 / 21:00 for now; constants in `push_service`).
+- Choosing custom times per user (fixed 08:40 / 21:00 for now; constants in `push_service`).
 - Separate morning/evening toggles.
 - Push for finances or the wedding.
 - Notification action buttons, badges, or images.

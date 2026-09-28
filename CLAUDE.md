@@ -47,6 +47,7 @@ expense_tracker/
 │   │   │   │   ├── backup.py        # ZIP + Excel backup
 │   │   │   │   ├── wedding.py       # Full wedding module API (incl. milestones)
 │   │   │   │   ├── workouts.py      # Workouts admin CRUD (sessions + imported stations)
+│   │   │   │   ├── push.py          # קריאה לזירה: Web Push subscribe/unsubscribe/test
 │   │   │   │   └── today.py         # /api/today aggregate + /api/quick-add/options
 │   │   │   ├── routes/              # HTML page routes (Jinja2 rendering)
 │   │   │   │   ├── pages.py         # All page views, login/logout, dashboard
@@ -67,6 +68,7 @@ expense_tracker/
 │   │   │       ├── today.py              # היום queue: urgent tasks across modules + month totals
 │   │   │       ├── wedding_plan.py       # Countdown, date-anchored milestones, headcount, committed money
 │   │   │       ├── cron_service.py       # APScheduler background jobs
+│   │   │       ├── push_service.py       # Arena Web Push: VAPID config, subscriptions, morning/evening texts
 │   │   │       ├── logging_service.py    # configure_logging(), print redirect
 │   │   │       └── production_logging.py # Railway-specific logging
 │   │   ├── backups/                 # ZIP and Excel backup files
@@ -173,6 +175,7 @@ All tables in a single SQLite file at `app/backend/data/budget.db`. Connection u
 
 **Workouts table:**
 - `workouts` — `id, user_id (FK), date, workout_type, total_duration, exercise_name, total_sets, total_reps, skill_key, stage_index, max_reps`. One row per exercise per session. `skill_key`/`stage_index` = the quest station trained (older rows are matched by their `"hebrew (English)"` name); `max_reps` = best single set, for personal records.
+- `push_subscriptions` — `id, user_id (FK, cascade), endpoint (UNIQUE), p256dh, auth, created_at`. One Web Push subscription per device; subscribing an existing endpoint re-points it to the current user. Push texts are never stored; `system_settings` key `push_sent:<morning|evening>:<YYYY-MM-DD>` marks a daily run as done.
 
 **Migrations** are inline in `initialise_database()` in `db.py`, using `PRAGMA table_info()` to detect and add missing columns. No migration framework is used.
 
@@ -240,6 +243,7 @@ Lives in `recurrence.py`. Uses a **catch-up / materialization** model — not re
 | `wedding_api` | `/api/wedding` | Full wedding module CRUD |
 | `workouts_router` | (no prefix) | Workouts page, admin page + data |
 | `workouts_api` | `/api/workouts` | Admin CRUD: sessions + imported stations |
+| `push_api` | `/api/workouts/push` | `GET /key`, `POST`/`DELETE /subscribe`, `POST /test` (arena Web Push) |
 | `debug_logs_router` | (no prefix) | Debug log viewer |
 | `today_api` | `/api` | `GET /today` (היום aggregate), `GET /quick-add/options` |
 
@@ -258,7 +262,8 @@ Below `lg` the app uses a bottom tab bar (היום · חתונה · + · כספ�
 ## Services
 
 - **`AuthMiddleware`** — per-request auth guard. Reads session, falls back to signed cookie. Lives in `services/auth_middleware.py`.
-- **`CronService`** — APScheduler `BackgroundScheduler`. Two jobs: immediate startup run + daily 03:15. Calls `apply_recurring()`.
+- **`CronService`** — APScheduler `BackgroundScheduler`. Two jobs: immediate startup run + daily 03:15. Calls `apply_recurring()`. When the VAPID keys are set it also runs the arena pushes at 08:40 and 21:00 (Asia/Jerusalem).
+- **`push_service`** — קריאה לזירה: Web Push via `pywebpush` (imported lazily). Morning push = today's mission (or the rest day `plan_today` recommends); evening push only on a day without a workout (streak at risk, or a way back in). A 404/410 from the push service deletes the subscription. Card: `#profile` on `/workouts` (`static/js/components/arena-push.js`); keys from `tools/generate_vapid_keys.py`.
 - **`backup_service`** — creates ZIP archives of the SQLite DB; restore copies file back; monthly Excel export via openpyxl.
 - **`cache_service`** — simple in-memory cache for statistics API responses.
 - **`logging_service` / `production_logging`** — rotating file log at `logs/server.log`. Redirects print statements in production.
@@ -274,6 +279,9 @@ Below `lg` the app uses a bottom tab bar (היום · חתונה · + · כספ�
 | `USER_PASSWORD_KARINA` | **Yes** | Login password for Karina |
 | `USER_PASSWORD_TSAHALA` | For that login | Password for Tsahala (renovation-only) |
 | `USER_PASSWORD_YONATAN` | For that login | Password for Yonatan (workouts-only) |
+| `VAPID_PUBLIC_KEY` | For push | Base64url P-256 public key (the browser's `applicationServerKey`). Missing = arena push off. |
+| `VAPID_PRIVATE_KEY` | For push | Base64url raw private key. Generate both with `python tools/generate_vapid_keys.py`. |
+| `VAPID_SUBJECT` | No | `mailto:` contact sent to the push services (default `mailto:admin@example.com`). |
 | `IMPORT_TOKEN` | No | Bearer token for `POST /api/transactions/import/auto` (the Gmail Apps Script in `tools/gmail_max_import.gs`). Unset = endpoint off. |
 | `BUDGET_DB_PATH` | No | Override DB file location (used in tests) |
 | `FORCE_DB_RESET=1` | No | Drop and recreate all tables at startup |

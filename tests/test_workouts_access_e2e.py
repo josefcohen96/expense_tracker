@@ -332,3 +332,31 @@ def test_yosef_still_manages_everyone(authed_client, ids, clean_workouts):
         assert authed_client.delete(f"/api/workouts/sessions/{r.json()['id']}").status_code == 200
     finally:
         authed_client.get("/logout", follow_redirects=False)
+
+
+def test_yonatan_gets_the_push_card_and_his_own_subscription(
+    authed_client, ids, clean_workouts, as_yonatan, authed_db, monkeypatch
+):
+    """קריאה לזירה: the profile card renders for a workouts-only login and the push API is his."""
+    authed_client.post("/workouts", json={
+        "date": "2026-06-15",
+        "workout_type": "Pull",
+        "total_duration": 20,
+        "exercises": [{"exercise_name": MU_BASIC, "total_sets": 3, "total_reps": 24,
+                       "skill_key": "muscle_up", "stage_index": 0, "max_reps": 8}],
+    })
+    r = authed_client.get("/workouts")
+    assert r.status_code == 200
+    assert "data-arena-push hidden" in r.text
+
+    monkeypatch.setenv("VAPID_PUBLIC_KEY", "public-key-for-the-test")
+    monkeypatch.setenv("VAPID_PRIVATE_KEY", "private-key-for-the-test")
+    assert authed_client.get("/api/workouts/push/key").json()["enabled"] is True
+    body = {"endpoint": "https://push.example/yonatan", "keys": {"p256dh": "k", "auth": "a"}}
+    try:
+        assert authed_client.post("/api/workouts/push/subscribe", json=body).status_code == 200
+        owners = [row["user_id"] for row in authed_db.execute("SELECT user_id FROM push_subscriptions")]
+        assert owners == [ids["Yonatan"]]
+    finally:
+        authed_db.execute("DELETE FROM push_subscriptions")
+        authed_db.commit()

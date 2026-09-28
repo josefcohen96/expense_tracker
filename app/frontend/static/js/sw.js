@@ -1,9 +1,9 @@
 // Service Worker for Performance Optimization and Caching
 
 // Bump versions to force update on clients
-const CACHE_NAME = 'expense-tracker-v1.1.0';
-const STATIC_CACHE = 'static-v1.1.0';
-const DYNAMIC_CACHE = 'dynamic-v1.1.0';
+const CACHE_NAME = 'expense-tracker-v1.2.0';
+const STATIC_CACHE = 'static-v1.2.0';
+const DYNAMIC_CACHE = 'dynamic-v1.2.0';
 
 // Track login time to avoid intercepting requests immediately after login
 let lastLoginTime = 0;
@@ -284,49 +284,42 @@ async function doBackgroundSync() {
     }
 }
 
-// Push notifications (if needed)
+// קריאה לזירה: the arena's pushes (services/push_service.py) carry {title, body, url, tag}
 self.addEventListener('push', event => {
-    if (event.data) {
-        const data = event.data.json();
-
-        const options = {
-            body: data.body,
-            icon: '/static/images/icon-192x192.png',
-            badge: '/static/images/badge-72x72.png',
-            vibrate: [100, 50, 100],
-            data: {
-                dateOfArrival: Date.now(),
-                primaryKey: 1
-            },
-            actions: [
-                {
-                    action: 'explore',
-                    title: 'View',
-                    icon: '/static/images/checkmark.png'
-                },
-                {
-                    action: 'close',
-                    title: 'Close',
-                    icon: '/static/images/xmark.png'
-                }
-            ]
-        };
-
-        event.waitUntil(
-            self.registration.showNotification(data.title, options)
-        );
+    let data = {};
+    try {
+        data = event.data ? event.data.json() : {};
+    } catch (e) {
+        data = { body: event.data ? event.data.text() : '' };
     }
+    const options = {
+        body: data.body || '',
+        icon: data.icon || '/static/icons/icon-192.png',
+        tag: data.tag || 'arena',
+        renotify: true,
+        lang: data.lang || 'he',
+        dir: data.dir || 'rtl',
+        data: { url: data.url || '/workouts' }
+    };
+    event.waitUntil(self.registration.showNotification(data.title || 'המנביטים', options));
 });
 
-// Handle notification clicks
+// Tap on a notification: reuse an open /workouts tab, else open a new window
 self.addEventListener('notificationclick', event => {
     event.notification.close();
-
-    if (event.action === 'explore') {
-        event.waitUntil(
-            clients.openWindow('/')
-        );
-    }
+    const target = new URL((event.notification.data && event.notification.data.url) || '/workouts', self.location.origin).href;
+    event.waitUntil((async () => {
+        const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+        const open = windows.find(c => new URL(c.url).pathname.startsWith('/workouts'));
+        if (open) {
+            await open.focus();
+            if (open.url !== target && 'navigate' in open) {
+                try { await open.navigate(target); } catch (e) { /* uncontrolled client */ }
+            }
+            return;
+        }
+        await clients.openWindow(target);
+    })());
 });
 
 // Performance monitoring

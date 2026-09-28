@@ -4,6 +4,9 @@ APScheduler-based CronService for materializing recurring transactions.
 Runs `apply_recurring` once at startup and then daily at 03:15.
 The recurrence algorithm is idempotent (unique (recurrence_id, period_key)),
 so multiple invocations won't duplicate data.
+
+When VAPID keys are configured it also sends the arena pushes (services/push_service.py):
+morning 08:40 and evening 21:00, Asia/Jerusalem. Each run is idempotent per day.
 """
 
 import logging
@@ -13,6 +16,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from .. import recurrence
+from . import push_service
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +59,21 @@ class CronService:
             misfire_grace_time=3600,
         )
 
+        # קריאה לזירה: only when the VAPID keys are set
+        if push_service.is_enabled():
+            for kind, (hour, minute) in (("morning", push_service.MORNING_TIME),
+                                         ("evening", push_service.EVENING_TIME)):
+                scheduler.add_job(
+                    self._run_push,
+                    args=[kind],
+                    id=f"arena_push_{kind}",
+                    trigger=CronTrigger(hour=hour, minute=minute, timezone=push_service.TIMEZONE),
+                    replace_existing=True,
+                    coalesce=True,
+                    max_instances=1,
+                    misfire_grace_time=1800,
+                )
+
         scheduler.start()
         self._scheduler = scheduler
         logger.info("CronService started: startup and daily recurrence jobs scheduled.")
@@ -75,3 +94,11 @@ class CronService:
             logger.info("apply_recurring executed: inserted=%s", inserted)
         except Exception:
             logger.exception("apply_recurring failed")
+
+    @staticmethod
+    def _run_push(kind: str) -> None:
+        try:
+            sent = push_service.run_daily(kind)
+            logger.info("arena push %s executed: sent=%s", kind, sent)
+        except Exception:
+            logger.exception("arena push %s failed", kind)

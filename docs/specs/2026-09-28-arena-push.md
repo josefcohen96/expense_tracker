@@ -38,7 +38,7 @@ Each is sent to every subscription of each user who has one.
 
 **Evening, 21:00.** Skipped entirely when the user has a workout row dated today.
 - Streak at risk (current streak > 0, trained yesterday, not today): title `🔥 הרצף בסכנה`, body `הרצף של {n} ימים נגמר בחצות. אימון אחד קצר שומר עליו.` (n = 1 → `הרצף של יום אחד`).
-- No live streak: title `🏠 עוד לא מאוחר`, body `15 דקות בסלון מספיקות להיום.`. URL `/workouts#house`.
+- No live streak: title `🏠 עוד לא מאוחר`, body `15 דקות בסלון מספיקות להיום.`. URL `/workouts#home` (`#house` once the home-workouts view ships).
 - URL for the streak case: `/workouts#home`.
 
 **Test** (`/push/test`): title `🔔 קריאה לזירה`, body `ההתראות עובדות. נתראה בזירה.`, URL `/workouts#profile`.
@@ -111,7 +111,7 @@ New router `api/push.py`, prefix `/api/workouts/push` (inside `WORKOUTS_PREFIXES
 4. `DELETE /push/subscribe` removes the row; a second delete still returns 200.
 5. `evening_message` returns `None` when the user has a workout dated today.
 6. `evening_message` returns the streak text with the right day count when the user trained yesterday and not today (current streak ≥ 1).
-7. `evening_message` returns the `#house` payload when the user has no live streak.
+7. `evening_message` returns the no-streak payload when the user has no live streak.
 8. `morning_message` returns the rest-day payload when the user trained on the last `RECOVERY_STREAK_DAYS` days, and the mission payload (containing the recommended path's name) otherwise.
 9. `send_to_user` deletes a subscription whose send raises a WebPush error with status 404 or 410, and keeps it on another error.
 10. `run_daily("morning", today)` twice on the same day sends only once (second call sends 0).

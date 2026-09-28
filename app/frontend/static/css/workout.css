@@ -3804,3 +3804,67 @@ button.wk-path-row:active {
   border-radius: inherit;
   background: var(--wk-gold);
 }
+
+/* ===== קריאה לזירה: the push card on #profile (static/js/components/arena-push.js) ===== */
+.wk-push-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.wk-push-card[hidden] {
+  display: none;
+}
+.wk-push-tile {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 12px;
+  background: rgba(196, 181, 253, .14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+}
+.wk-push-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wk-push-title {
+  font: 700 14px var(--font-heading);
+  color: #fff;
+}
+.wk-push-sub {
+  font: 400 11.5px var(--font-primary);
+  color: var(--wk-meta-floor);
+}
+.wk-push-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: none;
+}
+.wk-push-btn {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--wk-line-strong);
+  background: var(--wk-card-strong);
+  font: 600 12px var(--font-primary);
+  color: var(--wk-meta);
+  cursor: pointer;
+}
+.wk-push-btn[hidden] {
+  display: none;
+}
+.wk-push-btn.is-primary {
+  border-color: transparent;
+  background: var(--wk-violet);
+  color: #fff;
+}
+.wk-push-btn:hover {
+  color: #fff;
+}

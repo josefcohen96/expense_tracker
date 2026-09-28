@@ -1,11 +1,12 @@
 {
+  "id": "/",
   "name": "המנביטים",
   "short_name": "המנביטים",
   "lang": "he",
   "dir": "rtl",
   "start_url": "/",
   "scope": "/",
-  "display": "browser",
+  "display": "standalone",
   "background_color": "#EAF8FD",
   "theme_color": "#BFE7F4",
   "icons": [

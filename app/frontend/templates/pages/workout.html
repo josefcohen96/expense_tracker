@@ -4,7 +4,7 @@
 
 {% block head %}
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/workout.css?v=20260925-spanish2">
+<link rel="stylesheet" href="/static/css/workout.css?v=20260928-push">
 {% endblock %}
 
 {% block body_class %}has-section-header workouts-page{% endblock %}
@@ -354,6 +354,20 @@
                 <div class="wk-stat"><div class="wk-stat-label">סטים</div><div class="wk-stat-value" dir="ltr">{{ "{:,}".format(game.total_sets) }}</div></div>
                 <div class="wk-stat"><div class="wk-stat-label">חזרות</div><div class="wk-stat-value" dir="ltr">{{ "{:,}".format(game.total_reps) }}</div></div>
                 <div class="wk-stat is-streak"><div class="wk-stat-label">הרצף הארוך</div><div class="wk-stat-value" dir="ltr">{{ game.best_streak }}</div></div>
+            </div>
+
+            {#- קריאה לזירה: lock-screen pushes (static/js/components/arena-push.js); shown only when push can work -#}
+            <div class="wk-card wk-push-card" data-arena-push hidden>
+                <span class="wk-push-tile" aria-hidden="true">🔔</span>
+                <span class="wk-push-text">
+                    <span class="wk-push-title">קריאה לזירה</span>
+                    <span class="wk-push-sub" data-push-sub>בוקר 08:40 · ערב 21:00, רק אם עוד לא התאמנת</span>
+                </span>
+                <span class="wk-push-actions">
+                    <button type="button" class="wk-push-btn is-primary" data-push-on hidden>להפעיל</button>
+                    <button type="button" class="wk-push-btn" data-push-test hidden>לשלוח בדיקה</button>
+                    <button type="button" class="wk-push-btn" data-push-off hidden>לכבות</button>
+                </span>
             </div>
 
             <a href="#spanish" class="wk-card wk-spanish-card">
@@ -976,4 +990,5 @@
 <script type="application/json" id="workout-data">{{ client_data|tojson }}</script>
 <script src="/static/js/spanish.js?v=20260925-spanish2" defer></script>
 <script src="/static/js/workout.js?v=20260925-spanish2" defer></script>
+<script src="/static/js/components/arena-push.js?v=20260928" defer></script>
 {% endblock %}

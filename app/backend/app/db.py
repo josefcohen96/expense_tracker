@@ -837,6 +837,19 @@ def initialise_database() -> None:
         "CREATE INDEX IF NOT EXISTS idx_spanish_reviews_user_item ON spanish_reviews (user_id, item_id)"
     )
 
+    # קריאה לזירה: one Web Push subscription per device (services/push_service.py).
+    # The texts are derived at send time; only the browser's endpoint + keys are kept.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
     conn.commit()
     conn.close()
 

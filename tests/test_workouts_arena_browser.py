@@ -15,8 +15,8 @@ import pytest
 pytest.importorskip("playwright.sync_api")
 from playwright.sync_api import expect, sync_playwright  # noqa: E402
 
-MU_BASIC = "עליות מתח בסיסיות (Basic Pull-ups)"       # muscle_up station 0 — 4 × 10 reps
-MU_TITLE = "עליות מתח בסיסיות"                           # what the arena shows (the Hebrew half)
+MU_BASIC = "עליות מתח שליליות (Negative Pull-ups)"      # muscle_up station 0 — 4 × 5 reps
+MU_TITLE = "עליות מתח שליליות"                           # what the arena shows (the Hebrew half)
 HS_WALL = "עמידת ידיים לקיר (החזקה) (Wall-Assisted Handstand Hold)"  # hspu station 0 — a 30 s hold
 
 PHONE = {"width": 393, "height": 852}
@@ -159,7 +159,7 @@ def test_reps_path_runs_set_rest_set_and_saves(page, db_conn):
     panel = _set_panel(page)
     expect(panel).to_have_attribute("data-state", "active")
     expect(panel).to_have_attribute("data-unit", "reps")
-    expect(page.locator("#arena-reps")).to_have_text("10")
+    expect(page.locator("#arena-reps")).to_have_text("5")
     expect(page.locator("#arena-ex-name")).to_have_text(MU_TITLE)
     expect(page.locator("#arena-set-label")).to_contain_text("1")
 
@@ -183,7 +183,7 @@ def test_reps_path_runs_set_rest_set_and_saves(page, db_conn):
     expect(page.locator("#reward-total")).not_to_be_empty()
 
     rows = _rows(db_conn, MU_BASIC)
-    assert [tuple(r) for r in rows] == [(4, 40, 10)]
+    assert [tuple(r) for r in rows] == [(4, 20, 5)]
 
 
 def test_hold_station_stopping_early_saves_seconds_really_held(page, db_conn):

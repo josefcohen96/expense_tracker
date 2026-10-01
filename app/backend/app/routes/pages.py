@@ -23,7 +23,7 @@ from .. import db as _db
 from ..services.access import home_path_for, is_module_only_user, password_env_var
 from ..services import hebrew_dates as hd
 from ..services import wedding_plan
-from ..services.people import household
+from ..services.people import default_account_id, find_person, household
 from ..services.today import build_today
 import logging
 logger = logging.getLogger(__name__)
@@ -816,6 +816,12 @@ async def finances_transactions(
     users = db_conn.execute(f"SELECT id, name FROM users WHERE id IN ({user_ids}) ORDER BY id").fetchall()
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
 
+    # The add-expense modal starts on the logged-in person and their usual account.
+    session_user = getattr(request.state, "user", None) or request.session.get("user")
+    me = find_person(household(db_conn), session_user)
+    default_user_id = me["id"] if me else None
+    default_account = default_account_id(db_conn, session_user)
+
     total_pages = max(1, (total + per_page - 1) // per_page)
     pagination = {
         "page": page,
@@ -836,6 +842,8 @@ async def finances_transactions(
             "categories": categories,
             "users": users,
             "accounts": accounts,
+            "default_user_id": default_user_id,
+            "default_account_id": default_account,
             "pagination": pagination,
             "total_sum": float(total_sum),
             "current_sort": sort_param,

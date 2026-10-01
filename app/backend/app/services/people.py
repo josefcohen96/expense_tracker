@@ -14,6 +14,9 @@ from .access import display_name, is_module_only_user, normalise_username
 PERSON_COLORS = ("#4f46e5", "#0d9488", "#d97706")
 PERSON_TINTS = ("#eef2ff", "#f0fdfa", "#fffbeb")
 
+# The account an expense defaults to when this person adds one.
+DEFAULT_ACCOUNT_BY_USER = {"YOSEF": "מזומן", "KARINA": "כרטיס אשראי"}
+
 # Everyone with an arena: the household plus the workouts-only login (see access.py).
 WORKOUT_PARTICIPANTS = ("Yosef", "Karina", "Yonatan")
 
@@ -73,6 +76,15 @@ def find_person(people: list[dict], user: Any) -> Optional[dict]:
     if not key:
         return None
     return next((p for p in people if p["name"].upper() == key), None)
+
+
+def default_account_id(conn: sqlite3.Connection, user: Any) -> Optional[int]:
+    """Id of the account this user's new expenses start on, if one is configured."""
+    name = DEFAULT_ACCOUNT_BY_USER.get(normalise_username(user) or "")
+    if not name:
+        return None
+    row = conn.execute("SELECT id FROM accounts WHERE name = ?", (name,)).fetchone()
+    return row["id"] if row else None
 
 
 def valid_owner(conn: sqlite3.Connection, owner: Optional[str]) -> Optional[str]:

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Request
 
 from ..db import get_db_conn
 from ..services.access import can_access_renovation, can_edit_renovation
-from ..services.people import find_person, household
+from ..services.people import default_account_id, find_person, household
 from ..services.today import build_today
 from .transactions import INCOME_CATEGORIES
 
@@ -82,6 +82,7 @@ async def quick_add_options(request: Request, db_conn: sqlite3.Connection = Depe
         by_use = max(accounts, key=lambda a: a["mine"] or 0)
         credit = next((a for a in accounts if a["name"] == "כרטיס אשראי"), None)
         default_account = (by_use if by_use["mine"] else (credit or accounts[0]))["id"]
+    default_account = default_account_id(db_conn, user) or default_account
 
     return {
         "today": date.today().isoformat(),

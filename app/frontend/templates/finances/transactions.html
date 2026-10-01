@@ -499,7 +499,7 @@
                         <select name="user_id" id="modal_user_id" required class="form-select">
                             <option value="">בחר משתמש</option>
                             {% for user in users %}
-                            <option value="{{ user.id }}">{{ user.name }}</option>
+                            <option value="{{ user.id }}" {% if user.id == default_user_id %}selected{% endif %}>{{ user.name }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -509,7 +509,7 @@
                         <select name="account_id" id="modal_account_id" class="form-select">
                             <option value="">בחר חשבון</option>
                             {% for account in accounts %}
-                            <option value="{{ account.id }}">{{ account.name }}</option>
+                            <option value="{{ account.id }}" {% if account.id == default_account_id %}selected{% endif %}>{{ account.name }}</option>
                             {% endfor %}
                         </select>
                     </div>

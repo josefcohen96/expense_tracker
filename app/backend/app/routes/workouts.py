@@ -338,6 +338,16 @@ SKILL_PROGRESSIONS = {
             "סולם שוודי או שתי ידיות בגבהים שונים נוחים בהרבה מעמוד עגול, במיוחד בשלבים הראשונים.",
         ],
         "progressions": [
+            _station("Side Plank Hold", "פלאנק צד", 30, 60,
+                     "שכיבה על הצד, אמה על הרצפה ומרפק מתחת לכתף; מרימים את האגן עד קו ישר מהראש לעקבים ומחזיקים.",
+                     [("אגן למעלה", "האגן לא שוקע — קו ישר מהכתף לקרסול."),
+                      ("להחליף צד", "אותו מספר שניות לכל צד.")],
+                     unit="sec", prep=True),
+            _station("Assisted One Arm Hang", "תלייה ביד אחת בעזרה", 20, 90,
+                     "יד אחת על המוט, והשנייה אוחזת מגבת שתלויה עליו (או שלב נמוך בסולם) ועוזרת כמה שפחות.",
+                     [("יד עוזרת נמוך", "ככל שהיד העוזרת אוחזת נמוך יותר, היא עוזרת פחות."),
+                      ("שכמה פעילה", "כתף היד העליונה נמשכת מטה, רחוק מהאוזן.")],
+                     unit="sec", prep=True),
             _station("One Arm Active Hang", "תלייה פעילה ביד אחת", 20, 90,
                      "תלייה ביד אחת עם שכמה פעילה — הכתף נמשכת מטה ולא נתלית רפויה על המפרק.",
                      [("שכמה פעילה", "הכתף רחוק מהאוזן לאורך כל ההחזקה."),
@@ -1184,7 +1194,8 @@ def compute_paths(
                 "conquered": counts["in_range"] >= STATION_SESSIONS_TO_CONQUER or idx in legacy_done,
                 "skipped": False,
             })
-        for step, st, after in zip(skill["progressions"], stations, stations[1:]):
+        # From the top down, so a run of prep stations is credited all the way back
+        for step, st, after in reversed(list(zip(skill["progressions"], stations, stations[1:]))):
             if step["prep"] and not st["conquered"] and after["conquered"]:
                 st["conquered"] = st["skipped"] = True
 

@@ -171,6 +171,19 @@ def test_rows_saved_before_station_columns_still_count():
     assert mu["eta"]
 
 
+def test_a_run_of_prep_stations_is_credited_back_to_the_start():
+    """The flag opens on two entry steps; conquering the one-arm hang passes both."""
+    hang = "תלייה פעילה ביד אחת (One Arm Active Hang)"
+    history = [_session(f"2026-09-0{i}", [(hang, 3, 60)]) for i in range(5, 0, -1)]
+    paths = {p["key"]: p for p in workouts.compute_paths(
+        history, level=1, today=date(2026, 9, 10), legacy_conquered={"human_flag": []})}
+    hf = paths["human_flag"]["stations"]
+    assert [s["name"] for s in hf[:3]] == ["Side Plank Hold", "Assisted One Arm Hang", "One Arm Active Hang"]
+    assert hf[2]["state"] == "conquered" and not hf[2]["skipped"]
+    assert all(s["state"] == "conquered" and s["skipped"] for s in hf[:2])
+    assert paths["human_flag"]["current"]["index"] == 3
+
+
 def test_paths_lock_and_eta_rules():
     paths = {p["key"]: p for p in workouts.compute_paths([], level=1)}
     assert paths["planche"]["unlocked"] is False

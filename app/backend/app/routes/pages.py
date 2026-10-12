@@ -164,6 +164,7 @@ async def login_page(request: Request) -> HTMLResponse:
         logger.exception("Failed logging login_page context")
         
     return templates.TemplateResponse(
+        request,
         "pages/login.html",
         {
             "request": request,
@@ -185,6 +186,7 @@ async def login_post(request: Request):
     if not _check_login_rate_limit(client_ip):
         logger.warning("LOGIN rate-limited", extra={"ip": client_ip, "username": username})
         return templates.TemplateResponse(
+            request,
             "pages/login.html",
             {
                 "request": request,
@@ -211,6 +213,7 @@ async def login_post(request: Request):
     if env_var and not expected_pw:
         logger.error("LOGIN misconfigured: password env var is missing", extra={"env_var": env_var})
         return templates.TemplateResponse(
+            request,
             "pages/login.html",
             {
                 "request": request,
@@ -268,6 +271,7 @@ async def login_post(request: Request):
     # invalid credentials
     logger.info("LOGIN failed", extra={"username": username, "ip": client_ip})
     return templates.TemplateResponse(
+        request,
         "pages/login.html",
         {
             "request": request,
@@ -314,6 +318,7 @@ async def wedding_lodging_page(request: Request, db_conn: sqlite3.Connection = D
     total_assigned = len(assigned_ids)
 
     return templates.TemplateResponse(
+        request,
         "wedding/lodging.html",
         {
             "request": request,
@@ -369,7 +374,7 @@ async def index(request: Request, db_conn: sqlite3.Connection = Depends(get_db_c
     if is_module_only_user(user_obj):
         # Tsahala / Yonatan own one module: send them to it instead of the shared home.
         return RedirectResponse(url=home_path_for(user_obj), status_code=status.HTTP_302_FOUND)
-    return templates.TemplateResponse("pages/today.html", {
+    return templates.TemplateResponse(request, "pages/today.html", {
         "request": request,
         "today": build_today(db_conn, user_obj),
         "people": household(db_conn),
@@ -378,7 +383,7 @@ async def index(request: Request, db_conn: sqlite3.Connection = Depends(get_db_c
 
 @router.get("/more", response_class=HTMLResponse)
 async def more_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)) -> HTMLResponse:
-    return templates.TemplateResponse("pages/more.html", {
+    return templates.TemplateResponse(request, "pages/more.html", {
         "request": request,
         "wedding_date": wedding_plan.get_setting(db_conn, "wedding_date") or "",
         "venue_capacity": wedding_plan.get_setting(db_conn, "venue_capacity") or "",
@@ -660,6 +665,7 @@ async def finances_dashboard(
     }
 
     return templates.TemplateResponse(
+        request,
         "finances/index.html",
         {
             "request": request,
@@ -835,6 +841,7 @@ async def finances_transactions(
     }
 
     return templates.TemplateResponse(
+        request,
         "finances/transactions.html",
         {
             "request": request,
@@ -864,6 +871,7 @@ async def finances_transactions_import(
     categories = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת','קליניקה') ORDER BY name").fetchall()
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse(
+        request,
         "finances/transactions_import.html",
         {
             "request": request,
@@ -942,6 +950,7 @@ async def finances_income(
     from datetime import date as _date
 
     return templates.TemplateResponse(
+        request,
         "pages/income.html",
         {
             "request": request,
@@ -1124,6 +1133,7 @@ async def finances_recurrences(
     }
 
     return templates.TemplateResponse(
+        request,
         "pages/recurrences.html",
         {
             "request": request,
@@ -1203,6 +1213,7 @@ async def finances_recurrences_active(
     }
 
     return templates.TemplateResponse(
+        request,
         "pages/recurrences_active.html",
         {
             "request": request,
@@ -1348,6 +1359,7 @@ async def get_recurrence_row(
         (rec_id,),
     ).fetchone()
     return templates.TemplateResponse(
+        request,
         "partials/recurrences/row.html",
         {"request": request, "r": row},
     )
@@ -1368,6 +1380,7 @@ async def edit_recurrence_inline(
     users = db_conn.execute(f"SELECT id, name FROM users WHERE id IN ({user_ids}) ORDER BY id").fetchall()
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse(
+        request,
         "partials/recurrences/edit_row.html",
         {
             "request": request,
@@ -1811,6 +1824,7 @@ async def finances_statistics(
     }
 
     return templates.TemplateResponse(
+        request,
         "finances/statistics.html",
         {
             "request": request,
@@ -1938,6 +1952,7 @@ async def finances_statistics_drilldown(
     template_name = "partials/stats/drilldown_table.html" if partial else "finances/statistics_drilldown.html"
 
     return templates.TemplateResponse(
+        request,
         template_name,
         {
             "request": request,
@@ -1956,6 +1971,7 @@ async def finances_statistics_drilldown(
 @router.get("/finances/backup", response_class=HTMLResponse)
 async def finances_backup(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
+        request,
         "finances/backup.html",
         {
             "request": request,
@@ -2037,7 +2053,7 @@ async def wedding_dashboard(request: Request, db_conn: sqlite3.Connection = Depe
         "SELECT * FROM wedding_tasks WHERE completed=0 ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, due_date ASC LIMIT 5"
     ).fetchall()]
 
-    return templates.TemplateResponse("wedding/index.html", {
+    return templates.TemplateResponse(request, "wedding/index.html", {
         "request": request,
         "total_guests": total_guests,
         "confirmed": confirmed,
@@ -2079,7 +2095,7 @@ async def wedding_vendors_page(request: Request, db_conn: sqlite3.Connection = D
     vendors = [dict(v) for v in db_conn.execute(
         "SELECT * FROM wedding_vendors ORDER BY category, name"
     ).fetchall()]
-    return templates.TemplateResponse("wedding/vendors.html", {
+    return templates.TemplateResponse(request, "wedding/vendors.html", {
         "request": request,
         "vendors": vendors,
     })
@@ -2099,7 +2115,7 @@ async def wedding_vendor_detail_page(vendor_id: int, request: Request, db_conn: 
         "SELECT * FROM vendor_files WHERE vendor_id=? ORDER BY uploaded_at DESC",
         (vendor_id,)
     ).fetchall()]
-    return templates.TemplateResponse("wedding/vendor_detail.html", {
+    return templates.TemplateResponse(request, "wedding/vendor_detail.html", {
         "request": request,
         "vendor": dict(vendor),
         "quote_items": quote_items,
@@ -2227,7 +2243,7 @@ async def wedding_guests_page(request: Request, db_conn: sqlite3.Connection = De
 
     engine = _guest_count_engine(db_conn, pending)
 
-    return templates.TemplateResponse("wedding/guests.html", {
+    return templates.TemplateResponse(request, "wedding/guests.html", {
         "request": request,
         "engine": engine,
         "guests": guests,
@@ -2267,7 +2283,7 @@ async def wedding_tasks_page(request: Request, db_conn: sqlite3.Connection = Dep
     total_open = db_conn.execute("SELECT COUNT(*) FROM wedding_tasks WHERE completed=0").fetchone()[0]
     total_done = db_conn.execute("SELECT COUNT(*) FROM wedding_tasks WHERE completed=1").fetchone()[0]
 
-    return templates.TemplateResponse("wedding/tasks.html", {
+    return templates.TemplateResponse(request, "wedding/tasks.html", {
         "request": request,
         "tasks": tasks,
         "category_filter": category_filter,
@@ -2374,7 +2390,7 @@ async def wedding_budget_page(request: Request, db_conn: sqlite3.Connection = De
     grand_paid      = total_vendors_paid + total_manual_actual
     grand_left      = total_budget - grand_committed
 
-    return templates.TemplateResponse("wedding/budget.html", {
+    return templates.TemplateResponse(request, "wedding/budget.html", {
         "request": request,
         "total_budget": total_budget,
         "vendor_rows": vendor_rows,
@@ -2397,7 +2413,7 @@ async def wedding_notes_page(request: Request, db_conn: sqlite3.Connection = Dep
     notes = [dict(r) for r in db_conn.execute(
         "SELECT * FROM wedding_notes ORDER BY pinned DESC, updated_at DESC"
     ).fetchall()]
-    return templates.TemplateResponse("wedding/notes.html", {"request": request, "notes": notes})
+    return templates.TemplateResponse(request, "wedding/notes.html", {"request": request, "notes": notes})
 
 
 @router.get("/wedding/ideas", response_class=HTMLResponse)
@@ -2417,7 +2433,7 @@ async def wedding_ideas_page(request: Request, db_conn: sqlite3.Connection = Dep
     all_categories = [r[0] for r in db_conn.execute(
         "SELECT DISTINCT category FROM wedding_ideas ORDER BY category"
     ).fetchall()]
-    return templates.TemplateResponse("wedding/ideas.html", {
+    return templates.TemplateResponse(request, "wedding/ideas.html", {
         "request": request,
         "ideas": ideas,
         "category_filter": category_filter,
@@ -2441,7 +2457,7 @@ async def wedding_seating_page(request: Request, db_conn: sqlite3.Connection = D
     total_guests = sum(1 + (g["plus_one"] or 0) + (g["children_count"] or 0) for g in all_guests)
     seated_count = sum(1 + (g["plus_one"] or 0) + (g["children_count"] or 0) for g in all_guests if g["id"] in seated_ids)
     total_seats = sum(t["capacity"] for t in tables)
-    return templates.TemplateResponse("wedding/seating.html", {
+    return templates.TemplateResponse(request, "wedding/seating.html", {
         "request": request,
         "tables": tables,
         "all_guests": all_guests,
@@ -2460,6 +2476,7 @@ async def invite_rsvp_page(token: str, request: Request, db_conn: sqlite3.Connec
     ).fetchone()
     if not guest:
         return templates.TemplateResponse(
+            request,
             "wedding/invite_invalid.html",
             {"request": request},
             status_code=404,
@@ -2467,6 +2484,7 @@ async def invite_rsvp_page(token: str, request: Request, db_conn: sqlite3.Connec
     wedding_date_row = db_conn.execute("SELECT value FROM wedding_settings WHERE key='wedding_date'").fetchone()
     wedding_date = wedding_date_row[0] if wedding_date_row else None
     return templates.TemplateResponse(
+        request,
         "wedding/invite.html",
         {
             "request": request,
@@ -2485,6 +2503,7 @@ async def invite_rsvp_submit(token: str, request: Request, db_conn: sqlite3.Conn
     ).fetchone()
     if not guest:
         return templates.TemplateResponse(
+            request,
             "wedding/invite_invalid.html",
             {"request": request},
             status_code=404,
@@ -2547,6 +2566,7 @@ async def invite_rsvp_submit(token: str, request: Request, db_conn: sqlite3.Conn
     db_conn.commit()
 
     return templates.TemplateResponse(
+        request,
         "wedding/invite_success.html",
         {
             "request": request,
@@ -2562,7 +2582,7 @@ async def wedding_timeline_page(request: Request, db_conn: sqlite3.Connection = 
     events = db_conn.execute(
         "SELECT * FROM wedding_timeline_events ORDER BY day, start_time"
     ).fetchall()
-    return templates.TemplateResponse("wedding/timeline.html", {
+    return templates.TemplateResponse(request, "wedding/timeline.html", {
         "request": request,
         "events": [dict(e) for e in events],
     })
@@ -2580,7 +2600,7 @@ async def wedding_milestones_page(request: Request, db_conn: sqlite3.Connection 
         else:
             m["open_status"] = "overdue" if late else "future"
         m["late_label"] = hd.overdue_label(-m["days_until"]) if late else ""
-    return templates.TemplateResponse("wedding/milestones.html", {
+    return templates.TemplateResponse(request, "wedding/milestones.html", {
         "request": request,
         "view": view,
     })

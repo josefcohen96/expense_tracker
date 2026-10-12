@@ -13,11 +13,11 @@ It is deployed on **Railway** as a Docker container and is a server-rendered mon
 | Layer | Technology |
 |---|---|
 | Language | Python 3.12 |
-| Web framework | FastAPI 0.110.0 + Uvicorn 0.29.0 |
-| Middleware/sessions | Starlette 0.36.3 |
+| Web framework | FastAPI 0.136.3 + Uvicorn 0.29.0 |
+| Middleware/sessions | Starlette 1.7.0 |
 | Database | SQLite (raw `sqlite3`, no ORM) |
 | Schema validation | Pydantic v2 |
-| Templating | Jinja2 3.1.4 (server-side rendered) |
+| Templating | Jinja2 3.1.6 (server-side rendered) |
 | Background jobs | APScheduler 3.10.4 |
 | Excel export | OpenPyXL 3.1.5 |
 | Auth cookies | itsdangerous (signed cookies) |

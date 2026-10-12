@@ -1626,6 +1626,7 @@ async def workout_page(
                                "bounds": holo_clip_bounds()}
 
     return templates.TemplateResponse(
+        request,
         "pages/workout.html",
         {
             "request": request,
@@ -1970,6 +1971,7 @@ async def workout_admin_page(
     game = compute_gamification(_fetch_history(db_conn, selected_id), today)
 
     return templates.TemplateResponse(
+        request,
         "pages/workout_admin.html",
         {
             "request": request,

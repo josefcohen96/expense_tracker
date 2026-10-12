@@ -43,7 +43,7 @@ async def get_transaction_row(
     cats = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
     users = household(db_conn)
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
-    return templates.TemplateResponse("partials/transactions/row.html", {
+    return templates.TemplateResponse(request, "partials/transactions/row.html", {
         "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "read",
     })
 
@@ -58,7 +58,7 @@ async def edit_transaction_row(
     cats = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
     users = household(db_conn)
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
-    return templates.TemplateResponse("partials/transactions/row.html", {
+    return templates.TemplateResponse(request, "partials/transactions/row.html", {
         "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "edit",
     })
 
@@ -101,7 +101,7 @@ async def update_transaction_row(
     cats = db_conn.execute("SELECT id, name FROM categories WHERE TRIM(name) NOT IN ('משכורת', 'קליניקה') ORDER BY name").fetchall()
     users = household(db_conn)
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
-    return templates.TemplateResponse("partials/transactions/row.html", {
+    return templates.TemplateResponse(request, "partials/transactions/row.html", {
         "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "read",
     })
 
@@ -127,7 +127,7 @@ async def get_income_row(
     cats = db_conn.execute("SELECT id, name FROM categories WHERE name IN ('קליניקה', 'משכורת') ORDER BY name").fetchall()
     users = household(db_conn)
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
-    return templates.TemplateResponse("partials/income/row.html", {
+    return templates.TemplateResponse(request, "partials/income/row.html", {
         "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "read",
     })
 
@@ -142,7 +142,7 @@ async def edit_income_row(
     cats = db_conn.execute("SELECT id, name FROM categories WHERE name IN ('קליניקה', 'משכורת') ORDER BY name").fetchall()
     users = household(db_conn)
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
-    return templates.TemplateResponse("partials/income/row.html", {
+    return templates.TemplateResponse(request, "partials/income/row.html", {
         "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "edit",
     })
 
@@ -185,7 +185,7 @@ async def update_income_row(
     cats = db_conn.execute("SELECT id, name FROM categories WHERE name IN ('קליניקה', 'משכורת') ORDER BY name").fetchall()
     users = household(db_conn)
     accs = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
-    return templates.TemplateResponse("partials/income/row.html", {
+    return templates.TemplateResponse(request, "partials/income/row.html", {
         "request": request, "tx": tx, "categories": cats, "users": users, "accounts": accs, "mode": "read",
     })
 
@@ -258,6 +258,7 @@ async def get_recurrence_row(
 ) -> HTMLResponse:
     r = _fetch_recurrence_row(db_conn, rec_id)
     return templates.TemplateResponse(
+        request,
         "partials/recurrences/row.html",
         {"request": request, "r": r},
     )
@@ -275,6 +276,7 @@ async def edit_recurrence_row(
     users = household(db_conn)
     accounts = db_conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     return templates.TemplateResponse(
+        request,
         "partials/recurrences/edit_row.html",
         {
             "request": request,
@@ -338,6 +340,7 @@ async def update_recurrence_row(
 
     r = _fetch_recurrence_row(db_conn, rec_id)
     return templates.TemplateResponse(
+        request,
         "partials/recurrences/row.html",
         {"request": request, "r": r},
     )

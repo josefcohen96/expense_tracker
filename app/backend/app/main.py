@@ -1,4 +1,5 @@
 # --- imports ---
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -8,8 +9,32 @@ import logging
 from urllib.parse import quote_plus
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+# --- lifecycle: init DB and start/stop cron ---
+# db, CronService and logger are bound further down; this only runs at startup.
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    try:
+        db.initialise_database()
+    except Exception:
+        logger.exception("Database initialization failed")
+        # Keep starting the app; routes like backup may help diagnose
+    try:
+        cron = CronService()
+        cron.start()
+        app.state.cron = cron
+    except Exception:
+        logger.exception("CronService failed to start")
+    yield
+    cron = getattr(app.state, "cron", None)
+    if cron is not None:
+        try:
+            cron.stop()
+        except Exception:
+            logger.exception("CronService shutdown error")
+
+
 # --- create app ---
-app = FastAPI(title="Expense Tracker", version="0.2.0")
+app = FastAPI(title="Expense Tracker", version="0.2.0", lifespan=_lifespan)
 
 # --- static (מצביעים ל-frontend) ---
 ROOT_DIR = FSPath(__file__).resolve().parents[2]   # .../expense_tracker/app
@@ -182,32 +207,6 @@ except Exception as e:
 @public
 async def health():
     return {"status": "ok"}
-
-
-# --- lifecycle: init DB and start/stop cron ---
-@app.on_event("startup")
-async def _on_startup() -> None:
-    try:
-        db.initialise_database()
-    except Exception:
-        logger.exception("Database initialization failed")
-        # Keep starting the app; routes like backup may help diagnose
-    try:
-        cron = CronService()
-        cron.start()
-        app.state.cron = cron
-    except Exception:
-        logger.exception("CronService failed to start")
-
-
-@app.on_event("shutdown")
-async def _on_shutdown() -> None:
-    cron = getattr(app.state, "cron", None)
-    if cron is not None:
-        try:
-            cron.stop()
-        except Exception:
-            logger.exception("CronService shutdown error")
 
 
 # (Old function-based auth middleware removed in favor of class-based one above)

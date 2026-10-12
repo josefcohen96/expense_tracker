@@ -228,7 +228,7 @@ async def renovation_dashboard(
         "journal_count": len(journal),
         "latest_pair": latest_pair,
     })
-    return templates.TemplateResponse("renovation/index.html", ctx)
+    return templates.TemplateResponse(request, "renovation/index.html", ctx)
 
 
 @router.get("/tasks", response_class=HTMLResponse)
@@ -254,7 +254,7 @@ async def renovation_tasks(
         "status_filter": status_filter,
         "room_filter": room_filter,
     })
-    return templates.TemplateResponse("renovation/tasks.html", ctx)
+    return templates.TemplateResponse(request, "renovation/tasks.html", ctx)
 
 
 @router.get("/ideas", response_class=HTMLResponse)
@@ -277,7 +277,7 @@ async def renovation_ideas(
         "status_filter": status_filter,
         "room_filter": room_filter,
     })
-    return templates.TemplateResponse("renovation/ideas.html", ctx)
+    return templates.TemplateResponse(request, "renovation/ideas.html", ctx)
 
 
 @router.get("/journal", response_class=HTMLResponse)
@@ -307,7 +307,7 @@ async def renovation_journal(
         "state_filter": state_filter,
         "waiting_total": waiting_total,
     })
-    return templates.TemplateResponse("renovation/journal.html", ctx)
+    return templates.TemplateResponse(request, "renovation/journal.html", ctx)
 
 
 @router.get("/rooms", response_class=HTMLResponse)
@@ -340,7 +340,7 @@ async def renovation_rooms(
         "room_cards": cards,
         "unassigned_tasks": len([t for t in tasks if t["room_id"] is None]),
     })
-    return templates.TemplateResponse("renovation/rooms.html", ctx)
+    return templates.TemplateResponse(request, "renovation/rooms.html", ctx)
 
 
 @router.get("/supplies", response_class=HTMLResponse)
@@ -386,4 +386,4 @@ async def renovation_supplies(
         "task_filter": task_filter,
         "tasks": _task_rows(db_conn),
     })
-    return templates.TemplateResponse("renovation/supplies.html", ctx)
+    return templates.TemplateResponse(request, "renovation/supplies.html", ctx)

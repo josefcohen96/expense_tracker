@@ -480,6 +480,34 @@ def initialise_database() -> None:
         )
     """)
 
+    # Items ordered from abroad: one sample first, then the big order.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS wedding_overseas_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            url TEXT,
+            store TEXT,
+            sample_price REAL,
+            quantity_needed INTEGER,
+            stage TEXT NOT NULL DEFAULT 'to_order',
+            ordered_at TEXT,
+            arrived_at TEXT,
+            created_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS wedding_overseas_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_id INTEGER NOT NULL REFERENCES wedding_overseas_items(id) ON DELETE CASCADE,
+            author TEXT,
+            body TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS wedding_timeline_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

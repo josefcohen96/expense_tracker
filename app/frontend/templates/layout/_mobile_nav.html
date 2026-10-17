@@ -32,6 +32,13 @@
     <a href="{{ href }}" class="section-chip{% if is_active %} is-active{% endif %}"{% if is_active %} aria-current="page"{% endif %}><span>{{ label }}{% if chip|length > 3 and chip[3] %} <b class="chip-count">{{ chip[3] }}</b>{% endif %}</span></a>
     {% endfor %}
 </nav>
+<script>
+// Keep the current page's chip on screen when the strip is wider than the phone.
+(function () {
+    var chip = document.querySelector('.section-chips .section-chip.is-active');
+    if (chip && chip.scrollIntoView) chip.scrollIntoView({ inline: 'center', block: 'nearest' });
+})();
+</script>
 {% endif %}
 {%- endmacro %}
 

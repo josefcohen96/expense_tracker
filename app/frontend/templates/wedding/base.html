@@ -9,7 +9,7 @@
 {%- set path = request.path -%}
 {#- Mobile IA: 10 pages grouped into 4 sections; pages beyond the first become chips. -#}
 {%- set section_pages = {
-    'planning': [('משימות', '/wedding/tasks'), ('לו״ז', '/wedding/milestones'), ('סוף שבוע', '/wedding/timeline'), ('לזכור', '/wedding/notes'), ('רעיונות', '/wedding/ideas')],
+    'planning': [('משימות', '/wedding/tasks'), ('לו״ז', '/wedding/milestones'), ('סוף שבוע', '/wedding/timeline'), ('לזכור', '/wedding/notes'), ('רעיונות', '/wedding/ideas'), ('מחו״ל', '/wedding/overseas')],
     'guests':   [('מוזמנים', '/wedding/guests'), ('הושבות', '/wedding/seating'), ('לינה', '/wedding/lodging')],
     'finances': [('תקציב', '/wedding/budget'), ('ספקים', '/wedding/vendors')],
 } -%}
@@ -153,6 +153,21 @@
             </div>
             <span>רעיונות</span>
             {% if 'ideas' in request.path %}
+            <span class="mr-auto w-2 h-2 rounded-full bg-rose-500"></span>
+            {% endif %}
+        </a>
+
+        <a href="/wedding/overseas"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+                   {% if 'overseas' in request.path %}bg-rose-50 text-rose-700{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+            <div class="w-8 h-8 rounded-lg {% if 'overseas' in request.path %}bg-rose-100{% else %}bg-gray-100{% endif %} flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 {% if 'overseas' in request.path %}text-rose-600{% else %}text-gray-500{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                </svg>
+            </div>
+            <span>הזמנות מחו״ל</span>
+            {% if 'overseas' in request.path %}
             <span class="mr-auto w-2 h-2 rounded-full bg-rose-500"></span>
             {% endif %}
         </a>

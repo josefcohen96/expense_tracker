@@ -111,6 +111,24 @@ def relative_day(d: date, today: date) -> str:
     return dotted_date(d)
 
 
+def ago_label(d: date, today: date) -> str:
+    """How long ago something happened: 'לפני 5 ימים', 'לפני 3 שבועות'."""
+    delta = max((today - d).days, 0)
+    if delta == 0:
+        return "היום"
+    if delta == 1:
+        return "אתמול"
+    if delta == 2:
+        return "לפני יומיים"
+    if delta < 14:
+        return f"לפני {delta} ימים"
+    if delta < 21:
+        return "לפני שבועיים"
+    if delta < 60:
+        return f"לפני {delta // 7} שבועות"
+    return f"לפני {delta // 30} חודשים"
+
+
 def offset_label(offset_days: int, short: bool = False) -> str:
     """Offset from the wedding: '-6 חודשים', '-12 שבועות' (short: '-6 ח׳')."""
     if offset_days == 0:

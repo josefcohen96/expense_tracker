@@ -2395,6 +2395,30 @@ async def wedding_ideas_page(request: Request, db_conn: sqlite3.Connection = Dep
     })
 
 
+@router.get("/wedding/overseas", response_class=HTMLResponse)
+async def wedding_overseas_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
+    from ..services import overseas
+    from ..services.people import find_person
+    people = household(db_conn)
+    me = find_person(people, getattr(request.state, "user", None) or request.session.get("user"))
+    by_name = {p["name"]: p for p in people}
+    items = overseas.load_items(db_conn)
+    for item in items:
+        for c in item["comments"]:
+            c["person"] = by_name.get(c["author"])
+    return templates.TemplateResponse("wedding/overseas.html", {
+        "request": request,
+        "deadline": overseas.deadline(db_conn),
+        "lanes": overseas.lanes(items),
+        "item_count": len(items),
+        "people": people,
+        "me": me,
+        "headcount": wedding_plan.headcount(db_conn),
+        "stages": overseas.STAGE_LABELS,
+        "stores": overseas.STORES,
+    })
+
+
 @router.get("/wedding/seating", response_class=HTMLResponse)
 async def wedding_seating_page(request: Request, db_conn: sqlite3.Connection = Depends(get_db_conn)):
     tables = [dict(r) for r in db_conn.execute(

@@ -1,0 +1,484 @@
+{% extends "wedding/base.html" %}
+{% block wedding_title %}הזמנות מחו״ל{% endblock %}
+
+{% block wedding_header_action %}
+<button data-quick-add="+ פריט" data-ov-add
+        class="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-3 py-2 rounded-xl text-sm font-medium shadow-sm min-h-[36px]">
+    + פריט
+</button>
+{% endblock %}
+
+{% block wedding_content %}
+{% from "layout/_mobile_nav.html" import avatar %}
+
+{% macro money(v) -%}
+{{ '{:,.2f}'.format(v).rstrip('0').rstrip('.') }}
+{%- endmacro %}
+
+{% macro comment_row(c) -%}
+<div class="ov-comment">
+    {% if c.person %}{{ avatar(c.person, 24) }}{% else %}<span class="person-avatar ov-anon" style="width:24px;height:24px" aria-hidden="true">?</span>{% endif %}
+    <div class="ov-comment-body">
+        <p class="ov-comment-text">{{ c.body }}</p>
+        <span class="ov-comment-when">{{ c.when }}</span>
+    </div>
+</div>
+{%- endmacro %}
+
+{% macro item_row(item) -%}
+<div class="ov-row" data-item-id="{{ item.id }}" data-stage="{{ item.stage }}"
+     data-estimate="{{ item.estimate if item.estimate is not none else '' }}"
+     data-item='{{ {"id": item.id, "title": item.title, "url": item.url, "store": item.store,
+                    "sample_price": item.sample_price, "quantity_needed": item.quantity_needed} | tojson }}'>
+    <div class="ov-row-inner">
+        <button type="button" class="ov-body" data-toggle aria-expanded="false">
+            <span class="ov-title">{{ item.title }}{% if item.store %} <span class="ov-store">{{ item.store }}</span>{% endif %}</span>
+            <span class="ov-meta">
+                <span class="ov-meta-stage" data-meta-for="ordered">הוזמנה <span data-ordered-ago>{{ item.ordered_ago or 'היום' }}</span></span>
+                <span class="ov-meta-stage" data-meta-for="arrived">הגיעה <span data-arrived-ago>{{ item.arrived_ago or 'היום' }}</span></span>
+                {% if item.quantity_needed %}
+                <span class="ov-meta-stage" data-meta-for="approved">× {{ item.quantity_needed }}{% if item.estimate_label %} · ≈ {{ item.estimate_label }}{% endif %}</span>
+                {% endif %}
+                <span class="ov-cc" data-cc-wrap{% if not item.comment_count %} hidden{% endif %}>💬 <span data-cc>{{ item.comment_count }}</span></span>
+            </span>
+        </button>
+        <div class="ov-acts">
+            <button type="button" class="ov-act" data-act-for="to_order" data-to="ordered">הזמנתי דוגמה</button>
+            <button type="button" class="ov-act" data-act-for="ordered" data-to="arrived">הגיע!</button>
+            <button type="button" class="ov-act is-yes" data-act-for="arrived" data-to="approved">✅ להזמנה הגדולה</button>
+            <button type="button" class="ov-act is-no" data-act-for="arrived" data-to="rejected">❌ לא מתאים</button>
+            <button type="button" class="ov-act is-quiet" data-act-for="approved" data-to="rejected">בסוף לא</button>
+            <button type="button" class="ov-act is-quiet" data-act-for="rejected" data-to="to_order">חזרה לבדיקה</button>
+        </div>
+    </div>
+    <div class="ov-detail" data-detail hidden>
+        <div class="ov-facts">
+            {% if item.url %}<a class="ov-link" href="{{ item.url }}" target="_blank" rel="noopener noreferrer">פתיחה בחנות ↗</a>{% endif %}
+            {% if item.sample_price is not none %}<span>דוגמה: ₪{{ money(item.sample_price) }}</span>{% endif %}
+            {% if item.quantity_needed is not none %}<span>כמות להזמנה: {{ item.quantity_needed }}</span>{% endif %}
+            <button type="button" class="ov-edit" data-edit>עריכה</button>
+        </div>
+        <div class="ov-thread" data-thread>
+            {% for c in item.comments %}{{ comment_row(c) }}{% endfor %}
+        </div>
+        <form class="ov-compose" data-compose>
+            <input type="text" class="ov-compose-input" placeholder="הערה…" maxlength="2000" dir="rtl" aria-label="הערה">
+            <button type="submit" class="ov-compose-send">שלח</button>
+        </form>
+    </div>
+</div>
+{%- endmacro %}
+
+<div class="ov max-w-3xl mx-auto" id="ov-board" dir="rtl" data-me="{{ me.name if me else '' }}">
+    <h1 class="hidden lg:block text-xl sm:text-2xl font-bold text-gray-900">הזמנות מחו״ל</h1>
+
+    {% if deadline and deadline.wedding_ahead %}
+    <section class="ov-banner{% if deadline.overdue %} is-overdue{% endif %}">
+        <div class="ov-banner-main">
+            <p class="ov-banner-title">ההזמנה הגדולה צריכה לצאת עד {{ deadline.label }}</p>
+            <p class="ov-banner-sub">{% if deadline.overdue %}{{ deadline.days_label }}{% else %}{{ deadline.days_label }} · {{ deadline.lead_weeks }} שבועות לפני החתונה{% endif %}</p>
+        </div>
+        <button type="button" class="ov-banner-edit" data-lead-edit>שינוי</button>
+        <form class="ov-lead-form" data-lead-form hidden>
+            <input type="number" min="1" max="20" step="1" value="{{ deadline.lead_weeks }}" data-lead-input aria-label="שבועות לפני החתונה">
+            <span>שבועות לפני החתונה</span>
+            <button type="submit">שמירה</button>
+        </form>
+    </section>
+    {% endif %}
+
+    {% if item_count %}
+    {% for lane in lanes %}
+    <section class="ov-lane" data-lane="{{ lane.key }}" data-label="{{ lane.label }}"{% if not lane['items'] and lane.key != 'to_order' %} hidden{% endif %}>
+        <h2 class="ov-lane-title">{{ lane.label }} · <span data-lane-count>{{ lane['items'] | length }}</span></h2>
+        <div class="ov-rows" data-rows>
+            {% for item in lane['items'] %}{{ item_row(item) }}{% endfor %}
+        </div>
+        {% if lane.key == 'to_order' %}
+        <p class="ov-empty" data-lane-empty{% if lane['items'] %} hidden{% endif %}>אין כאן פריטים לבדיקה</p>
+        {% endif %}
+        {% if lane.key == 'approved' %}
+        <p class="ov-total" data-lane-total{% if lane.estimate_total is none %} hidden{% endif %}>סה״כ משוער: <span data-total-value>{{ lane.estimate_total_label or '' }}</span></p>
+        {% endif %}
+    </section>
+    {% endfor %}
+    {% else %}
+    <div class="ov-empty-state">
+        <div class="ov-empty-icon" aria-hidden="true">📦</div>
+        <h3>עדיין לא הזמנתם כלום מחו״ל</h3>
+        <p>כל מה שרוצים לנסות לפני ההזמנה הגדולה — דוגמה אחת קודם</p>
+        <button type="button" data-ov-add class="px-5 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-medium hover:bg-rose-700 transition-colors shadow-sm">הוסף פריט ראשון</button>
+    </div>
+    {% endif %}
+
+    <script type="application/json" id="ov-people">{{ people | tojson }}</script>
+</div>
+
+<!-- Add / edit sheet: bottom sheet on mobile, centred modal on lg -->
+<div id="ov-sheet" class="fixed inset-0 z-[500] hidden items-end lg:items-center justify-center lg:p-4" dir="rtl">
+    <div class="absolute inset-0 bg-slate-900/30 backdrop-blur-sm" data-sheet-close></div>
+    <div class="relative w-full max-w-md rounded-t-2xl lg:rounded-2xl shadow-2xl p-6 bg-white max-h-[92vh] overflow-y-auto">
+        <h2 id="ov-sheet-title" class="text-lg font-bold text-gray-800 mb-4">פריט חדש</h2>
+        <form id="ov-form" class="space-y-4" novalidate>
+            <label class="block">
+                <span class="ov-label">שם הפריט</span>
+                <input id="ov-title" type="text" required maxlength="200" class="ov-input" dir="rtl">
+            </label>
+            <label class="block">
+                <span class="ov-label">קישור</span>
+                <input id="ov-url" type="url" class="ov-input" dir="ltr" inputmode="url">
+            </label>
+            <div>
+                <span class="ov-label">חנות</span>
+                <div class="flex gap-2 flex-wrap" id="ov-stores">
+                    {% for s in stores %}
+                    <button type="button" class="ov-store-chip" data-store="{{ s }}">{{ s }}</button>
+                    {% endfor %}
+                    <button type="button" class="ov-store-chip" data-store="__other">אחר</button>
+                </div>
+                <input id="ov-store-other" type="text" maxlength="100" class="ov-input mt-2" dir="rtl" hidden aria-label="חנות אחרת">
+            </div>
+            <div class="space-y-4">
+                <label class="block">
+                    <span class="ov-label">מחיר הדוגמה (₪)</span>
+                    <input id="ov-price" type="number" min="0" step="0.01" inputmode="decimal" class="ov-input">
+                </label>
+                <label class="block">
+                    <span class="ov-label">כמות להזמנה הגדולה</span>
+                    <input id="ov-qty" type="number" min="0" step="1" inputmode="numeric" class="ov-input"
+                           placeholder="{% if headcount.total > 0 %}למשל {{ headcount.total }} — כמו מספר המוזמנים{% else %}כמות{% endif %}">
+                </label>
+            </div>
+            <p id="ov-form-error" class="text-sm text-red-600" hidden></p>
+            <div class="flex items-center gap-3 pt-1">
+                <button type="button" id="ov-delete" class="ov-delete" hidden>מחיקה</button>
+                <span class="flex-1"></span>
+                <button type="button" data-sheet-close class="px-4 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors">ביטול</button>
+                <button type="submit" class="px-5 py-2 rounded-xl bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 transition-colors shadow-sm">שמירה</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// הזמנות מחו״ל: one-tap stage moves with undo, accordion rows with a comment thread, add/edit sheet.
+(function () {
+    var board = document.getElementById('ov-board');
+    if (!board) return;
+    var me = board.getAttribute('data-me');
+    var people = JSON.parse(document.getElementById('ov-people').textContent || '[]');
+    var mePerson = people.filter(function (p) { return p.name === me; })[0] || null;
+    var LABELS = {};
+    board.querySelectorAll('.ov-lane').forEach(function (lane) {
+        LABELS[lane.getAttribute('data-lane')] = lane.getAttribute('data-label');
+    });
+    var KNOWN_STORES = Array.prototype.map.call(
+        document.querySelectorAll('#ov-stores [data-store]:not([data-store="__other"])'),
+        function (b) { return b.getAttribute('data-store'); });
+
+    function toast(msg, label, fn) {
+        if (window.AppToast) window.AppToast(msg, label, fn, 4000);
+    }
+
+    function money(v) { return '₪' + Math.round(v).toLocaleString('en-US'); }
+
+    function refresh() {
+        board.querySelectorAll('.ov-lane').forEach(function (lane) {
+            var key = lane.getAttribute('data-lane');
+            var visible = Array.prototype.filter.call(lane.querySelectorAll('.ov-row'), function (r) { return !r.hidden; });
+            lane.querySelector('[data-lane-count]').textContent = visible.length;
+            if (key === 'to_order') {
+                lane.querySelector('[data-lane-empty]').hidden = visible.length > 0;
+            } else {
+                lane.hidden = visible.length === 0;
+            }
+            var total = lane.querySelector('[data-lane-total]');
+            if (total) {
+                var sum = 0, any = false;
+                visible.forEach(function (r) {
+                    var est = parseFloat(r.getAttribute('data-estimate'));
+                    if (!isNaN(est)) { sum += est; any = true; }
+                });
+                total.hidden = !any;
+                total.querySelector('[data-total-value]').textContent = any ? money(sum) : '';
+            }
+        });
+    }
+
+    function laneRows(stage) {
+        var lane = board.querySelector('.ov-lane[data-lane="' + stage + '"]');
+        return lane ? lane.querySelector('[data-rows]') : null;
+    }
+
+    function place(row, stage, ordered, arrived) {
+        row.setAttribute('data-stage', stage);
+        row.querySelector('[data-ordered-ago]').textContent = ordered || 'היום';
+        row.querySelector('[data-arrived-ago]').textContent = arrived || 'היום';
+        var list = laneRows(stage);
+        if (list) list.appendChild(row);
+        refresh();
+    }
+
+    function putItem(id, body) {
+        return fetch('/api/wedding/overseas/' + id, {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+    }
+
+    function moveTo(row, stage, withUndo) {
+        var prev = row.getAttribute('data-stage');
+        var prevOrdered = row.querySelector('[data-ordered-ago]').textContent;
+        var prevArrived = row.querySelector('[data-arrived-ago]').textContent;
+        place(row, stage, stage === 'to_order' ? null : prevOrdered, stage === 'arrived' ? prevArrived : null);
+        putItem(row.getAttribute('data-item-id'), { stage: stage }).then(function (item) {
+            row.querySelector('[data-ordered-ago]').textContent = item.ordered_ago || 'היום';
+            row.querySelector('[data-arrived-ago]').textContent = item.arrived_ago || 'היום';
+            if (withUndo) {
+                toast('הפריט עבר ל' + LABELS[stage], 'ביטול', function () { moveTo(row, prev, false); });
+            }
+        }).catch(function () {
+            place(row, prev, prevOrdered, prevArrived);
+            toast('שגיאה בשמירה');
+        });
+    }
+
+    function toggle(row) {
+        var detail = row.querySelector('[data-detail]');
+        var open = detail.hidden;
+        board.querySelectorAll('.ov-row').forEach(function (other) {
+            other.querySelector('[data-detail]').hidden = true;
+            other.classList.remove('is-open');
+            other.querySelector('[data-toggle]').setAttribute('aria-expanded', 'false');
+        });
+        detail.hidden = !open;
+        row.classList.toggle('is-open', open);
+        row.querySelector('[data-toggle]').setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    function commentEl(body, person) {
+        var wrap = document.createElement('div');
+        wrap.className = 'ov-comment';
+        var av = document.createElement('span');
+        av.className = 'person-avatar' + (person ? '' : ' ov-anon');
+        av.style.cssText = 'width:24px;height:24px' + (person ? ';background:' + person.color : '');
+        av.setAttribute('aria-hidden', 'true');
+        av.textContent = person ? person.initial : '?';
+        var inner = document.createElement('div');
+        inner.className = 'ov-comment-body';
+        var p = document.createElement('p');
+        p.className = 'ov-comment-text';
+        p.textContent = body;
+        var when = document.createElement('span');
+        when.className = 'ov-comment-when';
+        when.textContent = 'היום';
+        inner.appendChild(p);
+        inner.appendChild(when);
+        wrap.appendChild(av);
+        wrap.appendChild(inner);
+        return wrap;
+    }
+
+    function setCount(row, delta) {
+        var cc = row.querySelector('[data-cc]');
+        var n = (parseInt(cc.textContent, 10) || 0) + delta;
+        cc.textContent = n;
+        row.querySelector('[data-cc-wrap]').hidden = n <= 0;
+    }
+
+    function postComment(row, form) {
+        var input = form.querySelector('input');
+        var body = input.value.trim();
+        if (!body) return;
+        input.value = '';
+        var el = commentEl(body, mePerson);
+        row.querySelector('[data-thread]').appendChild(el);
+        setCount(row, 1);
+        var payload = { body: body };
+        if (me) payload.author = me;
+        fetch('/api/wedding/overseas/' + row.getAttribute('data-item-id') + '/comments', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        }).then(function (r) { if (!r.ok) throw new Error(r.status); }).catch(function () {
+            el.remove();
+            setCount(row, -1);
+            input.value = body;
+            toast('שגיאה בשמירה');
+        });
+    }
+
+    board.addEventListener('click', function (e) {
+        var row = e.target.closest('.ov-row');
+        if (!row) return;
+        var act = e.target.closest('[data-to]');
+        if (act) { moveTo(row, act.getAttribute('data-to'), true); return; }
+        if (e.target.closest('[data-edit]')) { openSheet(JSON.parse(row.getAttribute('data-item'))); return; }
+        if (e.target.closest('[data-toggle]')) toggle(row);
+    });
+    board.addEventListener('submit', function (e) {
+        var form = e.target.closest('[data-compose]');
+        if (!form) return;
+        e.preventDefault();
+        postComment(form.closest('.ov-row'), form);
+    });
+
+    // Lead time (weeks before the wedding) for the big order.
+    var leadEdit = board.querySelector('[data-lead-edit]');
+    var leadForm = board.querySelector('[data-lead-form]');
+    if (leadEdit && leadForm) {
+        leadEdit.addEventListener('click', function () {
+            leadForm.hidden = !leadForm.hidden;
+            if (!leadForm.hidden) leadForm.querySelector('input').focus();
+        });
+        leadForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var weeks = parseInt(leadForm.querySelector('input').value, 10);
+            if (!(weeks >= 1 && weeks <= 20)) { toast('זמן אספקה חייב להיות בין שבוע ל-20 שבועות'); return; }
+            fetch('/api/wedding/settings', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: 'overseas_lead_days', value: String(weeks * 7) }),
+            }).then(function (r) { if (!r.ok) throw new Error(r.status); location.reload(); })
+              .catch(function () { toast('שגיאה בשמירה'); });
+        });
+    }
+
+    // ── Sheet ──
+    var sheet = document.getElementById('ov-sheet');
+    var form = document.getElementById('ov-form');
+    var fTitle = document.getElementById('ov-title');
+    var fUrl = document.getElementById('ov-url');
+    var fOther = document.getElementById('ov-store-other');
+    var fPrice = document.getElementById('ov-price');
+    var fQty = document.getElementById('ov-qty');
+    var fError = document.getElementById('ov-form-error');
+    var delBtn = document.getElementById('ov-delete');
+    var editingId = null;
+    var store = '';
+
+    function selectStore(key) {
+        store = key;
+        document.querySelectorAll('#ov-stores [data-store]').forEach(function (b) {
+            b.classList.toggle('is-active', b.getAttribute('data-store') === key);
+        });
+        fOther.hidden = key !== '__other';
+    }
+
+    function openSheet(item) {
+        editingId = item ? item.id : null;
+        document.getElementById('ov-sheet-title').textContent = item ? 'עריכת פריט' : 'פריט חדש';
+        fTitle.value = item ? item.title : '';
+        fUrl.value = item && item.url ? item.url : '';
+        fPrice.value = item && item.sample_price != null ? item.sample_price : '';
+        fQty.value = item && item.quantity_needed != null ? item.quantity_needed : '';
+        var s = item && item.store ? item.store : '';
+        if (!s) { selectStore(''); fOther.value = ''; }
+        else if (KNOWN_STORES.indexOf(s) >= 0) { selectStore(s); fOther.value = ''; }
+        else { selectStore('__other'); fOther.value = s; }
+        fError.hidden = true;
+        delBtn.hidden = !item;
+        sheet.classList.remove('hidden');
+        sheet.classList.add('flex');
+        if (!item) setTimeout(function () { fTitle.focus(); }, 50);
+    }
+
+    function closeSheet() {
+        sheet.classList.add('hidden');
+        sheet.classList.remove('flex');
+    }
+
+    document.querySelectorAll('[data-ov-add]').forEach(function (b) {
+        b.addEventListener('click', function () { openSheet(null); });
+    });
+    sheet.querySelectorAll('[data-sheet-close]').forEach(function (b) { b.addEventListener('click', closeSheet); });
+    document.getElementById('ov-stores').addEventListener('click', function (e) {
+        var chip = e.target.closest('[data-store]');
+        if (!chip) return;
+        var key = chip.getAttribute('data-store');
+        selectStore(store === key ? '' : key);
+        if (store === '__other') fOther.focus();
+    });
+
+    function numberOrNull(input, parse) {
+        var v = input.value.trim();
+        if (v === '') return null;
+        var n = parse(v);
+        return isNaN(n) ? null : n;
+    }
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var title = fTitle.value.trim();
+        if (!title) { fTitle.focus(); return; }
+        // A pasted "www.aliexpress.com/..." is what a phone keyboard produces; the server wants http(s).
+        var url = fUrl.value.trim();
+        if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+        var body = {
+            title: title,
+            url: url || null,
+            store: store === '__other' ? (fOther.value.trim() || null) : (store || null),
+            sample_price: numberOrNull(fPrice, parseFloat),
+            quantity_needed: numberOrNull(fQty, function (v) { return parseInt(v, 10); }),
+        };
+        if (!editingId && me) body.created_by = me;
+        fetch(editingId ? '/api/wedding/overseas/' + editingId : '/api/wedding/overseas', {
+            method: editingId ? 'PUT' : 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        }).then(function (r) {
+            if (r.ok) { closeSheet(); location.reload(); return; }
+            // The server answers 422 with a Hebrew reason; show it instead of a generic error.
+            return r.json().then(function (data) {
+                var detail = data && typeof data.detail === 'string' ? data.detail : '';
+                throw new Error(detail);
+            }, function () { throw new Error(''); });
+        }).catch(function (err) {
+            fError.textContent = (err && err.message) || 'שגיאה בשמירה';
+            fError.hidden = false;
+        });
+    });
+
+    // Delete waits for the undo window; a page leave sends it right away.
+    var pendingDeletes = {};
+    function sendDelete(id, keepalive) {
+        delete pendingDeletes[id];
+        return fetch('/api/wedding/overseas/' + id, { method: 'DELETE', credentials: 'same-origin', keepalive: !!keepalive });
+    }
+    delBtn.addEventListener('click', function () {
+        var id = editingId;
+        if (!id) return;
+        closeSheet();
+        var row = board.querySelector('.ov-row[data-item-id="' + id + '"]');
+        if (row) row.hidden = true;
+        refresh();
+        pendingDeletes[id] = setTimeout(function () {
+            sendDelete(id, false).then(function (r) { if (!r.ok) throw new Error(r.status); }).catch(function () {
+                if (row) row.hidden = false;
+                refresh();
+                toast('שגיאה בשמירה');
+            });
+        }, 4000);
+        toast('הפריט נמחק', 'ביטול', function () {
+            clearTimeout(pendingDeletes[id]);
+            delete pendingDeletes[id];
+            if (row) row.hidden = false;
+            refresh();
+        });
+    });
+    window.addEventListener('pagehide', function () {
+        Object.keys(pendingDeletes).forEach(function (id) {
+            clearTimeout(pendingDeletes[id]);
+            sendDelete(id, true);
+        });
+    });
+
+    refresh();
+})();
+</script>
+{% endblock %}

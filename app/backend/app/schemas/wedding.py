@@ -185,6 +185,31 @@ class IdeaUpdate(BaseModel):
     color: Optional[str] = None
 
 
+# ─── Overseas orders (הזמנות מחו״ל) ──────────────────────────────────────────
+
+class OverseasItemCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    url: Optional[str] = None
+    store: Optional[str] = Field(default=None, max_length=100)
+    sample_price: Optional[float] = Field(default=None, ge=0)
+    quantity_needed: Optional[int] = Field(default=None, ge=0)
+    created_by: Optional[str] = None  # users.name; defaults to the session user
+
+
+class OverseasItemUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    url: Optional[str] = None
+    store: Optional[str] = Field(default=None, max_length=100)
+    sample_price: Optional[float] = Field(default=None, ge=0)
+    quantity_needed: Optional[int] = Field(default=None, ge=0)
+    stage: Optional[str] = None
+
+
+class OverseasCommentCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=2000)
+    author: Optional[str] = None  # users.name; defaults to the session user
+
+
 # ─── Timeline ────────────────────────────────────────────────────────────────
 
 class TimelineEventCreate(BaseModel):

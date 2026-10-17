@@ -2453,7 +2453,7 @@ async def wedding_overseas_page(request: Request, db_conn: sqlite3.Connection = 
     for item in items:
         for c in item["comments"]:
             c["person"] = by_name.get(c["author"])
-    return templates.TemplateResponse("wedding/overseas.html", {
+    return templates.TemplateResponse(request, "wedding/overseas.html", {
         "request": request,
         "deadline": overseas.deadline(db_conn),
         "lanes": overseas.lanes(items),

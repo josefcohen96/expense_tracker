@@ -1,7 +1,10 @@
 """Hebrew labels for dates relative to today, shared by the mobile screens."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
+
+TIMEZONE = "Asia/Jerusalem"
 
 HEBREW_MONTHS = (
     "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
@@ -13,6 +16,14 @@ HEBREW_MONTHS_SHORT = (
 )
 # date.weekday(): Monday == 0
 HEBREW_WEEKDAYS = ("שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת", "ראשון")
+
+
+def today_local() -> date:
+    """Today in Israel. The container clock is already there, so the fallback is the same date."""
+    try:
+        return datetime.now(ZoneInfo(TIMEZONE)).date()
+    except Exception:  # no tz database on this machine (e.g. Windows without tzdata)
+        return date.today()
 
 
 def parse_iso(value: object) -> date | None:

@@ -17,13 +17,14 @@ import logging
 import os
 import sqlite3
 from datetime import date as date_cls
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
-from zoneinfo import ZoneInfo
+
+from . import hebrew_dates as hd
 
 logger = logging.getLogger(__name__)
 
-TIMEZONE = "Asia/Jerusalem"
+TIMEZONE = hd.TIMEZONE  # also the cron trigger timezone (cron_service)
 MORNING_TIME = (8, 40)
 EVENING_TIME = (21, 0)
 DEFAULT_SUBJECT = "mailto:admin@example.com"
@@ -211,7 +212,7 @@ def run_daily(kind: str, today: date_cls | None = None, conn: sqlite3.Connection
         raise ValueError(f"unknown push kind: {kind}")
     if not is_enabled():
         return 0
-    today = today or datetime.now(ZoneInfo(TIMEZONE)).date()
+    today = today or hd.today_local()
     own_conn = conn is None
     if own_conn:
         from ..db import get_connection

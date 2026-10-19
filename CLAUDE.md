@@ -36,7 +36,12 @@ expense_tracker/
 │   ├── backend/
 │   │   ├── app/
 │   │   │   ├── main.py              # App factory, middleware, routers, lifecycle
-│   │   │   ├── db.py                # Schema, migrations, DB connection helpers
+│   │   │   ├── db/                  # Schema, migrations, DB connection helpers
+│   │   │   │   ├── __init__.py      # Connection helpers + initialise_database() (calls each ensure_schema in order)
+│   │   │   │   ├── finance.py       # Core tables, finance migrations, default data
+│   │   │   │   ├── wedding.py       # Wedding tables, migrations, default rooms + milestones
+│   │   │   │   ├── renovation.py    # Renovation tables, migrations, starter rooms
+│   │   │   │   └── workouts.py      # Arena tables: workouts, spanish_reviews, push_subscriptions
 │   │   │   ├── auth.py              # @public decorator, route matcher builder
 │   │   │   ├── recurrence.py        # Recurring transaction materialization engine
 │   │   │   ├── seed_data.py         # Legacy seed helpers
@@ -46,7 +51,7 @@ expense_tracker/
 │   │   │   │   ├── recurrences.py   # CRUD + apply-once
 │   │   │   │   ├── statistics.py    # Aggregated stats
 │   │   │   │   ├── backup.py        # ZIP + Excel backup
-│   │   │   │   ├── wedding.py       # Full wedding module API (incl. milestones)
+│   │   │   │   ├── wedding/         # Wedding API: package, one module per feature, `__init__` aggregates the routers
 │   │   │   │   ├── workouts.py      # Workouts admin CRUD (sessions + imported stations)
 │   │   │   │   ├── push.py          # קריאה לזירה: Web Push subscribe/unsubscribe/test
 │   │   │   │   └── today.py         # /api/today aggregate + /api/quick-add/options
@@ -187,7 +192,7 @@ All tables in a single SQLite file at `app/backend/data/budget.db`. Connection u
 - `workouts` — `id, user_id (FK), date, workout_type, total_duration, exercise_name, total_sets, total_reps, skill_key, stage_index, max_reps`. One row per exercise per session. `skill_key`/`stage_index` = the quest station trained (older rows are matched by their `"hebrew (English)"` name); `max_reps` = best single set, for personal records.
 - `push_subscriptions` — `id, user_id (FK, cascade), endpoint (UNIQUE), p256dh, auth, created_at`. One Web Push subscription per device; subscribing an existing endpoint re-points it to the current user. Push texts are never stored; `system_settings` key `push_sent:<morning|evening>:<YYYY-MM-DD>` marks a daily run as done.
 
-**Migrations** are inline in `initialise_database()` in `db.py`, using `PRAGMA table_info()` to detect and add missing columns. No migration framework is used.
+**Migrations** are inline in each module's `ensure_schema(conn)` under `app/backend/app/db/` (called in order by `initialise_database()`: finance → wedding → renovation → workouts), using `PRAGMA table_info()` to detect and add missing columns. No migration framework is used.
 
 ---
 
@@ -197,7 +202,7 @@ All tables in a single SQLite file at `app/backend/data/budget.db`. Connection u
 
 **Per-user module access** lives in `services/access.py` and is enforced by `AuthMiddleware` (`can_access_path`) — a blocked GET is redirected to `home_path_for(user)`, a blocked API call gets 403:
 - `YOSEF` — everything. `KARINA` — everything except renovation.
-- `TSAHALA` — renovation only; `YONATAN` — workouts only (`MODULE_ONLY_USERS`: prefixes + landing page). Yonatan has his own `users` row (seeded in `db.py`) for `workouts.user_id`, but `people.household()` stays Yosef/Karina so he never appears as a finances payer or wedding task owner. In the workouts back office (`/workouts/admin`, `/api/workouts`) he only sees and edits his own sessions (`people.workout_people`); the household manages everyone who trains.
+- `TSAHALA` — renovation only; `YONATAN` — workouts only (`MODULE_ONLY_USERS`: prefixes + landing page). Yonatan has his own `users` row (seeded in `db/finance.py`) for `workouts.user_id`, but `people.household()` stays Yosef/Karina so he never appears as a finances payer or wedding task owner. In the workouts back office (`/workouts/admin`, `/api/workouts`) he only sees and edits his own sessions (`people.workout_people`); the household manages everyone who trains.
 - `layout/base.html` hides the tab bar and the other modules' links for single-module logins.
 
 **Session-based auth:**
@@ -318,7 +323,7 @@ Below `lg` the app uses a bottom tab bar (היום · חתונה · + · כספ�
 
 1. **No ORM** — all DB access is raw `sqlite3` with named-column `Row` factory
 2. **No JS build step** — vanilla JS files are served directly as static files
-3. **Inline migrations** — schema changes are added as `ALTER TABLE ADD COLUMN` checks in `initialise_database()`
+3. **Inline migrations** — schema changes are added as `ALTER TABLE ADD COLUMN` checks in the module's `ensure_schema(conn)` under `app/backend/app/db/`, called in order by `initialise_database()`
 4. **Idempotent recurrences** — `UNIQUE(recurrence_id, period_key)` constraint is the safety net
 5. **`@public` decorator** — marks routes that bypass auth; scanned at startup to build matchers
 6. **Hebrew UI, English code** — all identifiers, API routes, and variable names are English; all user-visible strings are Hebrew

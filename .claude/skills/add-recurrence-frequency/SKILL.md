@@ -50,9 +50,9 @@ elif frequency == "biweekly":
 
 Do the same in `api_update_recurrence()` inside the `if "frequency" in fields and "next_charge_date" not in fields:` block.
 
-### Step 3: Update the `db.py` migration (if schema changes)
+### Step 3: Update the `db/finance.py` migration (if schema changes)
 
-If the new frequency requires a new column (e.g., a `day_of_quarter` field), add it using the inline migration pattern in `db.py`. See the `db-migration` skill for details.
+If the new frequency requires a new column (e.g., a `day_of_quarter` field), add it using the inline migration pattern in `db/finance.py`. See the `db-migration` skill for details.
 
 If the new frequency uses only existing columns (`day_of_month`, `weekday`, `next_charge_date`), no DB change is needed.
 

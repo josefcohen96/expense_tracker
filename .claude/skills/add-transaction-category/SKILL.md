@@ -8,7 +8,7 @@ metadata:
 
 ## Context
 
-Categories are stored in the `categories` table (`id, name, is_saving`). They are seeded once in `initialise_database()` in `app/backend/app/db.py`. Category names are in **Hebrew**. The `is_saving` flag marks savings categories (like חסכונות) which are excluded from expense statistics.
+Categories are stored in the `categories` table (`id, name, is_saving`). They are seeded once in `ensure_schema()` in `app/backend/app/db/finance.py`. Category names are in **Hebrew**. The `is_saving` flag marks savings categories (like חסכונות) which are excluded from expense statistics.
 
 **Income categories** are identified by name in SQL queries — not by a DB flag. The two income categories are: `משכורת` and `קליניקה`. They are hardcoded in multiple SQL queries via `c.name NOT IN ('משכורת', 'קליניקה')`.
 
@@ -16,9 +16,9 @@ Adding a new income category is a bigger change than adding an expense category 
 
 ## Workflow: Adding an expense or savings category
 
-### 1. Add to the seed data in `db.py`
+### 1. Add to the seed data in `db/finance.py`
 
-In `app/backend/app/db.py`, find the seed block:
+In `app/backend/app/db/finance.py`, find the seed block:
 ```python
 if not cur.execute("SELECT COUNT(*) FROM categories").fetchone()[0]:
     for _cat, _is_saving in [
@@ -72,7 +72,7 @@ Income categories require changes in more places because they are identified by 
 **Files to update:**
 1. `app/backend/app/api/transactions.py` → `_is_income_category()` function — add name to the tuple
 2. `app/backend/app/api/statistics.py` → every query with `c.name NOT IN ('משכורת', 'קליניקה')` — add the new name
-3. `app/backend/app/db.py` → seed data block — add with `is_saving=0`
+3. `app/backend/app/db/finance.py` → seed data block — add with `is_saving=0`
 4. Grep for the Hebrew income category names to catch any other occurrences:
    ```
    Select-String -Path app\backend\**\*.py -Pattern "משכורת"
@@ -80,7 +80,7 @@ Income categories require changes in more places because they are identified by 
 
 ## Checklist
 
-- [ ] Category added to seed block in `db.py`
+- [ ] Category added to seed block in `db/finance.py`
 - [ ] Runtime insert added to `initialise_database()` for existing databases
 - [ ] `is_saving` flag is correct (`0` for expense, `1` for savings)
 - [ ] If income category: `_is_income_category()` in `transactions.py` updated

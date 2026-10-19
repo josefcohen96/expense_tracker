@@ -8,7 +8,7 @@ metadata:
 
 ## Context
 
-The wedding module's vendor system lives in `app/backend/app/api/wedding.py` and is backed by three tables:
+The wedding module's vendor system lives in `app/backend/app/api/wedding/vendors.py` (attachments routes in `app/backend/app/api/wedding/files.py`) and is backed by three tables:
 - `wedding_vendors` — main vendor record
 - `vendor_quote_items` — individual line items that make up a vendor's quote
 - `vendor_files` — file attachments (stored on disk, referenced by DB row)
@@ -95,15 +95,15 @@ Add as many line items as needed. The total quote is the sum of all items (with 
 
 `POST /api/wedding/vendors/{vendor_id}/files` — multipart form upload
 `GET /api/wedding/vendors/{vendor_id}/files` — list files
-`GET /api/wedding/vendors/{vendor_id}/files/{file_id}/download` — download a file
-`DELETE /api/wedding/vendors/{vendor_id}/files/{file_id}` — delete a file
+`GET /api/wedding/files/{file_id}` — download a file
+`DELETE /api/wedding/files/{file_id}` — delete a file
 
 ## Workflow: Adding a new vendor feature in code
 
 When adding a new field to `wedding_vendors` or a new vendor sub-resource:
 
-1. **DB**: Add column via inline migration in `db.py` — use the `db-migration` skill
-2. **API**: Add to the relevant PATCH handler in `app/backend/app/api/wedding.py`
+1. **DB**: Add column via inline migration in `db/wedding.py` — use the `db-migration` skill
+2. **API**: Add to the relevant PATCH handler in `app/backend/app/api/wedding/vendors.py`
 3. **Schema**: Wedding endpoints currently use `dict` bodies (not Pydantic schemas for all endpoints) — check the existing handler style before adding a schema
 
 ## Key API endpoints reference
@@ -121,7 +121,8 @@ When adding a new field to `wedding_vendors` or a new vendor sub-resource:
 | DELETE | `/api/wedding/vendors/{id}/quote-items/{item_id}` | Delete quote item |
 | POST | `/api/wedding/vendors/{id}/files` | Upload file |
 | GET | `/api/wedding/vendors/{id}/files` | List files |
-| DELETE | `/api/wedding/vendors/{id}/files/{file_id}` | Delete file |
+| GET | `/api/wedding/files/{file_id}` | Download file |
+| DELETE | `/api/wedding/files/{file_id}` | Delete file |
 
 ## Checklist when adding a new vendor
 

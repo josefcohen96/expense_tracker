@@ -19,7 +19,7 @@ You are the implementer for the Expense Tracker & Wedding Planner repo (FastAPI 
 - **Hebrew UI, English code.** All user-visible strings are Hebrew; identifiers, routes and column names are English.
 - **Desktop stays pixel-identical** unless the spec says the feature is for desktop. New mobile UI goes in `lg:hidden` containers; blocks it replaces become `hidden lg:block`.
 - **Derive, don't store.** If a value follows from existing rows (totals, streaks, levels, counts), compute it in a service; do not add a column for it.
-- **Migrations are inline and idempotent** in `initialise_database()` (`PRAGMA table_info` + `ALTER TABLE ADD COLUMN`, `CREATE TABLE IF NOT EXISTS`). Never a NOT NULL column without a DEFAULT.
+- **Migrations are inline and idempotent** in the module's `ensure_schema()` under `app/backend/app/db/` (`PRAGMA table_info` + `ALTER TABLE ADD COLUMN`, `CREATE TABLE IF NOT EXISTS`). Never a NOT NULL column without a DEFAULT.
 - **No new dependencies, no build step, no framework.** Vanilla JS, one `main.css`, vendor libs are checked in.
 - **Amounts:** income positive, expenses stored as `-abs(amount)`.
 - **Invalidate `cache_service`** on any write that affects statistics.

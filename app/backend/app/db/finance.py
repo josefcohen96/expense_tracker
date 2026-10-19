@@ -1,0 +1,247 @@
+"""Finance schema: core tables (categories, users, accounts, transactions, recurrences,
+recurrence_skips, system_settings), their migrations and default data."""
+
+import sqlite3
+from datetime import date, timedelta
+
+
+def ensure_schema(conn: sqlite3.Connection) -> None:
+    cur = conn.cursor()
+
+    # Create tables
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            is_saving BOOLEAN DEFAULT 0
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            amount REAL NOT NULL,
+            category_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            account_id INTEGER,
+            notes TEXT,
+            tags TEXT,
+            recurrence_id INTEGER,
+            period_key TEXT,
+            FOREIGN KEY (category_id) REFERENCES categories (id),
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            FOREIGN KEY (account_id) REFERENCES accounts (id),
+            FOREIGN KEY (recurrence_id) REFERENCES recurrences (id),
+            UNIQUE (recurrence_id, period_key)
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS recurrences (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            amount REAL NOT NULL,
+            category_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            frequency TEXT NOT NULL,
+            day_of_month INTEGER,
+            weekday INTEGER,
+            next_charge_date TEXT NOT NULL,
+            active BOOLEAN DEFAULT 1,
+            FOREIGN KEY (category_id) REFERENCES categories (id),
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    """)
+
+    # Track skipped recurring occurrences so they won't be recreated
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS recurrence_skips (
+            recurrence_id INTEGER NOT NULL,
+            period_key TEXT NOT NULL,
+            skipped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (recurrence_id, period_key),
+            FOREIGN KEY (recurrence_id) REFERENCES recurrences (id)
+        )
+    """)
+
+    # (removed) challenges-related tables
+
+    # System settings table for tracking CRON jobs
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # --- Migrations ---
+    # 1) Ensure recurrences table has next_charge_date. If missing (legacy schema), add and populate.
+    try:
+        cols = [r[1] for r in cur.execute("PRAGMA table_info('recurrences')").fetchall()]
+        if "next_charge_date" not in cols:
+            cur.execute("ALTER TABLE recurrences ADD COLUMN next_charge_date TEXT")
+            # Populate next_charge_date for existing rows based on frequency/day_of_month/weekday and today
+            today = date.today()
+
+            def clamp_day(year: int, month: int, day: int) -> str:
+                import calendar
+                last = calendar.monthrange(year, month)[1]
+                if day < 1:
+                    day = 1
+                if day > last:
+                    day = last
+                return f"{year:04d}-{month:02d}-{day:02d}"
+
+            rows = cur.execute("SELECT id, frequency, day_of_month, weekday, start_date FROM recurrences").fetchall()
+            for r in rows:
+                freq = r[1]
+                dom = r[2]
+                wday = r[3]
+                start_date_val = r[4]
+                next_date = None
+
+                if freq == "monthly":
+                    day = int(dom) if dom is not None else 1
+                    y, m = today.year, today.month
+                    tentative = clamp_day(y, m, day)
+                    if tentative < today.isoformat():
+                        # move to next month
+                        if m == 12:
+                            y, m = y + 1, 1
+                        else:
+                            m += 1
+                        tentative = clamp_day(y, m, day)
+                    next_date = tentative
+                elif freq == "weekly":
+                    # Python Monday=0..Sunday=6, default Sunday
+                    target = int(wday) if wday is not None else 6
+                    # compute days until target weekday
+                    delta = (target - today.weekday()) % 7
+                    if delta == 0:
+                        # today or next week? assume today
+                        next_dt = today
+                    else:
+                        next_dt = today + timedelta(days=delta)
+                    next_date = next_dt.isoformat()
+                elif freq == "yearly":
+                    # Use start_date if exists; otherwise default Aug 1st
+                    if start_date_val:
+                        try:
+                            mm = int(start_date_val.split("-")[1])
+                            dd = int(start_date_val.split("-")[2])
+                        except Exception:
+                            mm, dd = 8, 1
+                    else:
+                        mm, dd = 8, 1
+                    y = today.year
+                    candidate = f"{y:04d}-{mm:02d}-{dd:02d}"
+                    if candidate < today.isoformat():
+                        candidate = f"{y+1:04d}-{mm:02d}-{dd:02d}"
+                    next_date = candidate
+                else:
+                    # Fallback: schedule for tomorrow
+                    next_date = (today + timedelta(days=1)).isoformat()
+
+                cur.execute(
+                    "UPDATE recurrences SET next_charge_date = ? WHERE id = ?",
+                    (next_date, r[0]),
+                )
+        # 2) Ensure recurrences has account_id column (nullable FK)
+        cols = [r[1] for r in cur.execute("PRAGMA table_info('recurrences')").fetchall()]
+        if "account_id" not in cols:
+            cur.execute("ALTER TABLE recurrences ADD COLUMN account_id INTEGER")
+    except Exception:
+        # Migration best-effort; do not fail app startup
+        pass
+
+    # 3) Add is_saving column to categories (mark חסכונות as savings)
+    try:
+        cols = [r[1] for r in cur.execute("PRAGMA table_info('categories')").fetchall()]
+        if "is_saving" not in cols:
+            cur.execute("ALTER TABLE categories ADD COLUMN is_saving BOOLEAN DEFAULT 0")
+            cur.execute("UPDATE categories SET is_saving = 1 WHERE name = 'חסכונות'")
+    except Exception:
+        pass
+
+    # 4) Normalize user names to English only (merge Hebrew rows into English)
+    try:
+        # Map of Hebrew -> English canonical names
+        user_name_map = (
+            ("יוסף", "Yosef"),
+            ("קארינה", "Karina"),
+        )
+
+        for heb_name, eng_name in user_name_map:
+            heb_row = cur.execute("SELECT id FROM users WHERE name = ?", (heb_name,)).fetchone()
+            if not heb_row:
+                continue
+
+            eng_row = cur.execute("SELECT id FROM users WHERE name = ?", (eng_name,)).fetchone()
+            if not eng_row:
+                cur.execute("INSERT INTO users (name) VALUES (?)", (eng_name,))
+                eng_id = cur.lastrowid
+            else:
+                # sqlite3.Row supports dict-style access
+                try:
+                    eng_id = int(eng_row[0] if 0 in eng_row.keys() else eng_row["id"])  # defensive
+                except Exception:
+                    eng_id = int(eng_row["id"]) if "id" in eng_row.keys() else int(eng_row[0])
+
+            # Ensure we have heb_id
+            try:
+                heb_id = int(heb_row[0] if 0 in heb_row.keys() else heb_row["id"])  # defensive
+            except Exception:
+                heb_id = int(heb_row["id"]) if "id" in heb_row.keys() else int(heb_row[0])
+
+            # Update FKs in referencing tables
+            cur.execute("UPDATE transactions SET user_id = ? WHERE user_id = ?", (eng_id, heb_id))
+            cur.execute("UPDATE recurrences SET user_id = ? WHERE user_id = ?", (eng_id, heb_id))
+
+            # Delete the old Hebrew user row once references are moved
+            cur.execute("DELETE FROM users WHERE id = ?", (heb_id,))
+    except Exception:
+        # Do not fail startup for normalization; safe to continue
+        pass
+
+    # Insert default data if tables are empty
+    if not cur.execute("SELECT COUNT(*) FROM categories").fetchone()[0]:
+        for _cat, _is_saving in [
+            ("משכורת", 0), ("קליניקה", 0), ("בריאות", 0), ("חסכונות", 1),
+            ("פנאי", 0), ("הוצאות בית", 0), ("רכב", 0), ("תחבורה", 0), ("אוכל בחוץ", 0),
+        ]:
+            cur.execute("INSERT INTO categories (name, is_saving) VALUES (?, ?)", (_cat, _is_saving))
+
+    if not cur.execute("SELECT COUNT(*) FROM users").fetchone()[0]:
+        # Seed only the real users (English canonical names)
+        cur.execute("INSERT INTO users (name) VALUES ('Yosef')")
+        cur.execute("INSERT INTO users (name) VALUES ('Karina')")
+
+    # Yonatan logs in for the workouts module only; his sessions need a users row
+    # (workouts.user_id), but he is not part of the household (finances / wedding
+    # read those two by name, so an extra row never shows up as a payer).
+    if not cur.execute("SELECT 1 FROM users WHERE name = 'Yonatan'").fetchone():
+        cur.execute("INSERT INTO users (name) VALUES ('Yonatan')")
+
+    if not cur.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]:
+        cur.execute("INSERT INTO accounts (name) VALUES ('מזומן')")
+        cur.execute("INSERT INTO accounts (name) VALUES ('כרטיס אשראי')")
+
+
+
+    # (removed) default challenges seed

@@ -7,7 +7,8 @@ apscheduler==3.10.4
 openpyxl==3.1.5
 pydantic>=2.6,<3
 python-multipart==0.0.32
-watchfiles==0.21.0
+# >=1.0 ships wheels for Python 3.13 (0.21 needed a Rust toolchain there); only used by `uvicorn --reload`
+watchfiles>=1.0,<2
 starlette==1.7.0
 python-dateutil==2.9.0.post0
 itsdangerous>=2.1,<3

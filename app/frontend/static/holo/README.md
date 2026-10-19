@@ -84,7 +84,7 @@ Beyond the poses, a few things make the difference in the arena:
 - The figure faces **+Z** (the "front" camera), standing on the origin. Camera presets:
   side `90deg 75deg`, front `0deg 75deg`, top `0deg 12deg`.
 
-Clip keys come from `holo_key()` in `app/backend/app/routes/workouts.py`
+Clip keys come from `holo_key()` in `app/backend/app/services/workouts/holo.py`
 (the English exercise name, lower-case, non-alphanumerics → `_`). Tempos come from
 `exercise_tempo()` in the same file.
 

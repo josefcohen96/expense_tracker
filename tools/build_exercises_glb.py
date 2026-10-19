@@ -6,7 +6,7 @@ are authored as joint angles in the sagittal plane (0deg = up, 90deg = forward/+
 through forward kinematics here, and baked into per-node translation/rotation keyframes, so
 the model needs no skin and every clip drives the same nodes.
 
-One animation clip per exercise, named by holo_key() in app/backend/app/routes/workouts.py.
+One animation clip per exercise, named by holo_key() in app/backend/app/services/workouts/holo.py.
 A rep clip is authored as lowering -> pause -> pushing over its tempo in seconds; a hold clip
 is the position itself with a slow breath. The arena time-scales whatever it finds.
 
@@ -694,7 +694,7 @@ SPECS = {
                                      anchor=POLE, plane="front", tilt=-78),
 }
 
-# Tempo per clip, mirroring exercise_tempo() in routes/workouts.py (None = static hold).
+# Tempo per clip, mirroring exercise_tempo() in services/workouts/catalog.py (None = static hold).
 HOLD_KEYS = {"advanced_tuck_fl_hold", "advanced_tuck_planche", "angled_tucked_flag_hold", "frog_stand",
              "nordic_curl_hold",
              "false_grip_hang", "freestanding_handstand_hold", "full_front_lever_hold",

@@ -136,11 +136,12 @@ def send_to_user(conn: sqlite3.Connection, user_id: int, message: dict[str, Any]
 
 def _arena_state(conn: sqlite3.Connection, user_id: int, today: date_cls):
     """History, game state and paths exactly as the workouts page derives them."""
-    from ..routes import workouts as wk  # lazy: routes import services
+    from .workouts import progress as wk  # lazy: routes import services
+    from .workouts.legacy import _load_legacy_progress
 
     history = wk._fetch_history(conn, user_id)
     game = wk.compute_gamification(history, today)
-    paths = wk.compute_paths(history, game["level"], wk._load_legacy_progress(conn, user_id), today)
+    paths = wk.compute_paths(history, game["level"], _load_legacy_progress(conn, user_id), today)
     return history, game, paths
 
 
@@ -150,7 +151,7 @@ def _days_word(n: int) -> str:
 
 def morning_message(conn: sqlite3.Connection, user_id: int, today: date_cls) -> dict[str, Any] | None:
     """Today's mission card, or the rest day `plan_today` recommends after a long run."""
-    from ..routes import workouts as wk
+    from .workouts import progress as wk
 
     history, game, paths = _arena_state(conn, user_id, today)
     default_path, _note = wk.plan_today(paths, history, today)
@@ -174,7 +175,7 @@ def morning_message(conn: sqlite3.Connection, user_id: int, today: date_cls) -> 
 
 def evening_message(conn: sqlite3.Connection, user_id: int, today: date_cls) -> dict[str, Any] | None:
     """None on a day already trained (silence is the reward); otherwise what is at stake."""
-    from ..routes import workouts as wk
+    from .workouts import progress as wk
 
     history = wk._fetch_history(conn, user_id)
     days = wk._workout_days(s["date"] for s in history)

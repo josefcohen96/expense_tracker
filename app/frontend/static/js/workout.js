@@ -1112,7 +1112,7 @@ function backToWarmup() {
 
 // ====================== HOLOGRAM (3a / 3b) ======================
 // One shared glTF model with an animation clip per exercise (clip name = holo_key, see
-// routes/workouts.py). Only exercises whose clip exists get the stage; the rest keep the
+// services/workouts/holo.py). Only exercises whose clip exists get the stage; the rest keep the
 // plain set screen. Each clip is one rep, played so that a loop lasts the exercise's tempo.
 
 const MODEL_VIEWER_URL = 'https://cdn.jsdelivr.net/npm/@google/model-viewer@4.3.1/dist/model-viewer.min.js';

@@ -35,7 +35,7 @@
 </a>
 {%- endmacro %}
 
-{#- type_labels comes from routes/workouts.py (WORKOUT_TYPE_LABELS) -#}
+{#- type_labels comes from services/workouts/catalog.py (WORKOUT_TYPE_LABELS) -#}
 {% set view_tabs = [] if first_workout else [('home', 'אימון', '#home'), ('map', 'מסלול', '#map'), ('profile', 'פרופיל', '#profile'), ('history', 'היסטוריה', '#history')] %}
 
 {% block content %}

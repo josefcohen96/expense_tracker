@@ -19,23 +19,16 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ..db import get_db_conn
-from ..routes.workouts import (
-    _clean_progress,
-    _legacy_progress_key,
-    _load_legacy_progress,
-    _resolve_user_id,
-    _session_user,
-    _station_for,
-    admin_session,
-    admin_session_rows,
-    admin_sessions,
-)
+from ..routes.workouts import _resolve_user_id, _session_user
 from ..schemas.workouts import (
     WorkoutAdminExerciseSchema,
     WorkoutLegacyProgressWriteSchema,
     WorkoutSessionWriteSchema,
 )
 from ..services.access import is_module_only_user
+from ..services.workouts.admin import admin_session, admin_session_rows, admin_sessions
+from ..services.workouts.legacy import _clean_progress, _legacy_progress_key, _load_legacy_progress
+from ..services.workouts.progress import _station_for
 
 router = APIRouter(prefix="/api/workouts", tags=["workouts"])
 

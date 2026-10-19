@@ -9,20 +9,15 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import date
-from pathlib import Path as FSPath
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from ..db import get_db_conn
 from ..services.access import USER_DISPLAY_NAMES, can_edit_renovation, normalise_username
+from ..templating import templates
 
-ROOT_DIR = FSPath(__file__).resolve().parents[3]
-TEMPLATES_DIR = ROOT_DIR / "frontend" / "templates"
-
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 router = APIRouter(prefix="/renovation", tags=["renovation"])
 
 TASK_STATUS_LABELS = {

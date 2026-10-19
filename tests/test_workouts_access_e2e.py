@@ -203,8 +203,8 @@ def _session_body(user_id, day="2026-06-13"):
 
 def _login(client, username, password):
     # This module logs in more often than the per-IP limit allows in one window.
-    import app.backend.app.routes.pages as pages
-    pages._login_attempts.clear()
+    import app.backend.app.routes.auth as auth_routes
+    auth_routes._login_attempts.clear()
     r = client.post("/login", data={"username": username, "password": password}, follow_redirects=False)
     assert r.status_code == 303, r.text
     return r

@@ -1,21 +1,15 @@
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path as FSPath
 from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from ..db import get_db_conn
 from ..services.people import household
+from ..templating import templates
 
-ROOT_DIR = FSPath(__file__).resolve().parents[3]  # .../expense_tracker/app
-FRONTEND_DIR = ROOT_DIR / "frontend"
-TEMPLATES_DIR = FRONTEND_DIR / "templates"
-
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 router = APIRouter(tags=["partials"])
 
 def _fetch_tx_row(db_conn: sqlite3.Connection, tx_id: int):

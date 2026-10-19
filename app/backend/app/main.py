@@ -152,17 +152,23 @@ from .api.transactions import router as transactions_api
 from .api.wedding import router as wedding_api
 from .api.workouts import router as workouts_api
 from .auth import build_public_route_matchers, public
-from .routes.debug_logs import router as debug_logs_router
 
 # --- include routers (אחרי app = FastAPI) ---
-from .routes.pages import router as pages_router
+from .routes.auth import router as auth_router
+from .routes.debug_logs import router as debug_logs_router
+from .routes.finances import router as finances_router
+from .routes.home import router as home_router
 from .routes.partials import router as partials_router
 from .routes.renovation import router as renovation_router
+from .routes.wedding import router as wedding_router
 from .routes.workouts import router as workouts_router
 from .services.auth_middleware import AuthMiddleware
 from .services.cron_service import CronService
 
-app.include_router(pages_router)
+app.include_router(auth_router)
+app.include_router(home_router)
+app.include_router(finances_router)
+app.include_router(wedding_router)
 app.include_router(partials_router)
 app.include_router(debug_logs_router)
 app.include_router(workouts_router)

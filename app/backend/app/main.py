@@ -150,6 +150,7 @@ from .api.statistics import router as statistics_api
 from .api.today import router as today_api
 from .api.transactions import router as transactions_api
 from .api.wedding import router as wedding_api
+from .api.whatsapp import router as whatsapp_api
 from .api.workouts import router as workouts_api
 from .auth import build_public_route_matchers, public
 
@@ -182,6 +183,7 @@ app.include_router(wedding_api)
 app.include_router(renovation_api)
 app.include_router(workouts_api)
 app.include_router(push_api)
+app.include_router(whatsapp_api)
 app.include_router(spanish_api)
 app.include_router(today_api)
 

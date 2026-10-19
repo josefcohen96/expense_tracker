@@ -54,6 +54,7 @@ expense_tracker/
 │   │   │   │   ├── wedding/         # Wedding API: package, one module per feature, `__init__` aggregates the routers
 │   │   │   │   ├── workouts.py      # Workouts admin CRUD (sessions + imported stations)
 │   │   │   │   ├── push.py          # קריאה לזירה: Web Push subscribe/unsubscribe/test
+│   │   │   │   ├── whatsapp.py      # תרשום: WhatsApp webhook (Meta Cloud API) + /test (same grammar, reply returned not sent)
 │   │   │   │   └── today.py         # /api/today aggregate + /api/quick-add/options
 │   │   │   ├── routes/              # HTML page routes (Jinja2 rendering)
 │   │   │   │   ├── auth.py          # /login, /logout + the login rate limit
@@ -78,6 +79,7 @@ expense_tracker/
 │   │   │       ├── wedding_plan.py       # Countdown, date-anchored milestones, headcount, committed money
 │   │   │       ├── cron_service.py       # APScheduler background jobs
 │   │   │       ├── push_service.py       # Arena Web Push: VAPID config, subscriptions, morning/evening texts
+│   │   │       ├── whatsapp.py           # תרשום: chat grammar (expenses, wedding tasks, undo), send_text, signature
 │   │   │       ├── workouts/             # Workouts arena logic (no re-exports in __init__.py)
 │   │   │       │   ├── catalog.py        # Static game content: paths/stations, exercises, tempos, warm-ups, cues
 │   │   │       │   ├── holo.py           # exercises.glb reader: clip names, front-view clips, clip bounds
@@ -260,6 +262,7 @@ Lives in `recurrence.py`. Uses a **catch-up / materialization** model — not re
 | `workouts_router` | (no prefix) | Workouts page, admin page + data |
 | `workouts_api` | `/api/workouts` | Admin CRUD: sessions + imported stations |
 | `push_api` | `/api/workouts/push` | `GET /key`, `POST`/`DELETE /subscribe`, `POST /test` (arena Web Push) |
+| `whatsapp_api` | `/api/whatsapp` | `GET`/`POST /webhook` (`@public`, Meta Cloud API), `POST /test` (runs a line for real as the session user, returns the reply instead of sending it) |
 | `debug_logs_router` | (no prefix) | Debug log viewer |
 | `today_api` | `/api` | `GET /today` (היום aggregate), `GET /quick-add/options` |
 
@@ -280,6 +283,7 @@ Below `lg` the app uses a bottom tab bar (היום · חתונה · + · כספ�
 - **`AuthMiddleware`** — per-request auth guard. Reads session, falls back to signed cookie. Lives in `services/auth_middleware.py`.
 - **`CronService`** — APScheduler `BackgroundScheduler`. Two jobs: immediate startup run + daily 03:15. Calls `apply_recurring()`. When the VAPID keys are set it also runs the arena pushes at 08:40 and 21:00 (Asia/Jerusalem).
 - **`push_service`** — קריאה לזירה: Web Push via `pywebpush` (imported lazily). Morning push = today's mission (or the rest day `plan_today` recommends); evening push only on a day without a workout (streak at risk, or a way back in). A 404/410 from the push service deletes the subscription. Card: `#profile` on `/workouts` (`static/js/components/arena-push.js`); keys from `tools/generate_vapid_keys.py`.
+- **`whatsapp`** — תרשום: the household's WhatsApp number. The sender's phone (`WHATSAPP_PHONE_*`) is the login; `handle_message()` is a deterministic grammar — an amount first/last = expense (payer + default account from `people`, `tags='whatsapp'`), a sentence = wedding task (`עד חמישי`, `יוסף:`, `דחוף`), `משימות`/`שלי`, `סיימתי 3`, `לקחתי 3`, `בטל`. Undo state in `system_settings` `whatsapp_undo:<USERNAME>` (24 h window, and only while the row is still as the bot left it); redelivered `wamid`s are skipped (in-memory deque); replies go out from a background task via `send_text` (httpx → Graph API). Off unless its env vars are set.
 - **`backup_service`** — creates ZIP archives of the SQLite DB; restore copies file back; monthly Excel export via openpyxl.
 - **`cache_service`** — simple in-memory cache for statistics API responses.
 - **`logging_service` / `production_logging`** — rotating file log at `logs/server.log`. Redirects print statements in production.
@@ -299,6 +303,12 @@ Below `lg` the app uses a bottom tab bar (היום · חתונה · + · כספ�
 | `VAPID_PRIVATE_KEY` | For push | Base64url raw private key. Generate both with `python tools/generate_vapid_keys.py`. |
 | `VAPID_SUBJECT` | No | `mailto:` contact sent to the push services (default `mailto:admin@example.com`). |
 | `IMPORT_TOKEN` | No | Bearer token for `POST /api/transactions/import/auto` (the Gmail Apps Script in `tools/gmail_max_import.gs`). Unset = endpoint off. |
+| `WHATSAPP_VERIFY_TOKEN` | For תרשום | Token Meta echoes in the webhook verification handshake. Unset = `GET /api/whatsapp/webhook` answers 403. |
+| `WHATSAPP_APP_SECRET` | For תרשום | Meta app secret; incoming webhooks must carry a matching `X-Hub-Signature-256`. Unset = `POST /api/whatsapp/webhook` answers 403. |
+| `WHATSAPP_ACCESS_TOKEN` | For תרשום | Bearer token (System User, `whatsapp_business_messaging`) used to send replies. |
+| `WHATSAPP_PHONE_NUMBER_ID` | For תרשום | The business number's id in the Graph API URL. |
+| `WHATSAPP_PHONE_YOSEF` | For תרשום | Yosef's phone in international digits (WhatsApp `wa_id`). Any other number is ignored. |
+| `WHATSAPP_PHONE_KARINA` | For תרשום | Karina's phone in international digits (WhatsApp `wa_id`). |
 | `BUDGET_DB_PATH` | No | Override DB file location (used in tests) |
 | `FORCE_DB_RESET=1` | No | Drop and recreate all tables at startup |
 | `AUTH_ENABLED=0` | No | Disable auth (pytest only — requires `PYTEST_CURRENT_TEST`) |

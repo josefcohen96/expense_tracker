@@ -26,6 +26,8 @@ jobs:
             requirements-dev.txt
       - name: Install
         run: pip install -r requirements-dev.txt
+      - name: Browsers
+        run: python -m playwright install --with-deps chromium
       - name: Lint
         run: ruff check .
       - name: Test

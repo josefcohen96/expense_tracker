@@ -103,6 +103,7 @@ expense_tracker/
 │               ├── charts/          # donut.js, monthly.js, helpers.js
 │               ├── components/      # form-manager.js
 │               ├── core/            # animations.js
+│               ├── pages/           # one file per page: <module>-<page>.js
 │               ├── vendor/          # Chart.js and other third-party libs
 │               ├── sw.js            # Service worker (PWA)
 │               └── workout.js
@@ -329,6 +330,7 @@ Below `lg` the app uses a bottom tab bar (היום · חתונה · + · כספ�
 6. **Hebrew UI, English code** — all identifiers, API routes, and variable names are English; all user-visible strings are Hebrew
 7. **Amounts convention** — income is positive, expenses are negative (stored as `-abs(amount)`)
 8. **Tests** use `BUDGET_DB_PATH` env var to point at a temp DB and `AUTH_ENABLED=0` to bypass auth
+9. **Page scripts** live in `static/js/pages/<module>-<page>.js`, included with a plain `<script src="…?v=YYYYMMDD">` at the spot in the template where the script belongs (usually the end of the page's content); server data reaches them through one `<script type="application/json" id="<page>-data">` block read into `PAGE_DATA`. Bump `?v=` whenever the file changes — `sw.js` serves `/static/` cache-first by URL. No inline `<script>` in page templates.
 
 ---
 

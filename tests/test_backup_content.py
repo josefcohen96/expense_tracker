@@ -7,23 +7,19 @@ and that the file is a valid, openable Excel workbook.
 
 import io
 import sqlite3
-import shutil
 import zipfile
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 import pytest
 from openpyxl import load_workbook
 
 from app.backend.app.services.backup_service import (
-    create_backup_file,
-    create_monthly_backup,
-    BACKUP_DIR,
-    EXCEL_ROOT,
     EXPENSES_HEADERS,
     RECURRENCES_HEADERS,
+    create_backup_file,
+    create_monthly_backup,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -238,7 +234,7 @@ class TestExpensesContent:
     def test_recurrence_id_populated_when_linked(self, tmp_path):
         conn = _setup_isolated_db(tmp_path)
         today = date.today()
-        tx_id = _insert_transaction(
+        _insert_transaction(
             conn,
             date_str=today.isoformat(),
             amount=50.0,
@@ -409,7 +405,6 @@ class TestRecurrencesContent:
 
     def test_recurrences_same_in_every_month_of_full_backup(self, tmp_path):
         """Full backup ZIP (6 months): recurrences sheet must be identical in each file."""
-        import io
         conn = _setup_isolated_db(tmp_path)
         zip_path = create_backup_file(db_conn=conn)
         conn.close()
@@ -454,7 +449,6 @@ class TestFullBackupMonthCoverage:
         )
 
     def test_transactions_appear_only_in_correct_month_file(self, tmp_path):
-        import io
         conn = _setup_isolated_db(tmp_path)
         today = date.today()
         ym = f"{today.year}-{today.month:02d}"

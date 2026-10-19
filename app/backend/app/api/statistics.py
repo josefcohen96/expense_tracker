@@ -2,16 +2,18 @@
 Statistics API endpoints for expense tracking and reporting (JSON only).
 """
 
+import logging
+import sqlite3
+from datetime import date, datetime
+from typing import Any
+
+from dateutil.relativedelta import relativedelta
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
+
+from ..api.transactions import INCOME_CATEGORIES
 from ..db import get_db_conn
 from ..services.cache_service import cache_service
-from ..api.transactions import INCOME_CATEGORIES
-from datetime import date, datetime, timedelta
-from dateutil.relativedelta import relativedelta
-from typing import Dict, Any, List
-import sqlite3
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +30,7 @@ _INCOME_EXCL = "c.name NOT IN ({})".format(
 )
 
 
-def get_last_6_months() -> List[str]:
+def get_last_6_months() -> list[str]:
     """Get the last 6 months as YYYY-MM strings, matching the SQL date('now','-6 months') window."""
     today = date.today()
     months = []
@@ -52,7 +54,6 @@ def statistics(db_conn=Depends(get_db_conn)):
 
     # Get all categories
     categories_rows = cur.execute("SELECT name, COALESCE(is_saving, 0) as is_saving FROM categories").fetchall()
-    all_categories = [row["name"] for row in categories_rows]
 
     # Get monthly sums per category (only regular expenses, excluding recurring expenses, income and savings categories)
     monthly_raw = cur.execute("""
@@ -281,7 +282,7 @@ def statistics(db_conn=Depends(get_db_conn)):
         balance_change = 0
         if (previous_month_income['total'] - previous_month_expenses['total']) > 0:
             balance_change = ((balance_month - (previous_month_income['total'] - previous_month_expenses['total'])) / (previous_month_income['total'] - previous_month_expenses['total'])) * 100
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to calculate monthly change percentages")
         expenses_change = 0
         income_change = 0
@@ -313,7 +314,7 @@ def statistics(db_conn=Depends(get_db_conn)):
     cache_service.set(_STATS_CACHE_KEY, payload, ttl_seconds=_STATS_CACHE_TTL)
     return JSONResponse(payload)
 
-def _get_top_expenses(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
+def _get_top_expenses(cur: sqlite3.Cursor) -> list[dict[str, Any]]:
     """Get top 5 expenses from last 3 months with caching."""
     cache_key = "top_expenses_3months"
     top_expenses = cache_service.get(cache_key)
@@ -352,7 +353,7 @@ def _get_top_expenses(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
         else:
             return [dict(row) for row in top_expenses]
 
-def _get_recurring_monthly_expenses(cur: sqlite3.Cursor, last_6_months: List[str]) -> List[Dict[str, Any]]:
+def _get_recurring_monthly_expenses(cur: sqlite3.Cursor, last_6_months: list[str]) -> list[dict[str, Any]]:
     """Get recurring expenses by month for the last 6 months (excluding income categories)."""
     recurring_monthly = cur.execute("""
         SELECT strftime('%Y-%m', t.date) AS month, COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS total
@@ -377,7 +378,7 @@ def _get_recurring_monthly_expenses(cur: sqlite3.Cursor, last_6_months: List[str
     
     return recurring_monthly_full
 
-def _get_cash_vs_credit_data(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
+def _get_cash_vs_credit_data(cur: sqlite3.Cursor) -> list[dict[str, Any]]:
     """Get cash vs credit breakdown for last 6 months (including both regular and recurring expenses, excluding income categories)."""
     # First get by user and account
     try:
@@ -396,7 +397,7 @@ def _get_cash_vs_credit_data(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
             GROUP BY month, u.name, a.name
             ORDER BY month ASC, u.name ASC, a.name ASC
         """).fetchall()
-    except Exception as e:
+    except Exception:
         cash_vs_credit_by_user = []
     
     # Then get totals by account (all users combined)
@@ -414,7 +415,7 @@ def _get_cash_vs_credit_data(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
             GROUP BY month, a.name
             ORDER BY month ASC, a.name ASC
         """).fetchall()
-    except Exception as e:
+    except Exception:
         cash_vs_credit_totals = []
     
     # Combine both results
@@ -442,7 +443,7 @@ def _get_cash_vs_credit_data(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
             # Handle other account types - add to credit by default
             else:
                 user_monthly_data[month][user_name]['credit'] += total
-    except Exception as e:
+    except Exception:
         user_monthly_data = {}
     
     try:
@@ -487,7 +488,7 @@ def _get_cash_vs_credit_data(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
                 'credit_amount': totals['credit'],
                 'is_total': True
             })
-    except Exception as e:
+    except Exception:
         pass
     
     return cash_vs_credit
@@ -552,7 +553,8 @@ def debug_statistics(db_conn=Depends(get_db_conn)):
     cur = db_conn.cursor()
     
     # Check current date and 3 months ago
-    from datetime import datetime, timedelta
+    from datetime import datetime
+
     from dateutil.relativedelta import relativedelta
     
     now = datetime.now()

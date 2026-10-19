@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
-from typing import Optional
 
 # Magic bytes for file-type sniffing (defense-in-depth alongside the extension
 # check — an attacker controls the filename, not the first bytes of the file).
@@ -36,7 +35,7 @@ class UploadRejected(ValueError):
     """An upload failed validation. The message is Hebrew and user-facing."""
 
 
-def sniff_mime(content: bytes) -> Optional[str]:
+def sniff_mime(content: bytes) -> str | None:
     """Best-effort MIME type from the file's leading bytes, or None."""
     if not content:
         return None
@@ -52,7 +51,7 @@ def sniff_mime(content: bytes) -> Optional[str]:
     return None
 
 
-def validate_image(content: bytes, filename: Optional[str], max_mb: int) -> tuple[str, str]:
+def validate_image(content: bytes, filename: str | None, max_mb: int) -> tuple[str, str]:
     """Check an uploaded image and return its ``(extension, mime)``.
 
     Raises :class:`UploadRejected` with a message meant to be shown as-is.

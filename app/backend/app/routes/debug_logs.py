@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import HTMLResponse, PlainTextResponse
-from pathlib import Path
 import os
-import logging
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import PlainTextResponse
 
 router = APIRouter(tags=["debug"])
 
@@ -28,7 +28,7 @@ async def view_logs_endpoint(request: Request, lines: int = 100):
         return "Server log file not found"
     
     try:
-        with open(log_file, 'r', encoding='utf-8') as f:
+        with open(log_file, encoding='utf-8') as f:
             all_lines = f.readlines()
             last_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
             
@@ -57,7 +57,7 @@ async def view_auth_logs_endpoint(request: Request, lines: int = 100):
         return "Auth log file not found"
     
     try:
-        with open(log_file, 'r', encoding='utf-8') as f:
+        with open(log_file, encoding='utf-8') as f:
             all_lines = f.readlines()
             last_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
             
@@ -86,7 +86,7 @@ async def view_error_logs_endpoint(request: Request, lines: int = 100):
         return "Error log file not found"
     
     try:
-        with open(log_file, 'r', encoding='utf-8') as f:
+        with open(log_file, encoding='utf-8') as f:
             all_lines = f.readlines()
             last_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
             

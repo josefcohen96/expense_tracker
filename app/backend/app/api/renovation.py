@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 import sqlite3
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
@@ -58,7 +58,7 @@ def _require_editor(request: Request) -> str:
     return normalise_username(user)
 
 
-def _clean(value: Optional[str]) -> Optional[str]:
+def _clean(value: str | None) -> str | None:
     """Trim a free-text field, turning blanks into NULL."""
     if value is None:
         return None
@@ -77,7 +77,7 @@ def _one_of(field: str, allowed: tuple[str, ...]):
     return _check
 
 
-def _room_exists(db_conn: sqlite3.Connection, room_id: Optional[int]) -> None:
+def _room_exists(db_conn: sqlite3.Connection, room_id: int | None) -> None:
     if room_id is None:
         return
     row = db_conn.execute("SELECT 1 FROM renovation_rooms WHERE id=?", (room_id,)).fetchone()
@@ -85,7 +85,7 @@ def _room_exists(db_conn: sqlite3.Connection, room_id: Optional[int]) -> None:
         raise HTTPException(status_code=400, detail="החדר שנבחר לא קיים")
 
 
-def _task_exists(db_conn: sqlite3.Connection, task_id: Optional[int]) -> None:
+def _task_exists(db_conn: sqlite3.Connection, task_id: int | None) -> None:
     if task_id is None:
         return
     row = db_conn.execute("SELECT 1 FROM renovation_tasks WHERE id=?", (task_id,)).fetchone()
@@ -119,8 +119,8 @@ def _apply_updates(
 class RoomCreate(BaseModel):
     name: str
     icon: str = "🏠"
-    notes: Optional[str] = None
-    image_url: Optional[str] = None
+    notes: str | None = None
+    image_url: str | None = None
     sort_order: int = 0
 
     @field_validator("name")
@@ -132,21 +132,21 @@ class RoomCreate(BaseModel):
 
 
 class RoomUpdate(BaseModel):
-    name: Optional[str] = None
-    icon: Optional[str] = None
-    notes: Optional[str] = None
-    image_url: Optional[str] = None
-    sort_order: Optional[int] = None
+    name: str | None = None
+    icon: str | None = None
+    notes: str | None = None
+    image_url: str | None = None
+    sort_order: int | None = None
 
 
 class TaskCreate(BaseModel):
     title: str
-    room_id: Optional[int] = None
+    room_id: int | None = None
     status: str = "todo"
     priority: str = "medium"
-    due_date: Optional[str] = None
-    notes: Optional[str] = None
-    link_url: Optional[str] = None
+    due_date: str | None = None
+    notes: str | None = None
+    link_url: str | None = None
 
     @field_validator("title")
     @classmethod
@@ -160,13 +160,13 @@ class TaskCreate(BaseModel):
 
 
 class TaskUpdate(BaseModel):
-    title: Optional[str] = None
-    room_id: Optional[int] = None
-    status: Optional[str] = None
-    priority: Optional[str] = None
-    due_date: Optional[str] = None
-    notes: Optional[str] = None
-    link_url: Optional[str] = None
+    title: str | None = None
+    room_id: int | None = None
+    status: str | None = None
+    priority: str | None = None
+    due_date: str | None = None
+    notes: str | None = None
+    link_url: str | None = None
 
     _status_ok = field_validator("status")(_one_of("status", TASK_STATUSES))
     _priority_ok = field_validator("priority")(_one_of("priority", TASK_PRIORITIES))
@@ -174,12 +174,12 @@ class TaskUpdate(BaseModel):
 
 class IdeaCreate(BaseModel):
     title: str
-    description: Optional[str] = None
-    room_id: Optional[int] = None
+    description: str | None = None
+    room_id: int | None = None
     status: str = "new"
     color: str = "white"
-    image_url: Optional[str] = None
-    link_url: Optional[str] = None
+    image_url: str | None = None
+    link_url: str | None = None
 
     @field_validator("title")
     @classmethod
@@ -194,12 +194,12 @@ class IdeaCreate(BaseModel):
 
 class SupplyCreate(BaseModel):
     name: str
-    quantity: Optional[str] = None
+    quantity: str | None = None
     status: str = "needed"
-    room_id: Optional[int] = None
-    task_id: Optional[int] = None
-    notes: Optional[str] = None
-    link_url: Optional[str] = None
+    room_id: int | None = None
+    task_id: int | None = None
+    notes: str | None = None
+    link_url: str | None = None
 
     @field_validator("name")
     @classmethod
@@ -212,25 +212,25 @@ class SupplyCreate(BaseModel):
 
 
 class SupplyUpdate(BaseModel):
-    name: Optional[str] = None
-    quantity: Optional[str] = None
-    status: Optional[str] = None
-    room_id: Optional[int] = None
-    task_id: Optional[int] = None
-    notes: Optional[str] = None
-    link_url: Optional[str] = None
+    name: str | None = None
+    quantity: str | None = None
+    status: str | None = None
+    room_id: int | None = None
+    task_id: int | None = None
+    notes: str | None = None
+    link_url: str | None = None
 
     _status_ok = field_validator("status")(_one_of("status", SUPPLY_STATUSES))
 
 
 class IdeaUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    room_id: Optional[int] = None
-    status: Optional[str] = None
-    color: Optional[str] = None
-    image_url: Optional[str] = None
-    link_url: Optional[str] = None
+    title: str | None = None
+    description: str | None = None
+    room_id: int | None = None
+    status: str | None = None
+    color: str | None = None
+    image_url: str | None = None
+    link_url: str | None = None
 
     _status_ok = field_validator("status")(_one_of("status", IDEA_STATUSES))
     _color_ok = field_validator("color")(_one_of("color", IDEA_COLORS))
@@ -554,9 +554,9 @@ async def delete_supply(
 
 class JournalCreate(BaseModel):
     title: str
-    room_id: Optional[int] = None
-    entry_date: Optional[str] = None
-    notes: Optional[str] = None
+    room_id: int | None = None
+    entry_date: str | None = None
+    notes: str | None = None
 
     @field_validator("title")
     @classmethod
@@ -567,10 +567,10 @@ class JournalCreate(BaseModel):
 
 
 class JournalUpdate(BaseModel):
-    title: Optional[str] = None
-    room_id: Optional[int] = None
-    entry_date: Optional[str] = None
-    notes: Optional[str] = None
+    title: str | None = None
+    room_id: int | None = None
+    entry_date: str | None = None
+    notes: str | None = None
 
 
 def _journal_entry(db_conn: sqlite3.Connection, entry_id: int) -> sqlite3.Row:
@@ -580,7 +580,7 @@ def _journal_entry(db_conn: sqlite3.Connection, entry_id: int) -> sqlite3.Row:
     return row
 
 
-def _discard_photo(stored_name: Optional[str]) -> None:
+def _discard_photo(stored_name: str | None) -> None:
     """Delete a photo file, ignoring one that is already gone.
 
     A failure here must never break the request that triggered it: losing the

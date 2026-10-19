@@ -3,9 +3,9 @@ Simple caching service for frequently accessed data.
 Uses in-memory cache with TTL (Time To Live) for efficiency.
 """
 
-import time
 import logging
-from typing import Any, Dict, Optional
+import time
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +14,9 @@ class CacheService:
     
     def __init__(self):
         """Initialize the cache service."""
-        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._cache: dict[str, dict[str, Any]] = {}
     
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """Get value from cache if not expired."""
         logger.debug(f"Cache GET request for key: {key}")
         
@@ -57,7 +57,7 @@ class CacheService:
         logger.debug(f"Cache CLEAR - removing {len(self._cache)} entries")
         self._cache.clear()
     
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         stats = {
             'total_entries': len(self._cache),

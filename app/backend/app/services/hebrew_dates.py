@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Optional
 
 HEBREW_MONTHS = (
     "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
@@ -16,7 +15,7 @@ HEBREW_MONTHS_SHORT = (
 HEBREW_WEEKDAYS = ("שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת", "ראשון")
 
 
-def parse_iso(value: object) -> Optional[date]:
+def parse_iso(value: object) -> date | None:
     """Parse a stored YYYY-MM-DD (or datetime prefix) value; None when unusable."""
     if not value:
         return None

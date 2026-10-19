@@ -87,7 +87,7 @@ def test_vendor_name_with_single_quote(app_client):
     v = _create_vendor(app_client, name="דיג'יי רועי", category="dj")
     assert v["name"] == "דיג'יי רועי"
 
-    r = app_client.get(f"/api/wedding/vendors")
+    r = app_client.get("/api/wedding/vendors")
     names = [x["name"] for x in r.json()]
     assert "דיג'יי רועי" in names
 
@@ -129,7 +129,7 @@ def test_quote_items_replace_and_recalc(app_client):
     assert len(data["items"]) == 2
 
     # price_quoted on vendor should be updated
-    vendor = app_client.get(f"/api/wedding/vendors").json()
+    vendor = app_client.get("/api/wedding/vendors").json()
     updated = next(x for x in vendor if x["id"] == vid)
     assert abs(updated["price_quoted"] - 2170.0) < 0.01
 

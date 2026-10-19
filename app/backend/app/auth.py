@@ -1,6 +1,7 @@
-from typing import Any, Callable, List, Tuple, Set
-import re
 import logging
+import re
+from collections.abc import Callable
+from typing import Any
 
 try:
     # FastAPI/APIRoute is optional at import time for tooling; guarded use
@@ -10,7 +11,7 @@ except Exception:  # pragma: no cover - safe fallback if not available
 
 
 def public(func: Callable) -> Callable:
-    setattr(func, "_is_public", True)
+    func._is_public = True
     return func
 
 
@@ -21,13 +22,13 @@ def is_endpoint_public(endpoint: Any) -> bool:
         return False
 
 
-def build_public_route_matchers(app: Any) -> List[Tuple["re.Pattern[str]", Set[str]]]:
+def build_public_route_matchers(app: Any) -> list[tuple["re.Pattern[str]", set[str]]]:
     """Collect regex + methods for routes decorated with @public.
 
     Returns list of tuples: (compiled_regex, set_of_methods)
     """
     logger = logging.getLogger(__name__)
-    matchers: List[Tuple["re.Pattern[str]", Set[str]]] = []
+    matchers: list[tuple[re.Pattern[str], set[str]]] = []
     try:
         for r in getattr(app, "routes", []) or []:
             try:
@@ -37,7 +38,7 @@ def build_public_route_matchers(app: Any) -> List[Tuple["re.Pattern[str]", Set[s
             if not is_public:
                 continue
             try:
-                regex = getattr(r, "path_regex")
+                regex = r.path_regex
             except Exception:
                 path_str = getattr(r, "path", getattr(r, "path_format", "")) or ""
                 pattern = "^" + re.escape(path_str) + "$"

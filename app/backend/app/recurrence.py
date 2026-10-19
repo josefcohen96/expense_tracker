@@ -13,10 +13,9 @@ period_key)` unique constraint on the `transactions` table.
 from __future__ import annotations
 
 import calendar
-from datetime import date, datetime, timedelta
-from typing import List, Tuple, Optional, Any
-
 import sqlite3
+from datetime import date, datetime, timedelta
+
 from . import db  # ניגש ישירות ל-db הקיים שלך (ללא services)
 
 # --------- Helpers: dates ---------
@@ -35,7 +34,7 @@ def _clamp_day(year: int, month: int, day: int) -> date:
         day = last_day
     return date(year, month, day)
 
-def _add_months_keep_dom(current: date, months: int, desired_day: Optional[int]) -> date:
+def _add_months_keep_dom(current: date, months: int, desired_day: int | None) -> date:
     total_months = current.year * 12 + current.month - 1 + months
     y = total_months // 12
     m = total_months % 12 + 1
@@ -44,7 +43,7 @@ def _add_months_keep_dom(current: date, months: int, desired_day: Optional[int])
 
 # --------- Helpers: meta ---------
 
-def get_meta(conn: sqlite3.Connection, key: str) -> Optional[str]:
+def get_meta(conn: sqlite3.Connection, key: str) -> str | None:
     row = conn.execute("SELECT value FROM system_settings WHERE key = ?", (key,)).fetchone()
     return row[0] if row else None
 
@@ -56,7 +55,7 @@ def set_meta(conn: sqlite3.Connection, key: str, value: str) -> None:
 
 # --------- Core ---------
 
-def _compute_next_charge_date(current_due: date, freq: str, day_of_month: Optional[int], weekday: Optional[int]) -> date:
+def _compute_next_charge_date(current_due: date, freq: str, day_of_month: int | None, weekday: int | None) -> date:
     if freq == "monthly":
         return _add_months_keep_dom(current_due, 1, day_of_month)
     if freq == "weekly":
@@ -70,7 +69,7 @@ def _compute_next_charge_date(current_due: date, freq: str, day_of_month: Option
     # default: push one day
     return current_due + timedelta(days=1)
 
-def apply_recurring(today: Optional[date] = None) -> int:
+def apply_recurring(today: date | None = None) -> int:
     """
     Materialize due recurring transactions using `next_charge_date`.
     For each active recurrence, if its `next_charge_date` is in the past or today,

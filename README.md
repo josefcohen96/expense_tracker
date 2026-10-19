@@ -131,6 +131,19 @@ expense_tracker/
 └── requirements.txt    # Python dependencies
 ```
 
+## 🧪 Development
+
+```bash
+pip install -r requirements-dev.txt   # runtime deps + ruff, pytest, pre-commit
+pre-commit install                    # lint every commit, block stray large/binary files
+
+ruff check .                          # lint (config in pyproject.toml)
+python -m pytest                      # test suite; uses a fresh temp database, never your budget.db
+```
+
+GitHub Actions runs the same two commands on every push and pull request (`.github/workflows/ci.yml`).
+The browser tests in `tests/test_workouts_arena_browser.py` need Playwright and skip when it is not installed.
+
 ## 🛡️ License
 
 This project is open-source and available for personal and educational use.

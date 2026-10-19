@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import date, timedelta
-from typing import Optional
 
 from . import hebrew_dates as hd
 
@@ -39,12 +38,12 @@ _SEEDED_FLAG = "wedding_milestones_seeded"
 _PEOPLE_SQL = "1 + CASE WHEN plus_one=1 THEN 1 ELSE 0 END + COALESCE(children_count,0)"
 
 
-def get_setting(conn: sqlite3.Connection, key: str) -> Optional[str]:
+def get_setting(conn: sqlite3.Connection, key: str) -> str | None:
     row = conn.execute("SELECT value FROM wedding_settings WHERE key=?", (key,)).fetchone()
     return row[0] if row else None
 
 
-def get_wedding_date(conn: sqlite3.Connection) -> Optional[date]:
+def get_wedding_date(conn: sqlite3.Connection) -> date | None:
     return hd.parse_iso(get_setting(conn, "wedding_date"))
 
 
@@ -85,7 +84,7 @@ def vendor_balance_due(conn: sqlite3.Connection) -> float:
     return float(row[0] or 0)
 
 
-def list_milestones(conn: sqlite3.Connection, today: Optional[date] = None) -> dict:
+def list_milestones(conn: sqlite3.Connection, today: date | None = None) -> dict:
     """Milestones in date order with their computed date and status.
 
     Status is one of done / overdue / next / future; exactly one open,
@@ -168,7 +167,7 @@ def task_progress(conn: sqlite3.Connection) -> dict:
     }
 
 
-def countdown(conn: sqlite3.Connection, today: Optional[date] = None) -> dict:
+def countdown(conn: sqlite3.Connection, today: date | None = None) -> dict:
     """Days to the wedding plus task progress; `days_left` is None without a date."""
     today = today or date.today()
     wedding = get_wedding_date(conn)

@@ -11,7 +11,6 @@ These tests verify the regressions identified in the audit are fixed:
   - quote-items: clearing the list resets vendor.price_quoted to 0
   - file upload rejects content with mismatched magic bytes
 """
-import os
 import io
 
 
@@ -75,7 +74,7 @@ def test_delete_guest_clears_seating_assignment(app_client):
     # Seating data should no longer reference this guest
     seating = app_client.get("/api/wedding/seating").json()
     for tbl in seating["tables"]:
-        for sn, assg in tbl.get("assignments", {}).items():
+        for _sn, assg in tbl.get("assignments", {}).items():
             assert assg["guest_id"] != g["id"], "Seating assignment leaked after guest delete"
 
 
@@ -228,5 +227,5 @@ def test_declining_guest_clears_seating(app_client):
     # Their seating row should be gone
     seating = app_client.get("/api/wedding/seating").json()
     for tbl in seating["tables"]:
-        for sn, assg in tbl.get("assignments", {}).items():
+        for _sn, assg in tbl.get("assignments", {}).items():
             assert assg["guest_id"] != g["id"], "Seating not cleared after decline"

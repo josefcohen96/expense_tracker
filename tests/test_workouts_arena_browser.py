@@ -35,6 +35,7 @@ def _free_port():
 def live_server(app_client):
     """The same app (and temp DB) the TestClient uses, served over HTTP for the browser."""
     import uvicorn
+
     import app.backend.app.main as main_app
 
     port = _free_port()

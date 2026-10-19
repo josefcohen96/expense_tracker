@@ -1,31 +1,31 @@
 from __future__ import annotations
-import sqlite3
+
+import calendar
 import hmac
-import os
 import logging
+import os
+import sqlite3
 import time
 from collections import deque
-from threading import Lock
-from typing import Any, Deque, Dict, List, Optional
-from datetime import date, timedelta, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path as FSPath
-import calendar
+from threading import Lock
+from typing import Any
 
 from fastapi import APIRouter, Depends, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
-from itsdangerous import URLSafeSerializer
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from ..auth import public
-from urllib.parse import unquote_plus
+from itsdangerous import URLSafeSerializer
 
-from ..db import get_db_conn
 from .. import db as _db
-from ..services.access import home_path_for, is_module_only_user, password_env_var
+from ..auth import public
+from ..db import get_db_conn
 from ..services import hebrew_dates as hd
 from ..services import wedding_plan
+from ..services.access import home_path_for, is_module_only_user, password_env_var
 from ..services.people import default_account_id, find_person, household
 from ..services.today import build_today
-import logging
+
 logger = logging.getLogger(__name__)
 
 # --- /login rate limiting (per client IP, in-memory) ---
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # this needs a shared store (Redis).
 _LOGIN_WINDOW_SECONDS = 300  # 5-minute sliding window
 _LOGIN_MAX_ATTEMPTS = 8      # attempts allowed in that window
-_login_attempts: Dict[str, Deque[float]] = {}
+_login_attempts: dict[str, deque[float]] = {}
 _login_attempts_lock = Lock()
 
 
@@ -346,7 +346,7 @@ async def logout(request: Request) -> RedirectResponse:
         })
         # Clear fallback cookie
         try:
-            from starlette.responses import Response as _Response
+            pass
             # Use a temporary response to set delete cookie directive; actual redirect below will be returned
             # We'll attach delete cookie on the final RedirectResponse instead
         except Exception:
@@ -402,7 +402,7 @@ async def service_worker() -> FileResponse:
 @router.get("/finances", response_class=HTMLResponse)
 async def finances_dashboard(
     request: Request,
-    month: Optional[str] = None,
+    month: str | None = None,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> HTMLResponse:
     logger.debug("FINANCES dashboard request", extra={
@@ -540,9 +540,9 @@ async def finances_dashboard(
         """
     ).fetchall()
 
-    upcoming: List[Dict[str, Any]] = []
+    upcoming: list[dict[str, Any]] = []
     for r in recs:
-        charge: Optional[date] = None
+        charge: date | None = None
         try:
             if r["frequency"] == "monthly":
                 day = int(r["day_of_month"] or 1)
@@ -576,7 +576,7 @@ async def finances_dashboard(
     upcoming = sorted(upcoming, key=lambda x: x["date"])[:5]
 
     # --- Mobile סקירה (< lg): month chips, balance card, top categories, recent rows ---
-    def month_delta(cur_val: float, prev_val: float, up_color: str, down_color: str) -> Optional[Dict[str, str]]:
+    def month_delta(cur_val: float, prev_val: float, up_color: str, down_color: str) -> dict[str, str] | None:
         """'▲ 4.2%' vs the previous month; None when there is nothing to compare with."""
         if not prev_val:
             return None
@@ -717,7 +717,7 @@ async def finances_transactions(
     sort_param = qp.get("sort", "date_desc")
 
     where_clauses = ["t.recurrence_id IS NULL"]
-    params: List[Any] = []
+    params: list[Any] = []
 
     if date_from:
         where_clauses.append("t.date >= ?")
@@ -1034,8 +1034,8 @@ async def finances_recurrences(
     )
 
     # Optional filters: month(for schedule), category_id, only_active; always restrict to main users
-    where_clauses: List[str] = []
-    params: List[Any] = []
+    where_clauses: list[str] = []
+    params: list[Any] = []
 
     cat_id_raw = request.query_params.get("category_id")
     if cat_id_raw:
@@ -1059,8 +1059,8 @@ async def finances_recurrences(
     recs_all = db_conn.execute(base_sql + where_sql + " ORDER BY r.id DESC", (*params,)).fetchall()
 
     # Compute scheduled execution date for current month based on frequency/day_of_month/weekday
-    from datetime import date as _date
     import calendar as _calendar
+    from datetime import date as _date
 
     # Resolve selected month (YYYY-MM). If provided, use it; otherwise default to current month
     month_str = request.query_params.get("month")
@@ -1075,10 +1075,10 @@ async def finances_recurrences(
             pass
 
 
-    recs_enriched: List[Dict[str, Any]] = []
+    recs_enriched: list[dict[str, Any]] = []
     for r in recs_all or []:
         r_dict = dict(r)
-        sched: Optional[_date] = None
+        sched: _date | None = None
         try:
             freq = (r_dict.get("frequency") or "").lower()
             if freq == "monthly":
@@ -1177,8 +1177,8 @@ async def finances_recurrences_active(
         """
     )
 
-    where_clauses: List[str] = ["r.active = 1"]
-    params: List[Any] = []
+    where_clauses: list[str] = ["r.active = 1"]
+    params: list[Any] = []
 
     cat_id_raw = request.query_params.get("category_id")
     if cat_id_raw:
@@ -1244,7 +1244,8 @@ async def create_recurrence_form(
     next_charge_date = form.get("next_charge_date")
 
     # Compute sensible default next_charge_date if not provided
-    from datetime import date as _date, timedelta as _timedelta
+    from datetime import date as _date
+    from datetime import timedelta as _timedelta
 
     def _clamp_day(year: int, month: int, day: int) -> _date:
         import calendar as _calendar
@@ -1299,7 +1300,7 @@ async def create_recurrence_form(
         "active": True,
     }
     # Insert into recurrences table directly
-    cur = db_conn.execute(
+    db_conn.execute(
         """
         INSERT INTO recurrences (name, amount, category_id, user_id, frequency, day_of_month, weekday, next_charge_date, active, account_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1399,7 +1400,7 @@ async def save_recurrence_inline(
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ):
     form = await request.form()
-    fields: Dict[str, Any] = {}
+    fields: dict[str, Any] = {}
     for k in ("name", "frequency", "next_charge_date"):
         if k in form and form[k] != "":
             fields[k] = form[k]
@@ -1441,7 +1442,7 @@ async def delete_recurrence_inline(
 @router.get("/finances/statistics", response_class=HTMLResponse)
 async def finances_statistics(
     request: Request,
-    month: Optional[str] = None,
+    month: str | None = None,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> HTMLResponse:
     # Get main user IDs (works with both Hebrew and English names)
@@ -1557,8 +1558,8 @@ async def finances_statistics(
     ).fetchall()
 
     # Normalize cash/credit per user to a compact structure for the template table
-    cash_credit_user_totals: List[Dict[str, Any]] = []
-    user_map: Dict[str, Dict[str, float]] = {}
+    cash_credit_user_totals: list[dict[str, Any]] = []
+    user_map: dict[str, dict[str, float]] = {}
     for row in cash_credit_rows or []:
         user = row["user_name"]
         account = (row["account_name"] or '').strip()
@@ -1650,7 +1651,7 @@ async def finances_statistics(
     # -----------------------------
     # Build the trailing-6-months window (consistent with the rest of the page).
     _base = today.replace(day=1)
-    last_6_months: List[str] = []
+    last_6_months: list[str] = []
     for _i in range(5, -1, -1):
         _y, _m = _base.year, _base.month - _i
         while _m <= 0:
@@ -1713,7 +1714,7 @@ async def finances_statistics(
 
     # --- Mobile מגמות (< lg): 6 months ending at the selected month ---
     sel_y, sel_m = map(int, selected_ym.split("-"))
-    trend_months: List[str] = []
+    trend_months: list[str] = []
     ty, tm = sel_y, sel_m
     for _ in range(6):
         trend_months.append(f"{ty:04d}-{tm:02d}")
@@ -1861,9 +1862,9 @@ async def finances_statistics(
 @router.get("/finances/statistics/drilldown", response_class=HTMLResponse)
 async def finances_statistics_drilldown(
     request: Request,
-    metric: Optional[str] = None,
-    category: Optional[str] = None,
-    month: Optional[str] = None,
+    metric: str | None = None,
+    category: str | None = None,
+    month: str | None = None,
     partial: bool = False,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ) -> HTMLResponse:

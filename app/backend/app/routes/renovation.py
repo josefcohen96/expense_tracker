@@ -10,7 +10,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import date
 from pathlib import Path as FSPath
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
@@ -114,7 +114,7 @@ def _supply_rows(db_conn: sqlite3.Connection) -> list[dict]:
     """).fetchall()]
 
 
-def _parse_iso(value: Optional[str]) -> Optional[date]:
+def _parse_iso(value: str | None) -> date | None:
     try:
         return date.fromisoformat(value) if value else None
     except (TypeError, ValueError):
@@ -165,7 +165,7 @@ def _attach_supplies(rows: list[dict], supplies: list[dict], key: str) -> None:
         row["supplies_missing"] = len([s for s in items if s["status"] == "needed"])
 
 
-def _int_or_none(value: Optional[str]) -> Optional[int]:
+def _int_or_none(value: str | None) -> int | None:
     try:
         return int(value) if value not in (None, "") else None
     except (TypeError, ValueError):

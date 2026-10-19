@@ -18,9 +18,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import date as date_cls, datetime, timedelta
+from collections.abc import Iterable
+from datetime import date as date_cls
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Set
+from typing import Any
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
 DECK_PATH = ROOT_DIR / "frontend" / "static" / "spanish" / "deck.json"
@@ -36,12 +38,12 @@ GRADES = {0: "שוב", 1: "קשה", 2: "טוב", 3: "קל"}
 MODES = ("intro", "recall")
 CONTEXTS = ("rest", "study")
 
-_deck_cache: Dict[str, Any] = {"stamp": None, "deck": None}
+_deck_cache: dict[str, Any] = {"stamp": None, "deck": None}
 
 
 # ---------------------------------------------------------------- deck
 
-def load_deck(path: Optional[Path] = None) -> Dict[str, Any]:
+def load_deck(path: Path | None = None) -> dict[str, Any]:
     """The deck, cached by file mtime, with lookups added (`by_id`, `order`, `theme_titles`)."""
     path = path or DECK_PATH
     stat = path.stat()
@@ -78,7 +80,7 @@ def _day(value: Any) -> date_cls:
     return _parse_dt(value).date()
 
 
-def apply_review(state: Optional[Dict[str, Any]], grade: int, mode: str, reviewed_at: Any) -> Dict[str, Any]:
+def apply_review(state: dict[str, Any] | None, grade: int, mode: str, reviewed_at: Any) -> dict[str, Any]:
     """One review applied to an item's state (None = never seen). Returns the new state."""
     when = _parse_dt(reviewed_at)
     stage = state["stage"] if state else 0
@@ -99,23 +101,23 @@ def apply_review(state: Optional[Dict[str, Any]], grade: int, mode: str, reviewe
     }
 
 
-def _sorted_reviews(reviews: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _sorted_reviews(reviews: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(reviews, key=lambda r: (_parse_dt(r["reviewed_at"]), r.get("id") or 0))
 
 
-def item_states(reviews: Iterable[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+def item_states(reviews: Iterable[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Replay every review in `reviewed_at` order → {item_id: state}. Unseen items are absent."""
-    states: Dict[str, Dict[str, Any]] = {}
+    states: dict[str, dict[str, Any]] = {}
     for r in _sorted_reviews(reviews):
         states[r["item_id"]] = apply_review(states.get(r["item_id"]), int(r["grade"]), r["mode"], r["reviewed_at"])
     return states
 
 
-def intros_on(reviews: Iterable[Dict[str, Any]], day: date_cls) -> int:
+def intros_on(reviews: Iterable[dict[str, Any]], day: date_cls) -> int:
     return sum(1 for r in reviews if r["mode"] == "intro" and _day(r["reviewed_at"]) == day)
 
 
-def review_days_streak(review_days: Set[date_cls], today: date_cls) -> int:
+def review_days_streak(review_days: set[date_cls], today: date_cls) -> int:
     """Consecutive days with at least one review, ending today — or yesterday, so a streak
     is not lost in the morning before today's first card."""
     if today in review_days:
@@ -133,7 +135,7 @@ def review_days_streak(review_days: Set[date_cls], today: date_cls) -> int:
 
 # ---------------------------------------------------------------- queue + stats
 
-def _card(item: Dict[str, Any], deck: Dict[str, Any], mode: str, stage: int) -> Dict[str, Any]:
+def _card(item: dict[str, Any], deck: dict[str, Any], mode: str, stage: int) -> dict[str, Any]:
     return {
         "id": item["id"],
         "theme": item["theme"],
@@ -149,13 +151,13 @@ def _card(item: Dict[str, Any], deck: Dict[str, Any], mode: str, stage: int) -> 
 
 
 def build_queue(
-    deck: Dict[str, Any],
-    reviews: List[Dict[str, Any]],
+    deck: dict[str, Any],
+    reviews: list[dict[str, Any]],
     today: date_cls,
     limit: int = 15,
     new_cap: int = DEFAULT_NEW_CAP,
-    states: Optional[Dict[str, Dict[str, Any]]] = None,
-) -> List[Dict[str, Any]]:
+    states: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     """Due recall items first (oldest due first), then new items in deck order, the new ones
     capped at `new_cap` minus the intros already recorded today."""
     states = item_states(reviews) if states is None else states
@@ -177,12 +179,12 @@ def build_queue(
 
 
 def stats(
-    deck: Dict[str, Any],
-    reviews: List[Dict[str, Any]],
+    deck: dict[str, Any],
+    reviews: list[dict[str, Any]],
     today: date_cls,
     new_cap: int = DEFAULT_NEW_CAP,
-    states: Optional[Dict[str, Dict[str, Any]]] = None,
-) -> Dict[str, Any]:
+    states: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Everything the stats row, the profile card and the theme list show."""
     states = item_states(reviews) if states is None else states
     known = {iid: st for iid, st in states.items() if iid in deck["by_id"]}
@@ -209,7 +211,7 @@ def stats(
     }
 
 
-def theme_progress(deck: Dict[str, Any], summary: Dict[str, Any]) -> List[Dict[str, Any]]:
+def theme_progress(deck: dict[str, Any], summary: dict[str, Any]) -> list[dict[str, Any]]:
     """Themes in deck order with their `in_pocket / total`, for the #spanish view."""
     rows = []
     for t in deck["themes"]:
@@ -227,7 +229,7 @@ def theme_progress(deck: Dict[str, Any], summary: Dict[str, Any]) -> List[Dict[s
 
 # ---------------------------------------------------------------- the two DB touch points
 
-def fetch_reviews(db_conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]]:
+def fetch_reviews(db_conn: sqlite3.Connection, user_id: int) -> list[dict[str, Any]]:
     rows = db_conn.execute(
         "SELECT id, item_id, reviewed_at, grade, mode, context FROM spanish_reviews "
         "WHERE user_id = ? ORDER BY reviewed_at, id",
@@ -243,8 +245,8 @@ def record_review(
     grade: int,
     mode: str,
     context: str = "rest",
-    reviewed_at: Optional[datetime] = None,
-) -> Dict[str, Any]:
+    reviewed_at: datetime | None = None,
+) -> dict[str, Any]:
     when = (reviewed_at or datetime.now()).replace(microsecond=0)
     cur = db_conn.execute(
         "INSERT INTO spanish_reviews (user_id, item_id, reviewed_at, grade, mode, context) "
@@ -259,10 +261,10 @@ def record_review(
 def snapshot(
     db_conn: sqlite3.Connection,
     user_id: int,
-    today: Optional[date_cls] = None,
+    today: date_cls | None = None,
     limit: int = 15,
     new_cap: int = DEFAULT_NEW_CAP,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Queue + stats for one user in one read (what the page and the queue endpoint ship)."""
     today = today or date_cls.today()
     deck = load_deck()

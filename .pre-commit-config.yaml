@@ -1,0 +1,16 @@
+# Install once per clone:  pip install -r requirements-dev.txt && pre-commit install
+# Then every commit is linted and checked for stray large/binary files.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.1
+    hooks:
+      - id: ruff
+        args: [--fix]
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: detect-private-key

@@ -22,11 +22,8 @@ from __future__ import annotations
 import argparse
 import os
 import sqlite3
-import sys
-from typing import Iterable, List
 
-
-KEEP_TABLES: List[str] = [
+KEEP_TABLES: list[str] = [
     "transactions",
     "recurrences",
     "recurrence_skips",
@@ -67,7 +64,7 @@ def run(args: argparse.Namespace) -> None:
 
         # Fetch CREATE TABLE sql for kept tables from source
         rows = dest_conn.execute(
-            "SELECT name, sql FROM src.sqlite_master WHERE type='table' AND name IN (%s)" % (
+            "SELECT name, sql FROM src.sqlite_master WHERE type='table' AND name IN ({})".format(
                 ",".join(["?"] * len(KEEP_TABLES))
             ),
             KEEP_TABLES,

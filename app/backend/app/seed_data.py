@@ -2,10 +2,10 @@
 Seed data generation for testing and development.
 """
 
+import datetime
+import random
 import sqlite3
 from pathlib import Path
-import random
-import datetime
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "budget.db"
 

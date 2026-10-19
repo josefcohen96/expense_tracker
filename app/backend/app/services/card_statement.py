@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 from io import BytesIO
-from typing import Any, Iterable, Optional
+from typing import Any
 
 from openpyxl import load_workbook
 
@@ -67,7 +68,7 @@ def _cell_text(value: Any) -> str:
     return str(value).strip() if value is not None else ""
 
 
-def _parse_date(value: Any) -> Optional[str]:
+def _parse_date(value: Any) -> str | None:
     if isinstance(value, datetime):
         return value.date().isoformat()
     if isinstance(value, date):
@@ -83,7 +84,7 @@ def _parse_date(value: Any) -> Optional[str]:
     return None
 
 
-def _parse_amount(value: Any) -> Optional[float]:
+def _parse_amount(value: Any) -> float | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
@@ -97,7 +98,7 @@ def _parse_amount(value: Any) -> Optional[float]:
         return None
 
 
-def _find_header(rows: list[tuple]) -> Optional[int]:
+def _find_header(rows: list[tuple]) -> int | None:
     for idx, row in enumerate(rows):
         texts = {_cell_text(c) for c in row}
         if HEADER_DATE in texts and HEADER_AMOUNT in texts:
@@ -112,9 +113,9 @@ def parse_statement(data: bytes) -> dict:
     except Exception as exc:  # not an xlsx at all
         raise ValueError("not a workbook") from exc
 
-    holder: Optional[str] = None
-    statement_month: Optional[str] = None
-    card_last4: Optional[str] = None
+    holder: str | None = None
+    statement_month: str | None = None
+    card_last4: str | None = None
     out_rows: list[dict] = []
     found_header = False
 
@@ -243,9 +244,9 @@ def classify(conn: sqlite3.Connection, rows: list[dict]) -> list[dict]:
 def guess_category(
     conn: sqlite3.Connection,
     merchant: str,
-    max_category: Optional[str],
+    max_category: str | None,
     categories: Iterable[Any],
-) -> tuple[Optional[int], str]:
+) -> tuple[int | None, str]:
     """(category_id, source) with source one of merchant / map / fallback.
 
     `categories` are the categories the import may choose from (id, name, is_saving).
@@ -281,7 +282,7 @@ def guess_category(
     return (plain["id"] if plain else None), "fallback"
 
 
-def guess_payer(conn: sqlite3.Connection, holder: Optional[str], session_user: Any) -> Optional[int]:
+def guess_payer(conn: sqlite3.Connection, holder: str | None, session_user: Any) -> int | None:
     """The household member named first in `holder`, else the logged-in one, else the first."""
     people = household(conn)
     if not people:

@@ -337,6 +337,13 @@ Or with Docker:
 docker-compose up
 ```
 
+### Lint, tests, CI
+
+- `requirements-dev.txt` adds `ruff`, `pytest` and `pre-commit` on top of the runtime deps. Run `pre-commit install` once per clone.
+- `ruff check .` must pass. Config lives in `pyproject.toml` (rules E, F, I, B, UP; line length 120 but E501 off; the few deliberate exceptions are listed there with their reason). `ruff format` is **not** applied to this codebase.
+- `python -m pytest` (config in `pyproject.toml`). The suite builds a fresh temp database via `initialise_database()` and never touches `app/backend/data/budget.db`.
+- `.github/workflows/ci.yml` runs lint + tests on every push to `main` and every PR, on Python 3.12 like the Dockerfile.
+
 ---
 
 ## AI workflow (Claude Code)

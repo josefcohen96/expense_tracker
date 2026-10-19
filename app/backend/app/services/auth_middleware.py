@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Iterable, List, Set, Tuple
-from urllib.parse import quote_plus
-from datetime import datetime
+from collections.abc import Iterable
+from typing import Any
 
+from itsdangerous import BadSignature, URLSafeSerializer
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, Response
-from itsdangerous import BadSignature, URLSafeSerializer
 
 from .access import USER_YOSEF, can_access_path, home_path_for
 
@@ -26,11 +25,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app: Any,
-        public_route_matchers: Iterable[Tuple[Any, Set[str]]],
+        public_route_matchers: Iterable[tuple[Any, set[str]]],
         auth_enabled: bool = True,
     ) -> None:
         super().__init__(app)
-        self.public_route_matchers: List[Tuple[Any, Set[str]]] = list(public_route_matchers)
+        self.public_route_matchers: list[tuple[Any, set[str]]] = list(public_route_matchers)
         self.auth_enabled = auth_enabled
         self.logger = logging.getLogger(__name__)
         # Fallback cookie-based auth (signed).

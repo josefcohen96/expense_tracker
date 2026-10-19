@@ -7,7 +7,7 @@ same color for the same person.
 from __future__ import annotations
 
 import sqlite3
-from typing import Any, Optional
+from typing import Any
 
 from .access import display_name, is_module_only_user, normalise_username
 
@@ -70,7 +70,7 @@ def workout_people(conn: sqlite3.Connection, viewer: Any = None) -> list[dict]:
     return people
 
 
-def find_person(people: list[dict], user: Any) -> Optional[dict]:
+def find_person(people: list[dict], user: Any) -> dict | None:
     """The household entry matching a session user / username / owner value."""
     key = normalise_username(user)
     if not key:
@@ -78,7 +78,7 @@ def find_person(people: list[dict], user: Any) -> Optional[dict]:
     return next((p for p in people if p["name"].upper() == key), None)
 
 
-def default_account_id(conn: sqlite3.Connection, user: Any) -> Optional[int]:
+def default_account_id(conn: sqlite3.Connection, user: Any) -> int | None:
     """Id of the account this user's new expenses start on, if one is configured."""
     name = DEFAULT_ACCOUNT_BY_USER.get(normalise_username(user) or "")
     if not name:
@@ -87,7 +87,7 @@ def default_account_id(conn: sqlite3.Connection, user: Any) -> Optional[int]:
     return row["id"] if row else None
 
 
-def valid_owner(conn: sqlite3.Connection, owner: Optional[str]) -> Optional[str]:
+def valid_owner(conn: sqlite3.Connection, owner: str | None) -> str | None:
     """Canonical users.name for an owner value, or None for unassigned.
 
     Raises ValueError for a name that is not one of the household.

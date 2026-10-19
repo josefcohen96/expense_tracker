@@ -3,35 +3,50 @@ Wedding module API endpoints.
 CRUD for vendors, guests, tasks, budget items, settings, and file attachments.
 """
 from __future__ import annotations
+
+import os
 import sqlite3
 import uuid
-import os
-from pathlib import Path
 from datetime import date
-from typing import Optional
+from pathlib import Path
 from urllib.parse import quote
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
+
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
+
 from ..db import get_db_conn
-from ..services.uploads import sniff_mime as _sniff_mime
-from ..services import wedding_plan
-from ..services import overseas
-from ..services.people import find_person, household, valid_owner
 from ..schemas.wedding import (
-    VendorCreate, VendorUpdate, QuoteItem,
-    GuestCreate, GuestUpdate,
-    RoomCreate, RoomUpdate,
-    TaskCreate, TaskUpdate,
-    BudgetItemCreate, BudgetItemUpdate,
+    BudgetItemCreate,
+    BudgetItemUpdate,
+    GuestCreate,
+    GuestUpdate,
+    IdeaCreate,
+    IdeaUpdate,
+    MilestoneCreate,
+    MilestoneUpdate,
+    NoteCreate,
+    NoteUpdate,
+    OverseasCommentCreate,
+    OverseasItemCreate,
+    OverseasItemUpdate,
+    QuoteItem,
+    RoomCreate,
+    RoomUpdate,
+    SeatingAssign,
+    SeatingTableCreate,
+    SeatingTablePositions,
+    SeatingTableUpdate,
     SettingUpsert,
-    NoteCreate, NoteUpdate,
-    IdeaCreate, IdeaUpdate,
-    TimelineEventCreate, TimelineEventUpdate,
-    MilestoneCreate, MilestoneUpdate,
-    OverseasItemCreate, OverseasItemUpdate, OverseasCommentCreate,
-    SeatingTableCreate, SeatingTableUpdate,
-    SeatingTablePositions, SeatingAssign,
+    TaskCreate,
+    TaskUpdate,
+    TimelineEventCreate,
+    TimelineEventUpdate,
+    VendorCreate,
+    VendorUpdate,
 )
+from ..services import overseas, wedding_plan
+from ..services.people import find_person, household, valid_owner
+from ..services.uploads import sniff_mime as _sniff_mime
 
 router = APIRouter(prefix="/api/wedding", tags=["wedding"])
 
@@ -320,7 +335,7 @@ async def list_tasks(db_conn: sqlite3.Connection = Depends(get_db_conn)):
     return [dict(r) for r in rows]
 
 
-def _task_owner(db_conn: sqlite3.Connection, owner: Optional[str]) -> Optional[str]:
+def _task_owner(db_conn: sqlite3.Connection, owner: str | None) -> str | None:
     try:
         return valid_owner(db_conn, owner)
     except ValueError:
@@ -634,27 +649,27 @@ async def delete_idea(idea_id: int, db_conn: sqlite3.Connection = Depends(get_db
 
 # ─── Overseas orders (הזמנות מחו״ל) ────────────────────────────────────────────
 
-def _session_person_name(request: Request, db_conn: sqlite3.Connection) -> Optional[str]:
+def _session_person_name(request: Request, db_conn: sqlite3.Connection) -> str | None:
     user = getattr(request.state, "user", None) or request.session.get("user")
     person = find_person(household(db_conn), user)
     return person["name"] if person else None
 
 
-def _household_name(db_conn: sqlite3.Connection, value: Optional[str]) -> Optional[str]:
+def _household_name(db_conn: sqlite3.Connection, value: str | None) -> str | None:
     try:
         return valid_owner(db_conn, value)
     except ValueError:
         raise HTTPException(status_code=422, detail="משתמש לא מוכר")
 
 
-def _clean_text(value: Optional[str]) -> Optional[str]:
+def _clean_text(value: str | None) -> str | None:
     if value is None:
         return None
     value = value.strip()
     return value or None
 
 
-def _clean_url(value: Optional[str]) -> Optional[str]:
+def _clean_url(value: str | None) -> str | None:
     """A store link the page may render as an href: http(s) only."""
     value = _clean_text(value)
     if value is not None and not value.lower().startswith(("http://", "https://")):
@@ -1006,7 +1021,7 @@ async def unassign_guest(guest_id: int, db_conn: sqlite3.Connection = Depends(ge
 DEFAULT_BASE_URL = "https://expensetracker-production-2084.up.railway.app"
 
 
-def _resolve_base_url(request: Optional[Request]) -> str:
+def _resolve_base_url(request: Request | None) -> str:
     """Prefer env override, then request scheme+host, then production fallback."""
     env_url = os.environ.get("PUBLIC_BASE_URL", "").strip()
     if env_url:

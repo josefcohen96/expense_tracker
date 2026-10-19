@@ -140,9 +140,9 @@ def authed(tmp_path_factory):
     import app.backend.app.db as db_module
     importlib.reload(db_module)
     db_module.initialise_database()
-    import app.backend.app.main as main_module
-
     from fastapi.testclient import TestClient
+
+    import app.backend.app.main as main_module
     client = TestClient(main_module.app)
     try:
         yield client, tmp_db

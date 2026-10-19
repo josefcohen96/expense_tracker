@@ -4,11 +4,11 @@ Database connection and initialization helpers.
 This file is the single source of truth for opening the SQLite connection.
 """
 
-import sqlite3
 import os
-from pathlib import Path
-from typing import Generator
+import sqlite3
+from collections.abc import Generator
 from datetime import date, timedelta
+from pathlib import Path
 
 # מיקום ברירת מחדל של מסד הנתונים (תעדכן אם שינית את השם/נתיב)
 # ניתן לעקוף באמצעות משתנה סביבה BUDGET_DB_PATH כדי להריץ בדיקות על עותק זמני ובטוח

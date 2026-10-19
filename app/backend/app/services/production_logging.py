@@ -6,9 +6,8 @@ This module provides enhanced logging for production environments.
 import logging
 import os
 import sys
-from pathlib import Path
-from datetime import datetime
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 
 def setup_production_logging(log_dir: Path) -> None:

@@ -1,24 +1,27 @@
 import json
+import logging
 import math
 import mimetypes
 import re
 import sqlite3
 import struct
-import logging
-from datetime import date as date_cls, timedelta
+from collections.abc import Iterable
+from datetime import date as date_cls
+from datetime import timedelta
+from pathlib import Path as FSPath
 from statistics import median
-from typing import Dict, List, Any, Iterable, Optional, Set, Tuple
+from typing import Any
+
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from pathlib import Path as FSPath
 
 from ..db import get_db_conn
 from ..schemas.workouts import WorkoutCreateSchema, WorkoutLegacyProgressSchema
+from ..services import spanish as spanish_service
 from ..services.access import USER_YOSEF, is_module_only_user, normalise_username
 from ..services.hebrew_dates import in_days_label
 from ..services.people import workout_people
-from ..services import spanish as spanish_service
 from ..services.wedding_plan import get_wedding_date
 
 logger = logging.getLogger(__name__)
@@ -497,21 +500,21 @@ WORKOUT_TYPE_LABELS = {
 }
 
 
-def station_exercise_name(step: Dict[str, Any]) -> str:
+def station_exercise_name(step: dict[str, Any]) -> str:
     """The exercise name a station is saved under (the format the page has always sent)."""
     return f"{step['hebrew']} ({step['name']})"
 
 
 # A saved row carries the exercise name, so the name — not the stored index — is what
 # survives a change to the order of a path. Both maps are built from it.
-STATION_BY_NAME: Dict[str, Tuple[str, int]] = {}          # name -> (skill, index)
-STATION_INDEX: Dict[Tuple[str, str], int] = {}            # (skill, name) -> index
+STATION_BY_NAME: dict[str, tuple[str, int]] = {}          # name -> (skill, index)
+STATION_INDEX: dict[tuple[str, str], int] = {}            # (skill, name) -> index
 for _skill_key, _skill in SKILL_PROGRESSIONS.items():
     for _idx, _step in enumerate(_skill["progressions"]):
         STATION_BY_NAME.setdefault(station_exercise_name(_step), (_skill_key, _idx))
         STATION_INDEX[(_skill_key, station_exercise_name(_step))] = _idx
 
-RENAMED_ENGLISH: Dict[Tuple[str, str], str] = {}   # (skill, old English name) -> today's name
+RENAMED_ENGLISH: dict[tuple[str, str], str] = {}   # (skill, old English name) -> today's name
 for _skill_key, _old_hebrew, _old_english, _english in STATION_RENAMES:
     _steps = SKILL_PROGRESSIONS[_skill_key]["progressions"]
     _idx = next(i for i, s in enumerate(_steps) if s["name"] == _english)
@@ -673,7 +676,7 @@ def holo_key(english_name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", english_name.lower()).strip("_")
 
 
-def exercise_tempo(english_name: str, unit: str = "reps") -> Optional[List[int]]:
+def exercise_tempo(english_name: str, unit: str = "reps") -> list[int] | None:
     """Rep tempo in seconds (lowering, pause, pushing); None for static holds."""
     if unit == "sec" or "Hold" in english_name or english_name in HOLD_EXERCISES:
         return None
@@ -685,7 +688,7 @@ def unit_label(unit: str) -> str:
     return "שניות" if unit == "sec" else "חזרות"
 
 
-_holo_clip_cache: Dict[str, Any] = {"stamp": None, "clips": frozenset(), "front": frozenset(),
+_holo_clip_cache: dict[str, Any] = {"stamp": None, "clips": frozenset(), "front": frozenset(),
                                     "bounds": {}}
 
 
@@ -721,16 +724,16 @@ def holo_front_clips() -> frozenset:
     return _holo_clip_cache["front"]
 
 
-def holo_clip_bounds() -> Dict[str, list]:
+def holo_clip_bounds() -> dict[str, list]:
     """Per clip: [centre x, y, z, half-extent x, y, z] of everything the clip shows, so the
     arena can frame each exercise instead of the model's rest pose."""
     holo_clips()
     return _holo_clip_cache["bounds"]
 
 
-def exercise_form_data() -> Dict[str, Dict[str, Any]]:
+def exercise_form_data() -> dict[str, dict[str, Any]]:
     """Per saved exercise name: hologram clip key, unit, tempo, how it is done and its cues."""
-    data: Dict[str, Dict[str, Any]] = {}
+    data: dict[str, dict[str, Any]] = {}
     for name in EXERCISE_CATALOG:
         data[name] = {
             "holo_key": holo_key(name),
@@ -793,7 +796,7 @@ def _xp_needed_for_level(level: int) -> int:
     return 100 + (level - 1) * 75
 
 
-def _level_from_xp(total_xp: int) -> Dict[str, int]:
+def _level_from_xp(total_xp: int) -> dict[str, int]:
     """Convert total XP into level + progress inside the current level."""
     level = 1
     remaining = total_xp
@@ -809,7 +812,7 @@ def _level_from_xp(total_xp: int) -> Dict[str, int]:
     }
 
 
-def _rank_for_level(level: int) -> Dict[str, str]:
+def _rank_for_level(level: int) -> dict[str, str]:
     title, icon = RANKS[0][1], RANKS[0][2]
     for min_level, rank_title, rank_icon in RANKS:
         if level >= min_level:
@@ -817,7 +820,7 @@ def _rank_for_level(level: int) -> Dict[str, str]:
     return {"title": title, "icon": icon}
 
 
-def _next_rank_for_level(level: int) -> Dict[str, Any]:
+def _next_rank_for_level(level: int) -> dict[str, Any]:
     for min_level, rank_title, _ in RANKS:
         if level < min_level:
             return {"title": rank_title, "level": min_level}
@@ -829,7 +832,7 @@ def _total_xp_for_level(level: int) -> int:
     return sum(_xp_needed_for_level(lvl) for lvl in range(1, level))
 
 
-def _rank_ladder(level: int, total_xp: int) -> List[Dict[str, Any]]:
+def _rank_ladder(level: int, total_xp: int) -> list[dict[str, Any]]:
     """Every rank with its state for this player: achieved / current / next / locked."""
     current_idx = max(i for i, (min_level, _, _) in enumerate(RANKS) if level >= min_level)
     ladder = []
@@ -852,18 +855,18 @@ def _rank_ladder(level: int, total_xp: int) -> List[Dict[str, Any]]:
     return ladder
 
 
-def _parse_day(value: Any) -> Optional[date_cls]:
+def _parse_day(value: Any) -> date_cls | None:
     try:
         return date_cls.fromisoformat(str(value)[:10])
     except (ValueError, TypeError):
         return None
 
 
-def _workout_days(dates: Iterable[str]) -> Set[date_cls]:
+def _workout_days(dates: Iterable[str]) -> set[date_cls]:
     return {d for d in (_parse_day(v) for v in dates) if d}
 
 
-def _compute_streak(dates: List[str]) -> int:
+def _compute_streak(dates: list[str]) -> int:
     """Longest run of consecutive workout days ending at the most recent workout."""
     day_set = _workout_days(dates)
     if not day_set:
@@ -876,7 +879,7 @@ def _compute_streak(dates: List[str]) -> int:
     return streak
 
 
-def _current_streak(day_set: Set[date_cls], today: date_cls) -> int:
+def _current_streak(day_set: set[date_cls], today: date_cls) -> int:
     """Run of workout days that is still alive (trained today or yesterday)."""
     day = today if today in day_set else today - timedelta(days=1)
     streak = 0
@@ -889,7 +892,7 @@ def _current_streak(day_set: Set[date_cls], today: date_cls) -> int:
 STREAK_MILESTONES = (7, 14, 21, 30, 60, 100, 365)   # the next one is the streak card's goal
 
 
-def _streak_details(current: int, best: int, day_set: Set[date_cls], today: date_cls) -> Dict[str, Any]:
+def _streak_details(current: int, best: int, day_set: set[date_cls], today: date_cls) -> dict[str, Any]:
     """What the streak card shows once a run is longer than the 7-day strip can tell.
 
     weeks/extra_days split the run for the Hebrew label ("שבועיים ו-3 ימים"); the next
@@ -924,7 +927,7 @@ def _streak_details(current: int, best: int, day_set: Set[date_cls], today: date
     }
 
 
-def _best_streak(day_set: Set[date_cls]) -> int:
+def _best_streak(day_set: set[date_cls]) -> int:
     best = 0
     for day in day_set:
         if day - timedelta(days=1) in day_set:
@@ -971,10 +974,10 @@ def _eta_label(weeks: float) -> str:
 
 
 def compute_gamification(
-    history: List[Dict[str, Any]],
-    today: Optional[date_cls] = None,
+    history: list[dict[str, Any]],
+    today: date_cls | None = None,
     spanish_in_pocket: int = 0,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Aggregate workout history into the full player-profile game state.
 
     `spanish_in_pocket` is the derived "words in your pocket" count (services/spanish.py),
@@ -1072,11 +1075,11 @@ def compute_gamification(
     }
 
 
-def _rep_range(target: int) -> Tuple[int, int]:
+def _rep_range(target: int) -> tuple[int, int]:
     return max(1, math.ceil(target * STATION_REP_FLOOR)), target
 
 
-def _station_for(skill_key: Optional[str], stage_index: Optional[int], exercise_name: str) -> Optional[Tuple[str, int]]:
+def _station_for(skill_key: str | None, stage_index: int | None, exercise_name: str) -> tuple[str, int] | None:
     """The station an exercise row trained.
 
     The saved name is what identifies a station, so a row still lands on the right one
@@ -1096,7 +1099,7 @@ def _station_for(skill_key: Optional[str], stage_index: Optional[int], exercise_
     return None
 
 
-def _exercise_title(exercise_name: str, station: Optional[Tuple[str, int]]) -> str:
+def _exercise_title(exercise_name: str, station: tuple[str, int] | None) -> str:
     """Hebrew display name for a saved exercise."""
     if station:
         return SKILL_PROGRESSIONS[station[0]]["progressions"][station[1]]["hebrew"]
@@ -1105,23 +1108,23 @@ def _exercise_title(exercise_name: str, station: Optional[Tuple[str, int]]) -> s
     return exercise_name
 
 
-def _exercise_unit(exercise_name: str, station: Optional[Tuple[str, int]]) -> str:
+def _exercise_unit(exercise_name: str, station: tuple[str, int] | None) -> str:
     """What the saved number counts: 'sec' for a static hold, 'reps' otherwise."""
     if station:
         return SKILL_PROGRESSIONS[station[0]]["progressions"][station[1]]["unit"]
     return "sec" if exercise_tempo(exercise_name) is None else "reps"
 
 
-def _best_set(exercise: Dict[str, Any]) -> int:
+def _best_set(exercise: dict[str, Any]) -> int:
     """Best single set of a saved exercise; rows from before max_reps fall back to the average set."""
     if exercise.get("max_reps") is not None:
         return exercise["max_reps"]
     return exercise["reps"] // exercise["sets"] if exercise["sets"] else 0
 
 
-def compute_records(history: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+def compute_records(history: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Per exercise name: best single set (and when it was first reached) and the latest session's best set."""
-    records: Dict[str, Dict[str, Any]] = {}
+    records: dict[str, dict[str, Any]] = {}
     for session in history:  # newest first
         for ex in session["exercises"]:
             best = _best_set(ex)
@@ -1137,17 +1140,17 @@ def compute_records(history: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
 
 
 def compute_paths(
-    history: List[Dict[str, Any]],
+    history: list[dict[str, Any]],
     level: int,
-    legacy_conquered: Optional[Dict[str, List[int]]] = None,
-    today: Optional[date_cls] = None,
-) -> List[Dict[str, Any]]:
+    legacy_conquered: dict[str, list[int]] | None = None,
+    today: date_cls | None = None,
+) -> list[dict[str, Any]]:
     """Quest paths with per-station progress counted from history, plus today's plan for each path."""
     today = today or date_cls.today()
     legacy_conquered = legacy_conquered or {}
 
-    tally: Dict[Tuple[str, int], Dict[str, int]] = {}
-    path_sessions: Dict[str, List[Dict[str, Any]]] = {}
+    tally: dict[tuple[str, int], dict[str, int]] = {}
+    path_sessions: dict[str, list[dict[str, Any]]] = {}
     for session in history:  # newest first
         seen_stations = set()
         for ex in session["exercises"]:
@@ -1267,7 +1270,6 @@ def compute_paths(
             "title": skill["title"],
             "difficulty": skill["difficulty"],
             "muscles": skill["muscles"],
-            "warmup": skill["warmup"],
             "prereq": skill["prereq"],
             "cues": skill["cues"],
             "category": meta["workout_type"].lower(),
@@ -1295,7 +1297,7 @@ TYPE_LABELS = {"Push": "דחיפה", "Pull": "משיכה", "Core": "ליבה", "
 RECOVERY_STREAK_DAYS = 3   # this many training days in a row earns a rest-day nudge
 
 
-def plan_today(paths: List[Dict[str, Any]], history: List[Dict[str, Any]], today: date_cls) -> Tuple[str, Optional[str]]:
+def plan_today(paths: list[dict[str, Any]], history: list[dict[str, Any]], today: date_cls) -> tuple[str, str | None]:
     """The path for today's mission card and a one-line recovery note (or None).
 
     Strength skills grow between sessions, not during them: after a pull day the mission
@@ -1345,11 +1347,11 @@ BOSS_MIN_PACE_DAYS = 3       # below this many training days the pace is assumed
 BOSS_ASSUMED_PER_WEEK = 2.0
 
 
-def _days_in_window(days: Set[date_cls], today: date_cls, window: int) -> int:
+def _days_in_window(days: set[date_cls], today: date_cls, window: int) -> int:
     return sum(1 for d in days if 0 <= (today - d).days < window)
 
 
-def _pace_window(days: Set[date_cls], today: date_cls) -> int:
+def _pace_window(days: set[date_cls], today: date_cls) -> int:
     """How many days the cadence is measured over: the last 8 weeks, or, for someone who
     started (or started over) more recently, the days since their first training — so five
     trainings in the first five days count as a daily pace, not as five spread over two months."""
@@ -1361,11 +1363,11 @@ def _pace_window(days: Set[date_cls], today: date_cls) -> int:
 
 
 def wedding_boss(
-    history: List[Dict[str, Any]],
-    paths: List[Dict[str, Any]],
+    history: list[dict[str, Any]],
+    paths: list[dict[str, Any]],
     wedding_date: date_cls,
     today: date_cls,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """The wedding as the game's final boss: trainings left at the user's own pace, and
     where each unlocked, unfinished path will stand on the wedding day. None once it passed."""
     days_left = (wedding_date - today).days
@@ -1379,7 +1381,7 @@ def wedding_boss(
     per_week = BOSS_ASSUMED_PER_WEEK if assumed else round(pace_days / (window / 7), 1)
     trainings_left = max(0, round(per_week * days_left / 7))
 
-    forecasts: Dict[str, Dict[str, Any]] = {}
+    forecasts: dict[str, dict[str, Any]] = {}
     for path in paths:
         if not path["unlocked"] or path["complete"]:
             continue
@@ -1437,9 +1439,9 @@ LEGACY_STATION_ORDER = {
 }
 
 
-def _clean_progress(data: Any) -> Dict[str, List[int]]:
+def _clean_progress(data: Any) -> dict[str, list[int]]:
     """Keep only real skill keys and in-range legacy stage indexes."""
-    clean: Dict[str, List[int]] = {}
+    clean: dict[str, list[int]] = {}
     if not isinstance(data, dict):
         return clean
     for skill_key, indexes in data.items():
@@ -1455,9 +1457,9 @@ def _clean_progress(data: Any) -> Dict[str, List[int]]:
     return clean
 
 
-def _legacy_to_current(progress: Dict[str, List[int]]) -> Dict[str, List[int]]:
+def _legacy_to_current(progress: dict[str, list[int]]) -> dict[str, list[int]]:
     """Translate legacy stage indexes into today's ones; a dropped station is dropped."""
-    current: Dict[str, List[int]] = {}
+    current: dict[str, list[int]] = {}
     for skill_key, indexes in progress.items():
         steps = SKILL_PROGRESSIONS[skill_key]["progressions"]
         by_name = {step["name"]: idx for idx, step in enumerate(steps)}
@@ -1471,7 +1473,7 @@ def _legacy_to_current(progress: Dict[str, List[int]]) -> Dict[str, List[int]]:
     return current
 
 
-def _stored_legacy_progress(db_conn: sqlite3.Connection, user_id: int) -> Dict[str, List[int]]:
+def _stored_legacy_progress(db_conn: sqlite3.Connection, user_id: int) -> dict[str, list[int]]:
     """The imported flags exactly as stored — in legacy station indexes."""
     row = db_conn.execute(
         "SELECT value FROM system_settings WHERE key = ?", (_legacy_progress_key(user_id),)
@@ -1484,12 +1486,12 @@ def _stored_legacy_progress(db_conn: sqlite3.Connection, user_id: int) -> Dict[s
         return {}
 
 
-def _load_legacy_progress(db_conn: sqlite3.Connection, user_id: int) -> Dict[str, List[int]]:
+def _load_legacy_progress(db_conn: sqlite3.Connection, user_id: int) -> dict[str, list[int]]:
     """Stations a browser had marked conquered by hand, in today's station order."""
     return _legacy_to_current(_stored_legacy_progress(db_conn, user_id))
 
 
-def _session_user(request: Request) -> Optional[Dict[str, Any]]:
+def _session_user(request: Request) -> dict[str, Any] | None:
     """The logged-in user as AuthMiddleware resolved it (session, or the signed-cookie fallback)."""
     return getattr(request.state, "user", None) or request.session.get("user")
 
@@ -1512,7 +1514,7 @@ def _resolve_user_id(request: Request, db_conn: sqlite3.Connection):
     return cur.lastrowid
 
 
-def _fetch_history(db_conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]]:
+def _fetch_history(db_conn: sqlite3.Connection, user_id: int) -> list[dict[str, Any]]:
     """Fetch workout rows and aggregate them into per-session dicts."""
     rows = db_conn.execute(
         """
@@ -1654,7 +1656,7 @@ async def workout_page(
     )
 
 
-def _station_progress(exercises: List[Any], paths: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _station_progress(exercises: list[Any], paths: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Whether each station trained in a just-saved session counted towards conquering it.
 
     The rule is the one compute_paths applies: the average set has to reach the station's
@@ -1719,7 +1721,7 @@ async def save_workout(
         }
 
         # Insert each exercise row
-        session_best: Dict[str, Tuple[int, str]] = {}
+        session_best: dict[str, tuple[int, str]] = {}
         for ex in payload.exercises:
             if ex.total_sets > 0:
                 station = _station_for(ex.skill_key, ex.stage_index, ex.exercise_name)
@@ -1821,11 +1823,11 @@ ADMIN_ROW_COLUMNS = (
 )
 
 
-def _session_key(row: sqlite3.Row) -> Tuple[Any, ...]:
+def _session_key(row: sqlite3.Row) -> tuple[Any, ...]:
     return (row["user_id"], row["date"], row["workout_type"], row["total_duration"])
 
 
-def _admin_exercise(row: sqlite3.Row) -> Dict[str, Any]:
+def _admin_exercise(row: sqlite3.Row) -> dict[str, Any]:
     station = _station_for(row["skill_key"], row["stage_index"], row["exercise_name"])
     return {
         "id": row["id"],
@@ -1840,9 +1842,9 @@ def _admin_exercise(row: sqlite3.Row) -> Dict[str, Any]:
     }
 
 
-def _group_admin_rows(rows: Iterable[sqlite3.Row]) -> List[Dict[str, Any]]:
+def _group_admin_rows(rows: Iterable[sqlite3.Row]) -> list[dict[str, Any]]:
     """Exercise rows → sessions, in the order the rows arrive."""
-    sessions: Dict[Tuple[Any, ...], Dict[str, Any]] = {}
+    sessions: dict[tuple[Any, ...], dict[str, Any]] = {}
     for row in rows:
         session = sessions.setdefault(_session_key(row), {
             "id": row["id"],  # any row of the group addresses the session
@@ -1864,7 +1866,7 @@ def _group_admin_rows(rows: Iterable[sqlite3.Row]) -> List[Dict[str, Any]]:
     return list(sessions.values())
 
 
-def admin_sessions(db_conn: sqlite3.Connection, user_id: Optional[int] = None) -> List[Dict[str, Any]]:
+def admin_sessions(db_conn: sqlite3.Connection, user_id: int | None = None) -> list[dict[str, Any]]:
     """Saved sessions, newest first, in the shape the admin screen lists and edits."""
     where, params = "", []
     if user_id is not None:
@@ -1875,7 +1877,7 @@ def admin_sessions(db_conn: sqlite3.Connection, user_id: Optional[int] = None) -
     return _group_admin_rows(rows)
 
 
-def admin_session_rows(db_conn: sqlite3.Connection, row_id: int) -> List[sqlite3.Row]:
+def admin_session_rows(db_conn: sqlite3.Connection, row_id: int) -> list[sqlite3.Row]:
     """Every row of the session a row id belongs to; empty when that row is gone."""
     row = db_conn.execute(
         f"SELECT {ADMIN_ROW_COLUMNS} FROM workouts WHERE id = ?", (row_id,)
@@ -1889,15 +1891,15 @@ def admin_session_rows(db_conn: sqlite3.Connection, row_id: int) -> List[sqlite3
     ).fetchall()
 
 
-def admin_session(db_conn: sqlite3.Connection, row_id: int) -> Optional[Dict[str, Any]]:
+def admin_session(db_conn: sqlite3.Connection, row_id: int) -> dict[str, Any] | None:
     """One session by any of its row ids, or None when it no longer exists."""
     rows = admin_session_rows(db_conn, row_id)
     return _group_admin_rows(rows)[0] if rows else None
 
 
-def admin_exercise_options() -> List[Dict[str, Any]]:
+def admin_exercise_options() -> list[dict[str, Any]]:
     """Picker groups for the editor: every quest station first, then the free-workout catalog."""
-    groups: List[Dict[str, Any]] = []
+    groups: list[dict[str, Any]] = []
     for skill_key, skill in SKILL_PROGRESSIONS.items():
         groups.append({
             "group": f"{PATHS[skill_key]['icon']} {skill['title']}",
@@ -1922,7 +1924,7 @@ def admin_exercise_options() -> List[Dict[str, Any]]:
     return groups
 
 
-def admin_legacy_stations(db_conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]]:
+def admin_legacy_stations(db_conn: sqlite3.Connection, user_id: int) -> list[dict[str, Any]]:
     """Stations imported from the old browser-only "כבשתי!" flags, as rows the admin can clear.
 
     `stage_index` stays the legacy index the flag is stored under, so a chip sent back
@@ -1948,7 +1950,7 @@ def admin_legacy_stations(db_conn: sqlite3.Connection, user_id: int) -> List[Dic
 @router.get("/workouts/admin", response_class=HTMLResponse)
 async def workout_admin_page(
     request: Request,
-    user: Optional[int] = None,
+    user: int | None = None,
     db_conn: sqlite3.Connection = Depends(get_db_conn)
 ) -> HTMLResponse:
     """Back office for the workouts module: every saved session, editable row by row."""

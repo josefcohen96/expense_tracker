@@ -1,0 +1,48 @@
+# Tool configuration only. The app is not packaged; it runs from the repo root
+# (see Dockerfile and README).
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = [
+    "app/frontend/static/js/vendor",
+    "app/uploads",
+    "backups",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes: unused imports/variables, undefined names, duplicate keys
+    "I",   # isort
+    "B",   # bugbear: likely bugs
+    "UP",  # pyupgrade: modern syntax for the pinned Python
+]
+ignore = [
+    "E501",  # long lines — about 100 today; a formatting pass is a separate decision
+    "E731",  # assigning a lambda is fine for the few one-liners that do it
+    "B008",  # FastAPI's Depends()/Query()/File() in parameter defaults is the framework idiom
+    "B904",  # `raise ... from exc` inside except — ~20 sites, tighten file by file when touched
+    "B905",  # zip(strict=) — no new information for the fixed-length pairs used here
+]
+
+[tool.ruff.lint.per-file-ignores]
+# main.py configures logging (and the print redirect) before importing the routers on purpose
+"app/backend/app/main.py" = ["E402"]
+# Package re-export shims
+"app/backend/app/__init__.py" = ["F403"]
+"app/backend/app/schemas/__init__.py" = ["F401"]
+# Tests and tools adjust sys.path before importing the app
+"tests/*" = ["E402"]
+"tools/*" = ["E402"]
+"app/backend/app/scripts/*" = ["E402"]
+# Inner functions that close over the enclosing loop variable and are only called in that same iteration
+"app/backend/app/services/card_statement.py" = ["B023"]
+"tools/build_exercises_glb.py" = ["E402", "B023"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -p no:cacheprovider"

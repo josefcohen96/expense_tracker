@@ -1,6 +1,6 @@
 from __future__ import annotations
+
 import sqlite3
-from typing import Any, Dict
 from pathlib import Path as FSPath
 from urllib.parse import parse_qs
 

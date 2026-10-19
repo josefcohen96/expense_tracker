@@ -1,0 +1,7 @@
+# Development-only tools. Runtime dependencies live in requirements.txt.
+-r requirements.txt
+ruff==0.17.1
+pytest==9.1.1
+pre-commit>=4,<5
+# Optional: browser tests in tests/test_workouts_arena_browser.py skip without it.
+# pip install playwright && python -m playwright install chromium

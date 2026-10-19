@@ -1,14 +1,11 @@
-import calendar
-from datetime import date, timedelta
-from typing import List
 import sqlite3
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
-from .. import schemas
+from .. import recurrence, schemas
 from ..db import get_db_conn
-from .. import recurrence
 from ..recurrence import _clamp_day
 
 router = APIRouter(prefix="/api/recurrences", tags=["recurrences"])
@@ -52,10 +49,10 @@ def _next_charge_date_for_frequency(
     return (today + timedelta(days=1)).isoformat()
 
 
-@router.get("", response_model=List[schemas.Recurrence])
+@router.get("", response_model=list[schemas.Recurrence])
 async def api_get_recurrences(
     db_conn: sqlite3.Connection = Depends(get_db_conn),
-) -> List[schemas.Recurrence]:
+) -> list[schemas.Recurrence]:
     """Get all recurring transactions."""
     rows = db_conn.execute("SELECT * FROM recurrences").fetchall()
     return [schemas.Recurrence(**dict(row)) for row in rows]

@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date
 
 
 def test_apply_recurrence_once_and_delete_marks_skip(app_client, db_conn):

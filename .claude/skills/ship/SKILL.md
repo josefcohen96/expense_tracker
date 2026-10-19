@@ -54,10 +54,11 @@ In this order, use the first that exists:
 3. Otherwise create `.venv` (project root): `py -3.12 -m venv .venv` (or `python -m venv .venv`), then `.venv/Scripts/python.exe -m pip install -r requirements.txt`; if `watchfiles` has no wheel, install the rest without it (it is only needed for `--reload`).
 
 ```
-<python> -m pytest tests -q -p no:cacheprovider
+<python> -m ruff check .
+<python> -m pytest
 ```
 
-Known pre-existing failures on `main` (as of 2026-09-20): backup re-entry, dashboard KPI labels, three transaction-update tests. If a failure is not in that set and touches files in the diff, stop and fix it before shipping. If you are unsure whether a failure is pre-existing, run the same test on a `main` baseline via `git worktree add <scratchpad>/baseline main` (do not `git stash -u` while a dev server is running; an empty untracked data dir gets locked).
+Both must pass (pytest options live in `pyproject.toml`). Lint: if `ruff` is missing from the interpreter, `pip install -r requirements-dev.txt`; fix findings in files the diff touches, never widen the ignore list to get past one. Tests: `main` is fully green (307 passed, 1 skipped as of 2026-10-19), so any failure is yours — stop and fix it before shipping. If you are unsure whether a failure is pre-existing, run the same test on a `main` baseline via `git worktree add <scratchpad>/baseline main` (do not `git stash -u` while a dev server is running; an empty untracked data dir gets locked).
 
 Record the result line (`N passed, M failed`) for the PR body.
 

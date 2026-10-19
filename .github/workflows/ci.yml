@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Jerusalem
+      # Tests run with AUTH_ENABLED=0 (set in tests/conftest.py); these only
+      # satisfy startup checks and the login tests.
+      SESSION_SECRET_KEY: ci-only-not-for-production
+      USER_PASSWORD_YOSEF: ci-password
+      USER_PASSWORD_KARINA: ci-password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - name: Install
+        run: pip install -r requirements-dev.txt
+      - name: Lint
+        run: ruff check .
+      - name: Test
+        run: python -m pytest

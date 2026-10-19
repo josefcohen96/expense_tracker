@@ -1,13 +1,14 @@
 # --- imports ---
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from starlette.middleware.sessions import SessionMiddleware
-from fastapi.staticfiles import StaticFiles
-from pathlib import Path as FSPath
-import os
 import logging
-from urllib.parse import quote_plus
+import os
+from contextlib import asynccontextmanager
+from pathlib import Path as FSPath
+
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+
 
 # --- lifecycle: init DB and start/stop cron ---
 # db, CronService and logger are bound further down; this only runs at startup.
@@ -118,7 +119,7 @@ print(f"Session configuration: https_only={HTTPS_ONLY}, same_site={COOKIE_SAMESI
 # cookie and request.session access fails.
 
 from .services.logging_service import configure_logging, redirect_prints_to_logs
-from .services.production_logging import setup_production_logging, log_environment_info
+from .services.production_logging import log_environment_info, setup_production_logging
 
 # --- logging (writes tracebacks to logs/server.log) ---
 LOG_DIR = ROOT_DIR / "logs"
@@ -138,30 +139,36 @@ logger = logging.getLogger(__name__)
 print_handler = redirect_prints_to_logs()
 print_handler.__enter__()
 
-from fastapi.responses import JSONResponse, RedirectResponse
 from . import db
-from .auth import public, build_public_route_matchers
-from .services.cron_service import CronService
-from .services.auth_middleware import AuthMiddleware
+from .api.backup import router as backup_api
+from .api.push import router as push_api
+from .api.recurrences import router as recurrences_api
+from .api.recurrences import system_router as system_api
+from .api.renovation import router as renovation_api
+from .api.spanish import router as spanish_api
+from .api.statistics import router as statistics_api
+from .api.today import router as today_api
+from .api.transactions import router as transactions_api
+from .api.wedding import router as wedding_api
+from .api.workouts import router as workouts_api
+from .auth import build_public_route_matchers, public
 
 # --- include routers (אחרי app = FastAPI) ---
-from .routes.pages import router as pages_router
-from .routes.partials import router as partials_router
+from .routes.auth import router as auth_router
 from .routes.debug_logs import router as debug_logs_router
-from .routes.workouts import router as workouts_router
+from .routes.finances import router as finances_router
+from .routes.home import router as home_router
+from .routes.partials import router as partials_router
 from .routes.renovation import router as renovation_router
-from .api.transactions import router as transactions_api
-from .api.recurrences import router as recurrences_api, system_router as system_api
-from .api.backup import router as backup_api
-from .api.statistics import router as statistics_api
-from .api.wedding import router as wedding_api
-from .api.renovation import router as renovation_api
-from .api.workouts import router as workouts_api
-from .api.push import router as push_api
-from .api.spanish import router as spanish_api
-from .api.today import router as today_api
+from .routes.wedding import router as wedding_router
+from .routes.workouts import router as workouts_router
+from .services.auth_middleware import AuthMiddleware
+from .services.cron_service import CronService
 
-app.include_router(pages_router)
+app.include_router(auth_router)
+app.include_router(home_router)
+app.include_router(finances_router)
+app.include_router(wedding_router)
 app.include_router(partials_router)
 app.include_router(debug_logs_router)
 app.include_router(workouts_router)

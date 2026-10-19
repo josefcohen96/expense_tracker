@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import date, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from ..api.transactions import INCOME_CATEGORIES
 from . import hebrew_dates as hd
@@ -16,7 +16,7 @@ WEEK_AHEAD_DAYS = 6
 SOON_DAYS = 1
 
 
-def urgency(due: Optional[date], today: date) -> str:
+def urgency(due: date | None, today: date) -> str:
     """overdue / soon / normal — drives the row's start border color."""
     if due is None:
         return "normal"
@@ -101,7 +101,7 @@ def month_totals(conn: sqlite3.Connection, ym: str) -> dict:
     return {"expenses": float(row["expenses"]), "income": float(row["income"])}
 
 
-def build_today(conn: sqlite3.Connection, user: Any, today: Optional[date] = None) -> dict:
+def build_today(conn: sqlite3.Connection, user: Any, today: date | None = None) -> dict:
     today = today or date.today()
     people = household(conn)
     me = find_person(people, user)

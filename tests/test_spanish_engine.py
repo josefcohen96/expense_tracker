@@ -6,7 +6,7 @@ from app.backend.app.services import spanish
 DAY = date(2026, 1, 1)
 
 
-def _review(item_id, grade, mode="recall", when=None, n=[0]):
+def _review(item_id, grade, mode="recall", when=None, n=[0]):  # noqa: B006 -- deliberate call counter
     n[0] += 1
     when = when or datetime(2026, 1, 1, 9, 0) + timedelta(minutes=n[0])
     return {"id": n[0], "item_id": item_id, "grade": grade, "mode": mode,

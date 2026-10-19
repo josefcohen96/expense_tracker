@@ -13,7 +13,7 @@ templates (hiding links the user cannot follow) read from one source of truth.
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 # Canonical usernames, always compared upper-cased.
 USER_YOSEF = "YOSEF"
@@ -127,7 +127,7 @@ def display_name(user: Any) -> str:
     return USER_DISPLAY_NAMES.get(key, key.title())
 
 
-def password_env_var(username: str) -> Optional[str]:
+def password_env_var(username: str) -> str | None:
     """Environment variable holding the password for a known username."""
     key = normalise_username(username)
     if key in ALL_USERNAMES:

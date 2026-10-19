@@ -21,7 +21,6 @@ cookie survives.
 import importlib
 import os
 import sys
-from pathlib import Path
 
 import pytest
 
@@ -60,9 +59,9 @@ def authed_client(tmp_path_factory):
     importlib.reload(db_module)
     db_module.initialise_database()
 
-    import app.backend.app.main as main_module
-
     from fastapi.testclient import TestClient
+
+    import app.backend.app.main as main_module
     client = TestClient(main_module.app)
     try:
         yield client

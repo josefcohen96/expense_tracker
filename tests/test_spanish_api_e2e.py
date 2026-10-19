@@ -8,9 +8,9 @@ import re
 
 import pytest
 
-from app.backend.app.routes.workouts import compute_gamification
 from app.backend.app.services import spanish
 from app.backend.app.services.access import can_access_path
+from app.backend.app.services.workouts.progress import compute_gamification
 
 QUEUE = "/api/workouts/spanish/queue"
 REVIEWS = "/api/workouts/spanish/reviews"

@@ -18,7 +18,7 @@ import os
 import sqlite3
 from datetime import date as date_cls
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ DEAD_STATUSES = (404, 410)    # the push service says the subscription is gone
 
 # ---------------------------------------------------------------- config
 
-def vapid_config() -> Optional[Dict[str, str]]:
+def vapid_config() -> dict[str, str] | None:
     """The VAPID keys from env, or None when the feature is off."""
     public_key = (os.environ.get("VAPID_PUBLIC_KEY") or "").strip()
     private_key = (os.environ.get("VAPID_PRIVATE_KEY") or "").strip()
@@ -77,12 +77,12 @@ def delete_subscription(conn: sqlite3.Connection, user_id: int, endpoint: str) -
 
 # ---------------------------------------------------------------- sending
 
-def payload(title: str, body: str, url: str, tag: str) -> Dict[str, Any]:
+def payload(title: str, body: str, url: str, tag: str) -> dict[str, Any]:
     return {"title": title, "body": body, "url": url, "tag": tag,
             "icon": ICON, "lang": "he", "dir": "rtl"}
 
 
-def _webpush_send(subscription_info: Dict[str, Any], data: str, config: Dict[str, str]) -> None:
+def _webpush_send(subscription_info: dict[str, Any], data: str, config: dict[str, str]) -> None:
     """The one network call. Imported lazily so the app runs without pywebpush installed."""
     from pywebpush import webpush
 
@@ -95,7 +95,7 @@ def _webpush_send(subscription_info: Dict[str, Any], data: str, config: Dict[str
     )
 
 
-def _status_of(exc: Exception) -> Optional[int]:
+def _status_of(exc: Exception) -> int | None:
     """HTTP status of a failed send: requests' `.status_code` or aiohttp's `.status`."""
     response = getattr(exc, "response", None)
     if response is None:
@@ -103,7 +103,7 @@ def _status_of(exc: Exception) -> Optional[int]:
     return getattr(response, "status_code", None) or getattr(response, "status", None)
 
 
-def send_to_user(conn: sqlite3.Connection, user_id: int, message: Dict[str, Any]) -> int:
+def send_to_user(conn: sqlite3.Connection, user_id: int, message: dict[str, Any]) -> int:
     """Push `message` to every device of `user_id`; returns how many accepted it.
 
     A 404/410 from the push service means the browser dropped the subscription, so the row goes.
@@ -136,11 +136,12 @@ def send_to_user(conn: sqlite3.Connection, user_id: int, message: Dict[str, Any]
 
 def _arena_state(conn: sqlite3.Connection, user_id: int, today: date_cls):
     """History, game state and paths exactly as the workouts page derives them."""
-    from ..routes import workouts as wk  # lazy: routes import services
+    from .workouts import progress as wk  # lazy: routes import services
+    from .workouts.legacy import _load_legacy_progress
 
     history = wk._fetch_history(conn, user_id)
     game = wk.compute_gamification(history, today)
-    paths = wk.compute_paths(history, game["level"], wk._load_legacy_progress(conn, user_id), today)
+    paths = wk.compute_paths(history, game["level"], _load_legacy_progress(conn, user_id), today)
     return history, game, paths
 
 
@@ -148,9 +149,9 @@ def _days_word(n: int) -> str:
     return "יום אחד" if n == 1 else f"{n} ימים"
 
 
-def morning_message(conn: sqlite3.Connection, user_id: int, today: date_cls) -> Optional[Dict[str, Any]]:
+def morning_message(conn: sqlite3.Connection, user_id: int, today: date_cls) -> dict[str, Any] | None:
     """Today's mission card, or the rest day `plan_today` recommends after a long run."""
-    from ..routes import workouts as wk
+    from .workouts import progress as wk
 
     history, game, paths = _arena_state(conn, user_id, today)
     default_path, _note = wk.plan_today(paths, history, today)
@@ -172,9 +173,9 @@ def morning_message(conn: sqlite3.Connection, user_id: int, today: date_cls) -> 
     return payload("☀️ המשימה של היום", body, "/workouts#home", "arena-morning")
 
 
-def evening_message(conn: sqlite3.Connection, user_id: int, today: date_cls) -> Optional[Dict[str, Any]]:
+def evening_message(conn: sqlite3.Connection, user_id: int, today: date_cls) -> dict[str, Any] | None:
     """None on a day already trained (silence is the reward); otherwise what is at stake."""
-    from ..routes import workouts as wk
+    from .workouts import progress as wk
 
     history = wk._fetch_history(conn, user_id)
     days = wk._workout_days(s["date"] for s in history)
@@ -188,7 +189,7 @@ def evening_message(conn: sqlite3.Connection, user_id: int, today: date_cls) -> 
     return payload("🏠 עוד לא מאוחר", "15 דקות בסלון מספיקות להיום.", "/workouts#home", "arena-evening")
 
 
-def test_message() -> Dict[str, Any]:
+def test_message() -> dict[str, Any]:
     return payload("🔔 קריאה לזירה", "ההתראות עובדות. נתראה בזירה.", "/workouts#profile", "arena-test")
 
 
@@ -204,7 +205,7 @@ def _sent_key(kind: str, today: date_cls) -> str:
     return f"push_sent:{kind}:{today.isoformat()}"
 
 
-def run_daily(kind: str, today: Optional[date_cls] = None, conn: Optional[sqlite3.Connection] = None) -> int:
+def run_daily(kind: str, today: date_cls | None = None, conn: sqlite3.Connection | None = None) -> int:
     """Send the `kind` push to every subscribed user once per day; returns pushes accepted."""
     if kind not in MESSAGE_BUILDERS:
         raise ValueError(f"unknown push kind: {kind}")

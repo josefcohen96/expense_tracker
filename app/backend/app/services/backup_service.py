@@ -2,14 +2,13 @@
 Backup service for creating and managing database backups.
 """
 
-from pathlib import Path
-from datetime import datetime, date
-from typing import Optional, List, Dict, Tuple
-import sqlite3
 import logging
-import zipfile
-import shutil
 import os
+import shutil
+import sqlite3
+import zipfile
+from datetime import date, datetime
+from pathlib import Path
 
 from openpyxl import Workbook
 
@@ -36,7 +35,7 @@ RECURRENCES_HEADERS = [
 ]
 
 
-def _last_n_months(n: int) -> List[Tuple[int, int]]:
+def _last_n_months(n: int) -> list[tuple[int, int]]:
     """Return list of (year, month) for current month and previous n-1 months."""
     today = date.today()
     result = []
@@ -48,7 +47,7 @@ def _last_n_months(n: int) -> List[Tuple[int, int]]:
     return list(reversed(result))  # older -> newer
 
 
-def _find_db_file() -> Optional[Path]:
+def _find_db_file() -> Path | None:
     """Find database file in known locations."""
     candidates = [
         os.getenv("BUDGET_DB_PATH"),  # preferred (set by tests/runner)
@@ -75,7 +74,7 @@ def _find_db_file() -> Optional[Path]:
     return None
 
 
-def _open_conn_from_path_or_conn(db_conn: Optional[sqlite3.Connection]) -> sqlite3.Connection:
+def _open_conn_from_path_or_conn(db_conn: sqlite3.Connection | None) -> sqlite3.Connection:
     """Open database connection from path or use provided connection."""
     if db_conn is not None:
         return db_conn
@@ -85,7 +84,7 @@ def _open_conn_from_path_or_conn(db_conn: Optional[sqlite3.Connection]) -> sqlit
     return sqlite3.connect(str(db_path))
 
 
-def create_backup_file(db_conn: Optional[sqlite3.Connection] = None) -> Path:
+def create_backup_file(db_conn: sqlite3.Connection | None = None) -> Path:
     """
     Create a dated folder (DD MM YYYY) under backups/ and write an Excel file for each of the
     last 6 months (including current) containing that month's transactions and recurrences.
@@ -216,7 +215,7 @@ def create_backup_file(db_conn: Optional[sqlite3.Connection] = None) -> Path:
     return zip_path
 
 
-def create_monthly_backup(year: int, month: int, db_conn: Optional[sqlite3.Connection] = None) -> Path:
+def create_monthly_backup(year: int, month: int, db_conn: sqlite3.Connection | None = None) -> Path:
     """
     Create a single Excel file for a specific month with expenses and recurrences.
     
@@ -335,7 +334,7 @@ def create_monthly_backup(year: int, month: int, db_conn: Optional[sqlite3.Conne
                 pass
 
 
-def list_backup_files() -> List[Dict]:
+def list_backup_files() -> list[dict]:
     """
     List downloadable backup items:
     - ZIP files directly in BACKUP_DIR (full backups)
@@ -376,7 +375,7 @@ def list_backup_files() -> List[Dict]:
     return items
 
 
-def restore_from_file(path: Path) -> Dict:
+def restore_from_file(path: Path) -> dict:
     """
     Restore backup from a path that can be either:
       - a zip file (will be extracted into EXCEL_ROOT)

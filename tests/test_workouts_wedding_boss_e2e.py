@@ -14,9 +14,9 @@ from datetime import date, timedelta
 
 import pytest
 
-import app.backend.app.routes.workouts as workouts
+from app.backend.app.services.workouts import catalog, progress
 
-HSPU_WALL = workouts.station_exercise_name(workouts.SKILL_PROGRESSIONS["hspu"]["progressions"][0])
+HSPU_WALL = catalog.station_exercise_name(catalog.SKILL_PROGRESSIONS["hspu"]["progressions"][0])
 
 
 # ─── Pure computation ───────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ def test_wedding_boss_pace_measured_and_assumed():
     # 8 distinct days inside the last 56 (one twice, one future-free), plus one outside the window
     days = [today - timedelta(days=n) for n in (0, 3, 10, 17, 24, 31, 40, 55)]
     history = _history(days + [today - timedelta(days=3), today - timedelta(days=56)])
-    boss = workouts.wedding_boss(history, [], wedding, today)
+    boss = progress.wedding_boss(history, [], wedding, today)
     assert boss["per_week"] == 1.0
     assert boss["trainings_left"] == 4
     assert boss["assumed"] is False
@@ -54,16 +54,16 @@ def test_wedding_boss_pace_measured_and_assumed():
     assert boss["recent_28"] == 5  # days 0, 3, 10, 17, 24
 
     two_days = _history([today - timedelta(days=1), today - timedelta(days=5)])
-    boss = workouts.wedding_boss(two_days, [], wedding, today)
+    boss = progress.wedding_boss(two_days, [], wedding, today)
     assert boss["per_week"] == 2.0
     assert boss["assumed"] is True
     assert boss["trainings_left"] == 8
 
     # Wording for the last days, and nothing once the wedding has passed
-    assert workouts.wedding_boss([], [], today + timedelta(days=1), today)["days_label"] == "מחר"
-    assert workouts.wedding_boss([], [], today, today)["days_label"] == "היום"
-    assert workouts.wedding_boss([], [], today, today)["trainings_left"] == 0
-    assert workouts.wedding_boss([], [], today - timedelta(days=1), today) is None
+    assert progress.wedding_boss([], [], today + timedelta(days=1), today)["days_label"] == "מחר"
+    assert progress.wedding_boss([], [], today, today)["days_label"] == "היום"
+    assert progress.wedding_boss([], [], today, today)["trainings_left"] == 0
+    assert progress.wedding_boss([], [], today - timedelta(days=1), today) is None
 
 
 def test_wedding_boss_pace_of_a_fresh_start_is_measured_since_the_first_training():
@@ -72,7 +72,7 @@ def test_wedding_boss_pace_of_a_fresh_start_is_measured_since_the_first_training
 
     # Started on Sunday and trained every day since: five trainings in five days
     five_days = _history([today - timedelta(days=n) for n in range(5)])
-    boss = workouts.wedding_boss(five_days, [], wedding, today)
+    boss = progress.wedding_boss(five_days, [], wedding, today)
     assert boss["pace_window_days"] == 7          # never shorter than a week
     assert boss["per_week"] == 5.0                # not 5 / 8 weeks = 0.6
     assert boss["assumed"] is False
@@ -80,13 +80,13 @@ def test_wedding_boss_pace_of_a_fresh_start_is_measured_since_the_first_training
 
     # Three weeks in, three trainings a week: the window follows the first training
     three_weeks = _history([today - timedelta(days=n) for n in (0, 2, 4, 7, 9, 11, 14, 16, 18, 20)])
-    boss = workouts.wedding_boss(three_weeks, [], wedding, today)
+    boss = progress.wedding_boss(three_weeks, [], wedding, today)
     assert boss["pace_window_days"] == 21
     assert boss["per_week"] == 3.3
 
     # A history older than eight weeks is still measured over the last eight
     old = _history([today - timedelta(days=n) for n in (0, 3, 70, 90)])
-    assert workouts.wedding_boss(old, [], wedding, today)["pace_window_days"] == 56
+    assert progress.wedding_boss(old, [], wedding, today)["pace_window_days"] == 56
 
 
 def test_wedding_boss_forecast_walks_remaining_stations():
@@ -97,18 +97,18 @@ def test_wedding_boss_forecast_walks_remaining_stations():
         _fake_path("locked", [5, 5], unlocked=False),
     ]
     # 6 trainings left: 21 days at the assumed 2/week
-    boss = workouts.wedding_boss([], paths, today + timedelta(days=21), today)
+    boss = progress.wedding_boss([], paths, today + timedelta(days=21), today)
     assert boss["trainings_left"] == 6
     assert set(boss["paths"]) == {"walk"}
     assert boss["paths"]["walk"] == {"finishes": False, "station_number": 3, "station_hebrew": "תחנה-3"}
 
     # Same path without the conquered first station: remaining [2, 5, 5] reaches station 2 (index 1)
-    boss = workouts.wedding_boss([], [_fake_path("p", [2, 5, 5])], today + timedelta(days=21), today)
+    boss = progress.wedding_boss([], [_fake_path("p", [2, 5, 5])], today + timedelta(days=21), today)
     assert boss["paths"]["p"]["station_number"] == 2
     assert boss["paths"]["p"]["finishes"] is False
 
     # 12 trainings left covers 2 + 5 + 5
-    boss = workouts.wedding_boss([], [_fake_path("p", [2, 5, 5])], today + timedelta(days=42), today)
+    boss = progress.wedding_boss([], [_fake_path("p", [2, 5, 5])], today + timedelta(days=42), today)
     assert boss["trainings_left"] == 12
     assert boss["paths"]["p"] == {"finishes": True, "station_number": None, "station_hebrew": None}
 
@@ -169,13 +169,13 @@ def test_yosef_sees_the_boss_banner(app_client, clean_workouts, wedding_date):
     wedding_date(date.today() + timedelta(days=30))
     _train_hspu(app_client)
     # Five in-range sessions on every muscle-up station: the path is complete
-    steps = workouts.SKILL_PROGRESSIONS["muscle_up"]["progressions"]
+    steps = catalog.SKILL_PROGRESSIONS["muscle_up"]["progressions"]
     for back in range(1, 6):
         r = app_client.post("/workouts", json={
             "date": (date.today() - timedelta(days=back)).isoformat(),
             "workout_type": "Pull",
             "total_duration": 40,
-            "exercises": [{"exercise_name": workouts.station_exercise_name(step), "total_sets": 3,
+            "exercises": [{"exercise_name": catalog.station_exercise_name(step), "total_sets": 3,
                            "total_reps": 3 * step["reps"], "skill_key": "muscle_up", "stage_index": idx,
                            "max_reps": step["reps"]} for idx, step in enumerate(steps)],
         })
@@ -245,9 +245,9 @@ def authed(tmp_path_factory):
     import app.backend.app.db as db_module
     importlib.reload(db_module)
     db_module.initialise_database()
-    import app.backend.app.main as main_module
-
     from fastapi.testclient import TestClient
+
+    import app.backend.app.main as main_module
     client = TestClient(main_module.app)
     try:
         yield client, tmp_db
@@ -262,8 +262,8 @@ def authed(tmp_path_factory):
 
 
 def _login(client, username, password):
-    import app.backend.app.routes.pages as pages
-    pages._login_attempts.clear()
+    import app.backend.app.routes.auth as auth_routes
+    auth_routes._login_attempts.clear()
     r = client.post("/login", data={"username": username, "password": password}, follow_redirects=False)
     assert r.status_code == 303, r.text
     return r

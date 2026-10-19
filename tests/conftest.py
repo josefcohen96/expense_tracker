@@ -1,8 +1,8 @@
-import os
-import shutil
-from pathlib import Path
 import importlib
+import os
 import sys
+from pathlib import Path
+
 import pytest
 
 # Ensure project root is on sys.path for imports like 'app.backend.app.db'
@@ -13,15 +13,15 @@ if str(PROJECT_ROOT) not in sys.path:
 
 @pytest.fixture(scope="session")
 def temp_db_path(tmp_path_factory) -> Path:
-    project_root = Path(__file__).resolve().parents[1]
-    default_db = project_root / "app" / "backend" / "data" / "budget.db"
-    tmp_dir = tmp_path_factory.mktemp("db")
-    tmp_db = tmp_dir / "budget_test_copy.sqlite3"
-    if default_db.exists():
-        shutil.copy2(default_db, tmp_db)
-    # If no local DB exists (fresh clone), app_client initialises the schema
-    # and default data into the new file via initialise_database().
-    return tmp_db
+    """A fresh, empty database file for the whole test session.
+
+    The schema and the seeded defaults (categories, users, accounts) are
+    created by ``initialise_database()`` in ``app_client``. The suite never
+    reads the developer's real ``app/backend/data/budget.db``, so a test's
+    result cannot depend on personal data, and CI behaves exactly like a
+    local run.
+    """
+    return tmp_path_factory.mktemp("db") / "budget_test.sqlite3"
 
 
 @pytest.fixture(scope="session")
@@ -38,6 +38,7 @@ def app_client(temp_db_path):
     db_module.initialise_database()
 
     from fastapi.testclient import TestClient
+
     import app.backend.app.main as main_app
 
     client = TestClient(main_app.app)

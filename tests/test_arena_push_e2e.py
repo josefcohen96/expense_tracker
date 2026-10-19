@@ -212,7 +212,7 @@ def test_evening_no_streak_points_to_house(db_conn, trainee):
 
 
 def test_morning_rest_day(db_conn, trainee):
-    import app.backend.app.routes.workouts as wk
+    import app.backend.app.services.workouts.progress as wk
     _trained(db_conn, trainee, *range(1, wk.RECOVERY_STREAK_DAYS + 1))
     msg = push_service.morning_message(db_conn, trainee, TODAY)
     assert msg["title"] == "☀️ בוקר טוב — יום מנוחה"
@@ -222,7 +222,7 @@ def test_morning_rest_day(db_conn, trainee):
 
 
 def test_morning_mission_names_path(db_conn, trainee):
-    import app.backend.app.routes.workouts as wk
+    import app.backend.app.services.workouts.progress as wk
     _trained(db_conn, trainee, 1)  # a streak of one: not a rest day, and at risk
     history = wk._fetch_history(db_conn, trainee)
     game = wk.compute_gamification(history, TODAY)

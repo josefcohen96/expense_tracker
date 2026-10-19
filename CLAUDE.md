@@ -40,6 +40,7 @@ expense_tracker/
 │   │   │   ├── auth.py              # @public decorator, route matcher builder
 │   │   │   ├── recurrence.py        # Recurring transaction materialization engine
 │   │   │   ├── seed_data.py         # Legacy seed helpers
+│   │   │   ├── templating.py        # The one Jinja2Templates + template/static paths + wedding_header global
 │   │   │   ├── api/                 # JSON REST endpoints
 │   │   │   │   ├── transactions.py  # CRUD + export
 │   │   │   │   ├── recurrences.py   # CRUD + apply-once
@@ -50,7 +51,10 @@ expense_tracker/
 │   │   │   │   ├── push.py          # קריאה לזירה: Web Push subscribe/unsubscribe/test
 │   │   │   │   └── today.py         # /api/today aggregate + /api/quick-add/options
 │   │   │   ├── routes/              # HTML page routes (Jinja2 rendering)
-│   │   │   │   ├── pages.py         # All page views, login/logout, dashboard
+│   │   │   │   ├── auth.py          # /login, /logout + the login rate limit
+│   │   │   │   ├── home.py          # / (היום), /more, /sw.js
+│   │   │   │   ├── finances.py      # /finances/* pages + recurrence inline forms
+│   │   │   │   ├── wedding.py       # /wedding/* pages + public /invite RSVP pages
 │   │   │   │   ├── partials.py      # HTMX-style partial HTML fragments
 │   │   │   │   ├── workouts.py      # Workouts page + admin page
 │   │   │   │   └── debug_logs.py    # Debug log viewer
@@ -69,6 +73,12 @@ expense_tracker/
 │   │   │       ├── wedding_plan.py       # Countdown, date-anchored milestones, headcount, committed money
 │   │   │       ├── cron_service.py       # APScheduler background jobs
 │   │   │       ├── push_service.py       # Arena Web Push: VAPID config, subscriptions, morning/evening texts
+│   │   │       ├── workouts/             # Workouts arena logic (no re-exports in __init__.py)
+│   │   │       │   ├── catalog.py        # Static game content: paths/stations, exercises, tempos, warm-ups, cues
+│   │   │       │   ├── holo.py           # exercises.glb reader: clip names, front-view clips, clip bounds
+│   │   │       │   ├── progress.py       # Derived from saved rows: XP, levels, ranks, streaks, paths, plan, boss
+│   │   │       │   ├── legacy.py         # Old browser-only "כבשתי!" flags import
+│   │   │       │   └── admin.py          # Back-office grouping of rows into sessions
 │   │   │       ├── logging_service.py    # configure_logging(), print redirect
 │   │   │       └── production_logging.py # Railway-specific logging
 │   │   ├── backups/                 # ZIP and Excel backup files
@@ -126,7 +136,7 @@ Calisthenics tracker built as a game ("הזירה"): `pages/workout.html` + `sta
 - A workout runs in a full-screen arena (warm-up → ready → set → rest → reward), one set at a time; after the
   warm-up the training waits on a "ready" screen until the athlete presses start. The session resumes
   from `localStorage` (`workout_active_session_v2`) after a refresh.
-- XP, levels, ranks, streaks and achievements are derived from history in `routes/workouts.py` — never stored.
+- XP, levels, ranks, streaks and achievements are derived from history in `services/workouts/progress.py` — never stored.
 - Quest paths = `SKILL_PROGRESSIONS`; a station is conquered by 5 workouts in its rep range (counted, no button).
   Each station carries its `unit` (`reps`, or `sec` for a static hold — the UI labels the target accordingly),
   one `how` line and its own two form cues. A `prep=True` station (entry step, e.g. negative pull-ups) also
@@ -199,7 +209,7 @@ All tables in a single SQLite file at `app/backend/data/budget.db`. Connection u
 
 **Public routes** are decorated with `@public` (from `auth.py`). `build_public_route_matchers()` scans all registered routes at startup and passes regex+methods tuples to `AuthMiddleware`.
 
-**Rate limiting:** IP-based in-memory counter in `pages.py`. No external store.
+**Rate limiting:** IP-based in-memory counter in `routes/auth.py`. No external store.
 
 **Session config:**
 - `SESSION_SECRET_KEY` is required — missing key = startup crash (by design)
@@ -336,6 +346,13 @@ Or with Docker:
 ```bash
 docker-compose up
 ```
+
+### Lint, tests, CI
+
+- `requirements-dev.txt` adds `ruff`, `pytest` and `pre-commit` on top of the runtime deps. Run `pre-commit install` once per clone.
+- `ruff check .` must pass. Config lives in `pyproject.toml` (rules E, F, I, B, UP; line length 120 but E501 off; the few deliberate exceptions are listed there with their reason). `ruff format` is **not** applied to this codebase.
+- `python -m pytest` (config in `pyproject.toml`). The suite builds a fresh temp database via `initialise_database()` and never touches `app/backend/data/budget.db`.
+- `.github/workflows/ci.yml` runs lint + tests on every push to `main` and every PR, on Python 3.12 like the Dockerfile.
 
 ---
 

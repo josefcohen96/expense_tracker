@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import date, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from . import hebrew_dates as hd
 from . import wedding_plan
@@ -37,7 +37,7 @@ def lead_days(conn: sqlite3.Connection) -> int:
     return DEFAULT_LEAD_DAYS
 
 
-def deadline(conn: sqlite3.Connection, today: Optional[date] = None) -> Optional[dict]:
+def deadline(conn: sqlite3.Connection, today: date | None = None) -> dict | None:
     """When the big order has to leave; None without a wedding date."""
     today = today or date.today()
     wedding = wedding_plan.get_wedding_date(conn)
@@ -58,7 +58,7 @@ def deadline(conn: sqlite3.Connection, today: Optional[date] = None) -> Optional
     }
 
 
-def estimate(item: dict) -> Optional[float]:
+def estimate(item: dict) -> float | None:
     """Rough cost of the big order from the sample price; None unless both are set."""
     price = item.get("sample_price")
     qty = item.get("quantity_needed")
@@ -74,7 +74,7 @@ def money_label(amount: float) -> str:
     return f"₪{amount:,.0f}"
 
 
-def decorate(item: dict, today: Optional[date] = None) -> dict:
+def decorate(item: dict, today: date | None = None) -> dict:
     """The item row plus the labels the page shows."""
     today = today or date.today()
     out = dict(item)
@@ -110,7 +110,7 @@ def lanes(items: list[dict]) -> list[dict]:
     return result
 
 
-def stage_transition(existing: Any, new_stage: str, today: Optional[date] = None) -> dict:
+def stage_transition(existing: Any, new_stage: str, today: date | None = None) -> dict:
     """The columns to write when an item moves to `new_stage`."""
     today_iso = (today or date.today()).isoformat()
     ordered_at = existing["ordered_at"]
@@ -128,7 +128,7 @@ def stage_transition(existing: Any, new_stage: str, today: Optional[date] = None
     return cols
 
 
-def comment_view(row: Any, today: Optional[date] = None) -> dict:
+def comment_view(row: Any, today: date | None = None) -> dict:
     today = today or date.today()
     out = dict(row)
     created = hd.parse_iso(out.get("created_at"))
@@ -136,7 +136,7 @@ def comment_view(row: Any, today: Optional[date] = None) -> dict:
     return out
 
 
-def load_item(conn: sqlite3.Connection, item_id: int, today: Optional[date] = None) -> Optional[dict]:
+def load_item(conn: sqlite3.Connection, item_id: int, today: date | None = None) -> dict | None:
     row = conn.execute("SELECT * FROM wedding_overseas_items WHERE id=?", (item_id,)).fetchone()
     if not row:
         return None
@@ -149,7 +149,7 @@ def load_item(conn: sqlite3.Connection, item_id: int, today: Optional[date] = No
     return decorate(item, today)
 
 
-def load_items(conn: sqlite3.Connection, today: Optional[date] = None) -> list[dict]:
+def load_items(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
     """Every item, decorated, each with its comments oldest first."""
     comments: dict[int, list] = {}
     for c in conn.execute("SELECT * FROM wedding_overseas_comments ORDER BY created_at, id").fetchall():

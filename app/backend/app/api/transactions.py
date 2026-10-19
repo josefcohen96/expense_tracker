@@ -1,17 +1,19 @@
-from typing import List, Optional, Any
 import hmac
 import os
 import sqlite3
 from datetime import date as _date
 from io import BytesIO
+from typing import Any
+
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
+from openpyxl import Workbook
+
 from .. import schemas
 from ..auth import public
 from ..db import get_db_conn
 from ..services import card_statement
 from ..services.cache_service import cache_service
-from openpyxl import Workbook
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 
@@ -25,7 +27,7 @@ def _invalidate_stats_cache() -> None:
     cache_service.invalidate("statistics_full")
 
 
-def _is_income_category(db_conn: sqlite3.Connection, category_id: Optional[int]) -> bool:
+def _is_income_category(db_conn: sqlite3.Connection, category_id: int | None) -> bool:
     """Return True if the category id corresponds to an income category."""
     if category_id is None:
         return False
@@ -34,7 +36,7 @@ def _is_income_category(db_conn: sqlite3.Connection, category_id: Optional[int])
         return False
     return row[0] in INCOME_CATEGORIES
 
-def _is_saving_category(db_conn: sqlite3.Connection, category_id: Optional[int]) -> bool:
+def _is_saving_category(db_conn: sqlite3.Connection, category_id: int | None) -> bool:
     """Return True if the category is marked as a savings category."""
     if category_id is None:
         return False
@@ -43,17 +45,17 @@ def _is_saving_category(db_conn: sqlite3.Connection, category_id: Optional[int])
         return False
     return bool(row[0])
 
-@router.get("", response_model=List[schemas.Transaction])
+@router.get("", response_model=list[schemas.Transaction])
 async def api_get_transactions(
-    from_date: Optional[str] = None,
-    to_date: Optional[str] = None,
-    category_id: Optional[int] = None,
-    user_id: Optional[int] = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    category_id: int | None = None,
+    user_id: int | None = None,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
-) -> List[schemas.Transaction]:
+) -> list[schemas.Transaction]:
     """Get transactions with optional filtering."""
     query = "SELECT * FROM transactions WHERE recurrence_id IS NULL"
-    params: List[Any] = []
+    params: list[Any] = []
     
     if from_date:
         query += " AND date >= ?"
@@ -118,17 +120,17 @@ _BAD_IMPORT_TOKEN = "אסימון לא תקין"
 
 def _insert_import_rows(
     db_conn: sqlite3.Connection,
-    user_id: Optional[int],
-    account_id: Optional[int],
-    rows: List[tuple],
-) -> List[int]:
+    user_id: int | None,
+    account_id: int | None,
+    rows: list[tuple],
+) -> list[int]:
     """Insert statement rows as ordinary transactions and drop the stats cache.
 
     rows: (iso date, statement charge, category_id, merchant) — a charge becomes a
     negative amount, a refund a positive one. Shared by the page import and the
     mailbox import so the two paths cannot drift.
     """
-    created: List[int] = []
+    created: list[int] = []
     for iso, amount, category_id, merchant in rows:
         cur = db_conn.execute(
             "INSERT INTO transactions (date, amount, category_id, user_id, account_id, notes, tags) "
@@ -148,7 +150,7 @@ def _insert_import_rows(
     return created
 
 
-def _import_categories(db_conn: sqlite3.Connection) -> List[sqlite3.Row]:
+def _import_categories(db_conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """The categories an imported charge may take: everything but income (as the transactions page)."""
     placeholders = ",".join("?" * len(INCOME_CATEGORIES))
     return db_conn.execute(
@@ -284,7 +286,7 @@ async def api_import_auto(
     categories = _import_categories(db_conn)
     rows = card_statement.classify(db_conn, parsed["rows"])
     skipped = {"exists": 0, "recurring": 0}
-    to_add: List[tuple] = []
+    to_add: list[tuple] = []
     unsorted = 0
     for row in rows:
         if row["status"] != "new":
@@ -297,7 +299,7 @@ async def api_import_auto(
             unsorted += 1
         to_add.append((row["date"], row["amount"], category_id, row["merchant"]))
 
-    created: List[int] = []
+    created: list[int] = []
     if to_add:
         account = db_conn.execute(
             "SELECT id FROM accounts WHERE name = ?", (_CREDIT_CARD_ACCOUNT,)
@@ -355,7 +357,7 @@ async def api_update_transaction(
     # If amount is being updated, preserve sign according to (new or existing) category
     if 'amount' in fields:
         # Determine the effective category for sign
-        effective_category_id: Optional[int]
+        effective_category_id: int | None
         if 'category_id' in fields and fields['category_id'] is not None:
             effective_category_id = fields['category_id']
         else:
@@ -441,20 +443,20 @@ async def api_duplicate_transaction(
 
 @router.get("/export")
 async def api_export_transactions(
-    from_date: Optional[str] = None,
-    to_date: Optional[str] = None,
-    category_id: Optional[int] = None,
-    user_id: Optional[int] = None,
-    account_id: Optional[int] = None,
-    amount_min: Optional[float] = None,
-    amount_max: Optional[float] = None,
-    tags: Optional[str] = None,
-    sort: Optional[str] = "date_desc",
+    from_date: str | None = None,
+    to_date: str | None = None,
+    category_id: int | None = None,
+    user_id: int | None = None,
+    account_id: int | None = None,
+    amount_min: float | None = None,
+    amount_max: float | None = None,
+    tags: str | None = None,
+    sort: str | None = "date_desc",
     db_conn: sqlite3.Connection = Depends(get_db_conn),
 ):
     """Export filtered transactions to an Excel file (xlsx)."""
     where_clause = "WHERE t.recurrence_id IS NULL"
-    params: List[Any] = []
+    params: list[Any] = []
 
     # Removed transaction_type filter: export now includes all transactions unless filtered by other params
 

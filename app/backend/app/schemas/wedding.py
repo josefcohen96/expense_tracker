@@ -2,50 +2,49 @@
 Pydantic schemas for the wedding module.
 """
 from __future__ import annotations
-from typing import Optional
-from pydantic import BaseModel, Field
 
+from pydantic import BaseModel, Field
 
 # ─── Vendors ────────────────────────────────────────────────────────────────
 
 class VendorCreate(BaseModel):
     name: str
     category: str
-    contact_name: Optional[str] = None
-    phone: Optional[str] = None
-    price_quoted: Optional[float] = None
-    what_included: Optional[str] = None
+    contact_name: str | None = None
+    phone: str | None = None
+    price_quoted: float | None = None
+    what_included: str | None = None
     status: str = "not_contacted"
-    deposit_amount: Optional[float] = None
-    deposit_paid_date: Optional[str] = None
-    notes: Optional[str] = None
-    instagram_url: Optional[str] = None
-    facebook_url: Optional[str] = None
-    location: Optional[str] = None
-    inclusions: Optional[str] = None
-    portions_ordered: Optional[int] = Field(default=None, ge=0)
+    deposit_amount: float | None = None
+    deposit_paid_date: str | None = None
+    notes: str | None = None
+    instagram_url: str | None = None
+    facebook_url: str | None = None
+    location: str | None = None
+    inclusions: str | None = None
+    portions_ordered: int | None = Field(default=None, ge=0)
 
 
 class VendorUpdate(BaseModel):
-    name: Optional[str] = None
-    category: Optional[str] = None
-    contact_name: Optional[str] = None
-    phone: Optional[str] = None
-    price_quoted: Optional[float] = None
-    what_included: Optional[str] = None
-    status: Optional[str] = None
-    deposit_amount: Optional[float] = None
-    deposit_paid_date: Optional[str] = None
-    notes: Optional[str] = None
-    instagram_url: Optional[str] = None
-    facebook_url: Optional[str] = None
-    location: Optional[str] = None
-    inclusions: Optional[str] = None
-    portions_ordered: Optional[int] = Field(default=None, ge=0)
+    name: str | None = None
+    category: str | None = None
+    contact_name: str | None = None
+    phone: str | None = None
+    price_quoted: float | None = None
+    what_included: str | None = None
+    status: str | None = None
+    deposit_amount: float | None = None
+    deposit_paid_date: str | None = None
+    notes: str | None = None
+    instagram_url: str | None = None
+    facebook_url: str | None = None
+    location: str | None = None
+    inclusions: str | None = None
+    portions_ordered: int | None = Field(default=None, ge=0)
 
 
 class QuoteItem(BaseModel):
-    id: Optional[int] = None
+    id: int | None = None
     description: str
     quantity: float = 1
     unit_price: float = 0
@@ -57,36 +56,36 @@ class QuoteItem(BaseModel):
 
 class GuestCreate(BaseModel):
     name: str
-    phone: Optional[str] = None
-    group_name: Optional[str] = None
+    phone: str | None = None
+    group_name: str | None = None
     status: str = "pending"
     plus_one: int = 0
-    plus_one_name: Optional[str] = None
+    plus_one_name: str | None = None
     children_count: int = 0
     needs_transport: int = 0
     staying_overnight: int = 0
-    table_number: Optional[int] = None
-    notes: Optional[str] = None
+    table_number: int | None = None
+    notes: str | None = None
     meal_type: str = "regular"
-    food_notes: Optional[str] = None
+    food_notes: str | None = None
     plus_one_meal_type: str = "regular"
 
 
 class GuestUpdate(BaseModel):
-    name: Optional[str] = None
-    phone: Optional[str] = None
-    group_name: Optional[str] = None
-    status: Optional[str] = None
-    plus_one: Optional[int] = None
-    plus_one_name: Optional[str] = None
-    children_count: Optional[int] = None
-    needs_transport: Optional[int] = None
-    staying_overnight: Optional[int] = None
-    table_number: Optional[int] = None
-    notes: Optional[str] = None
-    meal_type: Optional[str] = None
-    food_notes: Optional[str] = None
-    plus_one_meal_type: Optional[str] = None
+    name: str | None = None
+    phone: str | None = None
+    group_name: str | None = None
+    status: str | None = None
+    plus_one: int | None = None
+    plus_one_name: str | None = None
+    children_count: int | None = None
+    needs_transport: int | None = None
+    staying_overnight: int | None = None
+    table_number: int | None = None
+    notes: str | None = None
+    meal_type: str | None = None
+    food_notes: str | None = None
+    plus_one_meal_type: str | None = None
 
 
 # ─── Rooms ───────────────────────────────────────────────────────────────────
@@ -95,14 +94,14 @@ class RoomCreate(BaseModel):
     name: str
     room_type: str = "יחידים"
     max_capacity: int = 2
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 class RoomUpdate(BaseModel):
-    name: Optional[str] = None
-    room_type: Optional[str] = None
-    max_capacity: Optional[int] = None
-    notes: Optional[str] = None
+    name: str | None = None
+    room_type: str | None = None
+    max_capacity: int | None = None
+    notes: str | None = None
 
 
 # ─── Tasks ───────────────────────────────────────────────────────────────────
@@ -110,20 +109,20 @@ class RoomUpdate(BaseModel):
 class TaskCreate(BaseModel):
     title: str
     category: str = "general"
-    due_date: Optional[str] = None
+    due_date: str | None = None
     priority: str = "medium"
-    notes: Optional[str] = None
-    owner: Optional[str] = None  # users.name of the household member; None = unassigned
+    notes: str | None = None
+    owner: str | None = None  # users.name of the household member; None = unassigned
 
 
 class TaskUpdate(BaseModel):
-    title: Optional[str] = None
-    category: Optional[str] = None
-    due_date: Optional[str] = None
-    completed: Optional[int] = None
-    priority: Optional[str] = None
-    notes: Optional[str] = None
-    owner: Optional[str] = None
+    title: str | None = None
+    category: str | None = None
+    due_date: str | None = None
+    completed: int | None = None
+    priority: str | None = None
+    notes: str | None = None
+    owner: str | None = None
 
 
 # ─── Budget ──────────────────────────────────────────────────────────────────
@@ -133,15 +132,15 @@ class BudgetItemCreate(BaseModel):
     category: str = "other"
     budgeted_amount: float = 0
     actual_amount: float = 0
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 class BudgetItemUpdate(BaseModel):
-    name: Optional[str] = None
-    category: Optional[str] = None
-    budgeted_amount: Optional[float] = None
-    actual_amount: Optional[float] = None
-    notes: Optional[str] = None
+    name: str | None = None
+    category: str | None = None
+    budgeted_amount: float | None = None
+    actual_amount: float | None = None
+    notes: str | None = None
 
 
 # ─── Settings ────────────────────────────────────────────────────────────────
@@ -155,59 +154,59 @@ class SettingUpsert(BaseModel):
 
 class NoteCreate(BaseModel):
     title: str
-    content: Optional[str] = None
+    content: str | None = None
     color: str = "white"
     pinned: int = 0
 
 
 class NoteUpdate(BaseModel):
-    title: Optional[str] = None
-    content: Optional[str] = None
-    color: Optional[str] = None
-    pinned: Optional[int] = None
+    title: str | None = None
+    content: str | None = None
+    color: str | None = None
+    pinned: int | None = None
 
 
 # ─── Ideas ───────────────────────────────────────────────────────────────────
 
 class IdeaCreate(BaseModel):
     title: str
-    description: Optional[str] = None
+    description: str | None = None
     category: str = "כללי"
     status: str = "new"
     color: str = "white"
 
 
 class IdeaUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    category: Optional[str] = None
-    status: Optional[str] = None
-    color: Optional[str] = None
+    title: str | None = None
+    description: str | None = None
+    category: str | None = None
+    status: str | None = None
+    color: str | None = None
 
 
 # ─── Overseas orders (הזמנות מחו״ל) ──────────────────────────────────────────
 
 class OverseasItemCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
-    url: Optional[str] = None
-    store: Optional[str] = Field(default=None, max_length=100)
-    sample_price: Optional[float] = Field(default=None, ge=0)
-    quantity_needed: Optional[int] = Field(default=None, ge=0)
-    created_by: Optional[str] = None  # users.name; defaults to the session user
+    url: str | None = None
+    store: str | None = Field(default=None, max_length=100)
+    sample_price: float | None = Field(default=None, ge=0)
+    quantity_needed: int | None = Field(default=None, ge=0)
+    created_by: str | None = None  # users.name; defaults to the session user
 
 
 class OverseasItemUpdate(BaseModel):
-    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    url: Optional[str] = None
-    store: Optional[str] = Field(default=None, max_length=100)
-    sample_price: Optional[float] = Field(default=None, ge=0)
-    quantity_needed: Optional[int] = Field(default=None, ge=0)
-    stage: Optional[str] = None
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    url: str | None = None
+    store: str | None = Field(default=None, max_length=100)
+    sample_price: float | None = Field(default=None, ge=0)
+    quantity_needed: int | None = Field(default=None, ge=0)
+    stage: str | None = None
 
 
 class OverseasCommentCreate(BaseModel):
     body: str = Field(min_length=1, max_length=2000)
-    author: Optional[str] = None  # users.name; defaults to the session user
+    author: str | None = None  # users.name; defaults to the session user
 
 
 # ─── Timeline ────────────────────────────────────────────────────────────────
@@ -215,19 +214,19 @@ class OverseasCommentCreate(BaseModel):
 class TimelineEventCreate(BaseModel):
     day: str
     title: str
-    description: Optional[str] = None
+    description: str | None = None
     start_time: str
-    end_time: Optional[str] = None
+    end_time: str | None = None
     category: str = "general"
 
 
 class TimelineEventUpdate(BaseModel):
-    day: Optional[str] = None
-    title: Optional[str] = None
-    description: Optional[str] = None
-    start_time: Optional[str] = None
-    end_time: Optional[str] = None
-    category: Optional[str] = None
+    day: str | None = None
+    title: str | None = None
+    description: str | None = None
+    start_time: str | None = None
+    end_time: str | None = None
+    category: str | None = None
 
 
 # ─── Milestones ──────────────────────────────────────────────────────────────
@@ -239,11 +238,11 @@ class MilestoneCreate(BaseModel):
 
 
 class MilestoneUpdate(BaseModel):
-    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    offset_days: Optional[int] = Field(default=None, ge=-1000, le=365)
-    completed: Optional[int] = None
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    offset_days: int | None = Field(default=None, ge=-1000, le=365)
+    completed: int | None = None
     # YYYY-MM-DD pins the milestone to a day; null returns it to its offset.
-    custom_date: Optional[str] = None
+    custom_date: str | None = None
 
 
 # ─── Seating ─────────────────────────────────────────────────────────────────
@@ -255,17 +254,17 @@ class SeatingTableCreate(BaseModel):
     x: float = 100
     y: float = 100
     color: str = "rose"
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 class SeatingTableUpdate(BaseModel):
-    name: Optional[str] = None
-    shape: Optional[str] = None
-    capacity: Optional[int] = None
-    x: Optional[float] = None
-    y: Optional[float] = None
-    color: Optional[str] = None
-    notes: Optional[str] = None
+    name: str | None = None
+    shape: str | None = None
+    capacity: int | None = None
+    x: float | None = None
+    y: float | None = None
+    color: str | None = None
+    notes: str | None = None
 
 
 class SeatingTablePositions(BaseModel):

@@ -14,28 +14,21 @@ from __future__ import annotations
 import json
 import sqlite3
 from datetime import date as date_cls
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ..db import get_db_conn
-from ..routes.workouts import (
-    _clean_progress,
-    _legacy_progress_key,
-    _load_legacy_progress,
-    _resolve_user_id,
-    _session_user,
-    _station_for,
-    admin_session,
-    admin_session_rows,
-    admin_sessions,
-)
-from ..services.access import is_module_only_user
+from ..routes.workouts import _resolve_user_id, _session_user
 from ..schemas.workouts import (
     WorkoutAdminExerciseSchema,
     WorkoutLegacyProgressWriteSchema,
     WorkoutSessionWriteSchema,
 )
+from ..services.access import is_module_only_user
+from ..services.workouts.admin import admin_session, admin_session_rows, admin_sessions
+from ..services.workouts.legacy import _clean_progress, _legacy_progress_key, _load_legacy_progress
+from ..services.workouts.progress import _station_for
 
 router = APIRouter(prefix="/api/workouts", tags=["workouts"])
 
@@ -47,7 +40,7 @@ def _valid_user_id(db_conn: sqlite3.Connection, user_id: int) -> int:
     return row["id"]
 
 
-def _own_user_id(request: Request, db_conn: sqlite3.Connection) -> Optional[int]:
+def _own_user_id(request: Request, db_conn: sqlite3.Connection) -> int | None:
     """The only user_id a workouts-only login (Yonatan) may touch; None = unrestricted."""
     if not is_module_only_user(_session_user(request)):
         return None
@@ -68,7 +61,7 @@ def _valid_date(value: str) -> str:
         raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
 
 
-def _exercise_values(ex: WorkoutAdminExerciseSchema) -> Tuple[str, int, int, Optional[str], Optional[int], Optional[int]]:
+def _exercise_values(ex: WorkoutAdminExerciseSchema) -> tuple[str, int, int, str | None, int | None, int | None]:
     """Exercise payload → the columns a workouts row stores, with its station resolved."""
     name = ex.exercise_name.strip()
     if not name:
@@ -85,7 +78,7 @@ def _exercise_values(ex: WorkoutAdminExerciseSchema) -> Tuple[str, int, int, Opt
     )
 
 
-def _validated_session(body: WorkoutSessionWriteSchema, db_conn: sqlite3.Connection) -> Dict[str, Any]:
+def _validated_session(body: WorkoutSessionWriteSchema, db_conn: sqlite3.Connection) -> dict[str, Any]:
     """Session payload → the values every row of the session shares, plus its exercises."""
     if not body.exercises:
         raise HTTPException(status_code=400, detail="A session needs at least one exercise")
@@ -101,7 +94,7 @@ def _validated_session(body: WorkoutSessionWriteSchema, db_conn: sqlite3.Connect
     }
 
 
-def _insert_row(db_conn: sqlite3.Connection, session: Dict[str, Any], values: Tuple) -> int:
+def _insert_row(db_conn: sqlite3.Connection, session: dict[str, Any], values: tuple) -> int:
     name, sets, reps, skill_key, stage_index, max_reps = values
     cur = db_conn.execute(
         """
@@ -118,9 +111,9 @@ def _insert_row(db_conn: sqlite3.Connection, session: Dict[str, Any], values: Tu
 @router.get("/sessions")
 async def list_sessions(
     request: Request,
-    user_id: Optional[int] = None,
+    user_id: int | None = None,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Saved sessions, newest first — all of them, or one person's."""
     own = _own_user_id(request, db_conn)
     if own is not None:
@@ -138,7 +131,7 @@ async def create_session(
     body: WorkoutSessionWriteSchema,
     request: Request,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Add a session by hand — one that was trained away from the arena, say."""
     _assert_may_manage(request, db_conn, body.user_id)
     session = _validated_session(body, db_conn)
@@ -153,7 +146,7 @@ async def update_session(
     body: WorkoutSessionWriteSchema,
     request: Request,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Replace a session: its details move to every row, and its exercise list becomes the payload."""
     rows = admin_session_rows(db_conn, row_id)
     existing = {row["id"] for row in rows}
@@ -174,7 +167,7 @@ async def update_session(
     for gone in existing - kept:
         db_conn.execute("DELETE FROM workouts WHERE id = ?", (gone,))
 
-    row_ids: List[int] = []
+    row_ids: list[int] = []
     for ex, values in zip(body.exercises, session["exercises"]):
         name, sets, reps, skill_key, stage_index, max_reps = values
         if ex.id is None:
@@ -200,7 +193,7 @@ async def delete_session(
     row_id: int,
     request: Request,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Delete a whole session — every exercise row saved under it."""
     rows = admin_session_rows(db_conn, row_id)
     if not rows:
@@ -218,7 +211,7 @@ async def delete_sessions_before(
     user_id: int,
     before: str,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Start over from a date: delete every session of one person dated before `before`
     (YYYY-MM-DD, exclusive — that day's training stays). The game state follows the rows,
     so the streak, XP and the pace towards the wedding restart from that day."""
@@ -239,7 +232,7 @@ async def replace_legacy_progress(
     body: WorkoutLegacyProgressWriteSchema,
     request: Request,
     db_conn: sqlite3.Connection = Depends(get_db_conn),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Replace a user's imported "conquered by hand" stations — an empty progress clears them."""
     _assert_may_manage(request, db_conn, body.user_id)
     user_id = _valid_user_id(db_conn, body.user_id)

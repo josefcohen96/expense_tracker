@@ -54,3 +54,7 @@ transactions_2026-02-12.xlsx
 
 # User-uploaded files (created at runtime, e.g. wedding vendor documents)
 app/uploads/
+
+# Tool caches
+.ruff_cache/
+.pytest_cache/

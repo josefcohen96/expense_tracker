@@ -2,17 +2,15 @@
 Backup API endpoints for database backup and restore functionality.
 """
 
-from datetime import datetime
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
-from pathlib import Path
-import zipfile
 import logging
 import shutil
-import os
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse, JSONResponse
 
 from .. import schemas
-from ..services.backup_service import list_backup_files, restore_from_file, create_monthly_backup
+from ..services.backup_service import create_monthly_backup, list_backup_files, restore_from_file
 
 router = APIRouter(prefix="/api/backup", tags=["backup"])
 
@@ -36,7 +34,7 @@ def create_backup(db_conn=None) -> Path:
         path = create_backup_file(db_conn)
         logger.debug("create_backup_file returned: %s", path)
         return path
-    except Exception as exc:
+    except Exception:
         logger.exception("Exception in create_backup")
         raise
 

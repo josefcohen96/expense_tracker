@@ -1,5 +1,6 @@
-from typing import List
+
 from pydantic import BaseModel
+
 
 class BackupItem(BaseModel):
     file: str
@@ -7,4 +8,4 @@ class BackupItem(BaseModel):
     created: str
 
 class BackupList(BaseModel):
-    backups: List[BackupItem]
+    backups: list[BackupItem]

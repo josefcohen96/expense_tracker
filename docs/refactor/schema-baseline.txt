@@ -1,0 +1,104 @@
+# Schema of a freshly initialised database (sqlite_master, sorted by type then name), then every seeded row.
+index	idx_spanish_reviews_user_item	spanish_reviews	CREATE INDEX idx_spanish_reviews_user_item ON spanish_reviews (user_id, item_id)
+table	accounts	accounts	CREATE TABLE accounts ( id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE )
+table	categories	categories	CREATE TABLE categories ( id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, is_saving BOOLEAN DEFAULT 0 )
+table	push_subscriptions	push_subscriptions	CREATE TABLE push_subscriptions ( id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, endpoint TEXT NOT NULL UNIQUE, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) )
+table	recurrence_skips	recurrence_skips	CREATE TABLE recurrence_skips ( recurrence_id INTEGER NOT NULL, period_key TEXT NOT NULL, skipped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (recurrence_id, period_key), FOREIGN KEY (recurrence_id) REFERENCES recurrences (id) )
+table	recurrences	recurrences	CREATE TABLE recurrences ( id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, amount REAL NOT NULL, category_id INTEGER NOT NULL, user_id INTEGER NOT NULL, frequency TEXT NOT NULL, day_of_month INTEGER, weekday INTEGER, next_charge_date TEXT NOT NULL, active BOOLEAN DEFAULT 1, account_id INTEGER, FOREIGN KEY (category_id) REFERENCES categories (id), FOREIGN KEY (user_id) REFERENCES users (id) )
+table	renovation_ideas	renovation_ideas	CREATE TABLE renovation_ideas ( id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT, room_id INTEGER REFERENCES renovation_rooms(id) ON DELETE SET NULL, status TEXT NOT NULL DEFAULT 'new', color TEXT NOT NULL DEFAULT 'white', image_url TEXT, link_url TEXT, created_by TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	renovation_journal	renovation_journal	CREATE TABLE renovation_journal ( id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, room_id INTEGER REFERENCES renovation_rooms(id) ON DELETE SET NULL, entry_date TEXT, notes TEXT, before_photo TEXT, after_photo TEXT, created_by TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	renovation_rooms	renovation_rooms	CREATE TABLE renovation_rooms ( id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, icon TEXT DEFAULT '🏠', notes TEXT, image_url TEXT, sort_order INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	renovation_supplies	renovation_supplies	CREATE TABLE renovation_supplies ( id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, quantity TEXT, status TEXT NOT NULL DEFAULT 'needed', room_id INTEGER REFERENCES renovation_rooms(id) ON DELETE SET NULL, task_id INTEGER REFERENCES renovation_tasks(id) ON DELETE SET NULL, notes TEXT, link_url TEXT, created_by TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	renovation_tasks	renovation_tasks	CREATE TABLE renovation_tasks ( id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, room_id INTEGER REFERENCES renovation_rooms(id) ON DELETE SET NULL, status TEXT NOT NULL DEFAULT 'todo', priority TEXT NOT NULL DEFAULT 'medium', due_date TEXT, notes TEXT, link_url TEXT, created_by TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	spanish_reviews	spanish_reviews	CREATE TABLE spanish_reviews ( id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, item_id TEXT NOT NULL, reviewed_at TEXT NOT NULL, grade INTEGER NOT NULL, mode TEXT NOT NULL, context TEXT NOT NULL DEFAULT 'rest', FOREIGN KEY (user_id) REFERENCES users (id) )
+table	sqlite_sequence	sqlite_sequence	CREATE TABLE sqlite_sequence(name,seq)
+table	system_settings	system_settings	CREATE TABLE system_settings ( key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	transactions	transactions	CREATE TABLE transactions ( id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, amount REAL NOT NULL, category_id INTEGER NOT NULL, user_id INTEGER NOT NULL, account_id INTEGER, notes TEXT, tags TEXT, recurrence_id INTEGER, period_key TEXT, FOREIGN KEY (category_id) REFERENCES categories (id), FOREIGN KEY (user_id) REFERENCES users (id), FOREIGN KEY (account_id) REFERENCES accounts (id), FOREIGN KEY (recurrence_id) REFERENCES recurrences (id), UNIQUE (recurrence_id, period_key) )
+table	users	users	CREATE TABLE users ( id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE )
+table	vendor_files	vendor_files	CREATE TABLE vendor_files ( id INTEGER PRIMARY KEY AUTOINCREMENT, vendor_id INTEGER NOT NULL, original_name TEXT NOT NULL, stored_name TEXT NOT NULL, file_size INTEGER, mime_type TEXT, uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	vendor_quote_items	vendor_quote_items	CREATE TABLE vendor_quote_items ( id INTEGER PRIMARY KEY AUTOINCREMENT, vendor_id INTEGER NOT NULL, description TEXT NOT NULL, quantity REAL DEFAULT 1, unit_price REAL NOT NULL DEFAULT 0, apply_vat INTEGER DEFAULT 1, sort_order INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	wedding_budget_items	wedding_budget_items	CREATE TABLE wedding_budget_items ( id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, category TEXT DEFAULT 'other', budgeted_amount REAL DEFAULT 0, actual_amount REAL DEFAULT 0, notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	wedding_guests	wedding_guests	CREATE TABLE wedding_guests ( id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, group_name TEXT, status TEXT DEFAULT 'pending', plus_one INTEGER DEFAULT 0, plus_one_name TEXT, children_count INTEGER DEFAULT 0, needs_transport INTEGER DEFAULT 0, table_number INTEGER, notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP , staying_overnight INTEGER DEFAULT 0, invite_token TEXT, food_preference TEXT, food_allergies TEXT, rsvp_submitted_at TEXT, meal_type TEXT DEFAULT 'regular', food_notes TEXT, plus_one_meal_type TEXT DEFAULT 'regular')
+table	wedding_ideas	wedding_ideas	CREATE TABLE wedding_ideas ( id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT, category TEXT DEFAULT 'כללי', status TEXT DEFAULT 'new', color TEXT DEFAULT 'white', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	wedding_milestones	wedding_milestones	CREATE TABLE wedding_milestones ( id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, offset_days INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'general', completed INTEGER NOT NULL DEFAULT 0, custom_date TEXT, sort_order INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	wedding_notes	wedding_notes	CREATE TABLE wedding_notes ( id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, content TEXT, color TEXT DEFAULT 'white', pinned INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	wedding_overseas_comments	wedding_overseas_comments	CREATE TABLE wedding_overseas_comments ( id INTEGER PRIMARY KEY AUTOINCREMENT, item_id INTEGER NOT NULL REFERENCES wedding_overseas_items(id) ON DELETE CASCADE, author TEXT, body TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	wedding_overseas_items	wedding_overseas_items	CREATE TABLE wedding_overseas_items ( id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, url TEXT, store TEXT, sample_price REAL, quantity_needed INTEGER, stage TEXT NOT NULL DEFAULT 'to_order', ordered_at TEXT, arrived_at TEXT, created_by TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	wedding_room_assignments	wedding_room_assignments	CREATE TABLE wedding_room_assignments ( id INTEGER PRIMARY KEY AUTOINCREMENT, room_id INTEGER NOT NULL REFERENCES wedding_rooms(id) ON DELETE CASCADE, guest_id INTEGER NOT NULL REFERENCES wedding_guests(id) ON DELETE CASCADE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(guest_id) )
+table	wedding_rooms	wedding_rooms	CREATE TABLE wedding_rooms ( id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, room_type TEXT NOT NULL DEFAULT 'יחידים', max_capacity INTEGER NOT NULL DEFAULT 2, notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	wedding_seating_assignments	wedding_seating_assignments	CREATE TABLE wedding_seating_assignments ( id INTEGER PRIMARY KEY AUTOINCREMENT, table_id INTEGER NOT NULL REFERENCES wedding_seating_tables(id) ON DELETE CASCADE, seat_number INTEGER NOT NULL, guest_id INTEGER NOT NULL REFERENCES wedding_guests(id) ON DELETE CASCADE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(table_id, seat_number) )
+table	wedding_seating_tables	wedding_seating_tables	CREATE TABLE wedding_seating_tables ( id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, shape TEXT NOT NULL DEFAULT 'round', capacity INTEGER NOT NULL DEFAULT 8, x REAL NOT NULL DEFAULT 100, y REAL NOT NULL DEFAULT 100, color TEXT NOT NULL DEFAULT 'rose', notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	wedding_settings	wedding_settings	CREATE TABLE wedding_settings ( key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	wedding_tasks	wedding_tasks	CREATE TABLE wedding_tasks ( id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, category TEXT DEFAULT 'general', due_date TEXT, completed INTEGER DEFAULT 0, priority TEXT DEFAULT 'medium', notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP , owner TEXT)
+table	wedding_timeline_events	wedding_timeline_events	CREATE TABLE wedding_timeline_events ( id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, title TEXT NOT NULL, description TEXT, start_time TEXT NOT NULL, end_time TEXT, category TEXT DEFAULT 'general', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )
+table	wedding_vendors	wedding_vendors	CREATE TABLE wedding_vendors ( id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, category TEXT NOT NULL, contact_name TEXT, phone TEXT, price_quoted REAL, what_included TEXT, status TEXT DEFAULT 'not_contacted', deposit_amount REAL, deposit_paid_date TEXT, notes TEXT, instagram_url TEXT, facebook_url TEXT, location TEXT, inclusions TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP , portions_ordered INTEGER)
+table	workouts	workouts	CREATE TABLE workouts ( id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, date TEXT NOT NULL, workout_type TEXT NOT NULL, total_duration INTEGER NOT NULL, exercise_name TEXT NOT NULL, total_sets INTEGER NOT NULL, total_reps INTEGER NOT NULL, skill_key TEXT, stage_index INTEGER, max_reps INTEGER, FOREIGN KEY (user_id) REFERENCES users (id) )
+# Seeded rows per table (timestamps masked):
+table accounts: 2 rows
+    id=1, name='מזומן'
+    id=2, name='כרטיס אשראי'
+table categories: 9 rows
+    id=1, name='משכורת', is_saving=0
+    id=2, name='קליניקה', is_saving=0
+    id=3, name='בריאות', is_saving=0
+    id=4, name='חסכונות', is_saving=1
+    id=5, name='פנאי', is_saving=0
+    id=6, name='הוצאות בית', is_saving=0
+    id=7, name='רכב', is_saving=0
+    id=8, name='תחבורה', is_saving=0
+    id=9, name='אוכל בחוץ', is_saving=0
+table push_subscriptions: 0 rows
+table recurrence_skips: 0 rows
+table recurrences: 0 rows
+table renovation_ideas: 0 rows
+table renovation_journal: 0 rows
+table renovation_rooms: 7 rows
+    id=1, name='סלון', icon='🛋️', notes=None, image_url=None, sort_order=0, created_at='<timestamp>'
+    id=2, name='מטבח', icon='🍳', notes=None, image_url=None, sort_order=1, created_at='<timestamp>'
+    id=3, name='חדר שינה', icon='🛏️', notes=None, image_url=None, sort_order=2, created_at='<timestamp>'
+    id=4, name='חדר אמבטיה', icon='🛁', notes=None, image_url=None, sort_order=3, created_at='<timestamp>'
+    id=5, name='שירותים', icon='🚽', notes=None, image_url=None, sort_order=4, created_at='<timestamp>'
+    id=6, name='מרפסת', icon='🪴', notes=None, image_url=None, sort_order=5, created_at='<timestamp>'
+    id=7, name='מסדרון', icon='🚪', notes=None, image_url=None, sort_order=6, created_at='<timestamp>'
+table renovation_supplies: 0 rows
+table renovation_tasks: 0 rows
+table spanish_reviews: 0 rows
+table system_settings: 1 rows
+    key='renovation_general_room_replaced', value='1', updated_at='<timestamp>'
+table transactions: 0 rows
+table users: 3 rows
+    id=1, name='Yosef'
+    id=2, name='Karina'
+    id=3, name='Yonatan'
+table vendor_files: 0 rows
+table vendor_quote_items: 0 rows
+table wedding_budget_items: 0 rows
+table wedding_guests: 0 rows
+table wedding_ideas: 0 rows
+table wedding_milestones: 0 rows
+table wedding_notes: 0 rows
+table wedding_overseas_comments: 0 rows
+table wedding_overseas_items: 0 rows
+table wedding_room_assignments: 0 rows
+table wedding_rooms: 14 rows
+    id=1, name='קרוואן 1', room_type='קרוואן', max_capacity=4, notes=None, created_at='<timestamp>'
+    id=2, name='קרוואן 2', room_type='קרוואן', max_capacity=4, notes=None, created_at='<timestamp>'
+    id=3, name='קרוואן 3', room_type='קרוואן', max_capacity=4, notes=None, created_at='<timestamp>'
+    id=4, name='אוהל 1', room_type='אוהל', max_capacity=10, notes=None, created_at='<timestamp>'
+    id=5, name='אוהל 2', room_type='אוהל', max_capacity=10, notes=None, created_at='<timestamp>'
+    id=6, name='אוהל 3', room_type='אוהל', max_capacity=10, notes=None, created_at='<timestamp>'
+    id=7, name='חדר 1', room_type='זוגי', max_capacity=2, notes=None, created_at='<timestamp>'
+    id=8, name='חדר 2', room_type='זוגי', max_capacity=2, notes=None, created_at='<timestamp>'
+    id=9, name='חדר 3', room_type='זוגי', max_capacity=2, notes=None, created_at='<timestamp>'
+    id=10, name='חדר 4', room_type='זוגי', max_capacity=2, notes=None, created_at='<timestamp>'
+    id=11, name='חדר 5', room_type='זוגי', max_capacity=2, notes=None, created_at='<timestamp>'
+    id=12, name='חדר 6', room_type='זוגי', max_capacity=2, notes=None, created_at='<timestamp>'
+    id=13, name='חדר 7', room_type='זוגי', max_capacity=2, notes=None, created_at='<timestamp>'
+    id=14, name='חדר 8', room_type='זוגי', max_capacity=2, notes=None, created_at='<timestamp>'
+table wedding_seating_assignments: 0 rows
+table wedding_seating_tables: 0 rows
+table wedding_settings: 0 rows
+table wedding_tasks: 0 rows
+table wedding_timeline_events: 0 rows
+table wedding_vendors: 0 rows
+table workouts: 0 rows

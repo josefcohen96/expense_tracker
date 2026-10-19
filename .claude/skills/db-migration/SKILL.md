@@ -8,7 +8,7 @@ metadata:
 
 ## Context
 
-This project uses SQLite with **no migration framework**. All schema changes live in `app/backend/app/db.py` inside the `initialise_database()` function. Migrations run at every app startup — they must be **idempotent** and **non-destructive**.
+This project uses SQLite with **no migration framework**. All schema changes live in the module's `ensure_schema(conn)` in `app/backend/app/db/<finance|wedding|renovation|workouts>.py`. Migrations run at every app startup — they must be **idempotent** and **non-destructive**.
 
 The `CREATE TABLE IF NOT EXISTS` pattern handles new tables. The `PRAGMA table_info()` + `ALTER TABLE ADD COLUMN` pattern handles new columns on existing tables.
 
@@ -22,7 +22,7 @@ The `CREATE TABLE IF NOT EXISTS` pattern handles new tables. The `PRAGMA table_i
 
 ### Adding a new column to an existing table
 
-1. Read `app/backend/app/db.py` to understand the current schema for the target table
+1. Read the module's `ensure_schema(conn)` in `app/backend/app/db/<finance|wedding|renovation|workouts>.py` to understand the current schema for the target table
 2. Find the relevant `CREATE TABLE IF NOT EXISTS` block — add the column there first (so new databases get it from the start)
 3. Below the `CREATE TABLE` block, add an inline migration inside the `# --- Migrations ---` section using this exact pattern:
 
@@ -43,7 +43,7 @@ except Exception:
 
 ### Adding a new table
 
-1. Add a `CREATE TABLE IF NOT EXISTS` block inside `initialise_database()` — place it after its parent tables (respect FK order)
+1. Add a `CREATE TABLE IF NOT EXISTS` block inside the module's `ensure_schema(conn)` in `app/backend/app/db/<finance|wedding|renovation|workouts>.py` — place it after its parent tables (respect FK order)
 2. If the table needs seed data, add an `if not cur.execute("SELECT COUNT(*) FROM new_table").fetchone()[0]:` block with `INSERT` statements
 3. Create a Pydantic schema in `app/backend/app/schemas/` if the table will be exposed via API
 4. Create an API router in `app/backend/app/api/` if needed
@@ -54,7 +54,7 @@ except Exception:
 - [ ] The `CREATE TABLE IF NOT EXISTS` block has the new column/table
 - [ ] The inline migration check uses `PRAGMA table_info()` and is wrapped in `try/except`
 - [ ] New nullable columns use `DEFAULT NULL`; boolean columns use `DEFAULT 0`
-- [ ] If a FK is added, verify the referenced table is created first in `initialise_database()`
+- [ ] If a FK is added, verify the referenced table is created first in the module's `ensure_schema(conn)` in `app/backend/app/db/<finance|wedding|renovation|workouts>.py`, or in an earlier module in the `initialise_database()` order (finance → wedding → renovation → workouts)
 - [ ] Any Pydantic schema that represents this table is updated
 - [ ] Run the app locally (`uvicorn app.backend.app.main:app --reload`) and verify startup completes without errors
 - [ ] Verify the column appears: `sqlite3 app/backend/data/budget.db ".schema table_name"`
